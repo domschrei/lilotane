@@ -24,8 +24,9 @@ private:
     // Assigns and manages unique IDs to atom signatures.
     CodeTable _atom_table;
 
-    // Assigns and manages unique IDs to action signatures.
-    CodeTable _action_table;
+    // Assigns and manages unique IDs to action and reduction signatures.
+    CodeTable _task_table;
+
     // Maps an action ID to its action object.
     std::unordered_map<int, Action> _actions;
 
@@ -47,7 +48,33 @@ private:
             _name_table[name] = _name_table_running_id++;
         return _name_table[name];
     }
+    Signature getSignature(parsed_task& task) {
+        int nameId = getNameId(task.name);
+        std::vector<int> args;
+        // TODO fill args
+        return Signature(nameId, args);
+    }
 
+    Reduction addReduction(parsed_method m) {
+        int nameId = getNameId(m.name);
+        std::vector<int> args; 
+        // TODO fill args
+        Signature s(nameId, args);
+        int redId = _reduction_table(s);
+        Reduction r(nameId, args);
+        // TODO add additional members of r: expansion, ...
+        _reductions[redId] = r;
+    }
+    Action addAction(parsed_task task) {
+        int nameId = getNameId(task.name);
+        std::vector<int> args; 
+        // TODO fill args
+        Signature s(nameId, args);
+        int aId = _action_table(s);
+        Action a(nameId, args);
+        // TODO add additional members of a: prec, eff, ...
+        _actions[aId] = a;
+    }
 };
 
 #endif

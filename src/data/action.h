@@ -17,6 +17,7 @@ private:
     std::unordered_set<Signature> _effects;
     
 public:
+    Action(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
     bool isFullyGround() {
         for (int arg : _args) {
             if (arg < 0) return false;
