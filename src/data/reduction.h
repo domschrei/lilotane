@@ -22,13 +22,13 @@ private:
 
 public:
     Reduction() : HtnOp() {}
-    Reduction(int nameId, std::vector<Argument> args, Signature task) : HtnOp(nameId, args), _task_name_id(task._name_id) {
-        for (Argument arg : task._args) {
+    Reduction(int nameId, std::vector<int> args, Signature task) : HtnOp(nameId, args), _task_name_id(task._name_id) {
+        for (int arg : task._args) {
 
             // Where is "arg" in the method's arguments?
             int i = 0; 
-            while (_args[i]._name_id != arg._name_id) i++;
-            assert(_args[i]._name_id == arg._name_id);
+            while (_args[i] != arg) i++;
+            assert(_args[i] == arg);
 
             // TODO check types (?)
 
@@ -41,7 +41,7 @@ public:
     }
 
     Signature getTaskSignature() {
-        std::vector<Argument> args;
+        std::vector<int> args;
         for (int pos : _task_arg_refs) {
             args.push_back(_args[pos]);
         }

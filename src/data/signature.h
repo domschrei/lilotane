@@ -9,11 +9,11 @@
 struct Signature {
     
     int _name_id;
-    std::vector<Argument> _args;
+    std::vector<int> _args;
     bool _negated = false;
 
     Signature() {}
-    Signature(int nameId, std::vector<Argument>& args) : _name_id(nameId), _args(args) {}
+    Signature(int nameId, std::vector<int>& args) : _name_id(nameId), _args(args) {}
 
     void negate() {
         _negated = true;
@@ -23,8 +23,7 @@ struct Signature {
         if (_name_id != b._name_id) return false;
         if (_args.size() != b._args.size()) return false;
         for (int i = 0; i < _args.size(); i++) {
-            if (_args[i]._name_id != b._args[i]._name_id) return false;
-            if (_args[i]._sort != b._args[i]._sort) return false; // TODO typing
+            if (_args[i] != b._args[i]) return false;
         }
         return true;
     }
@@ -40,7 +39,7 @@ struct SignatureHasher {
         int hash = 1337;
         hash ^= s._name_id;
         for (auto arg : s._args) {
-            hash ^= arg._name_id;
+            hash ^= arg;
         }
         return hash;
     }
@@ -51,8 +50,7 @@ struct SignatureComparator {
         if (a._name_id != b._name_id) return false;
         if (a._args.size() != b._args.size()) return false;
         for (int i = 0; i < a._args.size(); i++) {
-            if (a._args[i]._name_id != b._args[i]._name_id) return false;
-            if (a._args[i]._sort != b._args[i]._sort) return false; // TODO typing
+            if (a._args[i] != b._args[i]) return false;
         }
         return true;
     }
