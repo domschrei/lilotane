@@ -5,28 +5,15 @@
 #include <vector>
 #include <unordered_set>
 
+#include "data/htn_op.h"
 #include "data/signature.h"
+#include "data/bound_condition.h"
 
-class Action {
-
-private:
-    int _name_id;
-    std::vector<int> _args;
-
-    std::unordered_set<Signature> _preconditions;
-    std::unordered_set<Signature> _effects;
+class Action : public HtnOp {
     
 public:
-    Action(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
-    bool isFullyGround() {
-        for (int arg : _args) {
-            if (arg < 0) return false;
-        }
-        return true;
-    }
-    Signature getSignature() {
-        return Signature(_name_id, _args);
-    }
+    Action() : HtnOp() {}
+    Action(int nameId, std::vector<Argument> args) : HtnOp(nameId, args) {}
 };
 
 #endif

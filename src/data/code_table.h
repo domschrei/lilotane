@@ -11,7 +11,7 @@
 class CodeTable {
 
 private:
-    std::unordered_map<Signature, int, SignatureComparator> _content;
+    std::unordered_map<Signature, int, SignatureHasher> _content;
     int _id = 1;
 
 public:

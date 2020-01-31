@@ -2,12 +2,11 @@
 #include <iostream>
 #include <assert.h>
 
-#include "parser/main.h"
 #include "planner/planner.h"
+#include "parser/main.h"
 
 ParsedProblem& parse(std::string domainFile, std::string problemFile) {
 
-    std::vector<const char*> argv;
     const char* firstArg = "pandaPIparser";
     const char* domainStr = domainFile.c_str();
     const char* problemStr = problemFile.c_str();
@@ -17,7 +16,7 @@ ParsedProblem& parse(std::string domainFile, std::string problemFile) {
     args[1] = (char*)domainStr;
     args[2] = (char*)problemStr;
     
-    int result = run_pandaPIparser(argv.size(), args);
+    int result = run_pandaPIparser(3, args);
     return get_parsed_problem();
 }
 
@@ -37,4 +36,5 @@ int main(int argc, char** argv) {
     }
 
     Planner planner(p);
+    planner.findPlan();
 }

@@ -6,26 +6,46 @@
 #include <unordered_set>
 
 #include "data/signature.h"
+#include "data/bound_condition.h"
 
-class Reduction {
+class Reduction : public HtnOp {
 
 private:
-    int _name_id;
-    std::vector<int> _args;
 
-    std::unordered_set<Signature> _preconditions;
+    // Coding of the methods' AT's name.
+    int _task_name_id;
+    // The method's AT's arguments: 
+    // integer x at pos. i references the x-th positional argument of the method. 
+    std::vector<int> _task_arg_refs;
+
     std::vector<Signature> _subtasks;
 
 public:
-    Reduction(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
-    bool isFullyGround() {
-        for (int arg : _args) {
-            if (arg < 0) return false;
+    Reduction() : HtnOp() {}
+    Reduction(int nameId, std::vector<Argument> args, Signature task) : HtnOp(nameId, args), _task_name_id(task._name_id) {
+        for (Argument arg : task._args) {
+
+            // Where is "arg" in the method's arguments?
+            int i = 0; 
+            while (_args[i]._name_id != arg._name_id) i++;
+            assert(_args[i]._name_id == arg._name_id);
+
+            // TODO check types (?)
+
+            _task_arg_refs.push_back(i);
         }
-        return true;
     }
-    Signature getSignature() {
-        return Signature(_name_id, _args);
+
+    void addSubtask(Signature subtask) {
+        
+    }
+
+    Signature getTaskSignature() {
+        std::vector<Argument> args;
+        for (int pos : _task_arg_refs) {
+            args.push_back(_args[pos]);
+        }
+        return Signature(_task_name_id, args);
     }
 };
 
