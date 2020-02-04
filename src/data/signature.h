@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
 
 struct Signature {
     
@@ -41,7 +42,8 @@ struct Signature {
     Signature& operator=(const Signature& sig) {
         _name_id = sig._name_id;
         _args = sig._args;
-    } 
+        _negated = sig._negated;
+    }
 };
 
 struct SignatureHasher {
@@ -66,6 +68,6 @@ struct SignatureComparator {
     }
 };
 
-typedef std::unordered_set<Signature, SignatureHasher> SignatureSet;
+typedef std::unordered_set<Signature, SignatureHasher> SigSet;
 
 #endif

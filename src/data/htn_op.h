@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "bound_condition.h"
+#include "signature.h"
 
 class HtnOp {
 
@@ -12,8 +12,8 @@ protected:
     int _id;
     std::vector<int> _args;
 
-    SignatureSet _preconditions;
-    SignatureSet _effects;
+    SigSet _preconditions;
+    SigSet _effects;
 
 public:
     HtnOp() {}
@@ -44,10 +44,10 @@ public:
         return op;
     }
 
-    const SignatureSet& getPreconditions() {
+    const SigSet& getPreconditions() {
         return _preconditions;
     }
-    const SignatureSet& getEffects() {
+    const SigSet& getEffects() {
         return _effects;
     }
     std::vector<int> getArguments() {

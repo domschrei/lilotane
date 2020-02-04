@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_set>
 
+#include "data/htn_op.h"
 #include "data/signature.h"
 #include "data/bound_condition.h"
 

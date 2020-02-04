@@ -10,6 +10,10 @@
 #include "data/layer.h"
 #include "data/action.h"
 #include "data/reduction.h"
+#include "data/signature.h"
+
+#include "data/instantiator.h"
+#include "data/effector_table.h"
 
 class Planner {
 
@@ -19,6 +23,7 @@ private:
 
     // Maps a string to its name ID within the problem.
     std::unordered_map<std::string, int> _name_table;
+    std::unordered_map<int, std::string> _name_back_table;
     // Running ID to assign to new strings of the problem.
     int _name_table_running_id = 1;
     std::unordered_set<int> _var_ids;
@@ -31,24 +36,30 @@ private:
 
     std::unordered_map<int, std::vector<int>> _constants_by_sort;
 
-    // Maps an action ID to its action object.
+    // Maps an action name ID to its action object.
     std::unordered_map<int, Action> _actions;
 
-    // Maps a reduction ID to its reduction object.
+    // Maps a reduction name ID to its reduction object.
     std::unordered_map<int, Reduction> _reductions;
 
+    std::unordered_map<Signature, Action, SignatureHasher> _actions_by_sig;
+    std::unordered_map<Signature, Reduction, SignatureHasher> _reductions_by_sig;
+
     // Assigns and manages unique IDs to atom signatures.
-    CodeTable _atom_table;
+    //CodeTable _atom_table;
 
     // Assigns and manages unique IDs to action and reduction signatures.
-    CodeTable _task_table;
+    //CodeTable _action_table;
 
     // Assigns and manages unique IDs to reduction signatures.
-    CodeTable _reduction_table;
+    //CodeTable _reduction_table;
 
     std::unordered_map<int, std::vector<int>> _task_id_to_reduction_ids;
 
     std::vector<Layer> _layers;
+    Instantiator* _instantiator;
+    EffectorTable* _effector_table;
+
 
 public:
     Planner(ParsedProblem& problem) : _p(problem) {}
@@ -56,9 +67,12 @@ public:
 
 private:
 
+    void addToLayer(Signature& task, Layer& layer, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+
     int getNameId(const std::string& name) {
         if (_name_table.count(name) == 0) {
             _name_table[name] = _name_table_running_id++;
+            _name_back_table[_name_table_running_id-1] = name;
             if (name[0] == '?') {
                 // variable
                 _var_ids.insert(_name_table[name]);
@@ -145,14 +159,43 @@ private:
 
         assert(_reductions.count(id) == 0);
         _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
+
+        // TODO add method preconditions from its first "virtual subtask", if applicable
+        assert(method.constraints.empty());
+        /*
         for (literal lit : method.constraints) {
             Signature sig = getSignature(lit);
             _reductions[id].addPrecondition(sig);
+            printf("  %s : precondition %s\n", to_string(_reductions[id].getSignature()).c_str(), to_string(sig).c_str());
         }
+        */
         for (plan_step st : method.ps) {
-            Signature sig(getNameId(st.task), getArguments(st.args));
-            _reductions[id].addSubtask(sig);
+
+            if (st.task.rfind("__method_precondition_", 0) == 0) {
+
+                // Actually a method precondition which was compiled out
+                task precTask;
+                for (task t : primitive_tasks) {
+                    if (t.name == st.task) {
+                        precTask = t;
+                        break;
+                    }
+                }
+                for (auto p : precTask.prec) {
+                    Signature sig = getSignature(p);
+                    _reductions[id].addPrecondition(sig);
+                }
+
+            } else {
+                
+                // Actual subtask
+                Signature sig(getNameId(st.task), getArguments(st.args));
+                _reductions[id].addSubtask(sig);
+            }
         }
+        printf(" %s : %i preconditions, %i subtasks\n", to_string(_reductions[id].getSignature()).c_str(), 
+                    _reductions[id].getPreconditions().size(), 
+                    _reductions[id].getSubtasks().size());
         return _reductions[id];
     }
     Action& getAction(task& task) {
@@ -170,42 +213,31 @@ private:
         }
         return _actions[id];
     }
+
+    std::string to_string(Signature sig) {
+        std::string out = "";
+        if (sig._negated) out += "!";
+        out += "(";
+        out += _name_back_table[sig._name_id];
+        for (int arg : sig._args) {
+            out += " " + _name_back_table[arg];
+        }
+        out += ")";
+        return out;
+    }
+
+    /*
     int getFact(Signature& sig) {
         return _atom_table(sig);
     }
-
-
-    std::vector<Signature> getPossibleChildren(Signature& actionOrReduction) {
-        std::vector<Signature> result;
-
-        int nameId = actionOrReduction._name_id;
-        if (_actions.count(nameId) == 0) {
-            // Reduction
-            assert(_reductions.count(nameId) > 0);
-            Reduction& r = _reductions[nameId];
-            std::vector<Signature> subtasks = r.getSubtasks();
-
-            // For each of the reduction's subtasks:
-            for (Signature sig : subtasks) {
-                // Find all possible (sub-)reductions of this subtask
-                std::vector<int> subredIds = _task_id_to_reduction_ids[nameId];
-                for (int subredId : subredIds) {
-                    Reduction& subred = _reductions[subredId];
-                    // Substitute original subred. arguments
-                    // with the subtask's arguments
-                    std::unordered_map<int, int> s;
-                    std::vector<int> origArgs = subred.getTaskArguments();
-                    assert(origArgs.size() == sig._args.size());
-                    for (int i = 0; i < origArgs.size(); i++) {
-                        s[origArgs[i]] = sig._args[i];
-                    }
-                    result.push_back(subred.substitute(s).getSignature());
-                }
-            }
-        }
-
-        return result;
+    int getAction(Signature& sig) {
+        return _action_table(sig);
     }
+    int getReduction(Signature& sig) {
+        return _reduction_table(sig);
+    }
+    */
+
 };
 
 #endif

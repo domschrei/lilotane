@@ -5,28 +5,30 @@
 #include <vector>
 #include <unordered_set>
 
+#include "data/signature.h"
+
 struct Position {
 
-    std::unordered_set<int> _pos_facts;
-    std::unordered_set<int> _neg_facts;
-    std::unordered_set<int> _actions;
-    std::unordered_set<int> _reductions;
+    SigSet _facts;
+    SigSet _actions;
+    SigSet _reductions;
     int _max_expansion_size = 1;
 
-    void addFact(int fact) {(fact > 0 ? _pos_facts : _neg_facts).insert(std::abs(fact));}
-    void addAction(int action) {_actions.insert(action);}
-    void addReduction(int reduction) {_reductions.insert(reduction);}
+    void addFact(Signature& fact) {_facts.insert(fact);}
+    void addAction(Signature& action) {_actions.insert(action);}
+    void addReduction(Signature& reduction) {_reductions.insert(reduction);}
     void addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
 
-    bool containsFactPos(int fact) const {return _pos_facts.count(fact) > 0;}
-    bool containsFactNeg(int fact) const {return _neg_facts.count(fact) > 0;}
-    bool containsAction(int action) const {return _actions.count(action) > 0;}
-    bool containsReduction(int red) const {return _reductions.count(red) > 0;}
+    void setFacts(const SigSet& facts) {_facts = facts;}
+    void setActions(const SigSet& actions) {_actions = actions;}
 
-    const std::unordered_set<int>& getPosFacts() const {return _pos_facts;}
-    const std::unordered_set<int>& getNegFacts() const {return _neg_facts;}
-    const std::unordered_set<int>& getActions() const {return _actions;}
-    const std::unordered_set<int>& getReductions() const {return _reductions;}
+    bool containsFact(Signature& fact) const {return _facts.count(fact) > 0;}
+    bool containsAction(Signature& action) const {return _actions.count(action) > 0;}
+    bool containsReduction(Signature& red) const {return _reductions.count(red) > 0;}
+
+    const SigSet& getFacts() const {return _facts;}
+    const SigSet& getActions() const {return _actions;}
+    const SigSet& getReductions() const {return _reductions;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
 };
 
@@ -47,6 +49,10 @@ public:
             succ += _content[pos].getMaxExpansionSize();
         }
     }
+    int getNextLayerSize() {
+        return _successor_positions.back();
+    }
+    int getSuccessorPos(int oldPos) {return _successor_positions[oldPos];}
 };
 
 #endif

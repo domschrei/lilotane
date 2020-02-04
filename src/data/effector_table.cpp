@@ -44,7 +44,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             seenSignatures.insert(sig);
 
             // Expand node, add children to frontier
-            for (Signature child : _child_generator(sig))
+            for (Signature child : getPossibleChildren(sig))
                 frontier.push_back(child);
         }
 
