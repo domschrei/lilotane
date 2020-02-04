@@ -13,7 +13,7 @@ class Action : public HtnOp {
     
 public:
     Action() : HtnOp() {}
-    Action(int nameId, std::vector<Argument> args) : HtnOp(nameId, args) {}
+    Action(int nameId, std::vector<int> args) : HtnOp(nameId, args) {}
 };
 
 #endif

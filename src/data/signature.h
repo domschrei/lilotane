@@ -3,8 +3,7 @@
 #define DOMPASCH_TREE_REXX_SIGNATURE_H
 
 #include <vector>
-
-#include "data/arg.h"
+#include <unordered_set>
 
 struct Signature {
     
@@ -13,10 +12,21 @@ struct Signature {
     bool _negated = false;
 
     Signature() {}
-    Signature(int nameId, std::vector<int>& args) : _name_id(nameId), _args(args) {}
+    Signature(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
 
     void negate() {
         _negated = true;
+    }
+
+    Signature substitute(std::unordered_map<int, int> s) {
+        Signature sig;
+        sig._name_id = _name_id;
+        sig._args.resize(_args.size());
+        for (int i = 0; i < _args.size(); i++) {
+            sig._args[i] = s[_args[i]];
+        }
+        sig._negated = _negated;
+        return sig;
     }
 
     bool operator==(const Signature& b) const {
@@ -55,5 +65,7 @@ struct SignatureComparator {
         return true;
     }
 };
+
+typedef std::unordered_set<Signature, SignatureHasher> SignatureSet;
 
 #endif

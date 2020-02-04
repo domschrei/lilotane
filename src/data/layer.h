@@ -37,6 +37,7 @@ private:
     std::vector<int> _successor_positions;
 
 public:
+    Layer(int size) {_content.resize(size);}
     int size() {return _content.size();}
     Position& operator[](int pos) {return _content[pos];}
     void consolidate() {

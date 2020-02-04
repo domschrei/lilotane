@@ -1,8 +1,9 @@
-/* A Bison parser, made by GNU Bison 3.0.4.  */
+/* A Bison parser, made by GNU Bison 3.4.2.  */
 
 /* Bison implementation for Yacc-like parsers in C
 
-   Copyright (C) 1984, 1989-1990, 2000-2015 Free Software Foundation, Inc.
+   Copyright (C) 1984, 1989-1990, 2000-2015, 2018-2019 Free Software Foundation,
+   Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -40,11 +41,14 @@
    define necessary library symbols; they are noted "INFRINGES ON
    USER NAME SPACE" below.  */
 
+/* Undocumented macros, especially those whose name start with YY_,
+   are private implementation details.  Do not rely on them.  */
+
 /* Identify Bison output.  */
 #define YYBISON 1
 
 /* Bison version.  */
-#define YYBISON_VERSION "3.0.4"
+#define YYBISON_VERSION "3.4.2"
 
 /* Skeleton name.  */
 #define YYSKELETON_NAME "yacc.c"
@@ -61,8 +65,8 @@
 
 
 
-/* Copy the first part of user declarations.  */
-#line 1 "src/parser/hddl.y" /* yacc.c:339  */
+/* First part of user prologue.  */
+#line 1 "src/parser/hddl.y"
 
 	#include <cstdio>
 	#include <iostream>
@@ -84,13 +88,17 @@
 	
 	void yyerror(const char *s);
 
-#line 88 "src/parser/hddl.cpp" /* yacc.c:339  */
+#line 92 "src/parser/hddl.cpp"
 
 # ifndef YY_NULLPTR
-#  if defined __cplusplus && 201103L <= __cplusplus
-#   define YY_NULLPTR nullptr
+#  if defined __cplusplus
+#   if 201103L <= __cplusplus
+#    define YY_NULLPTR nullptr
+#   else
+#    define YY_NULLPTR 0
+#   endif
 #  else
-#   define YY_NULLPTR 0
+#   define YY_NULLPTR ((void*)0)
 #  endif
 # endif
 
@@ -102,8 +110,8 @@
 # define YYERROR_VERBOSE 1
 #endif
 
-/* In a future release of Bison, this section will be replaced
-   by #include "hddl.hpp".  */
+/* Use api.header.include to #include this header
+   instead of duplicating it here.  */
 #ifndef YY_YY_SRC_PARSER_HDDL_HPP_INCLUDED
 # define YY_YY_SRC_PARSER_HDDL_HPP_INCLUDED
 /* Debug traces.  */
@@ -164,10 +172,9 @@ extern int yydebug;
 
 /* Value type.  */
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-
 union YYSTYPE
 {
-#line 29 "src/parser/hddl.y" /* yacc.c:355  */
+#line 29 "src/parser/hddl.y"
 
 	bool bval;
 	int ival;
@@ -187,9 +194,9 @@ union YYSTYPE
 	std::pair<string,string>* spair;
 	std::vector<std::pair<string,string>*>* spairlist;
 
-#line 191 "src/parser/hddl.cpp" /* yacc.c:355  */
-};
+#line 198 "src/parser/hddl.cpp"
 
+};
 typedef union YYSTYPE YYSTYPE;
 # define YYSTYPE_IS_TRIVIAL 1
 # define YYSTYPE_IS_DECLARED 1
@@ -216,9 +223,7 @@ int yyparse (void);
 
 #endif /* !YY_YY_SRC_PARSER_HDDL_HPP_INCLUDED  */
 
-/* Copy the second part of user declarations.  */
 
-#line 222 "src/parser/hddl.cpp" /* yacc.c:358  */
 
 #ifdef short
 # undef short
@@ -239,13 +244,13 @@ typedef signed char yytype_int8;
 #ifdef YYTYPE_UINT16
 typedef YYTYPE_UINT16 yytype_uint16;
 #else
-typedef unsigned short int yytype_uint16;
+typedef unsigned short yytype_uint16;
 #endif
 
 #ifdef YYTYPE_INT16
 typedef YYTYPE_INT16 yytype_int16;
 #else
-typedef short int yytype_int16;
+typedef short yytype_int16;
 #endif
 
 #ifndef YYSIZE_T
@@ -257,7 +262,7 @@ typedef short int yytype_int16;
 #  include <stddef.h> /* INFRINGES ON USER NAME SPACE */
 #  define YYSIZE_T size_t
 # else
-#  define YYSIZE_T unsigned int
+#  define YYSIZE_T unsigned
 # endif
 #endif
 
@@ -293,15 +298,6 @@ typedef short int yytype_int16;
 # define YY_ATTRIBUTE_UNUSED YY_ATTRIBUTE ((__unused__))
 #endif
 
-#if !defined _Noreturn \
-     && (!defined __STDC_VERSION__ || __STDC_VERSION__ < 201112)
-# if defined _MSC_VER && 1200 <= _MSC_VER
-#  define _Noreturn __declspec (noreturn)
-# else
-#  define _Noreturn YY_ATTRIBUTE ((__noreturn__))
-# endif
-#endif
-
 /* Suppress unused-variable warnings by "using" E.  */
 #if ! defined lint || defined __GNUC__
 # define YYUSE(E) ((void) (E))
@@ -309,7 +305,7 @@ typedef short int yytype_int16;
 # define YYUSE(E) /* empty */
 #endif
 
-#if defined __GNUC__ && 407 <= __GNUC__ * 100 + __GNUC_MINOR__
+#if defined __GNUC__ && ! defined __ICC && 407 <= __GNUC__ * 100 + __GNUC_MINOR__
 /* Suppress an incorrect diagnostic about yylval being uninitialized.  */
 # define YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN \
     _Pragma ("GCC diagnostic push") \
@@ -328,6 +324,8 @@ typedef short int yytype_int16;
 # define YY_INITIAL_VALUE(Value) /* Nothing. */
 #endif
 
+
+#define YY_ASSERT(E) ((void) (0 && (E)))
 
 #if 1
 
@@ -450,16 +448,16 @@ union yyalloc
 /* YYNSTATES -- Number of states.  */
 #define YYNSTATES  313
 
-/* YYTRANSLATE[YYX] -- Symbol number corresponding to YYX as returned
-   by yylex, with out-of-bounds checking.  */
 #define YYUNDEFTOK  2
 #define YYMAXUTOK   297
 
+/* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
+   as returned by yylex, with out-of-bounds checking.  */
 #define YYTRANSLATE(YYX)                                                \
-  ((unsigned int) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
+  ((unsigned) (YYX) <= YYMAXUTOK ? yytranslate[YYX] : YYUNDEFTOK)
 
 /* YYTRANSLATE[TOKEN-NUM] -- Symbol number corresponding to TOKEN-NUM
-   as returned by yylex, without out-of-bounds checking.  */
+   as returned by yylex.  */
 static const yytype_uint8 yytranslate[] =
 {
        0,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -843,23 +841,23 @@ static const yytype_uint8 yyr2[] =
 
 #define YYRECOVERING()  (!!yyerrstatus)
 
-#define YYBACKUP(Token, Value)                                  \
-do                                                              \
-  if (yychar == YYEMPTY)                                        \
-    {                                                           \
-      yychar = (Token);                                         \
-      yylval = (Value);                                         \
-      YYPOPSTACK (yylen);                                       \
-      yystate = *yyssp;                                         \
-      YY_LAC_DISCARD ("YYBACKUP");                              \
-      goto yybackup;                                            \
-    }                                                           \
-  else                                                          \
-    {                                                           \
-      yyerror (YY_("syntax error: cannot back up")); \
-      YYERROR;                                                  \
-    }                                                           \
-while (0)
+#define YYBACKUP(Token, Value)                                    \
+  do                                                              \
+    if (yychar == YYEMPTY)                                        \
+      {                                                           \
+        yychar = (Token);                                         \
+        yylval = (Value);                                         \
+        YYPOPSTACK (yylen);                                       \
+        yystate = *yyssp;                                         \
+        YY_LAC_DISCARD ("YYBACKUP");                              \
+        goto yybackup;                                            \
+      }                                                           \
+    else                                                          \
+      {                                                           \
+        yyerror (YY_("syntax error: cannot back up")); \
+        YYERROR;                                                  \
+      }                                                           \
+  while (0)
 
 /* Error token number */
 #define YYTERROR        1
@@ -918,10 +916,10 @@ do {                                            \
 /* Print *YYLOCP on YYO.  Private, do not rely on its existence. */
 
 YY_ATTRIBUTE_UNUSED
-static unsigned
+static int
 yy_location_print_ (FILE *yyo, YYLTYPE const * const yylocp)
 {
-  unsigned res = 0;
+  int res = 0;
   int end_col = 0 != yylocp->last_column ? yylocp->last_column - 1 : 0;
   if (0 <= yylocp->first_line)
     {
@@ -964,40 +962,42 @@ do {                                                                      \
 } while (0)
 
 
-/*----------------------------------------.
-| Print this symbol's value on YYOUTPUT.  |
-`----------------------------------------*/
+/*-----------------------------------.
+| Print this symbol's value on YYO.  |
+`-----------------------------------*/
 
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
+yy_symbol_value_print (FILE *yyo, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
 {
-  FILE *yyo = yyoutput;
-  YYUSE (yyo);
+  FILE *yyoutput = yyo;
+  YYUSE (yyoutput);
   YYUSE (yylocationp);
   if (!yyvaluep)
     return;
 # ifdef YYPRINT
   if (yytype < YYNTOKENS)
-    YYPRINT (yyoutput, yytoknum[yytype], *yyvaluep);
+    YYPRINT (yyo, yytoknum[yytype], *yyvaluep);
 # endif
+  YY_IGNORE_MAYBE_UNINITIALIZED_BEGIN
   YYUSE (yytype);
+  YY_IGNORE_MAYBE_UNINITIALIZED_END
 }
 
 
-/*--------------------------------.
-| Print this symbol on YYOUTPUT.  |
-`--------------------------------*/
+/*---------------------------.
+| Print this symbol on YYO.  |
+`---------------------------*/
 
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
+yy_symbol_print (FILE *yyo, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
 {
-  YYFPRINTF (yyoutput, "%s %s (",
+  YYFPRINTF (yyo, "%s %s (",
              yytype < YYNTOKENS ? "token" : "nterm", yytname[yytype]);
 
-  YY_LOCATION_PRINT (yyoutput, *yylocationp);
-  YYFPRINTF (yyoutput, ": ");
-  yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp);
-  YYFPRINTF (yyoutput, ")");
+  YY_LOCATION_PRINT (yyo, *yylocationp);
+  YYFPRINTF (yyo, ": ");
+  yy_symbol_value_print (yyo, yytype, yyvaluep, yylocationp);
+  YYFPRINTF (yyo, ")");
 }
 
 /*------------------------------------------------------------------.
@@ -1031,7 +1031,7 @@ do {                                                            \
 static void
 yy_reduce_print (yytype_int16 *yyssp, YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule)
 {
-  unsigned long int yylno = yyrline[yyrule];
+  unsigned long yylno = yyrline[yyrule];
   int yynrhs = yyr2[yyrule];
   int yyi;
   YYFPRINTF (stderr, "Reducing stack by rule %d (line %lu):\n",
@@ -1042,7 +1042,7 @@ yy_reduce_print (yytype_int16 *yyssp, YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr,
                        yystos[yyssp[yyi + 1 - yynrhs]],
-                       &(yyvsp[(yyi + 1) - (yynrhs)])
+                       &yyvsp[(yyi + 1) - (yynrhs)]
                        , &(yylsp[(yyi + 1) - (yynrhs)])                       );
       YYFPRINTF (stderr, "\n");
     }
@@ -1102,7 +1102,7 @@ yy_lac_stack_realloc (YYSIZE_T *yycapacity, YYSIZE_T yyadd,
                       yytype_int16 **yytop, yytype_int16 *yytop_empty)
 {
   YYSIZE_T yysize_old =
-    *yytop == yytop_empty ? 0 : *yytop - *yybottom + 1;
+    (YYSIZE_T) (*yytop == yytop_empty ? 0 : *yytop - *yybottom + 1);
   YYSIZE_T yysize_new = yysize_old + yyadd;
   if (*yycapacity < yysize_new)
     {
@@ -1265,7 +1265,7 @@ yy_lac (yytype_int16 *yyesa, yytype_int16 **yyes,
         YYDPRINTF ((stderr, " R%d", yyrule - 1));
         if (yyesp != yyes_prev)
           {
-            YYSIZE_T yysize = yyesp - *yyes + 1;
+            YYSIZE_T yysize = (YYSIZE_T) (yyesp - *yyes + 1);
             if (yylen < yysize)
               {
                 yyesp -= yylen;
@@ -1281,15 +1281,14 @@ yy_lac (yytype_int16 *yyesa, yytype_int16 **yyes,
           yyesp = yyes_prev -= yylen;
       }
       {
-        int yystate;
+        yytype_int16 yystate;
         {
-          int yylhs = yyr1[yyrule] - YYNTOKENS;
-          yystate = yypgoto[yylhs] + *yyesp;
-          if (yystate < 0 || YYLAST < yystate
-              || yycheck[yystate] != *yyesp)
-            yystate = yydefgoto[yylhs];
-          else
-            yystate = yytable[yystate];
+          const int yylhs = yyr1[yyrule] - YYNTOKENS;
+          const int yyi = yypgoto[yylhs] + *yyesp;
+          yystate = ((yytype_int16)
+                     (0 <= yyi && yyi <= YYLAST && yycheck[yyi] == *yyesp
+                      ? yytable[yyi]
+                      : yydefgoto[yylhs]));
         }
         if (yyesp == yyes_prev)
           {
@@ -1309,7 +1308,7 @@ yy_lac (yytype_int16 *yyesa, yytype_int16 **yyes,
               }
             *++yyesp = yystate;
           }
-        YYDPRINTF ((stderr, " G%d", yystate));
+        YYDPRINTF ((stderr, " G%d", (int) yystate));
       }
     }
 }
@@ -1379,7 +1378,10 @@ yytnamerr (char *yyres, const char *yystr)
           case '\\':
             if (*++yyp != '\\')
               goto do_not_strip_quotes;
-            /* Fall through.  */
+            else
+              goto append;
+
+          append:
           default:
             if (yyres)
               yyres[yyn] = *yyp;
@@ -1397,7 +1399,7 @@ yytnamerr (char *yyres, const char *yystr)
   if (! yyres)
     return yystrlen (yystr);
 
-  return yystpcpy (yyres, yystr) - yyres;
+  return (YYSIZE_T) (yystpcpy (yyres, yystr) - yyres);
 }
 # endif
 
@@ -1476,10 +1478,10 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
                 yyarg[yycount++] = yytname[yyx];
                 {
                   YYSIZE_T yysize1 = yysize + yytnamerr (YY_NULLPTR, yytname[yyx]);
-                  if (! (yysize <= yysize1
-                         && yysize1 <= YYSTACK_ALLOC_MAXIMUM))
+                  if (yysize <= yysize1 && yysize1 <= YYSTACK_ALLOC_MAXIMUM)
+                    yysize = yysize1;
+                  else
                     return 2;
-                  yysize = yysize1;
                 }
               }
         }
@@ -1495,6 +1497,7 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
       case N:                               \
         yyformat = S;                       \
       break
+    default: /* Avoid compiler warnings. */
       YYCASE_(0, YY_("syntax error"));
       YYCASE_(1, YY_("syntax error, unexpected %s"));
       YYCASE_(2, YY_("syntax error, unexpected %s, expecting %s"));
@@ -1506,9 +1509,10 @@ yysyntax_error (YYSIZE_T *yymsg_alloc, char **yymsg,
 
   {
     YYSIZE_T yysize1 = yysize + yystrlen (yyformat);
-    if (! (yysize <= yysize1 && yysize1 <= YYSTACK_ALLOC_MAXIMUM))
+    if (yysize <= yysize1 && yysize1 <= YYSTACK_ALLOC_MAXIMUM)
+      yysize = yysize1;
+    else
       return 2;
-    yysize = yysize1;
   }
 
   if (*yymsg_alloc < yysize)
@@ -1663,23 +1667,33 @@ yyparse (void)
   yylsp[0] = yylloc;
   goto yysetstate;
 
+
 /*------------------------------------------------------------.
-| yynewstate -- Push a new state, which is found in yystate.  |
+| yynewstate -- push a new state, which is found in yystate.  |
 `------------------------------------------------------------*/
- yynewstate:
+yynewstate:
   /* In all cases, when you get here, the value and location stacks
      have just been pushed.  So pushing a state here evens the stacks.  */
   yyssp++;
 
- yysetstate:
-  *yyssp = yystate;
+
+/*--------------------------------------------------------------------.
+| yynewstate -- set current state (the top of the stack) to yystate.  |
+`--------------------------------------------------------------------*/
+yysetstate:
+  YYDPRINTF ((stderr, "Entering state %d\n", yystate));
+  YY_ASSERT (0 <= yystate && yystate < YYNSTATES);
+  *yyssp = (yytype_int16) yystate;
 
   if (yyss + yystacksize - 1 <= yyssp)
+#if !defined yyoverflow && !defined YYSTACK_RELOCATE
+    goto yyexhaustedlab;
+#else
     {
       /* Get the current used size of the three stacks, in elements.  */
-      YYSIZE_T yysize = yyssp - yyss + 1;
+      YYSIZE_T yysize = (YYSIZE_T) (yyssp - yyss + 1);
 
-#ifdef yyoverflow
+# if defined yyoverflow
       {
         /* Give user a chance to reallocate the stack.  Use copies of
            these so that the &'s don't force the real ones into
@@ -1697,15 +1711,11 @@ yyparse (void)
                     &yyvs1, yysize * sizeof (*yyvsp),
                     &yyls1, yysize * sizeof (*yylsp),
                     &yystacksize);
-
-        yyls = yyls1;
         yyss = yyss1;
         yyvs = yyvs1;
+        yyls = yyls1;
       }
-#else /* no yyoverflow */
-# ifndef YYSTACK_RELOCATE
-      goto yyexhaustedlab;
-# else
+# else /* defined YYSTACK_RELOCATE */
       /* Extend the stack our own way.  */
       if (YYMAXDEPTH <= yystacksize)
         goto yyexhaustedlab;
@@ -1722,36 +1732,34 @@ yyparse (void)
         YYSTACK_RELOCATE (yyss_alloc, yyss);
         YYSTACK_RELOCATE (yyvs_alloc, yyvs);
         YYSTACK_RELOCATE (yyls_alloc, yyls);
-#  undef YYSTACK_RELOCATE
+# undef YYSTACK_RELOCATE
         if (yyss1 != yyssa)
           YYSTACK_FREE (yyss1);
       }
 # endif
-#endif /* no yyoverflow */
 
       yyssp = yyss + yysize - 1;
       yyvsp = yyvs + yysize - 1;
       yylsp = yyls + yysize - 1;
 
       YYDPRINTF ((stderr, "Stack size increased to %lu\n",
-                  (unsigned long int) yystacksize));
+                  (unsigned long) yystacksize));
 
       if (yyss + yystacksize - 1 <= yyssp)
         YYABORT;
     }
-
-  YYDPRINTF ((stderr, "Entering state %d\n", yystate));
+#endif /* !defined yyoverflow && !defined YYSTACK_RELOCATE */
 
   if (yystate == YYFINAL)
     YYACCEPT;
 
   goto yybackup;
 
+
 /*-----------.
 | yybackup.  |
 `-----------*/
 yybackup:
-
   /* Do appropriate processing given the current state.  Read a
      lookahead token if we need one and don't already have one.  */
 
@@ -1829,7 +1837,7 @@ yydefault:
 
 
 /*-----------------------------.
-| yyreduce -- Do a reduction.  |
+| yyreduce -- do a reduction.  |
 `-----------------------------*/
 yyreduce:
   /* yyn is the number of a rule to reduce with.  */
@@ -1845,15 +1853,16 @@ yyreduce:
      GCC warning that YYVAL may be used uninitialized.  */
   yyval = yyvsp[1-yylen];
 
-  /* Default location.  */
+  /* Default location. */
   YYLLOC_DEFAULT (yyloc, (yylsp - yylen), yylen);
+  yyerror_range[1] = yyloc;
   YY_REDUCE_PRINT (yyn);
   {
     int yychar_backup = yychar;
     switch (yyn)
       {
-          case 24:
-#line 140 "src/parser/hddl.y" /* yacc.c:1646  */
+  case 24:
+#line 140 "src/parser/hddl.y"
     {
 		assert((yyvsp[0].formula)->type == ATOM);
 		map<string,string> access;
@@ -1865,11 +1874,11 @@ yyreduce:
 		for(string v : (yyvsp[0].formula)->arguments.vars) l.args.push_back(access[v]);
 		init.push_back(l);
 	}
-#line 1869 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1878 "src/parser/hddl.cpp"
     break;
 
   case 25:
-#line 151 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 151 "src/parser/hddl.y"
     {
 		assert((yyvsp[-2].formula)->type == ATOM);
 		map<string,string> access;
@@ -1881,35 +1890,35 @@ yyreduce:
 		for(string v : (yyvsp[-2].formula)->arguments.vars) l.args.push_back(access[v]);
 		init_functions.push_back(std::make_pair(l,(yyvsp[-1].ival)));
 	}
-#line 1885 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1894 "src/parser/hddl.cpp"
     break;
 
   case 27:
-#line 163 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 163 "src/parser/hddl.y"
     {goal_formula = (yyvsp[-1].formula);}
-#line 1891 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1900 "src/parser/hddl.cpp"
     break;
 
   case 29:
-#line 165 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 165 "src/parser/hddl.y"
     {assert(false); /*we don't support ti-htn yet*/}
-#line 1897 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1906 "src/parser/hddl.cpp"
     break;
 
   case 30:
-#line 166 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 166 "src/parser/hddl.y"
     {(yyval.vardecl) = (yyvsp[-1].vardecl);}
-#line 1903 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1912 "src/parser/hddl.cpp"
     break;
 
   case 31:
-#line 166 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 166 "src/parser/hddl.y"
     {(yyval.vardecl) = new var_declaration(); }
-#line 1909 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1918 "src/parser/hddl.cpp"
     break;
 
   case 32:
-#line 170 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 170 "src/parser/hddl.y"
     {
 		parsed_method m;
 		m.name = "__top_method";		
@@ -1927,35 +1936,35 @@ yyreduce:
 		top.eff = new general_formula(); top.eff->type = EMPTY;
 		parsed_abstract.push_back(top);
 }
-#line 1931 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1940 "src/parser/hddl.cpp"
     break;
 
   case 35:
-#line 191 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 191 "src/parser/hddl.y"
     { metric_target = (yyvsp[0].sval); }
-#line 1937 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1946 "src/parser/hddl.cpp"
     break;
 
   case 36:
-#line 192 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 192 "src/parser/hddl.y"
     { metric_target = (yyvsp[-1].sval); }
-#line 1943 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1952 "src/parser/hddl.cpp"
     break;
 
   case 39:
-#line 202 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 202 "src/parser/hddl.y"
     {string r((yyvsp[0].sval)); if (r == ":typeof-predicate") has_typeof_predicate = true; }
-#line 1949 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1958 "src/parser/hddl.cpp"
     break;
 
   case 41:
-#line 209 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 209 "src/parser/hddl.y"
     { /*reverse list after all types have been parsed*/ reverse(sort_definitions.begin(), sort_definitions.end()); }
-#line 1955 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1964 "src/parser/hddl.cpp"
     break;
 
   case 42:
-#line 210 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 210 "src/parser/hddl.y"
     {	sort_definition s; s.has_parent_sort = false; s.declared_sorts = *((yyvsp[0].vstring)); delete (yyvsp[0].vstring);
 			  				if (s.declared_sorts.size()) {
 								sort_definitions.push_back(s);
@@ -1963,11 +1972,11 @@ yyreduce:
 								for (string & ss : s.declared_sorts) sorts[ss].size();
 							}
 				}
-#line 1967 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1976 "src/parser/hddl.cpp"
     break;
 
   case 43:
-#line 217 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 217 "src/parser/hddl.y"
     {
 							sort_definition s; s.has_parent_sort = true; s.parent_sort = (yyvsp[-1].sval); free((yyvsp[-1].sval));
 							s.declared_sorts = *((yyvsp[-3].vstring)); delete (yyvsp[-3].vstring);
@@ -1976,37 +1985,37 @@ yyreduce:
 							for (string & ss : s.declared_sorts) sorts[ss].size();
 							sorts[s.parent_sort].size();
 							}
-#line 1980 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1989 "src/parser/hddl.cpp"
     break;
 
   case 47:
-#line 233 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 233 "src/parser/hddl.y"
     {
 						string type((yyvsp[0].sval));
 						for(unsigned int i = 0; i < (yyvsp[-2].vstring)->size(); i++)
 							sorts[type].insert((*((yyvsp[-2].vstring)))[i]);
 }
-#line 1990 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 1999 "src/parser/hddl.cpp"
     break;
 
   case 49:
-#line 244 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 244 "src/parser/hddl.y"
     {predicate_definitions.push_back(*((yyvsp[0].preddecl))); delete (yyvsp[0].preddecl);}
-#line 1996 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2005 "src/parser/hddl.cpp"
     break;
 
   case 51:
-#line 245 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 245 "src/parser/hddl.y"
     {
 		(yyval.preddecl) = new predicate_definition();
 		(yyval.preddecl)->name = (yyvsp[-2].sval);
 		for (unsigned int i = 0; i < (yyvsp[-1].vardecl)->vars.size(); i++) (yyval.preddecl)->argument_sorts.push_back((yyvsp[-1].vardecl)->vars[i].second);
 	}
-#line 2006 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2015 "src/parser/hddl.cpp"
     break;
 
   case 53:
-#line 256 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 256 "src/parser/hddl.y"
     {
 	char * type_of_functions = (yyvsp[0].sval);
 	for (predicate_definition* p : *(yyvsp[-1].preddecllist)){
@@ -2015,47 +2024,47 @@ yyreduce:
 	}
 	delete (yyvsp[-1].preddecllist);
 }
-#line 2019 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2028 "src/parser/hddl.cpp"
     break;
 
   case 54:
-#line 264 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 264 "src/parser/hddl.y"
     { (yyval.sval) = (yyvsp[-1].sval); }
-#line 2025 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2034 "src/parser/hddl.cpp"
     break;
 
   case 55:
-#line 264 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 264 "src/parser/hddl.y"
     { (yyval.sval) = strdup(numeric_funtion_type.c_str()); }
-#line 2031 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2040 "src/parser/hddl.cpp"
     break;
 
   case 56:
-#line 266 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 266 "src/parser/hddl.y"
     { (yyval.preddecllist)->push_back((yyvsp[0].preddecl)); }
-#line 2037 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2046 "src/parser/hddl.cpp"
     break;
 
   case 57:
-#line 266 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 266 "src/parser/hddl.y"
     { (yyval.preddecllist) = new std::vector<predicate_definition*>();}
-#line 2043 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2052 "src/parser/hddl.cpp"
     break;
 
   case 58:
-#line 275 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 275 "src/parser/hddl.y"
     {(yyval.bval)=true;}
-#line 2049 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2058 "src/parser/hddl.cpp"
     break;
 
   case 59:
-#line 275 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 275 "src/parser/hddl.y"
     {(yyval.bval)=false;}
-#line 2055 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2064 "src/parser/hddl.cpp"
     break;
 
   case 60:
-#line 280 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 280 "src/parser/hddl.y"
     {
 				// found a new task, add it to list
 				parsed_task t;
@@ -2066,35 +2075,35 @@ yyreduce:
 
 				if ((yyvsp[-5].bval)) parsed_abstract.push_back(t); else parsed_primitive.push_back(t);
 }
-#line 2070 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2079 "src/parser/hddl.cpp"
     break;
 
   case 61:
-#line 291 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 291 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2076 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2085 "src/parser/hddl.cpp"
     break;
 
   case 62:
-#line 291 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 291 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EMPTY;}
-#line 2082 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2091 "src/parser/hddl.cpp"
     break;
 
   case 63:
-#line 292 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 292 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2088 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2097 "src/parser/hddl.cpp"
     break;
 
   case 64:
-#line 292 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 292 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EMPTY;}
-#line 2094 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2103 "src/parser/hddl.cpp"
     break;
 
   case 65:
-#line 308 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 308 "src/parser/hddl.y"
     {
 		parsed_method m;
 		m.name = (yyvsp[-10].sval);		
@@ -2108,11 +2117,11 @@ yyreduce:
 
 		parsed_methods[atName].push_back(m);
 	}
-#line 2112 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2121 "src/parser/hddl.cpp"
     break;
 
   case 66:
-#line 337 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 337 "src/parser/hddl.y"
     {
 	(yyval.tasknetwork) = new parsed_task_network();
 	(yyval.tasknetwork)->tasks = *((yyvsp[-3].osubtasks)->second);
@@ -2130,294 +2139,294 @@ yyreduce:
 
 	// TODO causal links?????
 }
-#line 2134 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2143 "src/parser/hddl.cpp"
     break;
 
   case 67:
-#line 355 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 355 "src/parser/hddl.y"
     {(yyval.osubtasks) = new pair<bool,vector<sub_task*>*>(); (yyval.osubtasks)->first = false; (yyval.osubtasks)->second = (yyvsp[0].subtasks); }
-#line 2140 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2149 "src/parser/hddl.cpp"
     break;
 
   case 68:
-#line 356 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 356 "src/parser/hddl.y"
     {(yyval.osubtasks) = new pair<bool,vector<sub_task*>*>(); (yyval.osubtasks)->first = true; (yyval.osubtasks)->second = (yyvsp[0].subtasks); }
-#line 2146 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2155 "src/parser/hddl.cpp"
     break;
 
   case 69:
-#line 357 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 357 "src/parser/hddl.y"
     {(yyval.osubtasks) = new pair<bool,vector<sub_task*>*>();
 					   (yyval.osubtasks)->first = true; (yyval.osubtasks)->second = new vector<sub_task*>();}
-#line 2153 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2162 "src/parser/hddl.cpp"
     break;
 
   case 70:
-#line 360 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 360 "src/parser/hddl.y"
     {(yyval.spairlist) = (yyvsp[0].spairlist);}
-#line 2159 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2168 "src/parser/hddl.cpp"
     break;
 
   case 71:
-#line 360 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 360 "src/parser/hddl.y"
     {(yyval.spairlist) = new vector<pair<string,string>*>();}
-#line 2165 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2174 "src/parser/hddl.cpp"
     break;
 
   case 72:
-#line 361 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 361 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2171 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2180 "src/parser/hddl.cpp"
     break;
 
   case 73:
-#line 361 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 361 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EMPTY;}
-#line 2177 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2186 "src/parser/hddl.cpp"
     break;
 
   case 76:
-#line 372 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 372 "src/parser/hddl.y"
     {(yyval.subtasks) = new vector<sub_task*>();}
-#line 2183 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2192 "src/parser/hddl.cpp"
     break;
 
   case 77:
-#line 373 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 373 "src/parser/hddl.y"
     {(yyval.subtasks) = new vector<sub_task*>(); (yyval.subtasks)->push_back((yyvsp[0].subtask));}
-#line 2189 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2198 "src/parser/hddl.cpp"
     break;
 
   case 78:
-#line 374 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 374 "src/parser/hddl.y"
     {(yyval.subtasks) = (yyvsp[-1].subtasks);}
-#line 2195 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2204 "src/parser/hddl.cpp"
     break;
 
   case 79:
-#line 375 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 375 "src/parser/hddl.y"
     {(yyval.subtasks) = (yyvsp[-1].subtasks); (yyval.subtasks)->push_back((yyvsp[0].subtask));}
-#line 2201 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2210 "src/parser/hddl.cpp"
     break;
 
   case 80:
-#line 376 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 376 "src/parser/hddl.y"
     {(yyval.subtasks) = new vector<sub_task*>();}
-#line 2207 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2216 "src/parser/hddl.cpp"
     break;
 
   case 81:
-#line 377 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 377 "src/parser/hddl.y"
     {(yyval.subtask) = new sub_task(); (yyval.subtask)->id = "__t_id_" + to_string(task_id_counter); task_id_counter++; (yyval.subtask)->task = (yyvsp[-2].sval); (yyval.subtask)->arguments = (yyvsp[-1].varandconst); }
-#line 2213 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2222 "src/parser/hddl.cpp"
     break;
 
   case 82:
-#line 378 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 378 "src/parser/hddl.y"
     {(yyval.subtask) = new sub_task(); (yyval.subtask)->id = (yyvsp[-5].sval); (yyval.subtask)->task = (yyvsp[-3].sval); (yyval.subtask)->arguments = (yyvsp[-2].varandconst); }
-#line 2219 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2228 "src/parser/hddl.cpp"
     break;
 
   case 83:
-#line 386 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 386 "src/parser/hddl.y"
     {(yyval.spairlist) = new vector<pair<string,string>*>();}
-#line 2225 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2234 "src/parser/hddl.cpp"
     break;
 
   case 84:
-#line 387 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 387 "src/parser/hddl.y"
     {(yyval.spairlist) = new vector<pair<string,string>*>(); (yyval.spairlist)->push_back((yyvsp[0].spair));}
-#line 2231 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2240 "src/parser/hddl.cpp"
     break;
 
   case 85:
-#line 388 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 388 "src/parser/hddl.y"
     {(yyval.spairlist) = (yyvsp[-1].spairlist);}
-#line 2237 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2246 "src/parser/hddl.cpp"
     break;
 
   case 86:
-#line 389 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 389 "src/parser/hddl.y"
     {(yyval.spairlist) = (yyvsp[-1].spairlist); (yyval.spairlist)->push_back((yyvsp[0].spair));}
-#line 2243 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2252 "src/parser/hddl.cpp"
     break;
 
   case 87:
-#line 390 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 390 "src/parser/hddl.y"
     {(yyval.spairlist) = new vector<pair<string,string>*>();}
-#line 2249 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2258 "src/parser/hddl.cpp"
     break;
 
   case 88:
-#line 391 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 391 "src/parser/hddl.y"
     {(yyval.spair) = new pair<string,string>(); (yyval.spair)->first = (yyvsp[-3].sval); (yyval.spair)->second = (yyvsp[-1].sval);}
-#line 2255 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2264 "src/parser/hddl.cpp"
     break;
 
   case 89:
-#line 399 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 399 "src/parser/hddl.y"
     {(yyval.formulae) = (yyvsp[-1].formulae); (yyval.formulae)->push_back((yyvsp[0].formula));}
-#line 2261 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2270 "src/parser/hddl.cpp"
     break;
 
   case 90:
-#line 400 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 400 "src/parser/hddl.y"
     {(yyval.formulae) = new vector<general_formula*>();}
-#line 2267 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2276 "src/parser/hddl.cpp"
     break;
 
   case 91:
-#line 401 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 401 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EMPTY;}
-#line 2273 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2282 "src/parser/hddl.cpp"
     break;
 
   case 92:
-#line 402 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 402 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=AND; (yyval.formula)->subformulae = *((yyvsp[-1].formulae));}
-#line 2279 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2288 "src/parser/hddl.cpp"
     break;
 
   case 93:
-#line 403 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 403 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EQUAL; (yyval.formula)->arg1 = (yyvsp[-2].sval); (yyval.formula)->arg2 = (yyvsp[-1].sval);}
-#line 2285 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2294 "src/parser/hddl.cpp"
     break;
 
   case 94:
-#line 404 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 404 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = NOTEQUAL; (yyval.formula)->arg1 = (yyvsp[-3].sval); (yyval.formula)->arg2 = (yyvsp[-2].sval);}
-#line 2291 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2300 "src/parser/hddl.cpp"
     break;
 
   case 95:
-#line 405 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 405 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = OFSORT; (yyval.formula)->arg1 = (yyvsp[-1].vardecl)->vars[0].first; (yyval.formula)->arg2 = (yyvsp[-1].vardecl)->vars[0].second; }
-#line 2297 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2306 "src/parser/hddl.cpp"
     break;
 
   case 96:
-#line 406 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 406 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = NOTOFSORT; (yyval.formula)->arg1 = (yyvsp[-2].vardecl)->vars[0].first; (yyval.formula)->arg2 = (yyvsp[-2].vardecl)->vars[0].second; }
-#line 2303 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2312 "src/parser/hddl.cpp"
     break;
 
   case 103:
-#line 421 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 421 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2309 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2318 "src/parser/hddl.cpp"
     break;
 
   case 104:
-#line 422 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 422 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2315 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2324 "src/parser/hddl.cpp"
     break;
 
   case 105:
-#line 423 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 423 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2321 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2330 "src/parser/hddl.cpp"
     break;
 
   case 106:
-#line 424 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 424 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2327 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2336 "src/parser/hddl.cpp"
     break;
 
   case 107:
-#line 425 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 425 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2333 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2342 "src/parser/hddl.cpp"
     break;
 
   case 108:
-#line 426 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 426 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2339 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2348 "src/parser/hddl.cpp"
     break;
 
   case 109:
-#line 427 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 427 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2345 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2354 "src/parser/hddl.cpp"
     break;
 
   case 110:
-#line 428 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 428 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2351 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2360 "src/parser/hddl.cpp"
     break;
 
   case 111:
-#line 429 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 429 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2357 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2366 "src/parser/hddl.cpp"
     break;
 
   case 112:
-#line 431 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 431 "src/parser/hddl.y"
     {(yyval.formulae) = (yyvsp[-1].formulae); (yyval.formulae)->push_back((yyvsp[0].formula));}
-#line 2363 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2372 "src/parser/hddl.cpp"
     break;
 
   case 113:
-#line 432 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 432 "src/parser/hddl.y"
     {(yyval.formulae) = new vector<general_formula*>();}
-#line 2369 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2378 "src/parser/hddl.cpp"
     break;
 
   case 114:
-#line 434 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 434 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=EMPTY;}
-#line 2375 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2384 "src/parser/hddl.cpp"
     break;
 
   case 115:
-#line 435 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 435 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=AND; (yyval.formula)->subformulae = *((yyvsp[-1].formulae));}
-#line 2381 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2390 "src/parser/hddl.cpp"
     break;
 
   case 116:
-#line 436 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 436 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=OR; (yyval.formula)->subformulae = *((yyvsp[-1].formulae));}
-#line 2387 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2396 "src/parser/hddl.cpp"
     break;
 
   case 117:
-#line 437 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 437 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[-1].formula); (yyval.formula)->negate();}
-#line 2393 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2402 "src/parser/hddl.cpp"
     break;
 
   case 118:
-#line 438 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 438 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=OR; (yyvsp[-2].formula)->negate(); (yyval.formula)->subformulae.push_back((yyvsp[-2].formula)); (yyval.formula)->subformulae.push_back((yyvsp[-1].formula));}
-#line 2399 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2408 "src/parser/hddl.cpp"
     break;
 
   case 119:
-#line 439 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 439 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EXISTS; (yyval.formula)->subformulae.push_back((yyvsp[-1].formula)); (yyval.formula)->qvariables = *((yyvsp[-3].vardecl));}
-#line 2405 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2414 "src/parser/hddl.cpp"
     break;
 
   case 120:
-#line 440 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 440 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = FORALL; (yyval.formula)->subformulae.push_back((yyvsp[-1].formula)); (yyval.formula)->qvariables = *((yyvsp[-3].vardecl));}
-#line 2411 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2420 "src/parser/hddl.cpp"
     break;
 
   case 121:
-#line 441 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 441 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = EQUAL; (yyval.formula)->arg1 = (yyvsp[-2].sval); (yyval.formula)->arg2 = (yyvsp[-1].sval);}
-#line 2417 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2426 "src/parser/hddl.cpp"
     break;
 
   case 122:
-#line 443 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 443 "src/parser/hddl.y"
     {
 						(yyval.varandconst) = (yyvsp[-1].varandconst);
 						string c((yyvsp[0].sval)); string s = "sort_for_" + c; string v = "?var_for_" + c;
@@ -2425,232 +2434,233 @@ yyreduce:
 						(yyval.varandconst)->vars.push_back(v);
 						(yyval.varandconst)->newVar.insert(make_pair(v,s));
 					}
-#line 2429 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2438 "src/parser/hddl.cpp"
     break;
 
   case 123:
-#line 450 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 450 "src/parser/hddl.y"
     {(yyval.varandconst) = (yyvsp[-1].varandconst); string s((yyvsp[0].sval)); (yyval.varandconst)->vars.push_back(s);}
-#line 2435 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2444 "src/parser/hddl.cpp"
     break;
 
   case 124:
-#line 451 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 451 "src/parser/hddl.y"
     {(yyval.varandconst) = new var_and_const();}
-#line 2441 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2450 "src/parser/hddl.cpp"
     break;
 
   case 125:
-#line 453 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 453 "src/parser/hddl.y"
     {(yyval.sval)=(yyvsp[0].sval);}
-#line 2447 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2456 "src/parser/hddl.cpp"
     break;
 
   case 126:
-#line 453 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 453 "src/parser/hddl.y"
     {(yyval.sval)=(yyvsp[0].sval);}
-#line 2453 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2462 "src/parser/hddl.cpp"
     break;
 
   case 127:
-#line 454 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 454 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=ATOM;
 			   								   (yyval.formula)->predicate = (yyvsp[-2].sval); (yyval.formula)->arguments = *((yyvsp[-1].varandconst));
 											  }
-#line 2461 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2470 "src/parser/hddl.cpp"
     break;
 
   case 128:
-#line 465 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 465 "src/parser/hddl.y"
     {(yyval.formulae) = (yyvsp[-1].formulae); (yyval.formulae)->push_back((yyvsp[0].formula));}
-#line 2467 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2476 "src/parser/hddl.cpp"
     break;
 
   case 129:
-#line 466 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 466 "src/parser/hddl.y"
     {(yyval.formulae) = new vector<general_formula*>();}
-#line 2473 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2482 "src/parser/hddl.cpp"
     break;
 
   case 130:
-#line 468 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 468 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2479 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2488 "src/parser/hddl.cpp"
     break;
 
   case 131:
-#line 469 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 469 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2485 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2494 "src/parser/hddl.cpp"
     break;
 
   case 132:
-#line 470 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 470 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2491 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2500 "src/parser/hddl.cpp"
     break;
 
   case 133:
-#line 471 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 471 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2497 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2506 "src/parser/hddl.cpp"
     break;
 
   case 134:
-#line 472 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 472 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2503 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2512 "src/parser/hddl.cpp"
     break;
 
   case 135:
-#line 473 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 473 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2509 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2518 "src/parser/hddl.cpp"
     break;
 
   case 136:
-#line 475 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 475 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=EMPTY;}
-#line 2515 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2524 "src/parser/hddl.cpp"
     break;
 
   case 137:
-#line 476 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 476 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=AND; (yyval.formula)->subformulae = *((yyvsp[-1].formulae));}
-#line 2521 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2530 "src/parser/hddl.cpp"
     break;
 
   case 138:
-#line 477 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 477 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type = FORALL; (yyval.formula)->subformulae.push_back((yyvsp[-1].formula)); (yyval.formula)->qvariables = *((yyvsp[-3].vardecl));}
-#line 2527 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2536 "src/parser/hddl.cpp"
     break;
 
   case 139:
-#line 478 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 478 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=WHEN; (yyval.formula)->subformulae.push_back((yyvsp[-2].formula)); (yyval.formula)->subformulae.push_back((yyvsp[-1].formula));}
-#line 2533 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2542 "src/parser/hddl.cpp"
     break;
 
   case 140:
-#line 481 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 481 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2539 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2548 "src/parser/hddl.cpp"
     break;
 
   case 141:
-#line 481 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 481 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[0].formula);}
-#line 2545 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2554 "src/parser/hddl.cpp"
     break;
 
   case 142:
-#line 482 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 482 "src/parser/hddl.y"
     {(yyval.formula) = (yyvsp[-1].formula); (yyval.formula)->negate();}
-#line 2551 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2560 "src/parser/hddl.cpp"
     break;
 
   case 143:
-#line 486 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 486 "src/parser/hddl.y"
     {(yyval.formula) = new general_formula(); (yyval.formula)->type=COST_CHANGE; (yyval.formula)->subformulae.push_back((yyvsp[-2].formula)); (yyval.formula)->subformulae.push_back((yyvsp[-1].formula)); }
-#line 2557 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2566 "src/parser/hddl.cpp"
     break;
 
   case 145:
-#line 488 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 488 "src/parser/hddl.y"
     { (yyval.formula) = new general_formula(); (yyval.formula)->type = COST; (yyval.formula)->predicate = (yyvsp[0].sval); }
-#line 2563 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2572 "src/parser/hddl.cpp"
     break;
 
   case 146:
-#line 489 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 489 "src/parser/hddl.y"
     { (yyval.formula) = new general_formula(); (yyval.formula)->type = COST; (yyval.formula)->predicate = (yyvsp[-2].sval); (yyval.formula)->arguments = *((yyvsp[-1].varandconst)); }
-#line 2569 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2578 "src/parser/hddl.cpp"
     break;
 
   case 147:
-#line 490 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 490 "src/parser/hddl.y"
     { (yyval.formula) = new general_formula(); (yyval.formula)->type = VALUE; (yyval.formula)->value = (yyvsp[0].ival); }
-#line 2575 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2584 "src/parser/hddl.cpp"
     break;
 
   case 148:
-#line 491 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 491 "src/parser/hddl.y"
     { (yyval.formula) = (yyvsp[0].formula); }
-#line 2581 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2590 "src/parser/hddl.cpp"
     break;
 
   case 149:
-#line 495 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 495 "src/parser/hddl.y"
     {string s((yyvsp[0].sval)); free((yyvsp[0].sval)); (yyval.vstring)->push_back(s);}
-#line 2587 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2596 "src/parser/hddl.cpp"
     break;
 
   case 150:
-#line 496 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 496 "src/parser/hddl.y"
     {string s((yyvsp[0].sval)); free((yyvsp[0].sval)); (yyval.vstring)->push_back(s);}
-#line 2593 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2602 "src/parser/hddl.cpp"
     break;
 
   case 151:
-#line 497 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 497 "src/parser/hddl.y"
     {(yyval.vstring) = new vector<string>();}
-#line 2599 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2608 "src/parser/hddl.cpp"
     break;
 
   case 152:
-#line 502 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 502 "src/parser/hddl.y"
     {string s((yyvsp[0].sval)); free((yyvsp[0].sval)); (yyval.vstring)->push_back(s);}
-#line 2605 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2614 "src/parser/hddl.cpp"
     break;
 
   case 153:
-#line 503 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 503 "src/parser/hddl.y"
     {string s((yyvsp[0].sval)); free((yyvsp[0].sval)); (yyval.vstring)->push_back(s);}
-#line 2611 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2620 "src/parser/hddl.cpp"
     break;
 
   case 154:
-#line 504 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 504 "src/parser/hddl.y"
     {(yyval.vstring) = new vector<string>();}
-#line 2617 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2626 "src/parser/hddl.cpp"
     break;
 
   case 155:
-#line 508 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 508 "src/parser/hddl.y"
     {
 		   	(yyval.vardecl) = new var_declaration;
 			string t((yyvsp[0].sval));
 			for (unsigned int i = 0; i < (yyvsp[-2].vstring)->size(); i++)
 				(yyval.vardecl)->vars.push_back(make_pair((*((yyvsp[-2].vstring)))[i],t));
 			}
-#line 2628 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2637 "src/parser/hddl.cpp"
     break;
 
   case 156:
-#line 514 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 514 "src/parser/hddl.y"
     { (yyval.vardecl) = new var_declaration; string v((yyvsp[-2].sval)); string t((yyvsp[0].sval)); (yyval.vardecl)->vars.push_back(make_pair(v,t));}
-#line 2634 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2643 "src/parser/hddl.cpp"
     break;
 
   case 157:
-#line 515 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 515 "src/parser/hddl.y"
     {
 			   		(yyval.vardecl) = (yyvsp[-1].vardecl);
 					for (unsigned int i = 0; i < (yyvsp[0].vardecl)->vars.size(); i++) (yyval.vardecl)->vars.push_back((yyvsp[0].vardecl)->vars[i]);
 					delete (yyvsp[0].vardecl);
 				}
-#line 2644 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2653 "src/parser/hddl.cpp"
     break;
 
   case 158:
-#line 520 "src/parser/hddl.y" /* yacc.c:1646  */
+#line 520 "src/parser/hddl.y"
     {(yyval.vardecl) = new var_declaration;}
-#line 2650 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2659 "src/parser/hddl.cpp"
     break;
 
 
-#line 2654 "src/parser/hddl.cpp" /* yacc.c:1646  */
+#line 2663 "src/parser/hddl.cpp"
+
         default: break;
       }
     if (yychar_backup != yychar)
@@ -2679,14 +2689,13 @@ yyreduce:
   /* Now 'shift' the result of the reduction.  Determine what state
      that goes to, based on the state we popped back to and the rule
      number reduced by.  */
-
-  yyn = yyr1[yyn];
-
-  yystate = yypgoto[yyn - YYNTOKENS] + *yyssp;
-  if (0 <= yystate && yystate <= YYLAST && yycheck[yystate] == *yyssp)
-    yystate = yytable[yystate];
-  else
-    yystate = yydefgoto[yyn - YYNTOKENS];
+  {
+    const int yylhs = yyr1[yyn] - YYNTOKENS;
+    const int yyi = yypgoto[yylhs] + *yyssp;
+    yystate = (0 <= yyi && yyi <= YYLAST && yycheck[yyi] == *yyssp
+               ? yytable[yyi]
+               : yydefgoto[yylhs]);
+  }
 
   goto yynewstate;
 
@@ -2772,14 +2781,11 @@ yyerrlab:
 | yyerrorlab -- error raised explicitly by YYERROR.  |
 `---------------------------------------------------*/
 yyerrorlab:
+  /* Pacify compilers when the user code never invokes YYERROR and the
+     label yyerrorlab therefore never appears in user code.  */
+  if (0)
+    YYERROR;
 
-  /* Pacify compilers like GCC when the user code never invokes
-     YYERROR and the label yyerrorlab therefore never appears in user
-     code.  */
-  if (/*CONSTCOND*/ 0)
-     goto yyerrorlab;
-
-  yyerror_range[1] = yylsp[1-yylen];
   /* Do not reclaim the symbols of the rule whose action triggered
      this YYERROR.  */
   YYPOPSTACK (yylen);
@@ -2849,12 +2855,14 @@ yyacceptlab:
   yyresult = 0;
   goto yyreturn;
 
+
 /*-----------------------------------.
 | yyabortlab -- YYABORT comes here.  |
 `-----------------------------------*/
 yyabortlab:
   yyresult = 1;
   goto yyreturn;
+
 
 #if 1
 /*-------------------------------------------------.
@@ -2866,6 +2874,10 @@ yyexhaustedlab:
   /* Fall through.  */
 #endif
 
+
+/*-----------------------------------------------------.
+| yyreturn -- parsing is finished, return the result.  |
+`-----------------------------------------------------*/
 yyreturn:
   if (yychar != YYEMPTY)
     {
@@ -2897,7 +2909,7 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 522 "src/parser/hddl.y" /* yacc.c:1906  */
+#line 522 "src/parser/hddl.y"
 
 void run_parser_on_file(FILE* f, char* filename){
 	current_parser_file_name = filename;

@@ -14,38 +14,47 @@ private:
 
     // Coding of the methods' AT's name.
     int _task_name_id;
-    // The method's AT's arguments: 
-    // integer x at pos. i references the x-th positional argument of the method. 
-    std::vector<int> _task_arg_refs;
+    // The method's AT's arguments.
+    std::vector<int> _task_args;
 
+    // The ordered list of subtasks.
+    // TODO replace with BoundSubtask structure ... ?
     std::vector<Signature> _subtasks;
 
 public:
     Reduction() : HtnOp() {}
-    Reduction(int nameId, std::vector<int> args, Signature task) : HtnOp(nameId, args), _task_name_id(task._name_id) {
-        for (int arg : task._args) {
+    Reduction(int nameId, std::vector<int> args, Signature task) : 
+            HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
+    }
 
-            // Where is "arg" in the method's arguments?
-            int i = 0; 
-            while (_args[i] != arg) i++;
-            assert(_args[i] == arg);
-
-            // TODO check types (?)
-
-            _task_arg_refs.push_back(i);
+    HtnOp substitute(std::unordered_map<int, int> s) override {
+        HtnOp op = HtnOp::substitute(s);
+        Reduction& r = (Reduction&) op;
+        r._task_name_id = _task_name_id;
+        r._task_args.resize(_task_args.size());
+        for (int i = 0; i < _task_args.size(); i++) {
+            r._task_args[i] = s[_task_args[i]];
         }
+        r._subtasks.resize(_subtasks.size());
+        for (int i = 0; i < _subtasks.size(); i++) {
+            r._subtasks[i] = _subtasks[i].substitute(s);
+        }
+        return r;
     }
 
     void addSubtask(Signature subtask) {
-        
+        _subtasks.push_back(subtask);
     }
 
     Signature getTaskSignature() {
-        std::vector<int> args;
-        for (int pos : _task_arg_refs) {
-            args.push_back(_args[pos]);
-        }
-        return Signature(_task_name_id, args);
+        return Signature(_task_name_id, _task_args);
+    }
+    const std::vector<int>& getTaskArguments() {
+        return _task_args;
+    }
+
+    std::vector<Signature>& getSubtasks() {
+        return _subtasks;
     }
 };
 
