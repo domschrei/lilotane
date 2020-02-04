@@ -174,6 +174,8 @@ private:
             if (st.task.rfind("__method_precondition_", 0) == 0) {
 
                 // Actually a method precondition which was compiled out
+                
+                // Find primitive task belonging to this method precondition
                 task precTask;
                 for (task t : primitive_tasks) {
                     if (t.name == st.task) {
@@ -181,10 +183,12 @@ private:
                         break;
                     }
                 }
+                // Add its preconditions to the method's preconditions
                 for (auto p : precTask.prec) {
                     Signature sig = getSignature(p);
                     _reductions[id].addPrecondition(sig);
                 }
+                // (Do not add the task to the method's subtasks)
 
             } else {
                 
