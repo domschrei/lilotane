@@ -1,9 +1,15 @@
 
 #include <unordered_map>
+#include <iostream>
 
 #include "util/names.h"
 
 std::unordered_map<int, std::string>* nbt;
+
+bool fail(std::string msg) {
+    printf(msg.c_str());
+    return false;
+}
 
 namespace Names {
     
@@ -12,6 +18,8 @@ namespace Names {
     }
 
     std::string to_string(int nameId) {
+        if (nameId < 0) return std::to_string(nameId);
+        assert(nbt->count(nameId) || fail("No name known with ID " + std::to_string(nameId) + "!\n"));
         return nbt->at(nameId);
     }
 

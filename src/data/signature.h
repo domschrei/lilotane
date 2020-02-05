@@ -7,6 +7,13 @@
 #include <unordered_map>
 #include <assert.h>
 
+
+typedef std::unordered_map<int, int> substitution_t;
+
+namespace Substitution {
+    substitution_t get(std::vector<int> src, std::vector<int> dest);
+};
+
 struct Signature {
     
     int _name_id;
@@ -34,6 +41,7 @@ struct Signature {
 
     bool operator==(const Signature& b) const {
         if (_name_id != b._name_id) return false;
+        if (_negated != b._negated) return false;
         if (_args.size() != b._args.size()) return false;
         for (int i = 0; i < _args.size(); i++) {
             if (_args[i] != b._args[i]) return false;

@@ -14,7 +14,7 @@ class Action : public HtnOp {
 public:
     Action() : HtnOp() {}
     Action(HtnOp& op) : HtnOp(op) {}
-    Action(Action& a) : HtnOp(a._id, a._args) {
+    Action(const Action& a) : HtnOp(a._id, a._args) {
         _preconditions = (a._preconditions);
         _effects = (a._effects); 
     }

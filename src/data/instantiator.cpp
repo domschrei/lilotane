@@ -3,6 +3,7 @@
 
 #include "data/instantiator.h"
 #include "util/names.h"
+#include "data/htn_instance.h"
 
 std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
     Reduction& r, std::unordered_map<int, SigSet> facts) {
@@ -34,7 +35,7 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
     // Check ground preconditions of the reduction
     const SigSet& pre = op->getPreconditions();
-    printf("    %i preconditions\n", pre.size());
+    //printf("    %i preconditions\n", pre.size());
     for (Signature sig : pre) {
         if (isFullyGround(sig)) {
             // This precondition must definitely hold
@@ -46,10 +47,12 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
     }
 
     // Instantiate a lifted precondition
+    bool allGround = true;
     for (Signature sig : pre) {
-        printf(" pre : %s\n", Names::to_string(sig).c_str());
+        //printf(" pre : %s\n", Names::to_string(sig).c_str());
 
         if (!isFullyGround(sig)) {
+            allGround = false;
             // This precondition must hold relative to its arguments:
             // Are there instantiations in the facts where it holds?
 
@@ -117,24 +120,25 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
             // For each holding literal in the state, try an instantiation
             for (Signature groundSig : c) {
-                printf("  ~> %s\n", Names::to_string(groundSig).c_str());
+                //printf("  ~> %s\n", Names::to_string(groundSig).c_str());
 
                 std::unordered_map<int, int> s;
                 if (!fits(sig, groundSig, &s)) continue;
 
                 // Possible partial instantiation
-                printf("     %s\n", Names::to_string(s).c_str());
+                //printf("     %s\n", Names::to_string(s).c_str());
 
-                if (is_base_of<Reduction, T>()) {
+                if (std::is_same<Reduction, T>::value) {
                     // Reduction
                     Reduction newRed = dynamic_cast<Reduction*>(op)->substituteRed(s);
                     
                     // Recursively find all fitting instantiations for remaining preconditions
                     std::vector<Reduction> newOps = instantiatePreconditions(newRed, facts);
                     for (Reduction r : newOps) {
-                        result.push_back(static_case<T>(r));
+                        result.push_back(static_cast<T>(r));
                     }
-                } else {
+                } 
+                if (std::is_same<Action, T>::value) {
                     // Action
                     HtnOp o = op->substitute(s);
                     Action newA = Action(o);
@@ -152,13 +156,16 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
             else return std::vector<T>();
         }
     }
+    if (allGround) {
+        result.push_back(r);
+    }
 
     return result;
 }
 
 bool Instantiator::isFullyGround(Signature& sig) {
     for (int arg : sig._args) {
-        if (_var_ids.count(arg) > 0) return false;
+        if (_htn->_var_ids.count(arg)) return false;
     }
     return true;
 }
@@ -167,7 +174,7 @@ std::vector<int> Instantiator::getFreeArgPositions(Signature& sig) {
     std::vector<int> argPositions;
     for (int i = 0; i < sig._args.size(); i++) {
         int arg = sig._args[i];
-        if (_var_ids.count(arg) > 0) argPositions.push_back(i);
+        if (_htn->_var_ids.count(arg)) argPositions.push_back(i);
     }
     return argPositions;
 }
@@ -176,7 +183,7 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map
     assert(sig._name_id == groundSig._name_id);
     assert(sig._args.size() == groundSig._args.size());
     for (int i = 0; i < sig._args.size(); i++) {
-        if (_var_ids.count(sig._args[i]) == 0) {
+        if (_htn->_var_ids.count(sig._args[i]) == 0) {
             // Constant parameter: must be equal
             if (sig._args[i] != groundSig._args[i]) return false;
         }

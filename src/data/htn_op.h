@@ -18,7 +18,7 @@ protected:
 public:
     HtnOp() {}
     HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
-    HtnOp(HtnOp& op) : _id(op._id), _args(op._args) {}
+    HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
 
     void addPrecondition(Signature& sig) {
         _preconditions.insert(sig);
@@ -52,7 +52,7 @@ public:
     const SigSet& getEffects() {
         return _effects;
     }
-    std::vector<int> getArguments() {
+    const std::vector<int>& getArguments() {
         return _args;
     }
     Signature getSignature() {

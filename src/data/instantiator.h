@@ -12,20 +12,15 @@
 #include "data/code_table.h"
 #include "data/signature.h"
 
+class HtnInstance; // incomplete forward def
+
 class Instantiator {
 
 private:
-    ParsedProblem& _problem;
-    std::unordered_set<int>& _var_ids;
-    std::unordered_map<int, std::vector<int>>& _constants_by_sort;
-    std::unordered_map<int, std::vector<int>>& _predicate_sorts_table;
+    HtnInstance* _htn;
 
 public:
-    Instantiator(ParsedProblem& p, std::unordered_set<int>& varIds,
-                std::unordered_map<int, std::vector<int>>& constants, 
-                std::unordered_map<int, std::vector<int>>& predicateSortsTable) : 
-            _problem(p), _var_ids(varIds), _constants_by_sort(constants), 
-            _predicate_sorts_table(predicateSortsTable) {}
+    Instantiator(HtnInstance& htn) : _htn(&htn) {}
 
     std::vector<Reduction> getMinimalApplicableInstantiations(Reduction& r, 
             std::unordered_map<int, SigSet> facts);
@@ -52,6 +47,7 @@ public:
         for (int i = 0; i < origArgs.size(); i++) {
             s[origArgs[i]] = newArgs[i];
         }
+        return s;
     }
 
 };

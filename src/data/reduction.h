@@ -19,12 +19,12 @@ private:
     std::vector<int> _task_args;
 
     // The ordered list of subtasks.
-    // TODO replace with BoundSubtask structure ... ?
     std::vector<Signature> _subtasks;
 
 public:
     Reduction() : HtnOp() {}
     Reduction(HtnOp& op) : HtnOp(op) {}
+    Reduction(const Reduction& r) : HtnOp(r._id, r._args), _task_name_id(r._task_name_id), _task_args(r._task_args), _subtasks(r._subtasks) {}
     Reduction(int nameId, std::vector<int> args, Signature task) : 
             HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
     }
@@ -35,7 +35,8 @@ public:
         r._task_name_id = _task_name_id;
         r._task_args.resize(_task_args.size());
         for (int i = 0; i < _task_args.size(); i++) {
-            r._task_args[i] = s[_task_args[i]];
+            if (s.count(_task_args[i])) r._task_args[i] = s[_task_args[i]];
+            else r._task_args[i] = _task_args[i];
         }
         r._subtasks.resize(_subtasks.size());
         for (int i = 0; i < _subtasks.size(); i++) {
