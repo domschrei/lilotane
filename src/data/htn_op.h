@@ -18,6 +18,7 @@ protected:
 public:
     HtnOp() {}
     HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
+    HtnOp(HtnOp& op) : _id(op._id), _args(op._args) {}
 
     void addPrecondition(Signature& sig) {
         _preconditions.insert(sig);
@@ -31,7 +32,8 @@ public:
         op._id = _id;
         op._args.resize(_args.size());
         for (int i = 0; i < _args.size(); i++) {
-            op._args[i] = s[_args[i]];
+            if (s.count(_args[i])) op._args[i] = s[_args[i]];
+            else op._args[i] = _args[i];
         }
         for (Signature sig : _preconditions) {
             Signature sigSubst = sig.substitute(s);
@@ -55,6 +57,14 @@ public:
     }
     Signature getSignature() {
         return Signature(_id, _args);
+    }
+
+    HtnOp& operator=(const HtnOp& op) {
+        _id = op._id;
+        _args = op._args;
+        _preconditions = op._preconditions;
+        _effects = op._effects;
+        return *this;
     }
 };
 

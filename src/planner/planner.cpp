@@ -7,6 +7,7 @@
 
 
 void Planner::findPlan() {
+    Names::init(_name_back_table);
 
     for (predicate_definition p : predicate_definitions)
         extractPredSorts(p);
@@ -36,6 +37,7 @@ void Planner::findPlan() {
     
     printf("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 
+
     _instantiator = new Instantiator(_p, _var_ids, _constants_by_sort, _predicate_sorts_table);
     _effector_table = new EffectorTable(_p, _actions, _reductions, _task_id_to_reduction_ids);
 
@@ -53,7 +55,7 @@ void Planner::findPlan() {
         Signature sig(predId, getArguments(lit.args));
         if (!lit.positive) sig.negate();
         initLayer[0].addFact(sig);
-        printf(" add fact %s @%i\n", to_string(sig).c_str(), 0);
+        printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), 0);
         initState[predId];
         initState[predId].insert(sig);
     }
@@ -72,7 +74,7 @@ void Planner::findPlan() {
         Signature sig(getNameId(lit.predicate), getArguments(lit.args));
         if (!lit.positive) sig.negate();
         initLayer[initLayer.size()-1].addFact(sig);
-        printf(" add fact %s @%i\n", to_string(sig).c_str(), initLayer.size()-1);
+        printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
     }
 
     initLayer.consolidate();
@@ -144,7 +146,7 @@ void Planner::addToLayer(Signature& task, Layer& layer, int pos,
         for (Action action : actions) {
             Signature sig = action.getSignature();
             _actions_by_sig[sig] = action;
-            printf(" add action %s @%i\n", to_string(sig).c_str(), pos);
+            printf(" add action %s @%i\n", Names::to_string(sig).c_str(), pos);
 
             // Add action to elements @pos
             layer[pos].addAction(sig);
@@ -169,14 +171,14 @@ void Planner::addToLayer(Signature& task, Layer& layer, int pos,
             Reduction& r = _reductions[redId];
             Signature origSig = r.getSignature();
             std::vector<Reduction> reductions = _instantiator->getMinimalApplicableInstantiations(r, state);
-            printf("  reduction %s ~> %i instantiations\n", to_string(origSig).c_str(), reductions.size());
+            printf("  reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
 
             // TODO Add any remaining constants in each action as q-constants 
 
             for (Reduction red : reductions) {
                 Signature sig = red.getSignature();
                 _reductions_by_sig[sig] = red;
-                printf("   add reduction %s @%i\n", to_string(sig).c_str(), pos);
+                printf("   add reduction %s @%i\n", Names::to_string(sig).c_str(), pos);
 
                 // Add reduction to elements @pos
                 layer[pos].addReduction(sig);

@@ -11,9 +11,11 @@
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
+#include "util/names.h"
 
 #include "data/instantiator.h"
 #include "data/effector_table.h"
+
 
 class Planner {
 
@@ -197,7 +199,7 @@ private:
                 _reductions[id].addSubtask(sig);
             }
         }
-        printf(" %s : %i preconditions, %i subtasks\n", to_string(_reductions[id].getSignature()).c_str(), 
+        printf(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                     _reductions[id].getPreconditions().size(), 
                     _reductions[id].getSubtasks().size());
         return _reductions[id];
@@ -216,18 +218,6 @@ private:
             _actions[id].addEffect(sig);
         }
         return _actions[id];
-    }
-
-    std::string to_string(Signature sig) {
-        std::string out = "";
-        if (sig._negated) out += "!";
-        out += "(";
-        out += _name_back_table[sig._name_id];
-        for (int arg : sig._args) {
-            out += " " + _name_back_table[arg];
-        }
-        out += ")";
-        return out;
     }
 
     /*

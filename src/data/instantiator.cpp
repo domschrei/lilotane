@@ -2,6 +2,7 @@
 #include <assert.h>
 
 #include "data/instantiator.h"
+#include "util/names.h"
 
 std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
     Reduction& r, std::unordered_map<int, SigSet> facts) {
@@ -46,6 +47,8 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
     // Instantiate a lifted precondition
     for (Signature sig : pre) {
+        printf(" pre : %s\n", Names::to_string(sig).c_str());
+
         if (!isFullyGround(sig)) {
             // This precondition must hold relative to its arguments:
             // Are there instantiations in the facts where it holds?
@@ -69,7 +72,7 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
                 // Iterate over all possible assignments
                 std::vector<int> counter(constantsPerArg.size(), 0);
-                assignmentLoop : while (true) {
+                while (true) {
                     // Assemble the assignment
                     std::vector<int> newArgs(counter.size());
                     for (int argPos = 0; argPos < counter.size(); argPos++) {
@@ -94,35 +97,53 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
                     }
 
                     // Increment exponential counter
-                    int c = 0;
-                    while (c < counter.size()) {
-                        if (counter[c]+1 == constantsPerArg[c].size()) {
+                    int x = 0;
+                    while (x < counter.size()) {
+                        if (counter[x]+1 == constantsPerArg[x].size()) {
                             // max value reached
-                            counter[c] = 0;
-                            if (c+1 == counter.size()) break;
+                            counter[x] = 0;
+                            if (x+1 == counter.size()) break;
                         } else {
                             // increment
-                            counter[c]++;
+                            counter[x]++;
                             break;
                         }
+                        x++;
                     }
                     // Counter finished?
-                    if (counter[c] == 0 && c+1 == counter.size()) break;
+                    if (counter[x] == 0 && x+1 == counter.size()) break;
                 }
             }
 
             // For each holding literal in the state, try an instantiation
             for (Signature groundSig : c) {
+                printf("  ~> %s\n", Names::to_string(groundSig).c_str());
+
                 std::unordered_map<int, int> s;
                 if (!fits(sig, groundSig, &s)) continue;
 
                 // Possible partial instantiation
-                HtnOp htnOp = op->substitute(s);
-                T* newOp = static_cast<T*>(&htnOp);
+                printf("     %s\n", Names::to_string(s).c_str());
 
-                // Recursively find all fitting instantiations for remaining preconditions
-                std::vector<T> newOps = instantiatePreconditions(*newOp, facts);
-                result.insert(result.end(), newOps.begin(), newOps.end());
+                if (is_base_of<Reduction, T>()) {
+                    // Reduction
+                    Reduction newRed = dynamic_cast<Reduction*>(op)->substituteRed(s);
+                    
+                    // Recursively find all fitting instantiations for remaining preconditions
+                    std::vector<Reduction> newOps = instantiatePreconditions(newRed, facts);
+                    for (Reduction r : newOps) {
+                        result.push_back(static_case<T>(r));
+                    }
+                } else {
+                    // Action
+                    HtnOp o = op->substitute(s);
+                    Action newA = Action(o);
+                    std::vector<Action> newOps = instantiatePreconditions(newA, facts);
+                    for (Action a : newOps) {
+                        result.push_back(static_cast<T>(a));
+                    }
+                }
+
             }
             // end after 1st successful substitution chain:
             // another recursive call did the remaining substitutions 
@@ -161,7 +182,7 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map
         }
 
         if (substitution != NULL) {
-            substitution->at(sig._args[i]) = groundSig._args[i];
+            substitution->insert(std::pair<int, int>(sig._args[i], groundSig._args[i]));
         }
     }
     return true;

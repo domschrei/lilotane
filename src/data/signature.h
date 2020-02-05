@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_set>
 #include <unordered_map>
+#include <assert.h>
 
 struct Signature {
     
@@ -24,7 +25,8 @@ struct Signature {
         sig._name_id = _name_id;
         sig._args.resize(_args.size());
         for (int i = 0; i < _args.size(); i++) {
-            sig._args[i] = s[_args[i]];
+            if (s.count(_args[i])) sig._args[i] = s[_args[i]];
+            else sig._args[i] = _args[i];
         }
         sig._negated = _negated;
         return sig;
@@ -43,6 +45,7 @@ struct Signature {
         _name_id = sig._name_id;
         _args = sig._args;
         _negated = sig._negated;
+        return *this;
     }
 };
 

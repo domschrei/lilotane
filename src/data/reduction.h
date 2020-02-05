@@ -24,13 +24,14 @@ private:
 
 public:
     Reduction() : HtnOp() {}
+    Reduction(HtnOp& op) : HtnOp(op) {}
     Reduction(int nameId, std::vector<int> args, Signature task) : 
             HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
     }
 
-    HtnOp substitute(std::unordered_map<int, int> s) override {
+    Reduction substituteRed(std::unordered_map<int, int> s) {
         HtnOp op = HtnOp::substitute(s);
-        Reduction& r = (Reduction&) op;
+        Reduction r(op);
         r._task_name_id = _task_name_id;
         r._task_args.resize(_task_args.size());
         for (int i = 0; i < _task_args.size(); i++) {
