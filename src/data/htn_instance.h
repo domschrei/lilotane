@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <assert.h> 
  
-#include "parser/main.h"
+#include "parser/main.hpp"
 #include "data/code_table.h"
 #include "data/layer.h"
 #include "data/action.h"
@@ -16,6 +16,10 @@
 #include "data/instantiator.h"
 #include "data/effector_table.h"
 #include "data/arg_iterator.h"
+
+// External functions
+int run_pandaPIparser(int argc, char** argv);
+ParsedProblem& get_parsed_problem();
 
 struct HtnInstance {
 
@@ -57,7 +61,23 @@ struct HtnInstance {
 
     Reduction _init_reduction;
 
+    static ParsedProblem& parse(std::string domainFile, std::string problemFile) {
+
+        const char* firstArg = "pandaPIparser";
+        const char* domainStr = domainFile.c_str();
+        const char* problemStr = problemFile.c_str();
+
+        char* args[3];
+        args[0] = (char*)firstArg;
+        args[1] = (char*)domainStr;
+        args[2] = (char*)problemStr;
+        
+        int result = run_pandaPIparser(3, args);
+        return get_parsed_problem();
+    }
+
     HtnInstance(ParsedProblem& p) : _p(p) {
+
         Names::init(_name_back_table);
         _instantiator = new Instantiator(*this);
         _effector_table = new EffectorTable(*this);

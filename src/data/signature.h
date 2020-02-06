@@ -24,16 +24,18 @@ struct Signature {
     Signature(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
 
     void negate() {
-        _negated = true;
+        _negated = !_negated;
     }
 
     Signature substitute(std::unordered_map<int, int> s) {
         Signature sig;
         sig._name_id = _name_id;
+        assert(sig._name_id != 0);
         sig._args.resize(_args.size());
         for (int i = 0; i < _args.size(); i++) {
             if (s.count(_args[i])) sig._args[i] = s[_args[i]];
             else sig._args[i] = _args[i];
+            assert(sig._args[i] != 0);
         }
         sig._negated = _negated;
         return sig;
@@ -70,12 +72,7 @@ struct SignatureHasher {
 
 struct SignatureComparator {
     bool operator()(const Signature& a, const Signature& b) const {
-        if (a._name_id != b._name_id) return false;
-        if (a._args.size() != b._args.size()) return false;
-        for (int i = 0; i < a._args.size(); i++) {
-            if (a._args[i] != b._args[i]) return false;
-        }
-        return true;
+        return a == b;
     }
 };
 

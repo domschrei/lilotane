@@ -9,7 +9,6 @@
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
-#include "parser/main.h"
 #include "util/names.h"
 
 class HtnInstance;

@@ -4,10 +4,12 @@
 
 #include "planner.h"
 #include "parser/cwa.hpp"
-
+#include "sat/encoding.h"
 
 void Planner::findPlan() {
     
+    Encoding enc(_htn);
+
     // Begin actual instantiation and solving loop
     int iteration = 0;
     printf("ITERATION %i\n", iteration++);
@@ -33,6 +35,7 @@ void Planner::findPlan() {
         std::unordered_map<int, SigSet> newState(state);
         addToLayer(_htn._init_reduction.getSubtasks()[pos], initLayer, pos, state, newState);
         state = newState;
+        enc.addOccurringFacts(state, initLayer, pos);
     }
 
     // Goal state (?)
@@ -40,16 +43,15 @@ void Planner::findPlan() {
         Signature sig(_htn.getNameId(lit.predicate), _htn.getArguments(lit.args));
         if (!lit.positive) sig.negate();
         initLayer[initLayer.size()-1].addFact(sig);
+        state[sig._name_id].insert(sig);
         printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
     }
 
+    enc.addOccurringFacts(state, initLayer, initLayer.size()-1);
     initLayer.consolidate();
 
-    // TODO sat encoding
-    // TODO sat call
-    bool solved = false;
-
-
+    enc.addAssumptions(initLayer);
+    bool solved = enc.solve();
 
     // Next layers
 
@@ -89,14 +91,15 @@ void Planner::findPlan() {
                 }
 
                 state = newState;
+                enc.addOccurringFacts(state, newLayer, newPos);
             }
         }
 
         newLayer.consolidate();
 
-        // TODO sat encoding
-        // TODO sat call
-        solved = false;
+        enc.addAssumptions(newLayer);
+        solved = enc.solve();
+
         oldLayer = newLayer;
     }
 

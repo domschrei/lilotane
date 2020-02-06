@@ -1,6 +1,6 @@
-#line 2 "src/parser/hddl-token.cpp"
+#line 2 "hddl-token.cpp"
 
-#line 4 "src/parser/hddl-token.cpp"
+#line 4 "hddl-token.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -633,16 +633,16 @@ int yy_flex_debug = 0;
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
 char *yytext;
-#line 1 "src/parser/hddl-token.l"
-#line 2 "src/parser/hddl-token.l"
+#line 1 "hddl-token.l"
+#line 2 "hddl-token.l"
 	#include <iostream>
 	#include <vector>
 	#include "parsetree.hpp"
 	#include "hddl.hpp"
 	#define YY_USER_ACTION yylloc.first_line = yylloc.last_line = yylineno;
 	using namespace std;
-#line 645 "src/parser/hddl-token.cpp"
-#line 646 "src/parser/hddl-token.cpp"
+#line 645 "hddl-token.cpp"
+#line 646 "hddl-token.cpp"
 
 #define INITIAL 0
 
@@ -859,9 +859,9 @@ YY_DECL
 		}
 
 	{
-#line 12 "src/parser/hddl-token.l"
+#line 12 "hddl-token.l"
 
-#line 865 "src/parser/hddl-token.cpp"
+#line 865 "hddl-token.cpp"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -930,292 +930,292 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 13 "src/parser/hddl-token.l"
+#line 13 "hddl-token.l"
 {return '('; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 14 "src/parser/hddl-token.l"
+#line 14 "hddl-token.l"
 {return ')'; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 15 "src/parser/hddl-token.l"
+#line 15 "hddl-token.l"
 {return '-'; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 16 "src/parser/hddl-token.l"
+#line 16 "hddl-token.l"
 {return '='; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 17 "src/parser/hddl-token.l"
+#line 17 "hddl-token.l"
 {return '<'; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 18 "src/parser/hddl-token.l"
+#line 18 "hddl-token.l"
 {return KEY_DEFINE;}
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 19 "src/parser/hddl-token.l"
+#line 19 "hddl-token.l"
 {return KEY_DOMAIN;}
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 20 "src/parser/hddl-token.l"
+#line 20 "hddl-token.l"
 {return KEY_DOMAIN;}
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 21 "src/parser/hddl-token.l"
+#line 21 "hddl-token.l"
 {return KEY_PROBLEM;}
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 22 "src/parser/hddl-token.l"
+#line 22 "hddl-token.l"
 {return KEY_REQUIREMENTS;}
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 23 "src/parser/hddl-token.l"
+#line 23 "hddl-token.l"
 {return KEY_TYPES;}
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 24 "src/parser/hddl-token.l"
+#line 24 "hddl-token.l"
 {return KEY_CONSTANTS;}
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 25 "src/parser/hddl-token.l"
+#line 25 "hddl-token.l"
 {return KEY_PREDICATES;}
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 26 "src/parser/hddl-token.l"
+#line 26 "hddl-token.l"
 {return KEY_FUNCTIONS;}
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 27 "src/parser/hddl-token.l"
+#line 27 "hddl-token.l"
 {return KEY_TASK;}
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 28 "src/parser/hddl-token.l"
+#line 28 "hddl-token.l"
 {return KEY_ACTION;}
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 29 "src/parser/hddl-token.l"
+#line 29 "hddl-token.l"
 {return KEY_PARAMETERS;}
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 30 "src/parser/hddl-token.l"
+#line 30 "hddl-token.l"
 {return KEY_PRECONDITION;}
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 31 "src/parser/hddl-token.l"
+#line 31 "hddl-token.l"
 {return KEY_EFFECT;}
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 32 "src/parser/hddl-token.l"
+#line 32 "hddl-token.l"
 {return KEY_METHOD;}
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 33 "src/parser/hddl-token.l"
+#line 33 "hddl-token.l"
 {return KEY_INIT;}
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 34 "src/parser/hddl-token.l"
+#line 34 "hddl-token.l"
 {return KEY_GOAL;}
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 35 "src/parser/hddl-token.l"
+#line 35 "hddl-token.l"
 {return KEY_HTN;}
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 36 "src/parser/hddl-token.l"
+#line 36 "hddl-token.l"
 {return KEY_TIHTN;}
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 37 "src/parser/hddl-token.l"
+#line 37 "hddl-token.l"
 {return KEY_TIHTN;}
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 38 "src/parser/hddl-token.l"
+#line 38 "hddl-token.l"
 {return KEY_OBJECTS;}
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 40 "src/parser/hddl-token.l"
+#line 40 "hddl-token.l"
 {return KEY_TASKS;}
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 41 "src/parser/hddl-token.l"
+#line 41 "hddl-token.l"
 {return KEY_TASKS;}
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 42 "src/parser/hddl-token.l"
+#line 42 "hddl-token.l"
 {return KEY_ORDER_TASKS;}
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 43 "src/parser/hddl-token.l"
+#line 43 "hddl-token.l"
 {return KEY_ORDER_TASKS;}
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 44 "src/parser/hddl-token.l"
+#line 44 "hddl-token.l"
 {return KEY_ORDER;}
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 45 "src/parser/hddl-token.l"
+#line 45 "hddl-token.l"
 {return KEY_ORDER;}
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 47 "src/parser/hddl-token.l"
+#line 47 "hddl-token.l"
 {return KEY_CONSTRAINTS;}
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 48 "src/parser/hddl-token.l"
+#line 48 "hddl-token.l"
 {return KEY_METRIC;}
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 49 "src/parser/hddl-token.l"
+#line 49 "hddl-token.l"
 {return KEY_MIMIZE;}
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 51 "src/parser/hddl-token.l"
+#line 51 "hddl-token.l"
 {return KEY_CAUSAL_LINKS;}
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 52 "src/parser/hddl-token.l"
+#line 52 "hddl-token.l"
 {return KEY_CAUSAL_LINKS;}
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 54 "src/parser/hddl-token.l"
+#line 54 "hddl-token.l"
 {return KEY_AND;}
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 55 "src/parser/hddl-token.l"
+#line 55 "hddl-token.l"
 {return KEY_OR;}
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 56 "src/parser/hddl-token.l"
+#line 56 "hddl-token.l"
 {return KEY_NOT;}
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 57 "src/parser/hddl-token.l"
+#line 57 "hddl-token.l"
 {return KEY_IMPLY;}
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 58 "src/parser/hddl-token.l"
+#line 58 "hddl-token.l"
 {return KEY_FORALL;}
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 59 "src/parser/hddl-token.l"
+#line 59 "hddl-token.l"
 {return KEY_EXISTS;}
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 60 "src/parser/hddl-token.l"
+#line 60 "hddl-token.l"
 {return KEY_WHEN;}
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 61 "src/parser/hddl-token.l"
+#line 61 "hddl-token.l"
 {return KEY_INCREASE;}
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 63 "src/parser/hddl-token.l"
+#line 63 "hddl-token.l"
 {return KEY_TYPEOF;}
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 64 "src/parser/hddl-token.l"
+#line 64 "hddl-token.l"
 {return KEY_TYPEOF;}
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 65 "src/parser/hddl-token.l"
+#line 65 "hddl-token.l"
 {return KEY_TYPEOF;}
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 66 "src/parser/hddl-token.l"
+#line 66 "hddl-token.l"
 {return KEY_TYPEOF;}
 	YY_BREAK
 case 50:
 /* rule 50 can match eol */
 YY_RULE_SETUP
-#line 69 "src/parser/hddl-token.l"
+#line 69 "hddl-token.l"
 ; // whitespace
 	YY_BREAK
 case 51:
 /* rule 51 can match eol */
 YY_RULE_SETUP
-#line 70 "src/parser/hddl-token.l"
+#line 70 "hddl-token.l"
 ; // comments
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 71 "src/parser/hddl-token.l"
+#line 71 "hddl-token.l"
 {yylval.sval = strdup(yytext); return VAR_NAME;}
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 72 "src/parser/hddl-token.l"
+#line 72 "hddl-token.l"
 {yylval.sval = strdup(yytext); return REQUIRE_NAME;}
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 73 "src/parser/hddl-token.l"
+#line 73 "hddl-token.l"
 {yylval.sval = strdup(yytext); return NAME;}
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 74 "src/parser/hddl-token.l"
+#line 74 "hddl-token.l"
 {yylval.fval = atof(yytext); return FLOAT;}
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 75 "src/parser/hddl-token.l"
+#line 75 "hddl-token.l"
 {yylval.ival = atoi(yytext); return INT;}
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 76 "src/parser/hddl-token.l"
+#line 76 "hddl-token.l"
 ECHO;
 	YY_BREAK
-#line 1219 "src/parser/hddl-token.cpp"
+#line 1219 "hddl-token.cpp"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2232,7 +2232,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 76 "src/parser/hddl-token.l"
+#line 76 "hddl-token.l"
 
 /*
 

@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <cassert>
 
-#include "main.h"
+#include "main.hpp"
 
 // parsed domain data structures
 bool has_typeof_predicate = false;
@@ -52,7 +52,7 @@ int run_pandaPIparser(int argc, char** argv) {
 	for (int i = 1; i < argc; i++){
 		if (strcmp(argv[i], "-no-split-parameters") == 0) splitParameters = false;
 		else if (strcmp(argv[i], "-shop") == 0 || strcmp(argv[i], "-shop2") == 0 || strcmp(argv[i], "-shop1") == 0){
-		   	shopOutput = true;
+			shopOutput = true;
 			if (strcmp(argv[i], "-shop1") == 0)
 			shop_1_compatability_mode = true;
 		}
@@ -64,7 +64,7 @@ int run_pandaPIparser(int argc, char** argv) {
 		else if (strcmp(argv[i], "-verify-no-order") == 0) { verifyPlan = true, useOrderInPlanVerification = false; }
 		else if (strcmp(argv[i], "-nocolor") == 0) no_colors_in_output = true;
 		else if (strcmp(argv[i], "-debug") == 0){
-		   	verboseOutput = true;
+			verboseOutput = true;
 			if (i+1 == argc) continue;
 			string s(argv[i+1]);
 			if (all_of(s.begin(), s.end(), ::isdigit)){
@@ -219,3 +219,5 @@ int run_pandaPIparser(int argc, char** argv) {
 
 	return 0;
 }
+
+

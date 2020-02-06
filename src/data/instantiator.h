@@ -6,7 +6,6 @@
 #include <unordered_set>
 
 #include "parser/cwa.hpp"
-#include "parser/main.h"
 #include "data/reduction.h"
 #include "data/action.h"
 #include "data/code_table.h"

@@ -41,20 +41,12 @@ private:
 
 public:
     Layer(int index, int size) : _index(index) {_content.resize(size);}
-    int size() {return _content.size();}
-    int index() {return _index;}
-    Position& operator[](int pos) {return _content[pos];}
-    void consolidate() {
-        int succ = 0;
-        for (int pos = 0; pos < size(); pos++) {
-            _successor_positions.push_back(succ);
-            succ += _content[pos].getMaxExpansionSize();
-        }
-    }
-    int getNextLayerSize() {
-        return _successor_positions.back();
-    }
-    int getSuccessorPos(int oldPos) {return _successor_positions[oldPos];}
+    int size();
+    int index();
+    Position& operator[](int pos);
+    void consolidate();
+    int getNextLayerSize();
+    int getSuccessorPos(int oldPos);
 };
 
 #endif
