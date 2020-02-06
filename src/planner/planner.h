@@ -29,7 +29,7 @@ public:
 
 private:
 
-    void addToLayer(Signature& task, Layer& layer, int layerIdx, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+    void addToLayer(Signature& task, Layer& layer, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
 
     /*
     int getFact(Signature& sig) {

@@ -35,12 +35,14 @@ struct Position {
 class Layer {
 
 private:
+    int _index;
     std::vector<Position> _content;
     std::vector<int> _successor_positions;
 
 public:
-    Layer(int size) {_content.resize(size);}
+    Layer(int index, int size) : _index(index) {_content.resize(size);}
     int size() {return _content.size();}
+    int index() {return _index;}
     Position& operator[](int pos) {return _content[pos];}
     void consolidate() {
         int succ = 0;

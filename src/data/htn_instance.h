@@ -161,11 +161,12 @@ struct HtnInstance {
     }
     void extractConstants() {
         for (auto sortPair : _p.sorts) {
-            int nameId = getNameId(sortPair.first);
-            _constants_by_sort[nameId] = std::vector<int>();
-            std::vector<int>& constants = _constants_by_sort[nameId];
+            int sortId = getNameId(sortPair.first);
+            _constants_by_sort[sortId] = std::vector<int>();
+            std::vector<int>& constants = _constants_by_sort[sortId];
             for (std::string c : sortPair.second) {
                 constants.push_back(getNameId(c));
+                //printf("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
             }
         }
     }
@@ -260,7 +261,26 @@ struct HtnInstance {
             std::string qConstName = _name_back_table[qConst];
             assert(qConstName[0] == '?');
             qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + qConstName.substr(1);
-            s[qConst] = getNameId(qConstName);
+            int qConstId = getNameId(qConstName);
+            s[qConst] = qConstId;
+            // Add qConstant to constant tables of its type and each of its
+            std::unordered_set<int> containedSorts;
+            containedSorts.insert(_predicate_sorts_table[sig._name_id][qConstPos]);
+            for (sort_definition sd : _p.sort_definitions) {
+                for (int containedSort : containedSorts) {
+                    if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
+                        for (std::string newSort : sd.declared_sorts) {
+                            containedSorts.insert(getNameId(newSort));
+                        }
+                    }
+                }
+            }
+            printf("sorts of %s : ", Names::to_string(qConstId).c_str());
+            for (int sort : containedSorts) {
+                _constants_by_sort[sort].push_back(qConstId);
+                printf("%s ", Names::to_string(sort).c_str());
+            } 
+            printf("\n");
         }
         HtnOp op = a.substitute(s);
         return Action(op);        

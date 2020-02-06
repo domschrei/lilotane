@@ -65,12 +65,12 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
                 // does not occur in posFacts nor in negFacts => need to be instantiated, too!
                 
                 // Get all constants of the respective type(s)
-                assert(_predicate_sorts_table.count(sig._name_id) > 0);
-                std::vector<int> sorts = _predicate_sorts_table[sig._name_id];
+                assert(_htn->_predicate_sorts_table.count(sig._name_id) > 0);
+                std::vector<int> sorts = _htn->_predicate_sorts_table[sig._name_id];
                 std::vector<std::vector<int>> constantsPerArg;
                 for (int sort : sorts) {
-                    assert(_constants_by_sort.count(sort) > 0);
-                    constantsPerArg.push_back(_constants_by_sort[sort]);
+                    assert(_htn->_constants_by_sort.count(sort) > 0);
+                    constantsPerArg.push_back(_htn->_constants_by_sort[sort]);
                 }
 
                 // Iterate over all possible assignments

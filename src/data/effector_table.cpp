@@ -12,12 +12,12 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     
     // Get original signature of this operator (fully lifted)
     Signature origSig;
-    if (_reductions.count(nameId) == 0) {
+    if (_htn->_reductions.count(nameId) == 0) {
         // Action
-        origSig = _actions[nameId].getSignature();
+        origSig = _htn->_actions[nameId].getSignature();
     } else {
         // Reduction
-        origSig = _reductions[nameId].getSignature();
+        origSig = _htn->_reductions[nameId].getSignature();
     }
 
     // Substitution mapping from original signature
@@ -50,8 +50,8 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             if (seenSignatures.count(nodeSig) > 0) continue;
             
             // If it is an action: add effects
-            if (_actions.count(nodeSig._name_id)) {
-                Action& a = _actions[nodeSig._name_id];
+            if (_htn->_actions.count(nodeSig._name_id)) {
+                Action& a = _htn->_actions[nodeSig._name_id];
                 HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
                 a = Action(op);
                 for (Signature pre : a.getEffects()) {
@@ -98,7 +98,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
     int nameId = actionOrReduction._name_id;
     if (_htn->_actions.count(nameId) == 0) {
         // Reduction
-        assert(_htn._reductions.count(nameId) > 0);
+        assert(_htn->_reductions.count(nameId) > 0);
         Reduction r = _htn->_reductions[nameId];
         r = r.substituteRed(Substitution::get(r.getArguments(), actionOrReduction._args));
         std::vector<Signature> subtasks = r.getSubtasks();

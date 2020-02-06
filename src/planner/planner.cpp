@@ -12,7 +12,7 @@ void Planner::findPlan() {
     int iteration = 0;
     printf("ITERATION %i\n", iteration++);
 
-    Layer initLayer(_htn._init_reduction.getSubtasks().size()+1);
+    Layer initLayer(iteration, _htn._init_reduction.getSubtasks().size()+1);
     
     // Initial state
     std::unordered_map<int, SigSet> initState;
@@ -31,7 +31,7 @@ void Planner::findPlan() {
     for (int pos = 0; pos < initLayer.size()-1; pos++) {
 
         std::unordered_map<int, SigSet> newState(state);
-        addToLayer(_htn._init_reduction.getSubtasks()[pos], initLayer, 0, pos, state, newState);
+        addToLayer(_htn._init_reduction.getSubtasks()[pos], initLayer, pos, state, newState);
         state = newState;
     }
 
@@ -58,7 +58,7 @@ void Planner::findPlan() {
         
         printf("ITERATION %i\n", iteration++);
         
-        Layer newLayer(oldLayer.getNextLayerSize());
+        Layer newLayer(iteration, oldLayer.getNextLayerSize());
         printf(" NEW_LAYER_SIZE %i\n", newLayer.size());
 
         state = initState;
@@ -82,7 +82,7 @@ void Planner::findPlan() {
                     printf("  propagating reduction %s, offset %i\n", Names::to_string(parentSig).c_str(), offset);
                     if (offset < parent.getSubtasks().size()) {
                         Signature taskSig = parent.getSubtasks()[offset];   
-                        addToLayer(taskSig, newLayer, iteration, newPos+offset, state, newState);
+                        addToLayer(taskSig, newLayer, newPos+offset, state, newState);
                     } else {
                         // TODO Add blank action
                     }
@@ -103,9 +103,11 @@ void Planner::findPlan() {
     // TODO Extract solution
 }
 
-void Planner::addToLayer(Signature& task, Layer& layer, int layerIdx, int pos, 
+void Planner::addToLayer(Signature& task, Layer& layer, int pos, 
         std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState) {
     
+    int layerIdx = layer.index();
+
     if (_htn._task_id_to_reduction_ids.count(task._name_id) == 0) {
         // Action
         Action& a = _htn._actions[task._name_id];
@@ -156,8 +158,8 @@ void Planner::addToLayer(Signature& task, Layer& layer, int layerIdx, int pos,
                 layer[pos].addExpansionSize(red.getSubtasks().size());
                 // Add potential effects to facts @pos+1
                 for (Signature effect : _htn.getAllFactChanges(sig)) {
-                    layer[pos+1].addFact(effect);
                     printf("    add fact %s @%i\n", Names::to_string(effect).c_str(), pos);
+                    layer[pos+1].addFact(effect);
                     newState[effect._name_id].insert(effect);
                 }
             }
