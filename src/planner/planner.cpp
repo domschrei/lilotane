@@ -3,18 +3,17 @@
 #include <functional>
 
 #include "planner.h"
-#include "parser/cwa.hpp"
-#include "sat/encoding.h"
+//#include "parser/cwa.hpp"
 
 void Planner::findPlan() {
     
-    Encoding enc(_htn);
-
     // Begin actual instantiation and solving loop
     int iteration = 0;
-    printf("ITERATION %i\n", iteration++);
+    printf("ITERATION %i\n", iteration);
 
-    Layer initLayer(iteration, _htn._init_reduction.getSubtasks().size()+1);
+    int initSize = _htn._init_reduction.getSubtasks().size()+1;
+    printf("Creating initial layer of size %i\n", initSize);
+    Layer initLayer(iteration, initSize);
     
     // Initial state
     std::unordered_map<int, SigSet> initState;
@@ -27,38 +26,48 @@ void Planner::findPlan() {
         initState[predId];
         initState[predId].insert(sig);
     }
+    for (auto pair : initState) _enc.addTrueFacts(pair.second, initLayer, 0);
     std::unordered_map<int, SigSet> state = initState;
 
     // For each position where there is an initial task
     for (int pos = 0; pos < initLayer.size()-1; pos++) {
 
         std::unordered_map<int, SigSet> newState(state);
-        addToLayer(_htn._init_reduction.getSubtasks()[pos], initLayer, pos, state, newState);
+        std::vector<Signature> added = addToLayer(NULL, _htn._init_reduction.getSubtasks()[pos], initLayer, pos, state, newState);
+
+        handleAddedHtnOps(added, initLayer, pos, initLayer, pos, state, newState);
+
         state = newState;
-        enc.addOccurringFacts(state, initLayer, pos);
+
+        _enc.consolidateHtnOps(initLayer, pos);
+        _enc.consolidateFacts(initLayer, pos);
+        _enc.addInitialTasks(initLayer, pos);
     }
 
     // Goal state (?)
+    SigSet goalSet;
     for (ground_literal lit : goal) {
         Signature sig(_htn.getNameId(lit.predicate), _htn.getArguments(lit.args));
         if (!lit.positive) sig.negate();
         initLayer[initLayer.size()-1].addFact(sig);
         state[sig._name_id].insert(sig);
+        goalSet.insert(sig);
         printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
     }
+    _enc.addTrueFacts(goalSet, initLayer, initLayer.size()-1);
+    _enc.consolidateFacts(initLayer, initLayer.size()-1);
 
-    enc.addOccurringFacts(state, initLayer, initLayer.size()-1);
     initLayer.consolidate();
 
-    enc.addAssumptions(initLayer);
-    bool solved = enc.solve();
+    _enc.addAssumptions(initLayer);
+    bool solved = _enc.solve();
 
     // Next layers
 
     Layer& oldLayer = initLayer;
     while (!solved) {
-        
-        printf("ITERATION %i\n", iteration++);
+        printf("Unsolvable at layer %i\n", oldLayer.index());        
+        printf("ITERATION %i\n", ++iteration);
         
         Layer newLayer(iteration, oldLayer.getNextLayerSize());
         printf(" NEW_LAYER_SIZE %i\n", newLayer.size());
@@ -66,56 +75,145 @@ void Planner::findPlan() {
         state = initState;
         for (int oldPos = 0; oldPos < oldLayer.size(); oldPos++) {
             int newPos = oldLayer.getSuccessorPos(oldPos);
+            int maxOffset = oldLayer[oldPos].getMaxExpansionSize();
 
-            for (int offset = 0; newPos+offset < oldLayer.getSuccessorPos(oldPos+1); offset++) {
+            for (int offset = 0; offset < maxOffset; offset++) {
+                //printf("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
+                assert(newPos+offset < newLayer.size());
                 std::unordered_map<int, SigSet> newState(state);
                 
+                std::vector<Signature> added;
+
                 if (offset == 0) {
                     // Propagate facts
                     newLayer[newPos].setFacts(oldLayer[oldPos].getFacts());
                     
                     // Propagate actions (maintain variable values)
-                    newLayer[newPos].setActions(oldLayer[oldPos].getFacts());
+                    for (Signature aSig : oldLayer[oldPos].getActions()) {
+                        newLayer[newPos].addAction(aSig);
+                        added.push_back(aSig);
+                        added.push_back(aSig); // action is its own parent
+                    }
                 }
 
                 // Propagate reductions
                 for (Signature parentSig : oldLayer[oldPos].getReductions()) {
                     Reduction parent = _htn._reductions_by_sig[parentSig];
                     printf("  propagating reduction %s, offset %i\n", Names::to_string(parentSig).c_str(), offset);
+                    Signature sig;
                     if (offset < parent.getSubtasks().size()) {
-                        Signature taskSig = parent.getSubtasks()[offset];   
-                        addToLayer(taskSig, newLayer, newPos+offset, state, newState);
+                        sig = parent.getSubtasks()[offset];   
                     } else {
-                        // TODO Add blank action
+                        // Add blank action
+                        sig = _htn._action_blank.getSignature();
                     }
+                    std::vector<Signature> addedNow = addToLayer(&parent, sig, newLayer, newPos+offset, state, newState);
+                    added.insert(added.end(), addedNow.begin(), addedNow.end());
                 }
 
+                // Handle computed htn ops and all possible fact changes
+                // (Must be done AFTER all possible reductions and actions were instantiated;
+                // q-constants may have been added which need to be considered for fact changes, too) 
+                handleAddedHtnOps(added, oldLayer, oldPos, newLayer, newPos+offset, state, newState);
+
+                // Finalize set of facts at this position
                 state = newState;
-                enc.addOccurringFacts(state, newLayer, newPos);
+                _enc.consolidateHtnOps(newLayer, newPos);
+                _enc.consolidateFacts(newLayer, newPos);
+            }
+
+            // Finalize reductions at the old layer, old position
+            for (Signature parentSig : oldLayer[oldPos].getReductions()) {
+                Reduction parent = _htn._reductions_by_sig[parentSig];
+                _enc.consolidateReductionExpansion(parent, oldLayer, oldPos);
             }
         }
 
         newLayer.consolidate();
 
-        enc.addAssumptions(newLayer);
-        solved = enc.solve();
+        _enc.addAssumptions(newLayer);
+        solved = _enc.solve();
 
         oldLayer = newLayer;
     }
 
-    // TODO Extract solution
+    printf("Found a solution at layer %i\n", oldLayer.index());
+
+    // Extract solution
+    std::vector<Signature> actionPlan = _enc.extractClassicalPlan(oldLayer);
+
+    printf("==>\n");
+    int step = 0;
+    for (Signature sig : actionPlan) {
+        printf("%i %s\n", step++, Names::to_string(sig).c_str());
+    }
 }
 
-void Planner::addToLayer(Signature& task, Layer& layer, int pos, 
+void Planner::handleAddedHtnOps(std::vector<Signature>& added, 
+        Layer& oldLayer, int oldPos, Layer& newLayer, int newPos, 
+        std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState) {
+
+    bool propagation = newLayer.index() > 0;
+
+    for (int sigIdx = 0; sigIdx < added.size(); ) {
+        
+        Signature sig, sigParent;
+        sig = added[sigIdx++];
+        if (propagation) sigParent = added[sigIdx++];
+
+        SigSet factChanges = _htn.getAllFactChanges(sig);
+
+        // Add htn op to the encoding
+        if (_htn._reductions_by_sig.count(sig)) {
+            // Reduction
+            Reduction& r = _htn._reductions_by_sig[sig];
+            if (propagation) {
+                _enc.addReduction(r, _htn._reductions_by_sig[sigParent], factChanges, oldLayer, oldPos, newLayer, newPos);
+            } else {
+                _enc.addReduction(r, factChanges, oldLayer, oldPos);
+            }
+        } else {
+            // Action
+            assert(_htn._actions_by_sig.count(sig));
+            Action& a = _htn._actions_by_sig[sig];
+            if (propagation) {
+                if (_htn._actions_by_sig.count(sigParent)) {
+                    // Parent is an action -> propagate action
+                    _enc.propagateAction(a, oldLayer, oldPos, newLayer, newPos);
+                } else {
+                    // Parent is a reduction -> add action as part of an expansion
+                    _enc.addAction(a, _htn._reductions_by_sig[sigParent], oldLayer, oldPos, newLayer, newPos);
+                }
+            } else {
+                _enc.addAction(a, oldLayer, oldPos);
+            }
+        }
+
+        // Apply possible fact changes
+        for (Signature effect : factChanges) {
+            newLayer[newPos+1].addFact(effect);
+            //printf("   add fact %s @%i\n", Names::to_string(effect).c_str(), newPos+offset);
+            newState[effect._name_id].insert(effect);
+        }
+    }
+}
+
+std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, Layer& layer, int pos, 
         std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState) {
     
     int layerIdx = layer.index();
 
+    std::vector<Signature> result;
+
     if (_htn._task_id_to_reduction_ids.count(task._name_id) == 0) {
         // Action
+        assert(_htn._actions.count(task._name_id));
         Action& a = _htn._actions[task._name_id];
-        printf("  task %s : action found\n", Names::to_string(task).c_str());
-        std::vector<Action> actions = _instantiator.getApplicableInstantiations(a, state);
+        HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
+        Action act = (Action) op;
+        printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+
+        std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
         
         for (Action action : actions) {
             action = _htn.replaceQConstants(action, layerIdx, pos);
@@ -125,12 +223,17 @@ void Planner::addToLayer(Signature& task, Layer& layer, int pos,
 
             // Add action to elements @pos
             layer[pos].addAction(sig);
+
+            result.push_back(sig);
+            if (parent != NULL) result.push_back(parent->getSignature());
+
+            /*
             // Add effects to facts @pos+1
             for (Signature effect : _htn.getAllFactChanges(sig)) {
                 layer[pos+1].addFact(effect);
                 printf("   add fact %s @%i\n", Names::to_string(effect).c_str(), pos);
                 newState[effect._name_id].insert(effect);
-            }
+            }*/
         }
     } else {
         // Reduction
@@ -155,17 +258,23 @@ void Planner::addToLayer(Signature& task, Layer& layer, int pos,
                 for (Signature subtask : red.getSubtasks()) {
                     printf("    - %s\n", Names::to_string(subtask).c_str());
                 }
+                result.push_back(sig);
+                if (parent != NULL) result.push_back(parent->getSignature());
 
                 // Add reduction to elements @pos
                 layer[pos].addReduction(sig);
                 layer[pos].addExpansionSize(red.getSubtasks().size());
+
+                /*
                 // Add potential effects to facts @pos+1
                 for (Signature effect : _htn.getAllFactChanges(sig)) {
                     printf("    add fact %s @%i\n", Names::to_string(effect).c_str(), pos);
                     layer[pos+1].addFact(effect);
                     newState[effect._name_id].insert(effect);
-                }
+                }*/
             }
         }
     }
+
+    return result;
 }

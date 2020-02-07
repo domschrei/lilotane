@@ -13,6 +13,8 @@
 #include "data/effector_table.h"
 #include "data/arg_iterator.h"
 
+#include "sat/encoding.h"
+
 
 class Planner {
 
@@ -22,14 +24,19 @@ private:
     std::vector<Layer> _layers;
     Instantiator& _instantiator;
     EffectorTable& _effector_table;
+    Encoding _enc;
 
 public:
-    Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)) {}
+    Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)), _enc(_htn) {}
     void findPlan();
 
 private:
 
-    void addToLayer(Signature& task, Layer& layer, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+    std::vector<Signature> addToLayer(Reduction* parent, Signature& task, Layer& layer, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+
+    void handleAddedHtnOps(std::vector<Signature>& added, 
+        Layer& oldLayer, int oldPos, Layer& newLayer, int newPos, 
+        std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
 
     /*
     int getFact(Signature& sig) {

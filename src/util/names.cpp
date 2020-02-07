@@ -3,13 +3,9 @@
 #include <iostream>
 
 #include "util/names.h"
+#include "util/log.h"
 
 std::unordered_map<int, std::string>* nbt;
-
-bool fail(std::string msg) {
-    printf(msg.c_str());
-    return false;
-}
 
 namespace Names {
     
@@ -40,5 +36,17 @@ namespace Names {
             out += "[" + to_string(pair.first) + "/" + to_string(pair.second) + "]";
         }
         return out;
+    }
+
+    std::string to_string(Action a) {
+        std::string out = "{ ";
+        for (Signature pre : a.getPreconditions()) {
+            out += to_string(pre) + " ";
+        }
+        out += "} " + to_string(a.getSignature()) + " { ";
+        for (Signature eff : a.getEffects()) {
+            out += to_string(eff) + " ";
+        }
+        return out + "}";
     }
 }

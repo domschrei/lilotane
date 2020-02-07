@@ -35,12 +35,8 @@ struct HtnInstance {
     // Set of all name IDs that are variables (start with '?').
     std::unordered_set<int> _var_ids;
 
-    // Maps a predicate ID to a list of sorts IDs.
-    std::unordered_map<int, std::vector<int>> _predicate_sorts_table;
-    // Maps a task name ID to a list of sorts IDs.
-    std::unordered_map<int, std::vector<int>> _task_sorts_table;
-    // Maps a method name ID to a list of sorts IDs.
-    std::unordered_map<int, std::vector<int>> _method_sorts_table;
+    // Maps a {predicate,task,method} name ID to a list of sorts IDs.
+    std::unordered_map<int, std::vector<int>> _signature_sorts_table;
 
     // Maps a sort name ID to a list of constant name IDs of that sort.
     std::unordered_map<int, std::vector<int>> _constants_by_sort;
@@ -62,273 +58,34 @@ struct HtnInstance {
     EffectorTable* _effector_table;
 
     Reduction _init_reduction;
+    Action _action_blank;
 
-    static ParsedProblem& parse(std::string domainFile, std::string problemFile) {
+    static ParsedProblem& parse(std::string domainFile, std::string problemFile);
 
-        const char* firstArg = "pandaPIparser";
-        const char* domainStr = domainFile.c_str();
-        const char* problemStr = problemFile.c_str();
+    HtnInstance(ParsedProblem& p);
 
-        char* args[3];
-        args[0] = (char*)firstArg;
-        args[1] = (char*)domainStr;
-        args[2] = (char*)problemStr;
-        
-        int result = run_pandaPIparser(3, args);
-        return get_parsed_problem();
-    }
+    int getNameId(const std::string& name);
 
-    HtnInstance(ParsedProblem& p) : _p(p) {
+    std::vector<int> getArguments(std::vector<std::pair<string, string>>& vars);
+    std::vector<int> getArguments(std::vector<std::string>& vars);
+    Signature getSignature(task& task);
+    Signature getSignature(method& method);
+    Signature getSignature(literal& literal);
 
-        Names::init(_name_back_table);
-        _instantiator = new Instantiator(*this);
-        _effector_table = new EffectorTable(*this);
+    void extractPredSorts(predicate_definition& p);
+    void extractTaskSorts(task& t);
+    void extractMethodSorts(method& m);
+    void extractConstants();
 
-        for (predicate_definition p : predicate_definitions)
-            extractPredSorts(p);
-        for (task t : primitive_tasks)
-            extractTaskSorts(t);
-        for (task t : abstract_tasks)
-            extractTaskSorts(t);
-        for (method m : methods)
-            extractMethodSorts(m);
-        
-        extractConstants();
+    Reduction& createReduction(method& method);
+    Action& createAction(task& task);
 
-        printf("Sorts extracted.\n");
-        for (auto sort_pair : _p.sorts) {
-            printf("%s : ", sort_pair.first.c_str());
-            for (auto c : sort_pair.second) {
-                printf("%s ", c.c_str());
-            }
-            printf("\n");
-        }
+    SigSet getAllFactChanges(Signature& sig);
 
-        for (task t : primitive_tasks)
-            getAction(t);
-        _init_reduction = getReduction(methods[0]);
-        for (int mIdx = 1; mIdx < methods.size(); mIdx++)
-            getReduction(methods[mIdx]);
-        
-        printf("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
-    }
-
-    int getNameId(const std::string& name) {
-        if (_name_table.count(name) == 0) {
-            _name_table[name] = _name_table_running_id++;
-            _name_back_table[_name_table_running_id-1] = name;
-            if (name[0] == '?') {
-                // variable
-                _var_ids.insert(_name_table[name]);
-            }
-        }
-        return _name_table[name];
-    }
-
-    std::vector<int> getArguments(std::vector<std::pair<string, string>>& vars) {
-        std::vector<int> args;
-        for (auto var : vars) {
-            args.push_back(getNameId(var.first));
-        }
-        return args;
-    }
-    std::vector<int> getArguments(std::vector<std::string>& vars) {
-        std::vector<int> args;
-        for (auto var : vars) {
-            args.push_back(getNameId(var));
-        }
-        return args;
-    }
-
-    Signature getSignature(task& task) {
-        return Signature(getNameId(task.name), getArguments(task.vars));
-    }
-    Signature getSignature(method& method) {
-        return Signature(getNameId(method.name), getArguments(method.vars));
-    }
-    Signature getSignature(literal& literal) {
-        Signature sig = Signature(getNameId(literal.predicate), getArguments(literal.arguments));
-        if (!literal.positive) sig.negate();
-        return sig;
-    }
-
-    void extractPredSorts(predicate_definition& p) {
-        int pId = getNameId(p.name);
-        std::vector<int> sorts;
-        for (auto var : p.argument_sorts) {
-            sorts.push_back(getNameId(var));
-        }
-        assert(_predicate_sorts_table.count(pId) == 0);
-        _predicate_sorts_table[pId] = sorts;
-    }
-    void extractTaskSorts(task& t) {
-        std::vector<int> sorts;
-        for (auto var : t.vars) {
-            int sortId = getNameId(var.second);
-            sorts.push_back(sortId);
-        }
-        int tId = getNameId(t.name);
-        assert(_task_sorts_table.count(tId) == 0);
-        _task_sorts_table[tId] = sorts;
-    }
-    void extractMethodSorts(method& m) {
-        std::vector<int> sorts;
-        for (auto var : m.vars) {
-            int sortId = getNameId(var.second);
-            sorts.push_back(sortId);
-        }
-        int mId = getNameId(m.name);
-        assert(_method_sorts_table.count(mId) == 0);
-        _method_sorts_table[mId] = sorts;
-    }
-    void extractConstants() {
-        for (auto sortPair : _p.sorts) {
-            int sortId = getNameId(sortPair.first);
-            _constants_by_sort[sortId] = std::vector<int>();
-            std::vector<int>& constants = _constants_by_sort[sortId];
-            for (std::string c : sortPair.second) {
-                constants.push_back(getNameId(c));
-                //printf("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
-            }
-        }
-    }
-
-    Reduction& getReduction(method& method) {
-        int id = getNameId(method.name);
-        std::vector<int> args = getArguments(method.vars);
-        
-        int taskId = getNameId(method.at);
-        std::vector<int> taskArgs = getArguments(method.atargs);
-        _task_id_to_reduction_ids[taskId];
-        _task_id_to_reduction_ids[taskId].push_back(id);
-
-        assert(_reductions.count(id) == 0);
-        _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
-
-        // TODO add method preconditions from its first "virtual subtask", if applicable
-        assert(method.constraints.empty());
-        /*
-        for (literal lit : method.constraints) {
-            Signature sig = getSignature(lit);
-            _reductions[id].addPrecondition(sig);
-            printf("  %s : precondition %s\n", to_string(_reductions[id].getSignature()).c_str(), to_string(sig).c_str());
-        }
-        */
-        for (plan_step st : method.ps) {
-
-            if (st.task.rfind("__method_precondition_", 0) == 0) {
-
-                // Actually a method precondition which was compiled out
-                
-                // Find primitive task belonging to this method precondition
-                task precTask;
-                for (task t : primitive_tasks) {
-                    if (t.name == st.task) {
-                        precTask = t;
-                        break;
-                    }
-                }
-                // Add its preconditions to the method's preconditions
-                for (auto p : precTask.prec) {
-                    Signature sig = getSignature(p);
-                    _reductions[id].addPrecondition(sig);
-                }
-                // (Do not add the task to the method's subtasks)
-
-            } else {
-                
-                // Actual subtask
-                Signature sig(getNameId(st.task), getArguments(st.args));
-                _reductions[id].addSubtask(sig);
-            }
-        }
-        printf(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
-                    _reductions[id].getPreconditions().size(), 
-                    _reductions[id].getSubtasks().size());
-        return _reductions[id];
-    }
-    Action& getAction(task& task) {
-        int id = getNameId(task.name);
-        std::vector<int> args = getArguments(task.vars);
-        assert(_actions.count(id) == 0);
-        _actions[id] = Action(id, args);
-        for (auto p : task.prec) {
-            Signature sig = getSignature(p);
-            _actions[id].addPrecondition(sig);
-        }
-        for (auto p : task.eff) {
-            Signature sig = getSignature(p);
-            _actions[id].addEffect(sig);
-        }
-        return _actions[id];
-    }
-
-    SigSet getAllFactChanges(Signature& sig) {        
-        SigSet result;
-        for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
-            std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, _constants_by_sort, _predicate_sorts_table, _var_ids);
-            for (Signature i : instantiation) {
-                result.insert(i);
-            }
-        }
-        return result;
-    }
-
-    Action replaceQConstants(Action& a, int layerIdx, int pos) {
-        Signature sig = a.getSignature();
-        std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
-        HtnOp op = a.substitute(s);
-        return Action(op);
-    }
-    Reduction replaceQConstants(Reduction& red, int layerIdx, int pos) {
-        Signature sig = red.getSignature();
-        std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
-        return red.substituteRed(s);
-    }
-
-    std::unordered_map<int, int> addQConstants(Signature& sig, int layerIdx, int pos) {
-        std::unordered_map<int, int> s;
-        std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig);
-        for (int argPos : freeArgPositions) {
-            addQConstant(layerIdx, pos, sig, argPos, s);
-        }
-        return s;
-    }
-    
-    void addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s) {
-
-        int arg = sig._args[argPos];
-        assert(_name_back_table[arg][0] == '?');
-        int sort = _predicate_sorts_table[sig._name_id][argPos];
-        std::string qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + _name_back_table[sort];
-        int qConstId = getNameId(qConstName);
-
-        // Add q const to substitution
-        s[arg] = qConstId;
-        
-        // check if q const of that name already exists!
-        if (_q_constants.count(qConstId)) continue;
-        _q_constants.insert(qConstId);
-
-        // If not: add qConstant to constant tables of its type and each of its subtypes
-        std::unordered_set<int> containedSorts;
-        containedSorts.insert(sort);
-        for (sort_definition sd : _p.sort_definitions) {
-            for (int containedSort : containedSorts) {
-                if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
-                    for (std::string newSort : sd.declared_sorts) {
-                        containedSorts.insert(getNameId(newSort));
-                    }
-                }
-            }
-        }
-        printf("sorts of %s : ", Names::to_string(qConstId).c_str());
-        for (int sort : containedSorts) {
-            _constants_by_sort[sort].push_back(qConstId);
-            printf("%s ", Names::to_string(sort).c_str());
-        } 
-        printf("\n");
-    }
+    Action replaceQConstants(Action& a, int layerIdx, int pos);
+    Reduction replaceQConstants(Reduction& red, int layerIdx, int pos);
+    std::unordered_map<int, int> addQConstants(Signature& sig, int layerIdx, int pos);
+    void addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s);
 };
 
 #endif

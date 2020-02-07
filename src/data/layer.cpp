@@ -1,6 +1,12 @@
 
+#include <assert.h>
+
 #include "data/layer.h"
 
+Layer::Layer(int index, int size) : _index(index) {
+    assert(size > 0);
+    _content.resize(size);
+}
 int Layer::size() {return _content.size();}
 int Layer::index() {return _index;}
 Position& Layer::operator[](int pos) {assert(pos >= 0 && pos < size()); return _content[pos];}
@@ -12,6 +18,9 @@ void Layer::consolidate() {
     }
 }
 int Layer::getNextLayerSize() {
-    return _successor_positions.back();
+    return _successor_positions.back()+1;
 }
-int Layer::getSuccessorPos(int oldPos) {return _successor_positions[oldPos];}
+int Layer::getSuccessorPos(int oldPos) {
+    assert(oldPos >= 0 && oldPos < _successor_positions.size());
+    return _successor_positions[oldPos];
+}

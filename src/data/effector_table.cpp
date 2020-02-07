@@ -51,11 +51,11 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             
             // If it is an action: add effects
             if (_htn->_actions.count(nodeSig._name_id)) {
-                Action& a = _htn->_actions[nodeSig._name_id];
+                Action a = _htn->_actions[nodeSig._name_id];
                 HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
                 a = Action(op);
-                for (Signature pre : a.getEffects()) {
-                    facts.insert(pre);
+                for (Signature eff : a.getEffects()) {
+                    facts.insert(eff);
                 }
             }
 
@@ -81,12 +81,15 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     // Get fact changes, substitute arguments
     std::vector<Signature>& sigs = _fact_changes[nameId];
     std::vector<Signature> out;
-    printf("   fact changes of %s : ", Names::to_string(sig).c_str());
+    
+    //printf("   fact changes of %s : ", Names::to_string(sig).c_str());
     for (Signature fact : sigs) {
-        out.push_back(fact.substitute(sFromPlaceholder));
-        printf("%s ", Names::to_string(out.back()).c_str());
+        Signature sigRes = fact.substitute(sFromPlaceholder);
+        for (int arg : sigRes._args) assert(arg > 0);
+        out.push_back(sigRes);
+        //printf("%s ", Names::to_string(sigRes).c_str());
     }
-    printf("\n");
+    //printf("\n");
     return out;
 }
 
@@ -96,9 +99,10 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
     //printf("%s ==> ", Names::to_string(actionOrReduction).c_str());
 
     int nameId = actionOrReduction._name_id;
-    if (_htn->_actions.count(nameId) == 0) {
+    if (!_htn->_actions.count(nameId)) {
         // Reduction
-        assert(_htn->_reductions.count(nameId) > 0);
+
+        assert(_htn->_reductions.count(nameId));
         Reduction r = _htn->_reductions[nameId];
         r = r.substituteRed(Substitution::get(r.getArguments(), actionOrReduction._args));
         std::vector<Signature> subtasks = r.getSubtasks();

@@ -1,6 +1,6 @@
 CC=g++
 
-CWARN=-Wno-unused-parameter
+CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 CERROR=
 
 COMPILEFLAGS=-O2 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
@@ -18,6 +18,9 @@ treerexx: $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/pl
 src/parser/%.o: src/parser/%.cpp src/parser/%.hpp
 	cd src/parser && make
 	
+src/main.o: src/main.cpp
+	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
+	
 %.o: %.cpp %.h
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 
@@ -29,3 +32,7 @@ clean:
 #	[ ! -e libpandaPIparser.a ] || rm libpandaPIparser.a
 	[ ! -e treerexx ] || rm treerexx
 	rm $(wildcard src/*.o src/*/*.o)
+
+cleantr:
+	[ ! -e treerexx ] || rm treerexx
+	rm $(wildcard src/*.o src/data/*.o src/planner/*.o src/sat/*.o src/util/*.o)

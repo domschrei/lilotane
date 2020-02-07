@@ -2,13 +2,20 @@
 #ifndef DOMPASCH_TREE_REXX_ENCODING_H
 #define DOMPASCH_TREE_REXX_ENCODING_H
 
-#include <initializer_list>
+extern "C" {
+    #include "sat/ipasir.h"
+}
 
-#include "sat/ipasir.h"
+#include <initializer_list>
+#include <fstream>
+#include <string>
+#include <iostream>
 
 #include "data/signature.h"
 #include "data/htn_instance.h"
 #include "data/action.h"
+
+#define PRINT_TO_FILE true
 
 typedef std::unordered_map<int, SigSet> State;
 
@@ -20,9 +27,9 @@ private:
     int _running_var_id = 1;
 
     void* _solver;
+    std::ofstream _out;
 
     Signature _sig_primitive;
-    Action _action_blank;
     int _substitute_name_id;
 
     // Maps a positional fact variable to the set of positional operator variables that may change it.
@@ -34,30 +41,53 @@ private:
     State _prior_facts;
     State _posterior_facts;
 
-    std::unordered_map<int, SigSet> _q_constants;
+    std::unordered_set<int> _q_constants;
 
     std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
+    std::unordered_set<int> _current_action_vars;
+    std::unordered_set<int> _current_reduction_vars;
+
+    bool _var_domain_locked = false;
+
 public:
     Encoding(HtnInstance& htn);
+    ~Encoding();
     /*
     void addInitialClauses(Layer& initLayer);
     void addUniversalClauses(Layer& layer);
     void addTransitionalClauses(Layer& oldLayer, Layer& newLayer);
     */
+    void addInitialTasks(Layer& layer, int pos); 
 
-    void addTrueFacts(SigSet& facts, Layer& layer, int pos);
     void addAction(Action& a, Layer& layer, int pos);
     void addAction(Action& a, Reduction& parent, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
+    void propagateAction(Action& a, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
+
     void addReduction(Reduction& r, SigSet& allFactChanges, Layer& layer, int pos);
     void addReduction(Reduction& child, Reduction& parent, SigSet& allFactChanges, 
                         Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
-    void endReduction(Reduction& r, Layer& layer, int pos);
-    void addFacts(Layer& layer, int pos);
+    void consolidateReductionExpansion(Reduction& r, Layer& layer, int pos);
+    
+    void consolidateHtnOps(Layer& layer, int pos);
+
+    void addTrueFacts(SigSet& facts, Layer& layer, int pos);
+    void consolidateFacts(Layer& layer, int pos);
+
     
     void addAssumptions(Layer& layer);
 
     bool solve();
+
+    struct PlanItem {
+        int id;
+        Signature abstractTask;
+        Signature reduction;
+        std::vector<int> subtaskIds;
+    };
+
+    std::vector<Signature> extractClassicalPlan(Layer& finalLayer);
+    std::vector<PlanItem> extractDecompositionPlan(std::vector<Layer>& allLayers);
 
 private:
     /*
@@ -102,6 +132,7 @@ private:
         if (!_supports.count(factVar)) _supports[factVar];
         _supports[factVar].push_back(opVar);
     }
+    /*
     int getNearestPriorOccurrence(Signature factSig, int pos) {
         for (int posBefore = pos-1; posBefore >= 0; posBefore--) {
             if (_occurring_facts[posBefore].count(factSig._name_id)) {
@@ -117,8 +148,8 @@ private:
         }
         return -1;
     }
-    bool isInState(Signature fact, State& state);
-
+    */
+    
     std::vector<int>& getExpansion(int redVar, int offset) {
         assert(_expansions.count(redVar));
         assert(offset < _expansions[redVar].size());
@@ -135,6 +166,7 @@ private:
     void endClause();
     void assume(int lit);
 
+    bool isEncoded(int layer, int pos, Signature& sig);
     int var(int layer, int pos, Signature& sig);
     int varPrimitive(int layer, int pos);
 

@@ -40,7 +40,7 @@ private:
     std::vector<int> _successor_positions;
 
 public:
-    Layer(int index, int size) : _index(index) {_content.resize(size);}
+    Layer(int index, int size);
     int size();
     int index();
     Position& operator[](int pos);

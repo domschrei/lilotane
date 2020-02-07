@@ -55,6 +55,10 @@ struct Signature {
         return true;
     }
 
+    bool operator!=(const Signature& b) const {
+        return !(*this == b);
+    }
+
     Signature& operator=(const Signature& sig) {
         _name_id = sig._name_id;
         _args = sig._args;
