@@ -9,6 +9,14 @@ Encoding::Encoding(HtnInstance& htn) : _htn(htn) {
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
 }
 
+void Encoding::addTrueFacts(SigSet& facts, Layer& layer, int pos) {
+    for (Signature fact : facts) {
+        addClause({var(layer.index(), pos, fact)});
+        _prior_facts.insert(fact.abs());
+        _posterior_facts.insert(fact.abs());
+    }
+}
+
 void Encoding::addAction(Action& a, Layer& layer, int pos) {
     int layerIdx = layer.index();
     Signature sig = a.getSignature();
@@ -20,10 +28,13 @@ void Encoding::addAction(Action& a, Layer& layer, int pos) {
 
     // Preconditions must hold
     for (Signature pre : a.getPreconditions()) {
+        _prior_facts.insert(pre.abs());
+        _posterior_facts.insert(pre.abs());
         addClause({-aVar, var(layerIdx, pos, pre)});
     }
     // Effects must hold
     for (Signature eff : a.getEffects()) {
+        _posterior_facts.insert(eff.abs());
         addClause({-aVar, var(layerIdx, pos+1, eff)});
 
         // Add a to support of eff
@@ -42,11 +53,14 @@ void Encoding::addReduction(Reduction& r, SigSet& allFactChanges, Layer& layer, 
 
     // Preconditions must hold
     for (Signature pre : r.getPreconditions()) {
+        _prior_facts.insert(pre.abs());
+        _posterior_facts.insert(pre.abs());
         addClause({-rVar, var(layerIdx, pos, pre)});
     }
 
     // Add r to support of each eff in potential effects
     for (Signature eff : allFactChanges) {
+        _posterior_facts.insert(eff.abs());
         addToSupport(var(layerIdx, pos+1, eff), rVar);
     }
 }
@@ -102,46 +116,114 @@ void Encoding::endReduction(Reduction& r, Layer& layer, int pos) {
     }
 }
 
-void Encoding::addOccurringFacts(State& state, Layer& layer, int pos) {
+void Encoding::addFacts(Layer& layer, int pos) {
 
-    assert(pos == _occurring_facts.size());
-    _occurring_facts.push_back(state);
-
-    // For each contained literal
-    for (auto pair : state) {
+    for (auto pair : _posterior_facts) {
         int predId = pair.first;
-        for (Signature sig : pair.second) {
+        SigSet& facts = pair.second;
 
-            int fVar = var(layer.index(), pos, sig);
+        // Maps an argument name ID to all q-constants that may assume this value.
+        
+        for (Signature fact : facts) {
 
-            // Frame axioms
-            if (pos > 0) {
-                int posBefore = getNearestPriorOccurrence(sig, pos);
-                if (posBefore >= 0) {
-                    
-                    int fVarBefore = var(layer.index(), posBefore, sig);
-                    appendClause({fVarBefore, -fVar});
-                    for (int opVar : _supports[fVar]) {
-                        appendClause({opVar});
+            // Add substitution literals as necessary
+            for (int argPos = 0; argPos < fact._args.size(); argPos++) {
+                int arg = fact._args[argPos];
+
+                if (_htn._q_constants.count(arg)) {
+                    // arg is a q-constant
+
+                    if (!_q_constants.count(arg)) {
+                        // new q-constant: initialize substitution literals
+
+                        // sort of q constant
+                        int sort = _htn._predicate_sorts_table[fact._name_id][argPos];
+
+                        // for each constant of same sort;
+                        for (int c : _htn._constants_by_sort[sort]) {
+                            
+                            // Do not include cyclic substitutions
+                            if (_htn._q_constants.count(c) && c >= arg) continue;
+
+                            // either of the possible substitutions must be chosen
+                            Signature sigSubst = sigSubstitute(arg, c);
+                            appendClause(var(layer.index(), pos, sigSubst));
+                            
+                            _q_constants_per_arg[c];
+                            _q_constants_per_arg[c].push_back(arg);
+                        }
+                        endClause();
+
+                        // TODO AT MOST ONE substitution??
+
+                        _q_constants.insert(arg);
                     }
-                    // TODO add substitution vars as necessary
+
+                    // Add equivalence to corresponding facts
+                    // relative to chosen substitution
+
+                    // TODO extend formulae: ALL necessary substitutions at the left-hand side
+                    // to directly lead to fully "ground" fact
+                    // OR: add all necessary "in-between" facts to make all substitutions possible 
+                    std::unordered_set<Signature, SignatureHasher> substitutedFacts;
+                    for (Signature actualFact : _posterior_facts) {
+                        if (actualFact._name_id != fact._name_id) continue;
+                        int substArg = actualFact._args[argPos];
+
+                        // All args must be the same except for the qconst position;
+                        // at the qconst position, there must be a true constant 
+                        // or a qconst of smaller value.
+                        bool isSubstitution = !_htn._q_constants.count(substArg) || (substArg < arg);
+                        for (int i = 0; i < actualFact._args.size(); i++) {
+                            isSubstitution &= (i == argPos) ^ (actualFact._args[i] == fact._args[i]);
+                        }
+
+                        if (isSubstitution) {
+                            // -- yes: valid substitution found
+                            substitutedFacts.insert(actualFact);
+                            Signature sigSubst = sigSubstitute(arg, actualFact._args[argPos]);
+                            int varSubtitution = var(layer.index(), pos, sigSubst);
+                            int varQFact = var(layer.index(), pos, fact);
+                            int varActualFact = var(layer.index(), pos, actualFact);
+                            // If the substitution is chosen,
+                            // the q-fact and the corresponding actual fact are equivalent
+                            addClause({-varSubtitution, -varQFact, varActualFact});
+                            addClause({-varSubtitution, varQFact, -varActualFact});
+                        }
+                    }
                 }
             }
+        }
 
+        for (Signature fact : facts) {
+
+            if (!_prior_facts[predId].count(fact)) continue;
+            
+            for (int val = -1; val <= 1; val += 2) {
+                
+                // Frame axioms
+                int fVarPre = val * var(layer.index(), pos-1, sig);
+                int fVarPost = val * var(layer.index(), pos, sig);
+                appendClause({fVarPre, -fVarPost});
+                for (int opVar : _supports[val * fVarPost]) {
+                    appendClause({opVar});
+                }
+                // If the fact is a possible substitution of a q-constant fact,
+                // add corresponding substitution literal to frame axioms.
+                for (int arg : fact._args) {
+                    if (_q_constants_per_arg.count(arg)) {
+                        for (int qConst : _q_constants_per_arg[arg]) {
+                            
+                            appendClause({var(layer.index(), pos, sigSubstitute(qConst, arg))});
+                        }
+                    } 
+                }
+                endClause();
+            }
         }
     }
-}
 
-void Encoding::addFrameAxioms() {
-
-    for (auto pair : _supports) {
-        int factVar = pair.first;
-
-        appendClause({});
-        for (int opVar : pair.second) {
-
-        }
-    }
+    _prior_facts = _posterior_facts;
 }
 
 void Encoding::addAssumptions(Layer& layer) {
@@ -182,6 +264,12 @@ void Encoding::addExpansions(Layer& oldLayer, Layer& newLayer) {}
 void Encoding::addActionPropagations(Layer& oldLayer, Layer& newLayer) {}
 void Encoding::addFactEquivalencies(Layer& oldLayer, Layer& newLayer) {}
 */
+
+bool Encoding::isInState(Signature fact, State& state) {
+    if (!state.count(fact._name_id)) return false;
+    if (fact._negated) fact.negate();
+    return state[fact._name_id].count(fact);
+}
 
 void Encoding::addClause(std::initializer_list<int> lits) {
     for (int lit : lits) ipasir_add(_solver, lit);

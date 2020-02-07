@@ -27,6 +27,10 @@ struct Signature {
         _negated = !_negated;
     }
 
+    Signature abs() {
+        return Signature(_name_id, _args);
+    }
+
     Signature substitute(std::unordered_map<int, int> s) {
         Signature sig;
         sig._name_id = _name_id;

@@ -45,6 +45,8 @@ struct HtnInstance {
     // Maps a sort name ID to a list of constant name IDs of that sort.
     std::unordered_map<int, std::vector<int>> _constants_by_sort;
 
+    std::unordered_set<int> _q_constants;
+
     // Maps an action name ID to its action object.
     std::unordered_map<int, Action> _actions;
 
@@ -274,49 +276,58 @@ struct HtnInstance {
 
     Action replaceQConstants(Action& a, int layerIdx, int pos) {
         Signature sig = a.getSignature();
-        std::vector<int> qConstPositions = _instantiator->getFreeArgPositions(sig);
-        std::unordered_map<int, int> s;
-        for (int qConstPos : qConstPositions) {
-            int qConst = sig._args[qConstPos];
-            std::string qConstName = _name_back_table[qConst];
-            assert(qConstName[0] == '?');
-            qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + qConstName.substr(1);
-            int qConstId = getNameId(qConstName);
-            s[qConst] = qConstId;
-            // Add qConstant to constant tables of its type and each of its
-            std::unordered_set<int> containedSorts;
-            containedSorts.insert(_predicate_sorts_table[sig._name_id][qConstPos]);
-            for (sort_definition sd : _p.sort_definitions) {
-                for (int containedSort : containedSorts) {
-                    if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
-                        for (std::string newSort : sd.declared_sorts) {
-                            containedSorts.insert(getNameId(newSort));
-                        }
-                    }
-                }
-            }
-            printf("sorts of %s : ", Names::to_string(qConstId).c_str());
-            for (int sort : containedSorts) {
-                _constants_by_sort[sort].push_back(qConstId);
-                printf("%s ", Names::to_string(sort).c_str());
-            } 
-            printf("\n");
-        }
+        std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
         HtnOp op = a.substitute(s);
-        return Action(op);        
+        return Action(op);
     }
     Reduction replaceQConstants(Reduction& red, int layerIdx, int pos) {
         Signature sig = red.getSignature();
-        std::vector<int> qConstPositions = _instantiator->getFreeArgPositions(sig);
-        std::unordered_map<int, int> s;
-        for (int qConstPos : qConstPositions) {
-            int qConst = sig._args[qConstPos];
-            std::string qConstName = _name_back_table[qConst];
-            assert(qConstName[0] == '?');
-            qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + qConstName.substr(1);
-            s[qConst] = getNameId(qConstName);
-        }
+        std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
         return red.substituteRed(s);
+    }
+
+    std::unordered_map<int, int> addQConstants(Signature& sig, int layerIdx, int pos) {
+        std::unordered_map<int, int> s;
+        std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig);
+        for (int argPos : freeArgPositions) {
+            addQConstant(layerIdx, pos, sig, argPos, s);
+        }
+        return s;
+    }
+    
+    void addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s) {
+
+        int arg = sig._args[argPos];
+        assert(_name_back_table[arg][0] == '?');
+        int sort = _predicate_sorts_table[sig._name_id][argPos];
+        std::string qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + _name_back_table[sort];
+        int qConstId = getNameId(qConstName);
+
+        // Add q const to substitution
+        s[arg] = qConstId;
+        
+        // check if q const of that name already exists!
+        if (_q_constants.count(qConstId)) continue;
+        _q_constants.insert(qConstId);
+
+        // If not: add qConstant to constant tables of its type and each of its subtypes
+        std::unordered_set<int> containedSorts;
+        containedSorts.insert(sort);
+        for (sort_definition sd : _p.sort_definitions) {
+            for (int containedSort : containedSorts) {
+                if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
+                    for (std::string newSort : sd.declared_sorts) {
+                        containedSorts.insert(getNameId(newSort));
+                    }
+                }
+            }
+        }
+        printf("sorts of %s : ", Names::to_string(qConstId).c_str());
+        for (int sort : containedSorts) {
+            _constants_by_sort[sort].push_back(qConstId);
+            printf("%s ", Names::to_string(sort).c_str());
+        } 
+        printf("\n");
     }
 };
 

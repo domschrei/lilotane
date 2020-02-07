@@ -30,9 +30,13 @@ private:
     // Maps a positional red. variable to its possible expansions: 
     // one vector of positional operator variables for each offset position.
     std::unordered_map<int, std::vector<std::vector<int>>> _expansions;
-    // Maps a position in the current layer to a set of predicate-indexed fact signatures occurring there.
-    // The signatures carry a relevant "negated" bit, so both positive and negative facts are contained.
-    std::vector<State> _occurring_facts;
+    // A set of predicate-indexed occurring fact signatures.
+    State _prior_facts;
+    State _posterior_facts;
+
+    std::unordered_map<int, SigSet> _q_constants;
+
+    std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
 public:
     Encoding(HtnInstance& htn);
@@ -42,15 +46,14 @@ public:
     void addTransitionalClauses(Layer& oldLayer, Layer& newLayer);
     */
 
+    void addTrueFacts(SigSet& facts, Layer& layer, int pos);
     void addAction(Action& a, Layer& layer, int pos);
     void addAction(Action& a, Reduction& parent, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
     void addReduction(Reduction& r, SigSet& allFactChanges, Layer& layer, int pos);
     void addReduction(Reduction& child, Reduction& parent, SigSet& allFactChanges, 
                         Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
     void endReduction(Reduction& r, Layer& layer, int pos);
-    void addOccurringFacts(State& state, Layer& layer, int pos);
-
-    void addFrameAxioms();
+    void addFacts(Layer& layer, int pos);
     
     void addAssumptions(Layer& layer);
 
@@ -84,6 +87,7 @@ private:
     */
 
     Signature sigSubstitute(int qConstId, int trueConstId) {
+        assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);
         std::vector<int> args(2);
         args[0] = (qConstId);
         args[1] = (trueConstId);
@@ -113,6 +117,7 @@ private:
         }
         return -1;
     }
+    bool isInState(Signature fact, State& state);
 
     std::vector<int>& getExpansion(int redVar, int offset) {
         assert(_expansions.count(redVar));
