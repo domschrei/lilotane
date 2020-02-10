@@ -19,6 +19,13 @@ extern "C" {
 
 typedef std::unordered_map<int, SigSet> State;
 
+struct PlanItem {
+    int id;
+    Signature abstractTask;
+    Signature reduction;
+    std::vector<int> subtaskIds;
+};
+
 class Encoding {
 
 private:
@@ -72,6 +79,7 @@ public:
     void consolidateHtnOps(Layer& layer, int pos);
 
     void addTrueFacts(SigSet& facts, Layer& layer, int pos);
+    void propagateFacts(const SigSet& facts, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
     void consolidateFacts(Layer& layer, int pos);
 
     
@@ -79,14 +87,7 @@ public:
 
     bool solve();
 
-    struct PlanItem {
-        int id;
-        Signature abstractTask;
-        Signature reduction;
-        std::vector<int> subtaskIds;
-    };
-
-    std::vector<Signature> extractClassicalPlan(Layer& finalLayer);
+    std::vector<PlanItem> extractClassicalPlan(Layer& finalLayer);
     std::vector<PlanItem> extractDecompositionPlan(std::vector<Layer>& allLayers);
 
 private:
@@ -168,6 +169,8 @@ private:
 
     bool isEncoded(int layer, int pos, Signature& sig);
     int var(int layer, int pos, Signature& sig);
+    std::string varName(int layer, int pos, Signature& sig);
+    void printVar(int layer, int pos, Signature& sig);
     int varPrimitive(int layer, int pos);
 
     bool value(int layer, int pos, Signature& sig);

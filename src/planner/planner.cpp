@@ -1,6 +1,7 @@
 
 #include <iostream>
 #include <functional>
+#include <regex>
 
 #include "planner.h"
 //#include "parser/cwa.hpp"
@@ -33,7 +34,23 @@ void Planner::findPlan() {
     for (int pos = 0; pos < initLayer.size()-1; pos++) {
 
         std::unordered_map<int, SigSet> newState(state);
-        std::vector<Signature> added = addToLayer(NULL, _htn._init_reduction.getSubtasks()[pos], initLayer, pos, state, newState);
+        Signature subtask = _htn._init_reduction.getSubtasks()[pos];
+        std::vector<int> newArgs;
+        for (int arg : subtask._args) {
+            std::string name = _htn._name_back_table[arg];
+            std::smatch matches;
+            if (std::regex_match(name, matches, std::regex("\\?var_for_(.*)_[0-9]+"))) {
+                name = matches.str(1);
+                newArgs.push_back(_htn.getNameId(name));
+            } else {
+                printf("%s was not matched by initial task argname substitution!\n", name.c_str());
+                exit(1);
+            }
+        }
+        assert(newArgs.size() == subtask._args.size());
+        subtask = subtask.substitute(Substitution::get(subtask._args, newArgs));
+
+        std::vector<Signature> added = addToLayer(NULL, subtask, initLayer, pos, state, newState);
 
         handleAddedHtnOps(added, initLayer, pos, initLayer, pos, state, newState);
 
@@ -62,12 +79,18 @@ void Planner::findPlan() {
     _enc.addAssumptions(initLayer);
     bool solved = _enc.solve();
 
+    
     // Next layers
 
-    Layer& oldLayer = initLayer;
-    while (!solved) {
-        printf("Unsolvable at layer %i\n", oldLayer.index());        
-        printf("ITERATION %i\n", ++iteration);
+    int maxIterations = 20;
+    std::vector<Layer> allLayers;
+    allLayers.push_back(initLayer);
+
+    while (!solved && iteration < maxIterations) {
+        Layer& oldLayer = allLayers.back();
+        printf("Unsolvable at layer %i\n", oldLayer.index());  
+        iteration++;      
+        printf("ITERATION %i\n", iteration);
         
         Layer newLayer(iteration, oldLayer.getNextLayerSize());
         printf(" NEW_LAYER_SIZE %i\n", newLayer.size());
@@ -87,6 +110,7 @@ void Planner::findPlan() {
                 if (offset == 0) {
                     // Propagate facts
                     newLayer[newPos].setFacts(oldLayer[oldPos].getFacts());
+                    _enc.propagateFacts(oldLayer[oldPos].getFacts(), oldLayer, oldPos, newLayer, newPos);
                     
                     // Propagate actions (maintain variable values)
                     for (Signature aSig : oldLayer[oldPos].getActions()) {
@@ -118,8 +142,8 @@ void Planner::findPlan() {
 
                 // Finalize set of facts at this position
                 state = newState;
-                _enc.consolidateHtnOps(newLayer, newPos);
-                _enc.consolidateFacts(newLayer, newPos);
+                _enc.consolidateHtnOps(newLayer, newPos+offset);
+                _enc.consolidateFacts(newLayer, newPos+offset);
             }
 
             // Finalize reductions at the old layer, old position
@@ -134,19 +158,44 @@ void Planner::findPlan() {
         _enc.addAssumptions(newLayer);
         solved = _enc.solve();
 
-        oldLayer = newLayer;
+        allLayers.push_back(newLayer);
     }
 
-    printf("Found a solution at layer %i\n", oldLayer.index());
+    if (!solved) {
+        printf("Limit exceeded. Terminating.\n");
+        exit(0);
+    }
+
+    printf("Found a solution after %i layers\n", allLayers.size());
 
     // Extract solution
-    std::vector<Signature> actionPlan = _enc.extractClassicalPlan(oldLayer);
+    std::vector<PlanItem> actionPlan = _enc.extractClassicalPlan(allLayers.back());
+    std::vector<PlanItem> decompPlan = _enc.extractDecompositionPlan(allLayers);
 
     printf("==>\n");
-    int step = 0;
-    for (Signature sig : actionPlan) {
-        printf("%i %s\n", step++, Names::to_string(sig).c_str());
+    std::unordered_set<int> actionIds;
+    for (PlanItem item : actionPlan) {
+        actionIds.insert(item.id);
+        printf("%i %s\n", item.id, Names::to_string_nobrackets(item.abstractTask).c_str());
     }
+
+    bool root = true;
+    for (PlanItem item : decompPlan) {
+        std::string subtaskIdStr;
+        for (int subtaskId : item.subtaskIds) subtaskIdStr += " " + std::to_string(subtaskId);
+        
+        if (root) {
+            printf("root%s\n", subtaskIdStr.c_str());
+            root = false;
+            continue;
+        } else if (item.id == 0 || actionIds.count(item.id)) continue;
+        
+        printf("%i %s -> %s%s\n", item.id, Names::to_string_nobrackets(item.abstractTask).c_str(),
+                Names::to_string_nobrackets(item.reduction).c_str(), subtaskIdStr.c_str());
+    }
+    printf("<==\n");
+
+    printf("End of solution plan.\n");
 }
 
 void Planner::handleAddedHtnOps(std::vector<Signature>& added, 

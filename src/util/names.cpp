@@ -14,7 +14,7 @@ namespace Names {
     }
 
     std::string to_string(int nameId) {
-        if (nameId < 0) return std::to_string(nameId);
+        if (nameId <= 0) return std::to_string(nameId);
         assert(nbt->count(nameId) || fail("No name known with ID " + std::to_string(nameId) + "!\n"));
         return nbt->at(nameId);
     }
@@ -27,6 +27,16 @@ namespace Names {
             out += " " + to_string(arg);
         }
         out += ")";
+        return out;
+    }
+
+    std::string to_string_nobrackets(Signature sig) {
+        std::string out = "";
+        if (sig._negated) out += "!";
+        out += to_string(sig._name_id);
+        for (int arg : sig._args) {
+            out += " " + to_string(arg);
+        }
         return out;
     }
 
