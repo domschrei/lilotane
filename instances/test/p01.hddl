@@ -1,0 +1,31 @@
+(define
+	(problem pfile1)
+	(:domain  rover_domain)
+	(:objects
+		wp0 wp1 wp2 wp3 wp4 wp5 wp6 wp7 wp8 wp9 wp10 - waypoint
+		rover0 - rover
+	)
+	(:htn
+		:parameters ()
+		:subtasks (and
+            (task0 (goto rover0 wp10))
+            (task0 (goto rover0 wp9))
+		)
+		:ordering (and
+		)
+	)
+	(:init
+		(at rover0 wp0)
+		(can_traverse rover0 wp0 wp1)
+		(can_traverse rover0 wp1 wp2)
+		(can_traverse rover0 wp2 wp3)
+		(can_traverse rover0 wp3 wp4)
+		(can_traverse rover0 wp4 wp5)
+		(can_traverse rover0 wp5 wp6)
+		(can_traverse rover0 wp6 wp7)
+		(can_traverse rover0 wp7 wp8)
+		(can_traverse rover0 wp8 wp9)
+		(can_traverse rover0 wp9 wp10)
+		(can_traverse rover0 wp10 wp0)
+	)
+)

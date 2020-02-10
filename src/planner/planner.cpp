@@ -149,7 +149,7 @@ void Planner::findPlan() {
             // Finalize reductions at the old layer, old position
             for (Signature parentSig : oldLayer[oldPos].getReductions()) {
                 Reduction parent = _htn._reductions_by_sig[parentSig];
-                _enc.consolidateReductionExpansion(parent, oldLayer, oldPos);
+                _enc.consolidateReductionExpansion(parent, oldLayer, oldPos, newLayer, newPos);
             }
         }
 

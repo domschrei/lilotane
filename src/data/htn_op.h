@@ -26,6 +26,19 @@ public:
     void addEffect(Signature& sig) {
         _effects.insert(sig);
     }
+    void removeInconsistentEffects() {
+        // Collect all neg. preconds for which the pos. precond is contained, too
+        SigSet inconsistentEffs;
+        for (Signature sig : _effects) {
+            if (sig._negated && _effects.count(sig.abs())) {
+                inconsistentEffs.insert(sig);
+            }
+        }
+        // Remove each such neg. precond
+        for (Signature sig : inconsistentEffs) {
+            _effects.erase(sig);
+        }
+    }
 
     virtual HtnOp substitute(std::unordered_map<int, int> s) {
         HtnOp op;

@@ -149,21 +149,14 @@ Reduction& HtnInstance::createReduction(method& method) {
 
     assert(_reductions.count(id) == 0);
     _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
-
-    // TODO add method preconditions from its first "virtual subtask", if applicable
     assert(method.constraints.empty());
-    /*
-    for (literal lit : method.constraints) {
-        Signature sig = getSignature(lit);
-        _reductions[id].addPrecondition(sig);
-        printf("  %s : precondition %s\n", to_string(_reductions[id].getSignature()).c_str(), to_string(sig).c_str());
-    }
-    */
+
+    std::map<std::string, int> subtaskTagToIndex;   
     for (plan_step st : method.ps) {
 
         if (st.task.rfind("__method_precondition_", 0) == 0) {
 
-            // Actually a method precondition which was compiled out
+            // This "subtask" is a method precondition which was compiled out
             
             // Find primitive task belonging to this method precondition
             task precTask;
@@ -185,8 +178,24 @@ Reduction& HtnInstance::createReduction(method& method) {
             // Actual subtask
             Signature sig(getNameId(st.task), getArguments(st.args));
             _reductions[id].addSubtask(sig);
+            subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
         }
     }
+
+    // Order subtasks
+    if (!method.ordering.empty()) {
+        std::map<int, std::vector<int>> orderingNodelist;
+        for (auto order : method.ordering) {
+            int indexLeft = subtaskTagToIndex[order.first];
+            int indexRight = subtaskTagToIndex[order.second];
+            assert(indexLeft >= 0 && indexLeft < _reductions[id].getSubtasks().size());
+            assert(indexRight >= 0 && indexRight < _reductions[id].getSubtasks().size());
+            orderingNodelist[indexLeft];
+            orderingNodelist[indexLeft].push_back(indexRight);
+        }
+        _reductions[id].orderSubtasks(orderingNodelist);
+    }
+
     printf(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());
@@ -205,6 +214,7 @@ Action& HtnInstance::createAction(task& task) {
         Signature sig = getSignature(p);
         _actions[id].addEffect(sig);
     }
+    _actions[id].removeInconsistentEffects();
     return _actions[id];
 }
 

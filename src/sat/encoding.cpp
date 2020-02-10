@@ -141,6 +141,7 @@ void Encoding::propagateFacts(const SigSet& facts, Layer& oldLayer, int oldPos, 
         int newVar = var(newLayer.index(), newPos, fact);
         addClause({-oldVar, newVar});
         addClause({oldVar, -newVar});
+        _posterior_facts[fact._name_id].insert(fact.abs());
     }
 }
 
@@ -161,13 +162,24 @@ void Encoding::addReduction(Reduction& child, Reduction& parent, SigSet& allFact
                    offset);
 }
 
-void Encoding::consolidateReductionExpansion(Reduction& r, Layer& layer, int pos) {
+void Encoding::consolidateReductionExpansion(Reduction& r, 
+        Layer& oldLayer, int oldPos, 
+        Layer& newLayer, int newPos) {
+
     printf("[ENC] consolidateReductionExpansion\n");
     
     Signature sig = r.getSignature();
-    int redVar = var(layer.index(), pos, sig);
-    auto& expansion = _expansions[redVar];
+    int redVar = var(oldLayer.index(), oldPos, sig);
 
+    // Add blank actions to offsets where the reduction has no children
+    Signature sigBlank = _htn._action_blank.getSignature();
+    for (int offset = r.getSubtasks().size(); offset < oldLayer[oldPos].getMaxExpansionSize(); offset++) {
+        int blankVar = var(newLayer.index(), newPos+offset, sigBlank);
+        addToExpansion(redVar, blankVar, offset);
+    }
+
+    // Add expansion rules to the reduction
+    auto& expansion = _expansions[redVar];
     _var_domain_locked = true;
     // For each offset of the expansion
     for (int offset = 0; offset < expansion.size(); offset++) {
@@ -187,12 +199,12 @@ void Encoding::consolidateHtnOps(Layer& layer, int pos) {
     _var_domain_locked = true;
     for (int aVar1 : _current_action_vars) {
         for (int aVar2 : _current_action_vars) {
-            if (aVar1 != aVar2) addClause({-aVar1, -aVar2});
+            if (aVar1 < aVar2) addClause({-aVar1, -aVar2});
         }
     }
     for (int rVar1 : _current_reduction_vars) {
         for (int rVar2 : _current_reduction_vars) {
-            if (rVar1 != rVar2) addClause({-rVar1, -rVar2});
+            if (rVar1 < rVar2) addClause({-rVar1, -rVar2});
         }
     }
     _var_domain_locked = false;
@@ -208,73 +220,70 @@ void Encoding::consolidateFacts(Layer& layer, int pos) {
     for (auto pair : _posterior_facts) {
         int predId = pair.first;
         SigSet& facts = pair.second;
-
         for (Signature fact : facts) {
 
             // Add substitution literals as necessary
             for (int argPos = 0; argPos < fact._args.size(); argPos++) {
                 int arg = fact._args[argPos];
+                if (!_htn._q_constants.count(arg)) continue;
+                
+                // arg is a q-constant
 
-                if (_htn._q_constants.count(arg)) {
-                    // arg is a q-constant
+                if (!_q_constants.count(arg)) {
+                    // new q-constant: initialize substitution literals
 
-                    if (!_q_constants.count(arg)) {
-                        // new q-constant: initialize substitution literals
+                    // sort of q constant
+                    int sort = _htn._signature_sorts_table[fact._name_id][argPos];
 
-                        // sort of q constant
-                        int sort = _htn._signature_sorts_table[fact._name_id][argPos];
+                    // for each constant of same sort
+                    assert(_htn._constants_by_sort.count(sort));
+                    for (int c : _htn._constants_by_sort[sort]) {
+                        
+                        // Do not include cyclic substitutions
+                        if (_htn._q_constants.count(c) && c >= arg) continue;
 
-                        // for each constant of same sort
-                        assert(_htn._constants_by_sort.count(sort));
-                        for (int c : _htn._constants_by_sort[sort]) {
-                            
-                            // Do not include cyclic substitutions
-                            if (_htn._q_constants.count(c) && c >= arg) continue;
-
-                            // either of the possible substitutions must be chosen
-                            Signature sigSubst = sigSubstitute(arg, c);
-                            appendClause({var(layer.index(), pos, sigSubst)});
-                            
-                            _q_constants_per_arg[c];
-                            _q_constants_per_arg[c].push_back(arg);
-                        }
-                        endClause();
-
-                        // TODO AT MOST ONE substitution??
-
-                        _q_constants.insert(arg);
+                        // either of the possible substitutions must be chosen
+                        Signature sigSubst = sigSubstitute(arg, c);
+                        appendClause({var(layer.index(), pos, sigSubst)});
+                        
+                        _q_constants_per_arg[c];
+                        _q_constants_per_arg[c].push_back(arg);
                     }
+                    endClause();
 
-                    // Add equivalence to corresponding facts
-                    // relative to chosen substitution
-                    std::unordered_set<Signature, SignatureHasher> substitutedFacts;
-                    for (auto factsPair : _posterior_facts) {
-                        for (Signature actualFact : factsPair.second) {
+                    // TODO AT MOST ONE substitution??
 
-                            if (actualFact._name_id != fact._name_id) continue;
-                            int substArg = actualFact._args[argPos];
+                    _q_constants.insert(arg);
+                }
 
-                            // All args must be the same except for the qconst position;
-                            // at the qconst position, there must be a true constant 
-                            // or a qconst of smaller value.
-                            bool isSubstitution = !_htn._q_constants.count(substArg) || (substArg < arg);
-                            for (int i = 0; i < actualFact._args.size(); i++) {
-                                isSubstitution &= (i == argPos) ^ (actualFact._args[i] == fact._args[i]);
-                            }
+                // Add equivalence to corresponding facts
+                // relative to chosen substitution
+                std::unordered_set<Signature, SignatureHasher> substitutedFacts;
+                for (auto factsPair : _posterior_facts) {
+                    for (Signature actualFact : factsPair.second) {
 
-                            if (isSubstitution) {
-                                // -- yes: valid substitution found
-                                substitutedFacts.insert(actualFact);
-                                Signature sigSubst = sigSubstitute(arg, actualFact._args[argPos]);
-                                int varSubtitution = var(layer.index(), pos, sigSubst);
-                                int varQFact = var(layer.index(), pos, fact);
-                                int varActualFact = var(layer.index(), pos, actualFact);
-                                // If the substitution is chosen,
-                                // the q-fact and the corresponding actual fact are equivalent
-                                addClause({-varSubtitution, -varQFact, varActualFact});
-                                addClause({-varSubtitution, varQFact, -varActualFact});
-                            }
+                        if (actualFact._name_id != fact._name_id) continue;
+                        int substArg = actualFact._args[argPos];
+
+                        // All args must be the same except for the qconst position;
+                        // at the qconst position, there must be a true constant 
+                        // or a qconst of smaller value.
+                        bool isSubstitution = !_htn._q_constants.count(substArg) || (substArg < arg);
+                        for (int i = 0; i < actualFact._args.size(); i++) {
+                            isSubstitution &= (i == argPos) ^ (actualFact._args[i] == fact._args[i]);
                         }
+                        if (!isSubstitution) continue;
+                        
+                        // -- yes: valid substitution found
+                        substitutedFacts.insert(actualFact);
+                        Signature sigSubst = sigSubstitute(arg, actualFact._args[argPos]);
+                        int varSubtitution = var(layer.index(), pos, sigSubst);
+                        int varQFact = var(layer.index(), pos, fact);
+                        int varActualFact = var(layer.index(), pos, actualFact);
+                        // If the substitution is chosen,
+                        // the q-fact and the corresponding actual fact are equivalent
+                        addClause({-varSubtitution, -varQFact, varActualFact});
+                        addClause({-varSubtitution, varQFact, -varActualFact});
                     }
                 }
             }
@@ -303,11 +312,15 @@ void Encoding::consolidateFacts(Layer& layer, int pos) {
                 appendClause({fVarPre, -fVarPost});
                 //printVar(layer.index(), pos, fact); printVar(layer.index(), pos+1, fact);
                 
+                // Allow any fact changes if the pos. is not primitive yet
+                //appendClause({-varPrimitive(layer.index(), pos)});
+
                 _var_domain_locked = true;
                 for (int opVar : _supports[fVarPost]) {
                     appendClause({opVar});
                     //printf("%i ", opVar);
                 }
+
                 // If the fact is a possible substitution of a q-constant fact,
                 // add corresponding substitution literal to frame axioms.
                 for (int arg : fact._args) {
@@ -439,12 +452,19 @@ std::vector<PlanItem> Encoding::extractClassicalPlan(Layer& finalLayer) {
     int li = finalLayer.index();
     _var_domain_locked = true;
 
+    SigSet state = finalLayer[0].getFacts();
+    for (Signature f : state) {
+        assert(value(0, 0, f));
+    }
+
     std::vector<PlanItem> plan;
-    for (int pos = 0; pos < finalLayer.size(); pos++) {
+    for (int pos = 0; pos+1 < finalLayer.size(); pos++) {
         printf("%i\n", pos);
         assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
 
         int addedActions = 0;
+        SigSet newState = state;
+        SigSet effects;
         for (Signature aSig : finalLayer[pos].getActions()) {
 
             if (!isEncoded(li, pos, aSig)) continue;
@@ -461,6 +481,13 @@ std::vector<PlanItem> Encoding::extractClassicalPlan(Layer& finalLayer) {
                 for (Signature eff : a.getEffects()) {
                     assert(value(li, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
                     + Names::to_string(a) + " does not hold at step " + std::to_string(pos+1) + "!\n"));
+
+                    // Apply effect
+                    eff.negate();
+                    if (state.count(eff)) newState.erase(eff);
+                    eff.negate();
+                    newState.insert(eff);
+                    effects.insert(eff);
                 }
 
                 addedActions++;
@@ -468,8 +495,15 @@ std::vector<PlanItem> Encoding::extractClassicalPlan(Layer& finalLayer) {
                 if (aSig != _htn._action_blank.getSignature()) {
                     plan.push_back({var(li, pos, aSig), aSig, aSig, std::vector<int>()});
                 }
+
             }
         }
+
+        for (Signature sig : newState) {
+            assert(value(li, pos+1, sig));
+        }
+        state = newState;
+
         assert(addedActions <= 1 || fail("Added " + std::to_string(addedActions) + " actions at step " + std::to_string(pos) + "!\n"));
     }
 
@@ -535,12 +569,22 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan(std::vector<Layer>& all
 
                     if (aSig == _htn._action_blank.getSignature()) continue;
                     
-                    // TODO check preconditions, effects
+                    // Check preconditions, effects
+                    Action& a = _htn._actions_by_sig[aSig];
+                    for (Signature pre : a.getPreconditions()) {
+                        assert(value(i, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
+                        + Names::to_string(aSig) + " does not hold at step " + std::to_string(pos) + "!\n"));
+                    }
+                    for (Signature eff : a.getEffects()) {
+                        assert(value(i, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
+                        + Names::to_string(aSig) + " does not hold at step " + std::to_string(pos+1) + "!\n"));
+                    }
 
                     int v = var(i, pos, aSig);
-                    itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
                     
                     // TODO check this is a valid subtask relationship 
+                    
+                    //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
                     itemsOldLayer[predPos].subtaskIds.push_back(v);
                 }
             }

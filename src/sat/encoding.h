@@ -74,7 +74,7 @@ public:
     void addReduction(Reduction& r, SigSet& allFactChanges, Layer& layer, int pos);
     void addReduction(Reduction& child, Reduction& parent, SigSet& allFactChanges, 
                         Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
-    void consolidateReductionExpansion(Reduction& r, Layer& layer, int pos);
+    void consolidateReductionExpansion(Reduction& r, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
     
     void consolidateHtnOps(Layer& layer, int pos);
 

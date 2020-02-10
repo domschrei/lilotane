@@ -1,0 +1,71 @@
+(define (domain rover_domain)
+	(:requirements :typing :hierachie)
+	(:types
+		waypoint - object
+		mode - object
+		store - object
+		rover - object
+		camera - object
+		lander - object
+		objective - object
+	)
+	(:predicates
+		(at ?arg0 - rover ?arg1 - waypoint)
+		(can_traverse ?arg0 - rover ?arg1 - waypoint ?arg2 - waypoint)
+	)
+
+	(:task goto
+		:parameters (?rover - rover ?to - waypoint)
+		:precondition ()
+		:effect ()
+	)
+
+	(:method m_goto_nop
+        :parameters (?rover - rover ?to - waypoint)
+        :task (goto ?rover ?to)
+        :precondition (and
+            (at ?rover ?to)
+        )
+        :subtasks ()
+    )
+
+	(:method m_goto_direct
+        :parameters (?rover - rover ?to ?from - waypoint)
+        :task (goto ?rover ?to)
+        :precondition (and
+            (at ?rover ?from)
+            (can_traverse ?rover ?from ?to)
+        )
+        :subtasks (and
+            (task0 (drive ?rover ?from ?to))
+        )
+    )
+
+	(:method m_goto_indirect
+        :parameters (?rover - rover ?to ?from ?via1 ?via2 - waypoint)
+        :task (goto ?rover ?to)
+        :precondition (and
+            (at ?rover ?from)
+            (not (can_traverse ?rover ?from ?to))
+            (can_traverse ?rover ?from ?via1)
+            (can_traverse ?rover ?via2 ?to)
+        )
+        :subtasks (and
+            (task0 (drive ?rover ?from ?via1))
+            (task1 (goto ?rover ?via2))
+            (task2 (drive ?rover ?via2 ?to))
+        )
+    )
+	
+	(:action drive
+        :parameters (?rover - rover ?from ?to - waypoint)
+        :precondition (and
+            (at ?rover ?from)
+            (can_traverse ?rover ?from ?to)
+        )
+        :effect (and
+            (not (at ?rover ?from))
+            (at ?rover ?to)
+        )
+    )
+)

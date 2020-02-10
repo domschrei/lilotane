@@ -21,21 +21,17 @@
 		:subtasks (and
 		  ;(task0 (navigate rover0 waypoint3 waypoint0))
 		  ;(task1 (navigate rover0 waypoint0 waypoint3))
-		  ;(task2 (navigate rover0 waypoint3 waypoint1))
 		 
-		 (task0 (navigate_abs rover0 waypoint1))
-		 
-		 ;(task0 (get_soil_data waypoint2))
-		 ;(task1 (get_rock_data waypoint3))
-		 ;(task2 (get_image_data objective1 high_res))
+		 (task0 (get_soil_data waypoint2))
+		 (task1 (get_rock_data waypoint3))
+		 (task2 (get_image_data objective1 high_res))
 		)
 		:ordering (and
-			;(task2 < task0)
-			;(task0 < task1)
+			(task2 < task0)
+			(task0 < task1)
 		)
 	)
 	(:init
-		(at rover0 waypoint0)
 		(visible waypoint1 waypoint0)
 		(visible waypoint0 waypoint1)
 		(visible waypoint2 waypoint0)
@@ -56,6 +52,7 @@
 		(at_rock_sample waypoint3)
 		(at_lander general waypoint0)
 		(channel_free general)
+		(at rover0 waypoint3)
 		(available rover0)
 		(store_of rover0store rover0)
 		(empty rover0store)
