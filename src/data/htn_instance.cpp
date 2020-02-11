@@ -196,6 +196,12 @@ Reduction& HtnInstance::createReduction(method& method) {
         _reductions[id].orderSubtasks(orderingNodelist);
     }
 
+    printf("ORDERING %s < ", Names::to_string(_reductions[id].getSignature()).c_str());
+    for (Signature sg : _reductions[id].getSubtasks()) {
+        printf("%s ", Names::to_string(sg).c_str());
+    }
+    printf(">\n");
+
     printf(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());

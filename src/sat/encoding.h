@@ -82,7 +82,6 @@ public:
     void propagateFacts(const SigSet& facts, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
     void consolidateFacts(Layer& layer, int pos);
 
-    
     void addAssumptions(Layer& layer);
 
     bool solve();
@@ -90,32 +89,9 @@ public:
     std::vector<PlanItem> extractClassicalPlan(Layer& finalLayer);
     std::vector<PlanItem> extractDecompositionPlan(std::vector<Layer>& allLayers);
 
+    void printFailedVars(Layer& layer);
+
 private:
-    /*
-    // initial reductions/actions
-    void addInitialTaskNetwork(Layer& layer);
-    // initial state unit clauses at position 0
-    void addInitialState(Layer& layer);
-
-    // Preconditions, effects, at most one action
-    void addActionConstraints(Layer& layer);
-    // If (fact change and not substituted), then (one of the supporting actions/reductions)
-    void addFrameAxioms(Layer& layer);
-    // For each qconstant: ALO substitution variable
-    // For each concerned fact: if substitution, then equivalence to original fact
-    void addQConstantsDefinition(Layer& layer);
-    // actions primitive, reductions non-primitive
-    void addPrimitivenessDefinition(Layer& layer);
-    // all positions at the layer must be primitive
-    void assertAllPrimitive(Layer& layer);
-
-    // sub-reductions/-actions of each reduction at previous layer
-    void addExpansions(Layer& oldLayer, Layer& newLayer);
-    // actions are propagated to next layer
-    void addActionPropagations(Layer& oldLayer, Layer& newLayer);
-    // facts are equivalent at each parent-child position pair
-    void addFactEquivalencies(Layer& oldLayer, Layer& newLayer);
-    */
 
     Signature sigSubstitute(int qConstId, int trueConstId) {
         assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);

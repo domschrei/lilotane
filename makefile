@@ -1,10 +1,13 @@
 CC=g++
 
+# Options: minisat220 lingeling
+IPASIRSOLVER=lingeling 
+
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 CERROR=
 
 COMPILEFLAGS=-O2 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
-LINKERFLAG=-O2 -lm -Llib -lipasirminisat220
+LINKERFLAG=-O2 -lm -Llib -lipasir${IPASIRSOLVER}
 
 #COMPILEFLAGS=-O0 -ggdb -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
 #LINKERFLAG=-O0 -ggdb

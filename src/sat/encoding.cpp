@@ -313,7 +313,7 @@ void Encoding::consolidateFacts(Layer& layer, int pos) {
                 //printVar(layer.index(), pos, fact); printVar(layer.index(), pos+1, fact);
                 
                 // Allow any fact changes if the pos. is not primitive yet
-                //appendClause({-varPrimitive(layer.index(), pos)});
+                appendClause({-varPrimitive(layer.index(), pos)});
 
                 _var_domain_locked = true;
                 for (int opVar : _supports[fVarPost]) {
@@ -401,6 +401,7 @@ void Encoding::assume(int lit) {
 bool Encoding::solve() {
     printf("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 numClauses, numLits, numAssumptions);
+    numAssumptions = 0;
     return ipasir_solve(_solver) == 10;
 }
 
@@ -446,6 +447,15 @@ void Encoding::printVar(int layer, int pos, Signature& sig) {
 
 int Encoding::varPrimitive(int layer, int pos) {
     return var(layer, pos, _sig_primitive);
+}
+
+void Encoding::printFailedVars(Layer& layer) {
+    printf("FAILED ");
+    for (int pos = 0; pos < layer.size(); pos++) {
+        int v = varPrimitive(layer.index(), pos);
+        if (ipasir_failed(_solver, v)) printf("%i ", v);
+    }
+    printf("\n");
 }
 
 std::vector<PlanItem> Encoding::extractClassicalPlan(Layer& finalLayer) {

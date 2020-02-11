@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <assert.h>
 
+#include "util/hash.h"
 
 typedef std::unordered_map<int, int> substitution_t;
 
@@ -69,11 +70,21 @@ struct Signature {
 
 struct SignatureHasher {
     std::size_t operator()(const Signature& s) const {
+
+        /*
         int hash = 1337;
         hash ^= s._name_id;
         for (auto arg : s._args) {
             hash ^= arg;
         }
+        return hash;*/
+
+        size_t hash = 0;
+        hash_combine(hash, s._name_id);
+        for (auto arg : s._args) {
+            hash_combine(hash, arg);
+        }
+        hash_combine(hash, s._negated);
         return hash;
     }
 };

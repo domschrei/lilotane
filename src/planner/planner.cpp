@@ -82,11 +82,13 @@ void Planner::findPlan() {
     
     // Next layers
 
-    int maxIterations = 20;
+    int maxIterations = 4;
     std::vector<Layer> allLayers;
     allLayers.push_back(initLayer);
 
     while (!solved && iteration < maxIterations) {
+        _enc.printFailedVars(allLayers.back());
+        
         Layer& oldLayer = allLayers.back();
         printf("Unsolvable at layer %i\n", oldLayer.index());  
         iteration++;      
@@ -162,8 +164,13 @@ void Planner::findPlan() {
     }
 
     if (!solved) {
-        printf("Limit exceeded. Terminating.\n");
-        exit(0);
+        _enc.printFailedVars(allLayers.back());
+        printf("Limit exceeded. Solving without assumptions ...\n");
+        solved = _enc.solve();
+        if (!solved) {
+            printf("No success. Exiting.\n");
+            exit(0);
+        }
     }
 
     printf("Found a solution after %i layers\n", allLayers.size());
