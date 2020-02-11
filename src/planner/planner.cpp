@@ -4,6 +4,7 @@
 #include <regex>
 
 #include "planner.h"
+#include "util/log.h"
 //#include "parser/cwa.hpp"
 
 void Planner::findPlan() {
@@ -23,7 +24,7 @@ void Planner::findPlan() {
         Signature sig(predId, _htn.getArguments(lit.args));
         if (!lit.positive) sig.negate();
         initLayer[0].addFact(sig);
-        printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), 0);
+        //printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), 0);
         initState[predId];
         initState[predId].insert(sig);
     }
@@ -69,7 +70,7 @@ void Planner::findPlan() {
         initLayer[initLayer.size()-1].addFact(sig);
         state[sig._name_id].insert(sig);
         goalSet.insert(sig);
-        printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
+        //printf(" add goal fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
     }
     _enc.addTrueFacts(goalSet, initLayer, initLayer.size()-1);
     _enc.consolidateFacts(initLayer, initLayer.size()-1);
@@ -82,7 +83,7 @@ void Planner::findPlan() {
     
     // Next layers
 
-    int maxIterations = 4;
+    int maxIterations = 10;
     std::vector<Layer> allLayers;
     allLayers.push_back(initLayer);
 
@@ -125,7 +126,7 @@ void Planner::findPlan() {
                 // Propagate reductions
                 for (Signature parentSig : oldLayer[oldPos].getReductions()) {
                     Reduction parent = _htn._reductions_by_sig[parentSig];
-                    printf("  propagating reduction %s, offset %i\n", Names::to_string(parentSig).c_str(), offset);
+                    //printf("  propagating reduction %s, offset %i\n", Names::to_string(parentSig).c_str(), offset);
                     Signature sig;
                     if (offset < parent.getSubtasks().size()) {
                         sig = parent.getSubtasks()[offset];   
@@ -218,6 +219,16 @@ void Planner::handleAddedHtnOps(std::vector<Signature>& added,
         if (propagation) sigParent = added[sigIdx++];
 
         SigSet factChanges = _htn.getAllFactChanges(sig);
+#ifndef NDEBUG
+        if (propagation) {
+            SigSet parentFactChanges = _htn.getAllFactChanges(sigParent);
+            for (Signature fact : factChanges) {
+                assert(parentFactChanges.count(fact) || fail("Fact " + Names::to_string(fact)
+                        + " contained in changes of " + Names::to_string(sig)
+                        + " but not of its parent " + Names::to_string(sigParent) + " !\n"));
+            }
+        }
+#endif
 
         // Add htn op to the encoding
         if (_htn._reductions_by_sig.count(sig)) {
@@ -267,7 +278,7 @@ std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, L
         Action& a = _htn._actions[task._name_id];
         HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
         Action act = (Action) op;
-        printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+        //printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
         std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
         
@@ -275,7 +286,7 @@ std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, L
             action = _htn.replaceQConstants(action, layerIdx, pos);
             Signature sig = action.getSignature();
             _htn._actions_by_sig[sig] = action;
-            printf("   add action %s @%i\n", Names::to_string(sig).c_str(), pos);
+            //printf("   add action %s @%i\n", Names::to_string(sig).c_str(), pos);
 
             // Add action to elements @pos
             layer[pos].addAction(sig);
@@ -294,7 +305,7 @@ std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, L
     } else {
         // Reduction
         std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-        printf("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
+        //printf("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
 
         // Filter and minimally instantiate methods
         // applicable in current (super)state
@@ -303,16 +314,16 @@ std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, L
             r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
             Signature origSig = r.getSignature();
             std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
-            printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
+            //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
 
             for (Reduction red : reductions) {
                 // Rename any remaining constants in each action as unique q-constants 
                 red = _htn.replaceQConstants(red, layerIdx, pos);
                 Signature sig = red.getSignature();
                 _htn._reductions_by_sig[sig] = red;
-                printf("    add reduction %s @%i\n", Names::to_string(sig).c_str(), pos);
+                //printf("    add reduction %s @%i\n", Names::to_string(sig).c_str(), pos);
                 for (Signature subtask : red.getSubtasks()) {
-                    printf("    - %s\n", Names::to_string(subtask).c_str());
+                    //printf("    - %s\n", Names::to_string(subtask).c_str());
                 }
                 result.push_back(sig);
                 if (parent != NULL) result.push_back(parent->getSignature());

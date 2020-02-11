@@ -52,9 +52,6 @@ private:
 
     std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
-    std::unordered_set<int> _current_action_vars;
-    std::unordered_set<int> _current_reduction_vars;
-
     bool _var_domain_locked = false;
 
 public:

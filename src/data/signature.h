@@ -13,7 +13,7 @@ typedef std::unordered_map<int, int> substitution_t;
 
 namespace Substitution {
     substitution_t get(std::vector<int> src, std::vector<int> dest);
-};
+}
 
 struct Signature {
     

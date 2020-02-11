@@ -229,6 +229,7 @@ SigSet HtnInstance::getAllFactChanges(Signature& sig) {
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, _constants_by_sort, _signature_sorts_table, _var_ids);
         for (Signature i : instantiation) {
+            assert(_instantiator->isFullyGround(i));
             result.insert(i);
         }
     }

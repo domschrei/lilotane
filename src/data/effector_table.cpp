@@ -86,8 +86,11 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     for (Signature fact : sigs) {
         Signature sigRes = fact.substitute(sFromPlaceholder);
         for (int arg : sigRes._args) assert(arg > 0);
-        out.push_back(sigRes);
-        //printf("%s ", Names::to_string(sigRes).c_str());
+        
+        for (Signature sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
+            out.push_back(sigGround);
+            //printf("%s ", Names::to_string(sigGround).c_str());
+        }
     }
     //printf("\n");
     return out;

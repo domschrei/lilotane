@@ -14,5 +14,6 @@ namespace Names {
     std::string to_string_nobrackets(Signature sig);
     std::string to_string(std::unordered_map<int, int> s);
     std::string to_string(Action a);
-};
+}
+
 #endif

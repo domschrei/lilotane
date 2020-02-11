@@ -15,10 +15,10 @@
 		:parameters ()
 		:subtasks (and
 		 (task0 (deliver package_0 city_loc_0))
-		 (task1 (deliver package_1 city_loc_2))
+		 ;(task1 (deliver package_1 city_loc_2))
 		)
 		:ordering (and
-			(task0 < task1)
+			;(task0 < task1)
 		)
 	)
 	(:init
