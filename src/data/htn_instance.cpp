@@ -59,7 +59,7 @@ HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
 }
 
 int HtnInstance::getNameId(const std::string& name) {
-    if (_name_table.count(name) == 0) {
+    if (!_name_table.count(name)) {
         _name_table[name] = _name_table_running_id++;
         _name_back_table[_name_table_running_id-1] = name;
         if (name[0] == '?') {
@@ -227,7 +227,7 @@ Action& HtnInstance::createAction(task& task) {
 SigSet HtnInstance::getAllFactChanges(Signature& sig) {        
     SigSet result;
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
-        std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, _constants_by_sort, _signature_sorts_table, _var_ids);
+        std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
             result.insert(i);
@@ -268,7 +268,10 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     }
     assert(argPos < _signature_sorts_table[sig._name_id].size());
     int sort = _signature_sorts_table[sig._name_id][argPos];
-    std::string qConstName = "!_" + std::to_string(layerIdx) + "_" + std::to_string(pos) + "_" + _name_back_table[sort];
+    // TODO fix naming / uniqueness: unique q-consts within a single reduction,
+    // but the same q-constant in between reductions
+    std::string qConstName = "!_" + std::to_string(layerIdx) + "_" 
+        + std::to_string(pos) + "_" + std::to_string(argPos) + "_" + _name_back_table[sort];
     int qConstId = getNameId(qConstName);
 
     // Add q const to substitution
@@ -291,9 +294,41 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         }
     }
     printf("sorts of %s : ", Names::to_string(qConstId).c_str());
+    _sorts_of_q_constants[qConstId];
     for (int sort : containedSorts) {
+        _sorts_of_q_constants[qConstId].push_back(sort);
         _constants_by_sort[sort].push_back(qConstId);
         printf("%s ", Names::to_string(sort).c_str());
     } 
     printf("\n");
+
+    // Compute domain of the q constant
+    std::vector<int> domain;
+    for (int sort : _sorts_of_q_constants[arg]) {
+        for (int c : _constants_by_sort[sort]) {
+            domain.push_back(c);
+        }
+    }
+    _domains_of_q_constants[qConstId] = domain;
+}
+
+std::vector<Signature> HtnInstance::getDecodedFacts(Signature qFact) {
+    assert(_instantiator->isFullyGround(qFact));
+    std::vector<std::vector<int>> eligibleArgs(qFact._args.size());
+    for (int argPos = 0; argPos < qFact._args.size(); argPos++) {
+        int arg = qFact._args[argPos];
+        if (_q_constants.count(arg)) {
+            // q constant
+            assert(_domains_of_q_constants.count(arg));
+            for (int c : _domains_of_q_constants[arg]) {
+                eligibleArgs[argPos].push_back(c);
+            }
+        } else {
+            // normal constant
+            eligibleArgs[argPos].push_back(arg);
+        }
+        assert(eligibleArgs[argPos].size());
+    }
+
+    return ArgIterator::instantiate(qFact, eligibleArgs);
 }

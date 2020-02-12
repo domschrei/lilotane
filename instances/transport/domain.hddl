@@ -40,6 +40,21 @@
 		:effect ()
 	)
 
+	(:task trivial
+		:parameters ()
+		:precondition ()
+		:effect ()
+	)
+
+	(:method m_trivial
+		:parameters (?v - vehicle ?l1 ?l2 - location)
+		:task (trivial)
+		:subtasks (and
+			(drive ?v ?l1 ?l2)
+			(drive ?v ?l2 ?l1)
+		)
+	)
+
 	(:method m_deliver_ordering_0
 		:parameters (?l1 - location ?l2 - location ?p - package ?v - vehicle)
 		:task (deliver ?p ?l2)
@@ -98,6 +113,12 @@
 		:subtasks (and
 		 (task0 (noop ?v ?l))
 		)
+	)
+
+	(:action a_trivial
+		:parameters (?v - vehicle ?l - location)
+		:precondition (and (at ?v ?l))
+		:effect ()
 	)
 
 	(:action drive

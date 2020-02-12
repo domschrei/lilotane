@@ -272,13 +272,12 @@ std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, L
 
     std::vector<Signature> result;
 
-    if (_htn._task_id_to_reduction_ids.count(task._name_id) == 0) {
+    if (_htn._actions.count(task._name_id)) {
         // Action
-        assert(_htn._actions.count(task._name_id));
         Action& a = _htn._actions[task._name_id];
         HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
         Action act = (Action) op;
-        //printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+        printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
         std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
         

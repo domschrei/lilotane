@@ -31,6 +31,7 @@ class Encoding {
 private:
     HtnInstance& _htn;
     std::vector<std::vector<std::unordered_map<Signature, int, SignatureHasher>>> _variables;
+    std::unordered_map<Signature, int, SignatureHasher> _substitution_variables;
     int _running_var_id = 1;
 
     void* _solver;
@@ -49,7 +50,6 @@ private:
     State _posterior_facts;
 
     std::unordered_set<int> _q_constants;
-
     std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
     bool _var_domain_locked = false;
@@ -141,12 +141,17 @@ private:
     void assume(int lit);
 
     bool isEncoded(int layer, int pos, Signature& sig);
+    bool isEncodedSubstitution(Signature& sig);
     int var(int layer, int pos, Signature& sig);
+    int varPrimitive(int layer, int pos);
+    int varSubstitution(Signature sigSubst);
+
     std::string varName(int layer, int pos, Signature& sig);
     void printVar(int layer, int pos, Signature& sig);
-    int varPrimitive(int layer, int pos);
 
     bool value(int layer, int pos, Signature& sig);
+    Signature getDecodedQOp(int layer, int pos, Signature sig);
+    void checkAndApply(Action& a, SigSet& state, SigSet& newState, int layer, int pos);
 
 };
 

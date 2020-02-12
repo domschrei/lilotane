@@ -4,7 +4,6 @@
 
 std::vector<Signature> ArgIterator::getFullInstantiation(Signature sig, HtnInstance& _htn) {
 
-    std::vector<Signature> instantiation;
 
     // enumerate all arg combinations for variable args
     // Get all constants of the respective type(s)
@@ -30,6 +29,15 @@ std::vector<Signature> ArgIterator::getFullInstantiation(Signature sig, HtnInsta
             constantsPerArg.push_back(std::vector<int>(1, arg));
         }
     }
+
+    std::vector<Signature> instantiation = instantiate(sig, constantsPerArg);
+    
+    return instantiation;
+}
+
+std::vector<Signature> ArgIterator::instantiate(Signature sig, std::vector<std::vector<int>> constantsPerArg) {
+
+    std::vector<Signature> instantiation;
 
     // Iterate over all possible assignments
     std::vector<int> counter(constantsPerArg.size(), 0);
@@ -72,6 +80,6 @@ std::vector<Signature> ArgIterator::getFullInstantiation(Signature sig, HtnInsta
     }
     assert(requiredNumInstantiations == numInstantiations || 
         fail(std::to_string(requiredNumInstantiations) + " != " + std::to_string(numInstantiations)) + "\n");
-
+    
     return instantiation;
 }

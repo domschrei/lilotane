@@ -72,7 +72,7 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
             // does not occur in posFacts nor in negFacts => need to be instantiated, too!
             
             // Get all constants of the respective type(s)
-            std::vector<Signature> inst = ArgIterator::getFullInstantiation(sig, _htn->_constants_by_sort, _htn->_signature_sorts_table, _htn->_var_ids);
+            std::vector<Signature> inst = ArgIterator::getFullInstantiation(sig, *_htn);
             for (Signature sigNew : inst) {
                 // Try the assignment
                 if (c.count(sigNew) == 0) {
@@ -174,6 +174,13 @@ bool Instantiator::test(Signature& sig, std::unordered_map<int, SigSet> facts) {
     if (facts.count(sig._name_id) == 0) {
         // Never saw such a predicate: cond. holds iff it is negative
         return !positive;
+    }
+
+    for (int arg : sig._args) {
+        if (_htn->_q_constants.count(arg)) {
+            // Q-Fact: assume that it holds
+            return true;
+        }
     }
 
     // fact positive : true iff contained in facts

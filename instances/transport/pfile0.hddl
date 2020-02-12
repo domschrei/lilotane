@@ -1,5 +1,5 @@
 (define
-	(problem pfile01)
+	(problem pfile0)
 	(:domain  domain_htn)
 	(:objects
 		package_0 - package
@@ -14,12 +14,9 @@
 	(:htn
 		:parameters ()
 		:subtasks (and
-		 (task0 (deliver package_0 city_loc_0))
-		 (task1 (deliver package_1 city_loc_2))
+		  (task0 (trivial))
 		)
-		:ordering (and
-			(task0 < task1)
-		)
+		:ordering ()
 	)
 	(:init
 		(capacity_predecessor capacity_0 capacity_1)
