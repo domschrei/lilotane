@@ -62,7 +62,7 @@ public:
     void addUniversalClauses(Layer& layer);
     void addTransitionalClauses(Layer& oldLayer, Layer& newLayer);
     */
-    void addInitialTasks(Layer& layer, int pos); 
+    void addInitialTaskAlternatives(Layer& layer, int pos); 
 
     void addAction(Action& a, Layer& layer, int pos);
     void addAction(Action& a, Reduction& parent, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
@@ -76,8 +76,8 @@ public:
     void consolidateHtnOps(Layer& layer, int pos);
 
     void addTrueFacts(SigSet& facts, Layer& layer, int pos);
-    void propagateFacts(const SigSet& facts, Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
-    void consolidateFacts(Layer& layer, int pos);
+    void propagateFacts(Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
+    void consolidateFacts(Layer& oldLayer, int oldPos, Layer& newLayer, int newPos);
 
     void addAssumptions(Layer& layer);
 

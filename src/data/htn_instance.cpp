@@ -303,12 +303,22 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     printf("\n");
 
     // Compute domain of the q constant
-    std::vector<int> domain;
-    for (int sort : _sorts_of_q_constants[arg]) {
-        for (int c : _constants_by_sort[sort]) {
-            domain.push_back(c);
-        }
+    std::unordered_set<int> domain;
+    printf("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
+    for (int c : _constants_by_sort[sort]) {
+        
+        // A q constant may *not* be substituted by another q constant
+        //if (!_q_constants.count(c)) {
+
+        // A q constant may be substituted by another q constant,
+        // but only if the other q constant was created earlier
+        // (disallowing cycles)
+        if (!_q_constants.count(c) || c < qConstId) {
+            domain.insert(c);
+            printf("%s ", Names::to_string(c).c_str());
+        } 
     }
+    printf("}\n");
     _domains_of_q_constants[qConstId] = domain;
 }
 
@@ -319,7 +329,7 @@ std::vector<Signature> HtnInstance::getDecodedFacts(Signature qFact) {
         int arg = qFact._args[argPos];
         if (_q_constants.count(arg)) {
             // q constant
-            assert(_domains_of_q_constants.count(arg));
+            assert(_domains_of_q_constants.count(arg) && _domains_of_q_constants[arg].size() > 0);
             for (int c : _domains_of_q_constants[arg]) {
                 eligibleArgs[argPos].push_back(c);
             }
@@ -327,8 +337,15 @@ std::vector<Signature> HtnInstance::getDecodedFacts(Signature qFact) {
             // normal constant
             eligibleArgs[argPos].push_back(arg);
         }
-        assert(eligibleArgs[argPos].size());
+        assert(eligibleArgs[argPos].size() > 0);
     }
 
-    return ArgIterator::instantiate(qFact, eligibleArgs);
+    std::vector<Signature> i = ArgIterator::instantiate(qFact, eligibleArgs);
+    printf("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
+    for (Signature sig : i) {
+        printf("%s ", Names::to_string(sig).c_str());
+    }
+    printf("}\n");
+
+    return i; 
 }

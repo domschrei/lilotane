@@ -14,7 +14,7 @@
 	(:htn
 		:parameters ()
 		:subtasks (and
-		  (task0 (trivial))
+		  (task0 (get_to truck_0 city_loc_0))
 		)
 		:ordering ()
 	)

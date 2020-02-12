@@ -47,13 +47,21 @@
 	)
 
 	(:method m_trivial
-		:parameters (?v - vehicle ?l1 ?l2 - location)
+		:parameters (?v - vehicle ?l1 ?l2 ?l3 - location)
 		:task (trivial)
 		:subtasks (and
-			(drive ?v ?l1 ?l2)
-			(drive ?v ?l2 ?l1)
+            (drive ?v ?l1 ?l2)
+            (drive ?v ?l2 ?l3)
 		)
 	)
+	
+	(:method m_deliver_trivial
+        :parameters (?l1 - location ?l2 - location ?p - package ?v - vehicle)
+		:task (deliver ?p ?l2)
+		:precondition (and (at ?p ?l2))
+		:subtasks ()
+		:ordering ()
+    )
 
 	(:method m_deliver_ordering_0
 		:parameters (?l1 - location ?l2 - location ?p - package ?v - vehicle)

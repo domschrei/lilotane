@@ -58,8 +58,8 @@ void Planner::findPlan() {
         state = newState;
 
         _enc.consolidateHtnOps(initLayer, pos);
-        _enc.consolidateFacts(initLayer, pos);
-        _enc.addInitialTasks(initLayer, pos);
+        _enc.consolidateFacts(initLayer, pos, initLayer, pos);
+        _enc.addInitialTaskAlternatives(initLayer, pos);
     }
 
     // Goal state (?)
@@ -73,7 +73,7 @@ void Planner::findPlan() {
         //printf(" add goal fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
     }
     _enc.addTrueFacts(goalSet, initLayer, initLayer.size()-1);
-    _enc.consolidateFacts(initLayer, initLayer.size()-1);
+    _enc.consolidateFacts(initLayer, initLayer.size()-1, initLayer, initLayer.size()-1);
 
     initLayer.consolidate();
 
@@ -113,7 +113,7 @@ void Planner::findPlan() {
                 if (offset == 0) {
                     // Propagate facts
                     newLayer[newPos].setFacts(oldLayer[oldPos].getFacts());
-                    _enc.propagateFacts(oldLayer[oldPos].getFacts(), oldLayer, oldPos, newLayer, newPos);
+                    _enc.propagateFacts(oldLayer, oldPos, newLayer, newPos);
                     
                     // Propagate actions (maintain variable values)
                     for (Signature aSig : oldLayer[oldPos].getActions()) {
@@ -146,7 +146,7 @@ void Planner::findPlan() {
                 // Finalize set of facts at this position
                 state = newState;
                 _enc.consolidateHtnOps(newLayer, newPos+offset);
-                _enc.consolidateFacts(newLayer, newPos+offset);
+                _enc.consolidateFacts(oldLayer, oldPos, newLayer, newPos+offset);
             }
 
             // Finalize reductions at the old layer, old position
@@ -218,6 +218,7 @@ void Planner::handleAddedHtnOps(std::vector<Signature>& added,
         sig = added[sigIdx++];
         if (propagation) sigParent = added[sigIdx++];
 
+        SigSet preconditions;
         SigSet factChanges = _htn.getAllFactChanges(sig);
 #ifndef NDEBUG
         if (propagation) {
@@ -234,6 +235,7 @@ void Planner::handleAddedHtnOps(std::vector<Signature>& added,
         if (_htn._reductions_by_sig.count(sig)) {
             // Reduction
             Reduction& r = _htn._reductions_by_sig[sig];
+            preconditions = r.getPreconditions();
             if (propagation) {
                 _enc.addReduction(r, _htn._reductions_by_sig[sigParent], factChanges, oldLayer, oldPos, newLayer, newPos);
             } else {
@@ -243,6 +245,7 @@ void Planner::handleAddedHtnOps(std::vector<Signature>& added,
             // Action
             assert(_htn._actions_by_sig.count(sig));
             Action& a = _htn._actions_by_sig[sig];
+            preconditions = a.getPreconditions();
             if (propagation) {
                 if (_htn._actions_by_sig.count(sigParent)) {
                     // Parent is an action -> propagate action
@@ -256,11 +259,18 @@ void Planner::handleAddedHtnOps(std::vector<Signature>& added,
             }
         }
 
+        for (Signature precond : preconditions) {
+            newLayer[newPos].addFact(precond);
+        }
+
         // Apply possible fact changes
         for (Signature effect : factChanges) {
             newLayer[newPos+1].addFact(effect);
+            
             //printf("   add fact %s @%i\n", Names::to_string(effect).c_str(), newPos+offset);
             newState[effect._name_id].insert(effect);
+
+            //for (Signature eff : _htn.getDecodedFacts(effect)) newLayer[newPos+1].addFact(eff);
         }
     }
 }

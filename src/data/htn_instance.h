@@ -43,7 +43,7 @@ struct HtnInstance {
 
     std::unordered_set<int> _q_constants;
     std::unordered_map<int, std::vector<int>> _sorts_of_q_constants;
-    std::unordered_map<int, std::vector<int>> _domains_of_q_constants;
+    std::unordered_map<int, std::unordered_set<int>> _domains_of_q_constants;
 
     // Maps an action name ID to its action object.
     std::unordered_map<int, Action> _actions;
