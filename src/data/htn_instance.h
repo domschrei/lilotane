@@ -92,6 +92,7 @@ struct HtnInstance {
     std::unordered_map<int, int> addQConstants(Signature& sig, int layerIdx, int pos);
     void addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s);
 
+    bool hasQConstants(const Signature& sig);
     std::vector<Signature> getDecodedFacts(Signature qFact);
 };
 

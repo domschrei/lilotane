@@ -388,3 +388,10 @@ std::vector<Signature> HtnInstance::getDecodedFacts(Signature qFact) {
 
     return i; 
 }
+
+bool HtnInstance::hasQConstants(const Signature& sig) {
+    for (int arg : sig._args) {
+        if (_q_constants.count(arg)) return true;
+    }
+    return false;
+}

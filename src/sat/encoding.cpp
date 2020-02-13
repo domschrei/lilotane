@@ -103,6 +103,7 @@ void Encoding::encode(int layerIdx, int pos) {
             } else if (why.getOriginPos() == above.getPos()) {
                 // Fact comes from above: propagate meaning
                 newFact = false;
+
                 assert(offset == 0);
                 assert(why.sig == factSig);
 
@@ -142,12 +143,12 @@ void Encoding::encode(int layerIdx, int pos) {
     for (auto pair : factSupport) {
         int factVar = pair.first;
         
-        if (factsWithoutChange.count(std::abs(factVar))) {
-            // No fact change to encode
-            continue;
-        } else if (newFacts.count(std::abs(factVar))) {
+        if (newFacts.count(std::abs(factVar))) {
             // New fact: initialize to false
             addClause({-std::abs(factVar)});
+        } else if (factsWithoutChange.count(std::abs(factVar))) {
+            // No fact change to encode
+            continue;
         } else {
             // Normal fact change: encode support
             appendClause({factVar});
@@ -423,6 +424,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         assert(chosenActions == 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
     }
 
+    printf("%i actions at final layer of size %i\n", plan.size(), _layers->back().size());
     return plan;
 }
 
@@ -522,7 +524,18 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                     }
 
                     // TODO check this is a valid subtask relationship
-                    
+
+                    // Find the actual action variable at the final layer, not at this (inner) layer
+                    int l = i;
+                    int aPos = pos;
+                    while (l < _layers->size()) {
+                        //printf("(%i,%i) => ", l, aPos);
+                        aPos = _layers->at(l).getSuccessorPos(aPos);
+                        l++;
+                        //printf("(%i,%i)\n", l, aPos);
+                    }
+                    v = _layers->at(l-1)[aPos].getVariable(aSig);
+
                     //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
                     itemsOldLayer[predPos].subtaskIds.push_back(v);
                 }
@@ -540,7 +553,6 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
     }
 
     plan.insert(plan.end(), itemsOldLayer.begin(), itemsOldLayer.end());
-    printf("%i items in decomp plan\n", plan.size());
     return plan;
 }
 
@@ -582,7 +594,8 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
         if (!containsQConstants) break; // done
     }
 
-    printf("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
+    if (origSig != sig)
+        printf("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
     return sig;
 }
 

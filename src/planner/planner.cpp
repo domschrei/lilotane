@@ -111,7 +111,7 @@ void Planner::findPlan() {
         }
     }
 
-    printf("Found a solution at layer %i\n", _layers.size()-1);
+    printf("Found a solution at layer %i.\n", _layers.size()-1);
 
     // Extract solution
     std::vector<PlanItem> actionPlan = _enc.extractClassicalPlan();

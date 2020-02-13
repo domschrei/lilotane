@@ -90,6 +90,7 @@ public:
         for (auto entry : state)
             extendState(entry.second);
     }
+
     int encode(const Signature& sig);
 
     bool hasFact(const Signature& fact) const {return _facts.count(fact);}
