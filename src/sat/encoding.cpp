@@ -49,6 +49,7 @@ void Encoding::encode(int layerIdx, int pos) {
     std::unordered_map<int, std::unordered_set<int>> factSupport;
     std::unordered_set<int> newFacts;
     std::unordered_set<int> factsWithoutChange;
+    std::unordered_map<int, std::unordered_set<int>> substitutionVarsPerFactVar;
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
@@ -69,6 +70,7 @@ void Encoding::encode(int layerIdx, int pos) {
                     factChange = true;
 
                     // frame axioms
+                    //printVar(left.getPos().first, left.getPos().second, factSig);
                     int oldFactVar = left.getVariable(factSig);
                     factSupport[factVar];
                     factSupport[factVar].insert(-oldFactVar);
@@ -88,10 +90,6 @@ void Encoding::encode(int layerIdx, int pos) {
                     factSupport[-polarity * factVar].insert(aVar);
 
                 } else if (_htn._reductions_by_sig.count(why.sig.abs())) {
-
-                    printVar(layerIdx, pos, factSig);
-                    printf(" -- reason: ");
-                    printVar(why.layer, why.pos, why.sig);
                     
                     // reduction: possible fact change
                     int rVar = left.getVariable(why.sig.abs());
@@ -127,15 +125,110 @@ void Encoding::encode(int layerIdx, int pos) {
                     int rVar = newPos.encode(why.sig.abs());
                     int polarity = why.sig._negated ? -1 : 1;
                     addClause({-rVar, polarity*factVar});
-                } else abort();
+
+                } else {
+                    // a q-fact is the reason
+                    assert(_htn.hasQConstants(why.sig));
+                }
             } else abort();
         }
 
         if (newFact) {
-            newFacts.insert(std::abs(factVar));
+            if (!_htn.hasQConstants(factSig))
+                newFacts.insert(std::abs(factVar));
         }
         if (!factChange) {
             factsWithoutChange.insert(std::abs(factVar));
+        }
+        if (_htn.hasQConstants(factSig)) {
+            // Q-Fact: 
+                
+            // initialize substitution logic where necessary
+            for (int argPos = 0; argPos < factSig._args.size(); argPos++) {
+                int arg = factSig._args[argPos];
+                if (!_htn._q_constants.count(arg)) continue;
+                
+                // arg is a q-constant
+
+                // if arg is a *new* q-constant: initialize substitution logic
+                if (!_q_constants.count(arg)) {
+                    _q_constants.insert(arg);
+
+                    std::vector<int> substitutionVars;
+                    for (int c : _htn._domains_of_q_constants[arg]) {
+
+                        // either of the possible substitutions must be chosen
+                        Signature sigSubst = sigSubstitute(arg, c);
+                        int varSubst = varSubstitution(sigSubst);
+                        substitutionVars.push_back(varSubst);
+                        
+                        _q_constants_per_arg[c];
+                        _q_constants_per_arg[c].push_back(arg);
+                    }
+
+                    // AT LEAST ONE substitution
+                    for (int vSub : substitutionVars) appendClause({vSub});
+                    endClause();
+
+                    // AT MOST ONE substitution
+                    for (int vSub1 : substitutionVars) {
+                        for (int vSub2 : substitutionVars) {
+                            if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
+                        }
+                    }
+                } 
+            }
+
+            // Add equivalence to corresponding facts
+            // relative to chosen substitution
+            for (auto factsPair : newPos.getFacts()) {
+                const Signature& substitutedFact = factsPair.first;
+
+                if (substitutedFact._name_id != factSig._name_id) continue;
+
+                // Check if the pair of facts form a valid substitution
+                bool matches = true;
+                bool differs = false;
+                std::vector<int> substitutionVars;
+                for (int i = 0; i < substitutedFact._args.size(); i++) {
+                    int f = factSig._args[i];
+                    int fSub = substitutedFact._args[i];
+
+                    // If original arg is not a q constant, the substituted arg must be the same
+                    if (!_htn._q_constants.count(f)) matches = (f == fSub);
+
+                    // If original arg IS a q-constant, 
+                    // the subst. arg is the same q-constant OR in the original q-constant's domain
+                    if (_htn._q_constants.count(f)) {
+                        matches = f == fSub || _htn._domains_of_q_constants[f].count(fSub);
+                        if (!matches) break;
+                        if (f != fSub) {
+                            Signature sigSubst = sigSubstitute(f, fSub);
+                            substitutionVars.push_back(varSubstitution(sigSubst));
+                        }
+                    } 
+
+                    if (f != fSub) differs = true;
+                    if (!matches) break;
+                }
+                if (!differs || !matches) continue;
+                
+                // Valid substitution found
+                int varQFact = newPos.encode(factSig);
+                int varSubstitutedFact = newPos.encode(substitutedFact);
+                substitutionVarsPerFactVar[varSubstitutedFact];
+                
+                // If the substitution is chosen,
+                // the q-fact and the corresponding actual fact are equivalent
+                for (int sign = -1; sign <= 1; sign += 2) {
+                    for (int varSubst : substitutionVars) {
+                        appendClause({-varSubst});
+                        substitutionVarsPerFactVar[varSubstitutedFact].insert(varSubst);
+                    }
+                    appendClause({sign*varQFact, -sign*varSubstitutedFact});
+                    endClause();
+                }
+            }
         }
     }
 
@@ -155,7 +248,19 @@ void Encoding::encode(int layerIdx, int pos) {
             for (int var : pair.second) {
                 appendClause({var});
             }
+            // If the fact is a possible substitution of a q-constant fact,
+            // add corresponding substitution literal to frame axioms.
+            for (int substitutionVar : substitutionVarsPerFactVar[factVar]) {
+                appendClause({substitutionVar});
+            }
             endClause();
+
+            // TODO instead:
+            // * basic frame axiom only contains fact change + all supporting ops
+            // * additional clause for each (primitive?) supporting op:
+            //   if fact change AND a certain substitution, then 
+            //    (either of the ops whose according substitution actually causes the fact change)
+            // would it work the other way round, too?
         }
     }
 
