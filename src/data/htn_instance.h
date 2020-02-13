@@ -73,6 +73,9 @@ struct HtnInstance {
     Signature getSignature(task& task);
     Signature getSignature(method& method);
     Signature getSignature(literal& literal);
+    Signature getInitTaskSignature(int pos);
+    SigSet getInitState();
+    SigSet getGoals();
 
     void extractPredSorts(predicate_definition& p);
     void extractTaskSorts(task& t);
@@ -82,7 +85,7 @@ struct HtnInstance {
     Reduction& createReduction(method& method);
     Action& createAction(task& task);
 
-    SigSet getAllFactChanges(Signature& sig);
+    SigSet getAllFactChanges(const Signature& sig);
 
     Action replaceQConstants(Action& a, int layerIdx, int pos);
     Reduction replaceQConstants(Reduction& red, int layerIdx, int pos);

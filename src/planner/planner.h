@@ -26,17 +26,22 @@ private:
     EffectorTable& _effector_table;
     Encoding _enc;
 
+    int _layer_idx;
+    int _pos;
+
 public:
-    Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)), _enc(_htn) {}
+    Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), 
+            _effector_table(*(_htn._effector_table)), _enc(_htn, _layers) {}
     void findPlan();
 
 private:
 
-    std::vector<Signature> addToLayer(Reduction* parent, Signature& task, Layer& layer, int pos, std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+    void createNext(const Position& left);
+    void createNext(const Position& above, int oldPos);
+    void createNext(const Position& left, const Position& above, int oldPos);
 
-    void handleAddedHtnOps(std::vector<Signature>& added, 
-        Layer& oldLayer, int oldPos, Layer& newLayer, int newPos, 
-        std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState);
+    std::vector<Signature> getAllReductionsOfTask(const Signature& task);
+    std::vector<Signature> getAllActionsOfTask(const Signature& task);
 
     /*
     int getFact(Signature& sig) {

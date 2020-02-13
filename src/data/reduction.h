@@ -116,7 +116,7 @@ public:
         return _task_args;
     }
 
-    std::vector<Signature>& getSubtasks() {
+    const std::vector<Signature>& getSubtasks() const {
         return _subtasks;
     }
 };

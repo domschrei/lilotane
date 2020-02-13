@@ -28,7 +28,7 @@ struct Signature {
         _negated = !_negated;
     }
 
-    Signature abs() {
+    Signature abs() const {
         return Signature(_name_id, _args);
     }
 

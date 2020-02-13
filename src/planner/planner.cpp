@@ -16,70 +16,47 @@ void Planner::findPlan() {
     int initSize = _htn._init_reduction.getSubtasks().size()+1;
     printf("Creating initial layer of size %i\n", initSize);
     Layer initLayer(iteration, initSize);
+    _layer_idx = 0;
+    _pos = 0;
     
     // Initial state
-    std::unordered_map<int, SigSet> initState;
-    for (ground_literal lit : init) {
-        int predId = _htn.getNameId(lit.predicate);
-        Signature sig(predId, _htn.getArguments(lit.args));
-        if (!lit.positive) sig.negate();
-        initLayer[0].addFact(sig);
-        //printf(" add fact %s @%i\n", Names::to_string(sig).c_str(), 0);
-        initState[predId];
-        initState[predId].insert(sig);
+    SigSet initState = _htn.getInitState();
+    for (Signature fact : initState) {
+        initLayer[_pos].addFact(fact.abs());
+        initLayer[_pos].addTrueFact(fact);
+        initLayer[_pos].extendState(fact);
     }
-    for (auto pair : initState) _enc.addTrueFacts(pair.second, initLayer, 0);
-    std::unordered_map<int, SigSet> state = initState;
 
     // For each position where there is an initial task
-    for (int pos = 0; pos < initLayer.size()-1; pos++) {
-
-        std::unordered_map<int, SigSet> newState(state);
-        Signature subtask = _htn._init_reduction.getSubtasks()[pos];
-        std::vector<int> newArgs;
-        for (int arg : subtask._args) {
-            std::string name = _htn._name_back_table[arg];
-            std::smatch matches;
-            if (std::regex_match(name, matches, std::regex("\\?var_for_(.*)_[0-9]+"))) {
-                name = matches.str(1);
-                newArgs.push_back(_htn.getNameId(name));
-            } else {
-                printf("%s was not matched by initial task argname substitution!\n", name.c_str());
-                exit(1);
-            }
+    while (_pos+1 < initLayer.size()) {
+        if (_pos > 0) {
+            createNext(initLayer[_pos-1]);
         }
-        assert(newArgs.size() == subtask._args.size());
-        subtask = subtask.substitute(Substitution::get(subtask._args, newArgs));
 
-        std::vector<Signature> added = addToLayer(NULL, subtask, initLayer, pos, state, newState);
+        Signature subtask = _htn.getInitTaskSignature(_pos);
+        for (Signature rSig : getAllReductionsOfTask(subtask)) {
+            initLayer[_pos].addReduction(rSig);
+        }
+        for (Signature aSig : getAllActionsOfTask(subtask)) {
+            initLayer[_pos].addAction(aSig);
+        }
 
-        handleAddedHtnOps(added, initLayer, pos, initLayer, pos, state, newState);
-
-        state = newState;
-
-        _enc.consolidateHtnOps(initLayer, pos);
-        _enc.consolidateFacts(initLayer, pos, initLayer, pos);
-        _enc.addInitialTaskAlternatives(initLayer, pos);
+        _enc.encode(_layer_idx, _pos++);
     }
 
-    // Goal state (?)
-    SigSet goalSet;
-    for (ground_literal lit : goal) {
-        Signature sig(_htn.getNameId(lit.predicate), _htn.getArguments(lit.args));
-        if (!lit.positive) sig.negate();
-        initLayer[initLayer.size()-1].addFact(sig);
-        state[sig._name_id].insert(sig);
-        goalSet.insert(sig);
-        //printf(" add goal fact %s @%i\n", Names::to_string(sig).c_str(), initLayer.size()-1);
-    }
-    _enc.addTrueFacts(goalSet, initLayer, initLayer.size()-1);
-    _enc.consolidateFacts(initLayer, initLayer.size()-1, initLayer, initLayer.size()-1);
+    // Final position with goal state
+    createNext(initLayer[_pos-2]);
+    SigSet goalSet = _htn.getGoals();
+    for (Signature fact : initState) {
+        initLayer[_pos-2].addFact(fact.abs());
+        initLayer[_pos-2].addTrueFact(fact);
+        initLayer[_pos-2].extendState(fact);
+    } 
+    _enc.encode(_layer_idx, _pos);
 
     initLayer.consolidate();
 
-    _enc.addAssumptions(initLayer);
     bool solved = _enc.solve();
-
     
     // Next layers
 
@@ -97,70 +74,30 @@ void Planner::findPlan() {
         
         Layer newLayer(iteration, oldLayer.getNextLayerSize());
         printf(" NEW_LAYER_SIZE %i\n", newLayer.size());
+        _layer_idx++;
+        _pos = 0;
 
-        state = initState;
         for (int oldPos = 0; oldPos < oldLayer.size(); oldPos++) {
             int newPos = oldLayer.getSuccessorPos(oldPos);
             int maxOffset = oldLayer[oldPos].getMaxExpansionSize();
 
             for (int offset = 0; offset < maxOffset; offset++) {
+                assert(_pos == newPos + offset);
+
                 //printf("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
                 assert(newPos+offset < newLayer.size());
-                std::unordered_map<int, SigSet> newState(state);
+
+                if (newPos+offset == 0)
+                    createNext(oldLayer[oldPos], oldPos);
+                else
+                    createNext(newLayer[newPos+offset-1], oldLayer[oldPos], oldPos);
                 
-                std::vector<Signature> added;
-
-                if (offset == 0) {
-                    // Propagate facts
-                    newLayer[newPos].setFacts(oldLayer[oldPos].getFacts());
-                    _enc.propagateFacts(oldLayer, oldPos, newLayer, newPos);
-                    
-                    // Propagate actions (maintain variable values)
-                    for (Signature aSig : oldLayer[oldPos].getActions()) {
-                        newLayer[newPos].addAction(aSig);
-                        added.push_back(aSig);
-                        added.push_back(aSig); // action is its own parent
-                    }
-                }
-
-                // Propagate reductions
-                for (Signature parentSig : oldLayer[oldPos].getReductions()) {
-                    Reduction parent = _htn._reductions_by_sig[parentSig];
-                    //printf("  propagating reduction %s, offset %i\n", Names::to_string(parentSig).c_str(), offset);
-                    Signature sig;
-                    if (offset < parent.getSubtasks().size()) {
-                        sig = parent.getSubtasks()[offset];   
-                    } else {
-                        // Add blank action
-                        sig = _htn._action_blank.getSignature();
-                    }
-                    std::vector<Signature> addedNow = addToLayer(&parent, sig, newLayer, newPos+offset, state, newState);
-                    added.insert(added.end(), addedNow.begin(), addedNow.end());
-                }
-
-                // Handle computed htn ops and all possible fact changes
-                // (Must be done AFTER all possible reductions and actions were instantiated;
-                // q-constants may have been added which need to be considered for fact changes, too) 
-                handleAddedHtnOps(added, oldLayer, oldPos, newLayer, newPos+offset, state, newState);
-
-                // Finalize set of facts at this position
-                state = newState;
-                _enc.consolidateHtnOps(newLayer, newPos+offset);
-                _enc.consolidateFacts(oldLayer, oldPos, newLayer, newPos+offset);
-            }
-
-            // Finalize reductions at the old layer, old position
-            for (Signature parentSig : oldLayer[oldPos].getReductions()) {
-                Reduction parent = _htn._reductions_by_sig[parentSig];
-                _enc.consolidateReductionExpansion(parent, oldLayer, oldPos, newLayer, newPos);
-            }
+                _enc.encode(_layer_idx, _pos++);
+             }
         }
 
         newLayer.consolidate();
-
-        _enc.addAssumptions(newLayer);
         solved = _enc.solve();
-
         allLayers.push_back(newLayer);
     }
 
@@ -206,151 +143,151 @@ void Planner::findPlan() {
     printf("End of solution plan.\n");
 }
 
-void Planner::handleAddedHtnOps(std::vector<Signature>& added, 
-        Layer& oldLayer, int oldPos, Layer& newLayer, int newPos, 
-        std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState) {
+void Planner::createNext(const Position& left) {
+    Position& newPos = _layers[_layer_idx][_pos];
+    newPos.setPos(_layer_idx, _pos);
 
-    bool propagation = newLayer.index() > 0;
+    // Propagate occurring facts
+    for (auto entry : left.getFacts()) {
+        newPos.addFact(entry.first, Reason(_layer_idx, _pos-1, entry.first));
+    }
 
-    for (int sigIdx = 0; sigIdx < added.size(); ) {
-        
-        Signature sig, sigParent;
-        sig = added[sigIdx++];
-        if (propagation) sigParent = added[sigIdx++];
+    // Propagate state
+    newPos.extendState(left.getState());
 
-        SigSet preconditions;
-        SigSet factChanges = _htn.getAllFactChanges(sig);
-#ifndef NDEBUG
-        if (propagation) {
-            SigSet parentFactChanges = _htn.getAllFactChanges(sigParent);
-            for (Signature fact : factChanges) {
-                assert(parentFactChanges.count(fact) || fail("Fact " + Names::to_string(fact)
-                        + " contained in changes of " + Names::to_string(sig)
-                        + " but not of its parent " + Names::to_string(sigParent) + " !\n"));
-            }
+    // Propagate fact changes
+    for (auto entry : left.getActions()) {
+        const Signature& aSig = entry.first; 
+        for (Signature fact : _htn.getAllFactChanges(aSig)) {
+            newPos.addFact(fact, Reason(_layer_idx, _pos-1, aSig));
+            newPos.extendState(fact);
         }
-#endif
-
-        // Add htn op to the encoding
-        if (_htn._reductions_by_sig.count(sig)) {
-            // Reduction
-            Reduction& r = _htn._reductions_by_sig[sig];
-            preconditions = r.getPreconditions();
-            if (propagation) {
-                _enc.addReduction(r, _htn._reductions_by_sig[sigParent], factChanges, oldLayer, oldPos, newLayer, newPos);
-            } else {
-                _enc.addReduction(r, factChanges, oldLayer, oldPos);
-            }
-        } else {
-            // Action
-            assert(_htn._actions_by_sig.count(sig));
-            Action& a = _htn._actions_by_sig[sig];
-            preconditions = a.getPreconditions();
-            if (propagation) {
-                if (_htn._actions_by_sig.count(sigParent)) {
-                    // Parent is an action -> propagate action
-                    _enc.propagateAction(a, oldLayer, oldPos, newLayer, newPos);
-                } else {
-                    // Parent is a reduction -> add action as part of an expansion
-                    _enc.addAction(a, _htn._reductions_by_sig[sigParent], oldLayer, oldPos, newLayer, newPos);
-                }
-            } else {
-                _enc.addAction(a, oldLayer, oldPos);
-            }
-        }
-
-        for (Signature precond : preconditions) {
-            newLayer[newPos].addFact(precond);
-        }
-
-        // Apply possible fact changes
-        for (Signature effect : factChanges) {
-            newLayer[newPos+1].addFact(effect);
-            
-            //printf("   add fact %s @%i\n", Names::to_string(effect).c_str(), newPos+offset);
-            newState[effect._name_id].insert(effect);
-
-            //for (Signature eff : _htn.getDecodedFacts(effect)) newLayer[newPos+1].addFact(eff);
+    }
+    for (auto entry : left.getReductions()) {
+        const Signature& rSig = entry.first; 
+        for (Signature fact : _htn.getAllFactChanges(rSig)) {
+            newPos.addFact(fact, Reason(_layer_idx, _pos-1, rSig));
+            newPos.extendState(fact);
         }
     }
 }
 
-std::vector<Signature> Planner::addToLayer(Reduction* parent, Signature& task, Layer& layer, int pos, 
-        std::unordered_map<int, SigSet>& state, std::unordered_map<int, SigSet>& newState) {
-    
-    int layerIdx = layer.index();
+void Planner::createNext(const Position& above, int oldPos) {
+    Position& newPos = _layers[_layer_idx][_pos];
+    newPos.setPos(_layer_idx, _pos);
+
+    int offset = _pos - _layers[_layer_idx-1].getSuccessorPos(oldPos);
+    if (offset == 0) {
+
+        // Propagate occurring facts
+        for (auto entry : above.getFacts()) {
+            newPos.addFact(entry.first, Reason(_layer_idx-1, oldPos, entry.first));
+        }
+
+        // Propagate state
+        newPos.extendState(above.getState());
+    }
+
+    // Propagate actions
+    for (auto entry : above.getActions()) {
+        const Signature& aSig = entry.first;
+        Reason why = Reason(_layer_idx-1, oldPos, aSig);
+
+        if (offset < 1) {
+            // proper action propagation
+            newPos.addAction(aSig, why);
+            // Add preconditions of action
+            const Action& a = _htn._actions_by_sig[aSig];
+            for (Signature fact : a.getPreconditions()) {
+                newPos.addFact(fact, Reason(_layer_idx, _pos, aSig));
+            }
+        } else {
+            // action expands to "blank" at non-zero offsets
+            newPos.addAction(_htn._action_blank.getSignature(), why);
+        }
+    }
+
+    // Expand reductions
+    for (auto entry : above.getReductions()) {
+        const Signature& rSig = entry.first;
+        const Reduction& r = _htn._reductions_by_sig[rSig];
+        Reason why = Reason(_layer_idx-1, oldPos, rSig);
+
+        if (offset < r.getSubtasks().size()) {
+            // Proper expansion
+            const Signature& subtask = r.getSubtasks()[offset];
+            // reduction(s)?
+            for (Signature subRSig : getAllReductionsOfTask(subtask)) {
+                newPos.addReduction(subRSig, why);
+                // Add preconditions of reduction
+                const Reduction& subR = _htn._reductions_by_sig[subRSig];
+                for (Signature fact : subR.getPreconditions()) {
+                    newPos.addFact(fact, Reason(_layer_idx, _pos, subRSig));
+                }
+            }
+            // action(s)?
+            for (Signature aSig : getAllActionsOfTask(subtask)) {
+                newPos.addAction(aSig, why);
+                // Add preconditions of action
+                const Action& a = _htn._actions_by_sig[aSig];
+                for (Signature fact : a.getPreconditions()) {
+                    newPos.addFact(fact, Reason(_layer_idx, _pos, aSig));
+                }
+            }
+        } else {
+            // Blank
+            newPos.addAction(_htn._action_blank.getSignature(), why);
+        }
+    }
+}
+
+void Planner::createNext(const Position& left, const Position& above, int oldPos) {
+    createNext(left);
+    createNext(above, oldPos);
+}
+
+std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task) {
+
+    std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
+    //printf("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
+
+    // Filter and minimally instantiate methods
+    // applicable in current (super)state
+    std::vector<Signature> result;
+    for (int redId : redIds) {
+        Reduction& r = _htn._reductions[redId];
+        r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
+        Signature origSig = r.getSignature();
+        std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, _layers[_layer_idx][_pos].getState());
+        //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
+
+        for (Reduction red : reductions) {
+            // Rename any remaining constants in each action as unique q-constants 
+            red = _htn.replaceQConstants(red, _layer_idx, _pos);
+            Signature sig = red.getSignature();
+            _htn._reductions_by_sig[sig] = red;
+            result.push_back(sig);
+        }
+    }
+    return result;
+}
+
+std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task) {
+
+    Action& a = _htn._actions[task._name_id];
+    HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
+    Action act = (Action) op;
+    printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
     std::vector<Signature> result;
 
-    if (_htn._actions.count(task._name_id)) {
-        // Action
-        Action& a = _htn._actions[task._name_id];
-        HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
-        Action act = (Action) op;
-        printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
-
-        std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
-        
-        for (Action action : actions) {
-            action = _htn.replaceQConstants(action, layerIdx, pos);
-            Signature sig = action.getSignature();
-            _htn._actions_by_sig[sig] = action;
-            //printf("   add action %s @%i\n", Names::to_string(sig).c_str(), pos);
-
-            // Add action to elements @pos
-            layer[pos].addAction(sig);
-
-            result.push_back(sig);
-            if (parent != NULL) result.push_back(parent->getSignature());
-
-            /*
-            // Add effects to facts @pos+1
-            for (Signature effect : _htn.getAllFactChanges(sig)) {
-                layer[pos+1].addFact(effect);
-                printf("   add fact %s @%i\n", Names::to_string(effect).c_str(), pos);
-                newState[effect._name_id].insert(effect);
-            }*/
-        }
-    } else {
-        // Reduction
-        std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-        //printf("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
-
-        // Filter and minimally instantiate methods
-        // applicable in current (super)state
-        for (int redId : redIds) {
-            Reduction& r = _htn._reductions[redId];
-            r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
-            Signature origSig = r.getSignature();
-            std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
-            //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
-
-            for (Reduction red : reductions) {
-                // Rename any remaining constants in each action as unique q-constants 
-                red = _htn.replaceQConstants(red, layerIdx, pos);
-                Signature sig = red.getSignature();
-                _htn._reductions_by_sig[sig] = red;
-                //printf("    add reduction %s @%i\n", Names::to_string(sig).c_str(), pos);
-                for (Signature subtask : red.getSubtasks()) {
-                    //printf("    - %s\n", Names::to_string(subtask).c_str());
-                }
-                result.push_back(sig);
-                if (parent != NULL) result.push_back(parent->getSignature());
-
-                // Add reduction to elements @pos
-                layer[pos].addReduction(sig);
-                layer[pos].addExpansionSize(red.getSubtasks().size());
-
-                /*
-                // Add potential effects to facts @pos+1
-                for (Signature effect : _htn.getAllFactChanges(sig)) {
-                    printf("    add fact %s @%i\n", Names::to_string(effect).c_str(), pos);
-                    layer[pos+1].addFact(effect);
-                    newState[effect._name_id].insert(effect);
-                }*/
-            }
-        }
+    std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    for (Action action : actions) {
+        action = _htn.replaceQConstants(action, _layer_idx, _pos);
+        Signature sig = action.getSignature();
+        _htn._actions_by_sig[sig] = action;
+        result.push_back(sig);
     }
-
     return result;
 }
+

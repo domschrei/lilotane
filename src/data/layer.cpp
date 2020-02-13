@@ -2,13 +2,14 @@
 #include <assert.h>
 
 #include "data/layer.h"
+#include "sat/variable_domain.h"
 
 Layer::Layer(int index, int size) : _index(index) {
     assert(size > 0);
     _content.resize(size);
 }
-int Layer::size() {return _content.size();}
-int Layer::index() {return _index;}
+int Layer::size() const {return _content.size();}
+int Layer::index() const {return _index;}
 Position& Layer::operator[](int pos) {assert(pos >= 0 && pos < size()); return _content[pos];}
 void Layer::consolidate() {
     int succ = 0;
@@ -17,10 +18,26 @@ void Layer::consolidate() {
         succ += _content[pos].getMaxExpansionSize();
     }
 }
-int Layer::getNextLayerSize() {
+int Layer::getNextLayerSize() const {
     return _successor_positions.back()+1;
 }
-int Layer::getSuccessorPos(int oldPos) {
+int Layer::getSuccessorPos(int oldPos) const {
     assert(oldPos >= 0 && oldPos < _successor_positions.size());
     return _successor_positions[oldPos];
+}
+
+int Position::encode(const Signature& sig) {
+    bool neg = sig._negated;
+    Signature sigAbs = neg ? sig.abs() : sig;
+
+    if (!_variables.count(sigAbs)) {
+        // introduce a new variable
+        assert(!VariableDomain::isLocked() || fail("Unknown variable " + varName(sigAbs) + " queried!\n"));
+        _variables[sigAbs] = VariableDomain::nextVar();
+        printf("VARMAP %i %s\n", _variables[sigAbs], varName(sigAbs).c_str());
+    }
+
+    //printf("%i\n", vars[sig]);
+    int val = (neg ? -1 : 1) * _variables[sigAbs];
+    return val;
 }

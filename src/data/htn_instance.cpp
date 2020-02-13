@@ -1,4 +1,6 @@
 
+#include <regex>
+
 #include "data/htn_instance.h"
 
  
@@ -95,6 +97,43 @@ Signature HtnInstance::getSignature(literal& literal) {
     Signature sig = Signature(getNameId(literal.predicate), getArguments(literal.arguments));
     if (!literal.positive) sig.negate();
     return sig;
+}
+Signature HtnInstance::getInitTaskSignature(int pos) {
+    Signature subtask = _init_reduction.getSubtasks()[pos];
+    std::vector<int> newArgs;
+    for (int arg : subtask._args) {
+        std::string name = _name_back_table[arg];
+        std::smatch matches;
+        if (std::regex_match(name, matches, std::regex("\\?var_for_(.*)_[0-9]+"))) {
+            name = matches.str(1);
+            newArgs.push_back(getNameId(name));
+        } else {
+            printf("%s was not matched by initial task argname substitution!\n", name.c_str());
+            exit(1);
+        }
+    }
+    assert(newArgs.size() == subtask._args.size());
+    subtask = subtask.substitute(Substitution::get(subtask._args, newArgs));
+    return subtask;
+}
+
+SigSet HtnInstance::getInitState() {
+    SigSet result;
+    for (ground_literal lit : init) {
+        Signature sig(getNameId(lit.predicate), getArguments(lit.args));
+        if (!lit.positive) sig.negate();
+        result.insert(sig);
+    }
+    return result;
+}
+SigSet HtnInstance::getGoals() {
+    SigSet result;
+    for (ground_literal lit : goal) {
+        Signature sig(getNameId(lit.predicate), getArguments(lit.args));
+        if (!lit.positive) sig.negate();
+        result.insert(sig);
+    }
+    return result;
 }
 
 void HtnInstance::extractPredSorts(predicate_definition& p) {
@@ -224,7 +263,7 @@ Action& HtnInstance::createAction(task& task) {
     return _actions[id];
 }
 
-SigSet HtnInstance::getAllFactChanges(Signature& sig) {        
+SigSet HtnInstance::getAllFactChanges(const Signature& sig) {        
     SigSet result;
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);

@@ -2,7 +2,129 @@
 #include "sat/encoding.h"
 #include "util/log.h"
 
-Encoding::Encoding(HtnInstance& htn) : _htn(htn), _out("f.cnf") {
+/*
+encodePosition ()
+*/
+
+void Encoding::encode(int layerIdx, int pos) {
+    
+    Position NULL_POS;
+
+    Position& newPos = _layers[layerIdx][pos];
+    bool hasLeft = pos > 0;
+    Position& left = (hasLeft ? _layers[layerIdx][pos-1] : NULL_POS);
+    int oldPos = 0, offset;
+    bool hasAbove = layerIdx > 0;
+    if (hasAbove) {
+        const Layer& oldLayer = _layers[layerIdx-1];
+        while (oldPos+1 < oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= pos) 
+            oldPos++;
+        offset = pos - oldLayer.getSuccessorPos(oldPos);
+    }
+    Position& above = (hasAbove ? _layers[layerIdx-1][oldPos] : NULL_POS);
+    
+    // Facts that hold at this position
+    for (auto pair : newPos.getTrueFacts()) {
+        const Signature& factSig = pair.first;
+        int factVar = newPos.encode(factSig);
+        addClause({factVar});
+    }
+
+    std::unordered_map<int, std::unordered_set<int>> factSupport;
+
+    // General facts thay may hold
+    for (auto pair : newPos.getFacts()) {
+        const Signature& factSig = pair.first;
+        int factVar = newPos.encode(factSig);
+
+        for (Reason why : pair.second) {
+            assert(!why.sig._negated);
+
+            if (!why.axiomatic) {
+
+                if (why.getOriginPos() == left.getPos()) {
+
+                    // Fact comes from the left
+                    if (why.sig == factSig) {
+
+                        // frame axioms
+                        int oldFactVar = left.getVariable(factSig);
+                        // TODO frame axioms
+
+                    } else if (_htn._actions_by_sig.count(why.sig)) {
+
+                        // action: effect
+                        int aVar = left.getVariable(why.sig);
+                        addClause({-aVar, factVar});
+
+                        // fact support
+                        factSupport[factVar];
+                        if (_htn._actions_by_sig[why.sig].getPreconditions().count(factSig)) {
+                            factSupport[factVar].insert(aVar);
+                        } else {
+                            Signature neg = factSig;
+                            neg.negate();
+                            assert(_htn._actions_by_sig[why.sig].getPreconditions().count(neg));
+                            factSupport[-factVar].insert(aVar);
+                        }
+
+                    } else if (_htn._reductions_by_sig.count(why.sig)) {
+
+                        // reduction: possible fact change
+                        int rVar = left.getVariable(why.sig);
+                        factSupport[factVar];
+                        if (_htn._reductions_by_sig[why.sig].getPreconditions().count(factSig)) {
+                            factSupport[factVar].insert(rVar);
+                        } else {
+                            Signature neg = factSig;
+                            neg.negate();
+                            assert(_htn._reductions_by_sig[why.sig].getPreconditions().count(neg));
+                            factSupport[-factVar].insert(rVar);
+                        }
+
+                    } else {
+                        // TODO ?
+                    }
+
+                } else if (why.getOriginPos() == above.getPos()) {
+                    // Fact comes from above: propagate meaning
+                    assert(offset == 0);
+                    assert(why.sig == factSig);
+                    int oldFactVar = above.getVariable(factSig);
+                    addClause({-oldFactVar, factVar});
+                    addClause({oldFactVar, -factVar});
+
+                } else if (why.getOriginPos() == newPos.getPos()) {
+                    // Fact comes from this position
+                    if (_htn._actions_by_sig.count(why.sig)) {
+                        // action: precondition
+                        int aVar = newPos.encode(why.sig);
+                        addClause({-aVar, factVar});
+                    } else if (_htn._reductions_by_sig.count(why.sig)) {
+                        // reduction: precondition
+                        int rVar = newPos.encode(why.sig);
+                        addClause({-rVar, factVar});
+                    }
+
+                } else {
+                    // TODO ?
+                }
+            }
+        }
+    }
+
+    // apply fact supports
+    for (auto pair : factSupport) {
+        int factVar = pair.first;
+        appendClause({factVar});
+        for (int opVar : pair.second) {
+
+        }
+    }
+}
+
+Encoding::Encoding(HtnInstance& htn, std::vector<Layer>& layers) : _htn(htn), 
+            _layers(layers), _out("f.cnf") {
     _solver = ipasir_init();
     _sig_primitive = Signature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
@@ -460,30 +582,6 @@ bool Encoding::isEncoded(int layer, int pos, Signature& sig) {
 
 bool Encoding::isEncodedSubstitution(Signature& sig) {
     return _substitution_variables.count(sig.abs());
-}
-
-int Encoding::var(int layer, int pos, Signature& sig) {
-    
-    assert(layer >= 0 && pos >= 0);
-    while (layer >= _variables.size()) _variables.push_back(std::vector<SigToIntMap>());
-    while (pos >= _variables[layer].size()) _variables[layer].push_back(SigToIntMap());
-
-    auto& vars = _variables[layer][pos];
-    
-    bool neg = sig._negated;
-    Signature sigAbs = neg ? sig.abs() : sig;
-
-    if (!vars.count(sigAbs)) {
-        // introduce a new variable
-        assert(!_var_domain_locked || fail("Unknown variable " + Names::to_string(sigAbs) 
-                    + " @ (" + std::to_string(layer) + "," + std::to_string(pos) + ") queried!\n"));
-        vars[sigAbs] = _running_var_id++;
-        printf("VARMAP %i %s\n", vars[sigAbs], varName(layer, pos, sigAbs).c_str());
-    }
-
-    //printf("%i\n", vars[sig]);
-    int val = (neg ? -1 : 1) * vars[sigAbs];
-    return val;
 }
 
 int Encoding::varSubstitution(Signature sigSubst) {

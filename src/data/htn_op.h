@@ -59,16 +59,16 @@ public:
         return op;
     }
 
-    const SigSet& getPreconditions() {
+    const SigSet& getPreconditions() const {
         return _preconditions;
     }
-    const SigSet& getEffects() {
+    const SigSet& getEffects() const {
         return _effects;
     }
-    const std::vector<int>& getArguments() {
+    const std::vector<int>& getArguments() const {
         return _args;
     }
-    Signature getSignature() {
+    Signature getSignature() const {
         return Signature(_id, _args);
     }
 

@@ -11,9 +11,11 @@ extern "C" {
 #include <string>
 #include <iostream>
 
+#include "data/layer.h"
 #include "data/signature.h"
 #include "data/htn_instance.h"
 #include "data/action.h"
+#include "sat/variable_domain.h"
 
 #define PRINT_TO_FILE true
 
@@ -30,9 +32,9 @@ class Encoding {
 
 private:
     HtnInstance& _htn;
-    std::vector<std::vector<std::unordered_map<Signature, int, SignatureHasher>>> _variables;
+    std::vector<Layer>& _layers;
+    
     std::unordered_map<Signature, int, SignatureHasher> _substitution_variables;
-    int _running_var_id = 1;
 
     void* _solver;
     std::ofstream _out;
@@ -40,23 +42,21 @@ private:
     Signature _sig_primitive;
     int _substitute_name_id;
 
-    // Maps a positional fact variable to the set of positional operator variables that may change it.
-    std::unordered_map<int, std::vector<int>> _supports;
-    // Maps a positional red. variable to its possible expansions: 
-    // one vector of positional operator variables for each offset position.
-    std::unordered_map<int, std::vector<std::vector<int>>> _expansions;
-    // A set of predicate-indexed occurring fact signatures.
-    State _prior_facts;
-    State _posterior_facts;
-
     std::unordered_set<int> _q_constants;
     std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
     bool _var_domain_locked = false;
 
 public:
-    Encoding(HtnInstance& htn);
+    Encoding(HtnInstance& htn, std::vector<Layer>& layers);
     ~Encoding();
+
+    void encode(int layerIdx, int pos);
+    bool solve();
+
+
+
+
     /*
     void addInitialClauses(Layer& initLayer);
     void addUniversalClauses(Layer& layer);
