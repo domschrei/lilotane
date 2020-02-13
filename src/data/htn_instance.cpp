@@ -15,7 +15,7 @@ ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFil
     args[1] = (char*)domainStr;
     args[2] = (char*)problemStr;
     
-    int result = run_pandaPIparser(3, args);
+    run_pandaPIparser(3, args);
     return get_parsed_problem();
 }
 

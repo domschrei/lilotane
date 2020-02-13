@@ -40,8 +40,8 @@ private:
     void createNext(const Position& above, int oldPos);
     void createNext(const Position& left, const Position& above, int oldPos);
 
-    std::vector<Signature> getAllReductionsOfTask(const Signature& task);
-    std::vector<Signature> getAllActionsOfTask(const Signature& task);
+    std::vector<Signature> getAllReductionsOfTask(const Signature& task, const State& state);
+    std::vector<Signature> getAllActionsOfTask(const Signature& task, const State& state);
 
     /*
     int getFact(Signature& sig) {

@@ -21,7 +21,7 @@ struct Signature {
     std::vector<int> _args;
     bool _negated = false;
 
-    Signature() {}
+    Signature() : _name_id(-1), _args() {}
     Signature(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
 
     void negate() {
@@ -30,6 +30,11 @@ struct Signature {
 
     Signature abs() const {
         return Signature(_name_id, _args);
+    }
+    Signature opposite() const {
+        Signature out = Signature(_name_id, _args);
+        if (!_negated) out.negate();
+        return out;
     }
 
     Signature substitute(std::unordered_map<int, int> s) {

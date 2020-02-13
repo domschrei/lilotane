@@ -3,6 +3,9 @@
 
 #include "data/layer.h"
 #include "sat/variable_domain.h"
+#include "util/log.h"
+
+const Signature Position::NONE_SIG = Signature(-1, std::vector<int>());
 
 Layer::Layer(int index, int size) : _index(index) {
     assert(size > 0);
@@ -40,4 +43,15 @@ int Position::encode(const Signature& sig) {
     //printf("%i\n", vars[sig]);
     int val = (neg ? -1 : 1) * _variables[sigAbs];
     return val;
+}
+
+int Position::getVariable(const Signature& sig) {
+    bool neg = sig._negated;
+    Signature sigAbs = neg ? sig.abs() : sig;
+    assert(_variables.count(sigAbs));
+    return (neg ? -1 : 1) * _variables[sigAbs];
+}
+
+bool Position::hasVariable(const Signature& sig) {
+    return _variables.count(sig._negated ? sig.abs() : sig);
 }

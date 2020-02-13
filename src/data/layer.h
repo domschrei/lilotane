@@ -6,6 +6,7 @@
 #include <unordered_set>
 
 #include "data/signature.h"
+#include "util/names.h"
 
 typedef std::pair<int, int> IntPair;
 
@@ -14,9 +15,24 @@ struct Reason {
     int layer = -1;
     int pos = -1;
     Signature sig;
-    Reason(int layer, int pos, Signature sig) : layer(layer), pos(pos), sig(sig) {}
-    Reason() : axiomatic(true) {}
+    Reason(int layer, int pos, Signature sig) : layer(layer), pos(pos), sig(sig) {
+        sig = Signature();
+    }
+    Reason() : axiomatic(true) {
+        sig = Signature();
+    }
     IntPair getOriginPos() const {return IntPair(layer, pos);}
+
+    bool operator==(const Reason& b) const {
+        if (axiomatic != b.axiomatic) return false;
+        if (layer != b.layer) return false;
+        if (pos != b.pos) return false;
+        if (sig != b.sig) return false;
+        return true;
+    }
+    bool operator!=(const Reason& b) const {
+        return !(*this == b);
+    }
 };
 
 struct ReasonHasher {
@@ -34,6 +50,9 @@ struct ReasonHasher {
 typedef std::unordered_map<Signature, std::unordered_set<Reason, ReasonHasher>, SignatureHasher> CausalSigSet;
 
 struct Position {
+
+public:
+    const static Signature NONE_SIG;
 
 private:
     int _layer_idx;
@@ -89,7 +108,8 @@ public:
     int getMaxExpansionSize() const {return _max_expansion_size;}
 
     std::string varName(const Signature& sig) const {
-        return Names::to_string(sig)+ "@(" + std::to_string(_layer_idx) + "," + std::to_string(_pos) + ")";
+        std::string out = Names::to_string(sig) + "@(" + std::to_string(_layer_idx) + "," + std::to_string(_pos) + ")";
+        return out;
     }
 };
 
