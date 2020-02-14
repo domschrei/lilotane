@@ -16,7 +16,8 @@ INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = parser clean
 
-treerexx: $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o 
+treerexx: $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
+	cd lib/${IPASIRSOLVER} && bash fetch_and_build.sh
 	${CC} $^ -o treerexx ${LINKERFLAG}
 
 src/parser/%.o: src/parser/%.cpp src/parser/%.hpp
@@ -34,8 +35,9 @@ ${SOLVERLIB}:
 clean:
 #	[ ! -e libpandaPIparser.a ] || rm libpandaPIparser.a
 	[ ! -e treerexx ] || rm treerexx
-	rm $(wildcard src/*.o src/*/*.o)
+	touch NONE && rm NONE $(wildcard src/*.o src/*/*.o)
+	touch NONE && rm NONE $(wildcard lib/${IPASIRSOLVER}/*.a)
 
 cleantr:
 	[ ! -e treerexx ] || rm treerexx
-	rm $(wildcard src/*.o src/data/*.o src/planner/*.o src/sat/*.o src/util/*.o)
+	touch NONE && rm NONE $(wildcard src/*.o src/data/*.o src/planner/*.o src/sat/*.o src/util/*.o)
