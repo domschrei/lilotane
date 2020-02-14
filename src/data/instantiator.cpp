@@ -21,11 +21,45 @@ std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
     return reductions;
 }
 
-std::vector<Action> Instantiator::getApplicableInstantiations(
+std::vector<Reduction> Instantiator::getFullApplicableInstantiations(
+    Reduction& r, std::unordered_map<int, SigSet> facts) {
+
+    std::vector<Reduction> result;
+
+    std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
+    for (const Reduction& r : reductions) {
+        std::vector<Signature> inst = ArgIterator::getFullInstantiation(r.getSignature(), *_htn);
+        for (Signature sig : inst) {
+            Reduction red = r.substituteRed(Substitution::get(r.getArguments(), sig._args));
+            result.push_back(red);
+        }
+    }
+    return result;
+}
+
+std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
     Action& a, std::unordered_map<int, SigSet> facts) {
 
     return instantiatePreconditions<Action>(a, facts);
 }
+
+std::vector<Action> Instantiator::getFullApplicableInstantiations(
+    Action& a, std::unordered_map<int, SigSet> facts) {
+
+    std::vector<Action> result;
+
+    std::vector<Action> actions = instantiatePreconditions<Action>(a, facts);
+    for (const Action& a : actions) {
+        std::vector<Signature> inst = ArgIterator::getFullInstantiation(a.getSignature(), *_htn);
+        for (Signature sig : inst) {
+            HtnOp op = a.substitute(Substitution::get(a.getArguments(), sig._args));
+            result.push_back((Action) op);
+        }
+    }
+    return result;
+}
+
+
 
 template<class T>
 std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<int, SigSet> facts) {
@@ -141,57 +175,56 @@ std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::H
 Instantiator::getOperationSubstitutionsCausingEffect(
     const std::unordered_set<Signature, SignatureHasher>& operations, const Signature& fact) {
 
+
     std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
 
     // For each provided HtnOp:
     for (Signature opSig : operations) {
+        //printf("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
         std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
 
         // Decode it into a q constant free representation
-        for (Signature decOpSig : _htn->getDecodedObjects(opSig)) {
+        //for (Signature decOpSig : _htn->getDecodedObjects(opSig)) {
+        assert(isFullyGround(opSig));
 
-            // Collect its (possible) effects
-            SigSet effects = _htn->getAllFactChanges(opSig);
+        // Collect its (possible) effects
+        SigSet effects = _htn->getAllFactChanges(opSig);
 
-            // For each such effect: check if it is a valid result
-            // of some series of q const substitutions
-            for (Signature eff : effects) {
-                if (eff._name_id != fact._name_id) continue;
-                if (eff._negated != fact._negated) continue;
-                bool matches = true;
-                substitution_t s;
-                for (int argPos = 0; argPos < eff._args.size(); argPos++) {
-                    int origArg = fact._args[argPos];
-                    int effArg = eff._args[argPos];
-                    if (!_htn->_q_constants.count(origArg)) {
-                        if (_htn->_var_ids.count(effArg)) {
-                            // The effect arg is variable -- just replace it
-                            eff._args[argPos] = origArg;
-                        }
-                        // If the orig. fact has no q const here, the arg must be left unchanged
-                        matches &= origArg == effArg;
-                    } else {
-                        if (_htn->_var_ids.count(effArg)) {
-                            // The effect arg is variable -- could take the entire domain
-                        } else {
-                            // If the orig. fact has a q const here, the substituted arg must be in the q const's domain
-                            matches &= _htn->_domains_of_q_constants[origArg].count(effArg);
-                        }
-                    }
-                    if (!matches) break;
-                    if (origArg != effArg) {
-                        // No two different substitution values for one arg!
-                        matches &= (!s.count(origArg) || s[origArg] == effArg);
-                        if (!matches) break;
-                        s[origArg] = effArg;
-                    }
+        // For each such effect: check if it is a valid result
+        // of some series of q const substitutions
+        for (Signature eff : effects) {
+            if (eff._name_id != fact._name_id) continue;
+            if (eff._negated != fact._negated) continue;
+            bool matches = true;
+            substitution_t s;
+            //printf("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
+            for (int argPos = 0; argPos < eff._args.size(); argPos++) {
+                int effArg = eff._args[argPos];
+                int substArg = fact._args[argPos];
+                if (!_htn->_q_constants.count(effArg)) {
+                    // If the effect fact has no q const here, the arg must be left unchanged
+                    matches &= effArg == substArg;
+                } else {
+                    // If the effect fact has a q const here, the substituted arg must be in the q const's domain
+                    matches &= _htn->_domains_of_q_constants[effArg].count(substArg);
                 }
-                if (matches) {
-                    // Match found
-                    if (!substitutions.count(s)) substitutions.insert(s);
+                if (!matches) break;
+                if (substArg != effArg) {
+                    // No two different substitution values for one arg!
+                    matches &= (!s.count(effArg) || s[effArg] == substArg);
+                    if (!matches) break;
+                    s[effArg] = substArg;
                 }
             }
+            if (matches) {
+                // Valid, matching substitution found (possibly empty)
+                if (!substitutions.count(s)) substitutions.insert(s);
+                //printf(" -- yes\n");
+            } else {
+                //printf(" -- no\n");
+            }
         }
+
         result[opSig] = substitutions;
     }
     return result;
@@ -204,7 +237,7 @@ bool Instantiator::isFullyGround(Signature& sig) {
     return true;
 }
 
-std::vector<int> Instantiator::getFreeArgPositions(Signature& sig) {
+std::vector<int> Instantiator::getFreeArgPositions(const Signature& sig) {
     std::vector<int> argPositions;
     for (int i = 0; i < sig._args.size(); i++) {
         int arg = sig._args[i];

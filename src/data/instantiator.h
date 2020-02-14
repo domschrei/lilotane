@@ -23,12 +23,16 @@ public:
 
     std::vector<Reduction> getMinimalApplicableInstantiations(Reduction& r, 
             std::unordered_map<int, SigSet> facts);
+    std::vector<Reduction> getFullApplicableInstantiations(Reduction& r,
+            std::unordered_map<int, SigSet> facts);
 
     template<class T>
     std::vector<T> instantiatePreconditions(T& r,
             std::unordered_map<int, SigSet> facts);
 
-    std::vector<Action> getApplicableInstantiations(Action& a,
+    std::vector<Action> getMinimalApplicableInstantiations(Action& a,
+            std::unordered_map<int, SigSet> facts);
+    std::vector<Action> getFullApplicableInstantiations(Action& a,
             std::unordered_map<int, SigSet> facts);
             
     std::pair<std::unordered_map<int, SigSet>, std::unordered_map<int, SigSet>> getPossibleFactChanges(Reduction& r);
@@ -42,7 +46,7 @@ public:
             const Signature& fact);
 
     bool isFullyGround(Signature& sig);
-    std::vector<int> getFreeArgPositions(Signature& sig);
+    std::vector<int> getFreeArgPositions(const Signature& sig);
     bool fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution);
 
     bool test(Signature& sig, std::unordered_map<int, SigSet> facts);

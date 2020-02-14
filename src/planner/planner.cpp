@@ -78,7 +78,7 @@ void Planner::findPlan() {
     
     // Next layers
 
-    int maxIterations = 2;
+    int maxIterations = 10;
 
     while (!solved && iteration < maxIterations) {
         _enc.printFailedVars(_layers.back());
@@ -137,6 +137,7 @@ void Planner::findPlan() {
     std::unordered_set<int> actionIds;
     for (PlanItem item : actionPlan) {
         actionIds.insert(item.id);
+        if (item.abstractTask == _htn._action_blank.getSignature()) continue;
         printf("%i %s\n", item.id, Names::to_string_nobrackets(item.abstractTask).c_str());
     }
 
@@ -287,7 +288,7 @@ void Planner::createNext(const Position& above, int oldPos) {
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
-            printf("FORBIDDING reduction %s@(%i,%i)\n", Names::to_string(rSig).c_str(), _layer_idx-1, oldPos);
+            //printf("FORBIDDING reduction %s@(%i,%i)\n", Names::to_string(rSig).c_str(), _layer_idx-1, oldPos);
             newPos.addReduction(Position::NONE_SIG, why);
         }
     }
@@ -312,11 +313,13 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         Reduction& r = _htn._reductions[redId];
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
-        std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
         //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
 
+        //std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
+        std::vector<Reduction> reductions = _instantiator.getFullApplicableInstantiations(r, state);
+
         for (Reduction red : reductions) {
-            // Rename any remaining constants in each action as unique q-constants 
+            // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
             Signature sig = red.getSignature();
             _htn._reductions_by_sig[sig] = red;
@@ -334,9 +337,10 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     Action& a = _htn._actions[task._name_id];
     HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
     Action act = (Action) op;
-    printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+    //printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
-    std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    //std::vector<Action> actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    std::vector<Action> actions = _instantiator.getFullApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
     for (Action action : actions) {
         action = _htn.replaceQConstants(action, _layer_idx, _pos);
         Signature sig = action.getSignature();

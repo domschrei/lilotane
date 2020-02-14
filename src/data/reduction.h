@@ -89,7 +89,7 @@ public:
         _subtasks = newSubtasks;
     }
 
-    Reduction substituteRed(std::unordered_map<int, int> s) {
+    Reduction substituteRed(std::unordered_map<int, int> s) const {
         HtnOp op = HtnOp::substitute(s);
         Reduction r(op);
         r._task_name_id = _task_name_id;

@@ -202,6 +202,7 @@ int run_pandaPIparser(int argc, char** argv) {
 		parsed_functions, metric_target, sorts, methods, primitive_tasks, 
 		abstract_tasks, task_name_map);
 
+	/*
 	// write to output
 	if (verboseOutput) verbose_output(level);
 	else {
@@ -215,7 +216,7 @@ int run_pandaPIparser(int argc, char** argv) {
 			dout = df;
 		}
 		simple_hddl_output(*dout);
-	}
+	}*/
 
 	return 0;
 }

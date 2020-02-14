@@ -15,8 +15,11 @@
 		:parameters ()
 		:subtasks (and
 		  (task0 (get_to truck_0 city_loc_0))
+		  (task1 (get_to truck_0 city_loc_2))
 		)
-		:ordering ()
+		:ordering (and 
+            (task0 < task1)
+        )
 	)
 	(:init
 		(capacity_predecessor capacity_0 capacity_1)

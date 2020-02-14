@@ -1,13 +1,14 @@
 CC=g++
 
-# Options: minisat220 lingeling
-IPASIRSOLVER=lingeling 
+# Options: minisat220 lingeling glucose4
+IPASIRSOLVER=glucose4
+SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
 
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 CERROR=
 
 COMPILEFLAGS=-O3 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
-LINKERFLAG=-O3 -lm -Llib -lipasir${IPASIRSOLVER}
+LINKERFLAG=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER}
 
 #COMPILEFLAGS=-O0 -ggdb -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
 #LINKERFLAG=-O0 -ggdb
@@ -15,7 +16,7 @@ INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = parser clean
 
-treerexx: $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
+treerexx: ${SOLVERLIB} $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o 
 	${CC} $^ -o treerexx ${LINKERFLAG}
 
 src/parser/%.o: src/parser/%.cpp src/parser/%.hpp
@@ -27,10 +28,9 @@ src/main.o: src/main.cpp
 %.o: %.cpp %.h
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 
-#libpandaPIparser.a: $(wildcard src/parser/*.cpp)
-#	ar rc libpandaPIparser.a $(patsubst %.cpp,%.o,$^)
-#	ranlib libpandaPIparser.a
-	
+${SOLVERLIB}:
+	cd lib/${IPASIRSOLVER} && bash fetch_and_build.sh
+
 clean:
 #	[ ! -e libpandaPIparser.a ] || rm libpandaPIparser.a
 	[ ! -e treerexx ] || rm treerexx

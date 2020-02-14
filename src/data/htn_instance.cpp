@@ -265,13 +265,16 @@ Action& HtnInstance::createAction(task& task) {
 
 SigSet HtnInstance::getAllFactChanges(const Signature& sig) {        
     SigSet result;
+    //printf("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
             result.insert(i);
+            //printf("%s ", Names::to_string(i).c_str());
         }
     }
+    //printf("\n");
     return result;
 }
 
@@ -354,10 +357,10 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         // (disallowing cycles)
         if (!_q_constants.count(c) || c < qConstId) {
             domain.insert(c);
-            printf("%s ", Names::to_string(c).c_str());
+            //printf("%s ", Names::to_string(c).c_str());
         } 
     }
-    printf("}\n");
+    //printf("}\n");
     _domains_of_q_constants[qConstId] = domain;
 }
 
@@ -382,11 +385,11 @@ std::vector<Signature> HtnInstance::getDecodedObjects(Signature qFact) {
     }
 
     std::vector<Signature> i = ArgIterator::instantiate(qFact, eligibleArgs);
-    printf("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
+    //printf("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
     for (Signature sig : i) {
-        printf("%s ", Names::to_string(sig).c_str());
+        //printf("%s ", Names::to_string(sig).c_str());
     }
-    printf("}\n");
+    //printf("}\n");
 
     return i; 
 }

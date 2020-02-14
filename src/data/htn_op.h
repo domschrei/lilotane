@@ -40,7 +40,7 @@ public:
         }
     }
 
-    virtual HtnOp substitute(std::unordered_map<int, int> s) {
+    virtual HtnOp substitute(std::unordered_map<int, int> s) const {
         HtnOp op;
         op._id = _id;
         op._args.resize(_args.size());
