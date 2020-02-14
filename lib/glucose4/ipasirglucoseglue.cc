@@ -55,6 +55,7 @@ public:
     // MiniSAT by default produces non standard conforming messages.
     // So either we have to set this to '0' or patch the sources.
     verbosity = 1;
+    verbEveryConflicts = 1000;
   }
   ~IPAsirMiniSAT () { reset (); }
   void add (int lit) {

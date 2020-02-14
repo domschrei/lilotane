@@ -1,10 +1,8 @@
 #!/bin/bash
 
-if [ ! -d sat/glucose4 ]; then
-    wget https://baldur.iti.kit.edu/sat-competition-2017/solvers/incremental/glucose-ipasir.zip
-    unzip glucose-ipasir.zip
-    rm glucose-ipasir.zip
+if [ ! -d glucose-4 ]; then
+    wget www.labri.fr/perso/lsimon/downloads/softwares/glucose-syrup-4.1.tgz
+    tar xzvf glucose-syrup-4.1.tgz
+    mv glucose-syrup-4.1 glucose-4
 fi
-cd sat/glucose4
 make
-cp libipasirglucose4.a ../../
