@@ -47,6 +47,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // General facts thay may hold
     std::unordered_map<int, std::unordered_set<int>> factSupport;
+    std::unordered_map<int, std::pair<Signature, SigSet>> factSupportOps;
     std::unordered_set<int> newFacts;
     std::unordered_set<int> factsWithoutChange;
     std::unordered_map<int, std::unordered_set<int>> substitutionVarsPerFactVar;
@@ -77,26 +78,22 @@ void Encoding::encode(int layerIdx, int pos) {
                     factSupport[-factVar];
                     factSupport[-factVar].insert(oldFactVar);
 
-                } else if (_htn._actions_by_sig.count(why.sig.abs())) {
-
-                    int aVar = left.getVariable(why.sig.abs());
+                } else {
+                    int opVar = left.getVariable(why.sig.abs());
                     int polarity = why.sig._negated ? -1 : 1;
-                    
-                    // action: effect
-                    addClause({-aVar, polarity*factVar});
 
                     // fact support
                     factSupport[-polarity * factVar];
-                    factSupport[-polarity * factVar].insert(aVar);
+                    factSupport[-polarity * factVar].insert(opVar);
+                    factSupportOps[-polarity*factVar];
+                    factSupportOps[-polarity*factVar].first = (-polarity < 0 ? factSig.opposite() : factSig);
+                    factSupportOps[-polarity*factVar].second.insert(why.sig.abs());
 
-                } else if (_htn._reductions_by_sig.count(why.sig.abs())) {
-                    
-                    // reduction: possible fact change
-                    int rVar = left.getVariable(why.sig.abs());
-                    int polarity = why.sig._negated ? -1 : 1;
-                    factSupport[-polarity * factVar];
-                    factSupport[-polarity * factVar].insert(rVar);
-                } else abort();
+                    if (_htn._actions_by_sig.count(why.sig.abs())) {
+                        // action: effect
+                        addClause({-opVar, polarity*factVar});
+                    }
+                }
 
             } else if (why.getOriginPos() == above.getPos()) {
                 // Fact comes from above: propagate meaning
@@ -248,11 +245,32 @@ void Encoding::encode(int layerIdx, int pos) {
             for (int var : pair.second) {
                 appendClause({var});
             }
+
+            
             // If the fact is a possible substitution of a q-constant fact,
             // add corresponding substitution literal to frame axioms.
             for (int substitutionVar : substitutionVarsPerFactVar[factVar]) {
                 appendClause({substitutionVar});
             }
+
+            const Signature& factSig = factSupportOps[factVar].first;
+            const SigSet& supportingOps = factSupportOps[factVar].second;
+            auto subs = _htn._instantiator->getOperationSubstitutionsCausingEffect(supportingOps, factSig);
+            for (auto pair : subs) {
+                const Signature& opSig = pair.first;
+                printf("SUBSTITUTIONS %s %s : ", Names::to_string(factSig).c_str(), Names::to_string(opSig).c_str());
+                for (substitution_t s : pair.second) {
+                    printf("{");
+                    for (std::pair<int,int> entry : s) {
+                        int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
+                        printf("%s", Names::to_string(sigSubstitute(entry.first, entry.second)).c_str());
+                    }
+                    printf("} ");
+                }
+                printf("\n");
+            }
+
+
             endClause();
 
             // TODO instead:
@@ -305,7 +323,6 @@ void Encoding::encode(int layerIdx, int pos) {
         numOccurringOps++;
         const Signature& rSig = pair.first;
         int rVar = newPos.encode(rSig);
-        if (pos == 0) printf(" POS0 "); printVar(layerIdx, pos, rSig);
 
         addClause({-rVar, -varPrim});
 
@@ -313,7 +330,6 @@ void Encoding::encode(int layerIdx, int pos) {
         if (rSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
                 int oldRVar = above.getVariable(why.sig.abs());
-                if (pos == 0) printf(" POS0 ");
                 addClause({-oldRVar});
             }
             continue;

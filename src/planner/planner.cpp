@@ -41,7 +41,7 @@ void Planner::findPlan() {
             for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
                 initLayer[_pos].addFact(fact, Reason(_layer_idx, _pos, rSig));
                 initLayer[_pos].extendState(fact);
-                for (Signature decFact : _htn.getDecodedFacts(fact)) {
+                for (Signature decFact : _htn.getDecodedObjects(fact)) {
                     initLayer[_pos].addFact(decFact, Reason(_layer_idx, _pos, fact.abs()));
                     initLayer[_pos].extendState(decFact);
                 }
@@ -53,7 +53,7 @@ void Planner::findPlan() {
             for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
                 initLayer[_pos].addFact(fact, Reason(_layer_idx, _pos, aSig));
                 initLayer[_pos].extendState(fact);
-                for (Signature decFact : _htn.getDecodedFacts(fact)) {
+                for (Signature decFact : _htn.getDecodedObjects(fact)) {
                     initLayer[_pos].addFact(decFact, Reason(_layer_idx, _pos, fact.abs()));
                     initLayer[_pos].extendState(decFact);
                 }
@@ -180,7 +180,7 @@ void Planner::createNext(const Position& left) {
             newPos.addFact(fact.abs(), Reason(_layer_idx, _pos-1, (fact._negated ? aSig.opposite() : aSig)));
             newPos.extendState(fact);
 
-            for (Signature decFact : _htn.getDecodedFacts(fact)) {
+            for (Signature decFact : _htn.getDecodedObjects(fact)) {
                 newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
                 newPos.extendState(decFact);
             }
@@ -194,7 +194,7 @@ void Planner::createNext(const Position& left) {
             newPos.addFact(fact.abs(), Reason(_layer_idx, _pos-1, (fact._negated ? rSig.opposite() : rSig)));
             newPos.extendState(fact);
 
-            for (Signature decFact : _htn.getDecodedFacts(fact)) {
+            for (Signature decFact : _htn.getDecodedObjects(fact)) {
                 newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
                 newPos.extendState(decFact);
             }
@@ -231,7 +231,7 @@ void Planner::createNext(const Position& above, int oldPos) {
             for (Signature fact : a.getPreconditions()) {
 
                 newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, (fact._negated ? aSig.opposite() : aSig)));
-                for (Signature decFact : _htn.getDecodedFacts(fact)) {
+                for (Signature decFact : _htn.getDecodedObjects(fact)) {
                     newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
                 }
             }
@@ -261,7 +261,7 @@ void Planner::createNext(const Position& above, int oldPos) {
                 // Add preconditions of reduction
                 for (Signature fact : subR.getPreconditions()) {
                     newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, fact._negated ? subRSig.opposite() : subRSig));
-                    for (Signature decFact : _htn.getDecodedFacts(fact)) {
+                    for (Signature decFact : _htn.getDecodedObjects(fact)) {
                         newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
                     }
                 }
@@ -274,7 +274,7 @@ void Planner::createNext(const Position& above, int oldPos) {
                 const Action& a = _htn._actions_by_sig[aSig];
                 for (Signature fact : a.getPreconditions()) {
                     newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, fact._negated ? aSig.opposite() : aSig));
-                    for (Signature decFact : _htn.getDecodedFacts(fact)) {
+                    for (Signature decFact : _htn.getDecodedObjects(fact)) {
                         newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
                     }
                 }

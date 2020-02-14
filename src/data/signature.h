@@ -13,6 +13,18 @@ typedef std::unordered_map<int, int> substitution_t;
 
 namespace Substitution {
     substitution_t get(std::vector<int> src, std::vector<int> dest);
+
+    struct Hasher {
+        std::size_t operator()(const substitution_t& s) const {
+            size_t hash = 0;
+            for (auto pair : s) {
+                hash_combine(hash, pair.first);
+                hash_combine(hash, pair.second);
+            }
+            hash_combine(hash, s.size());
+            return hash;
+        }
+    };
 }
 
 struct Signature {
@@ -37,7 +49,7 @@ struct Signature {
         return out;
     }
 
-    Signature substitute(std::unordered_map<int, int> s) {
+    Signature substitute(std::unordered_map<int, int> s) const {
         Signature sig;
         sig._name_id = _name_id;
         assert(sig._name_id != 0);

@@ -2,7 +2,7 @@
 #include "data/arg_iterator.h"
 #include "data/htn_instance.h"
 
-std::vector<Signature> ArgIterator::getFullInstantiation(Signature sig, HtnInstance& _htn) {
+std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, HtnInstance& _htn) {
 
 
     // enumerate all arg combinations for variable args
@@ -35,7 +35,7 @@ std::vector<Signature> ArgIterator::getFullInstantiation(Signature sig, HtnInsta
     return instantiation;
 }
 
-std::vector<Signature> ArgIterator::instantiate(Signature sig, std::vector<std::vector<int>> constantsPerArg) {
+std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std::vector<std::vector<int>>& constantsPerArg) {
 
     std::vector<Signature> instantiation;
 

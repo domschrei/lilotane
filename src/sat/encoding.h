@@ -69,6 +69,7 @@ private:
         return Signature(_substitute_name_id, args);
     }
 
+    void addClause(std::vector<int> lits);
     void addClause(std::initializer_list<int> lits);
     void appendClause(std::initializer_list<int> lits);
     void endClause();

@@ -34,6 +34,13 @@ public:
     std::pair<std::unordered_map<int, SigSet>, std::unordered_map<int, SigSet>> getPossibleFactChanges(Reduction& r);
     std::pair<std::unordered_map<int, SigSet>, std::unordered_map<int, SigSet>> getFactChanges(Action& a);
 
+    std::unordered_map<Signature, 
+                       std::unordered_set<substitution_t, Substitution::Hasher>, 
+                       SignatureHasher> 
+        getOperationSubstitutionsCausingEffect(
+            const std::unordered_set<Signature, SignatureHasher>& operations, 
+            const Signature& fact);
+
     bool isFullyGround(Signature& sig);
     std::vector<int> getFreeArgPositions(Signature& sig);
     bool fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution);

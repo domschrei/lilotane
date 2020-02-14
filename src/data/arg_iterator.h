@@ -13,8 +13,8 @@ class HtnInstance;
 class ArgIterator {
 
 public:
-    static std::vector<Signature> getFullInstantiation(Signature sig, HtnInstance& _htn);
-    static std::vector<Signature> instantiate(Signature sig, std::vector<std::vector<int>> eligibleArgs);
+    static std::vector<Signature> getFullInstantiation(const Signature& sig, HtnInstance& _htn);
+    static std::vector<Signature> instantiate(const Signature& sig, const std::vector<std::vector<int>>& eligibleArgs);
 };
 
 #endif

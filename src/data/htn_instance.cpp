@@ -361,7 +361,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     _domains_of_q_constants[qConstId] = domain;
 }
 
-std::vector<Signature> HtnInstance::getDecodedFacts(Signature qFact) {
+std::vector<Signature> HtnInstance::getDecodedObjects(Signature qFact) {
     if (!hasQConstants(qFact)) return std::vector<Signature>();
 
     assert(_instantiator->isFullyGround(qFact));
