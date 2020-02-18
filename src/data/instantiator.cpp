@@ -175,7 +175,6 @@ std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::H
 Instantiator::getOperationSubstitutionsCausingEffect(
     const std::unordered_set<Signature, SignatureHasher>& operations, const Signature& fact) {
 
-
     std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
 
     // For each provided HtnOp:

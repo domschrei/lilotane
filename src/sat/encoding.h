@@ -58,6 +58,7 @@ public:
     std::vector<PlanItem> extractDecompositionPlan();
 
     void printFailedVars(Layer& layer);
+    void printSatisfyingAssignment();
 
 private:
 
@@ -87,7 +88,7 @@ private:
 
     bool value(int layer, int pos, const Signature& sig);
     Signature getDecodedQOp(int layer, int pos, Signature sig);
-    void checkAndApply(Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos);
+    void checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos);
 
 };
 

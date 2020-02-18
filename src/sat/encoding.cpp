@@ -45,11 +45,6 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({factVar});
     }
 
-    std::unordered_map<int, std::unordered_set<int>> factSupport;
-    std::unordered_map<int, std::tuple<Signature, int, SigSet>> factSupportOps;
-    std::unordered_set<int> newFacts;
-    std::unordered_set<int> factsWithoutChange;
-
     // Link qfacts to their possible decodings
     for (auto pair : newPos.getQFactDecodings()) {
         const Signature& qfactSig = pair.first;
@@ -95,15 +90,6 @@ void Encoding::encode(int layerIdx, int pos) {
             assert(!decFactSig._negated);
             int decFactVar = newPos.encode(decFactSig);
 
-            // Link the support of the fact to this q fact's support
-            factSupportOps[decFactVar];
-            std::get<0>(factSupportOps[decFactVar]) = decFactSig;
-            std::get<2>(factSupportOps[decFactVar]).insert(qfactSig);
-            // same with the negative fact
-            factSupportOps[-decFactVar];
-            std::get<0>(factSupportOps[-decFactVar]) = decFactSig.opposite();
-            std::get<2>(factSupportOps[-decFactVar]).insert(qfactSig);
-
             // Get substitution from qfact to its decoded fact
             substitution_t s = Substitution::get(qfactSig._args, decFactSig._args);
             std::vector<int> substitutionVars;
@@ -124,65 +110,29 @@ void Encoding::encode(int layerIdx, int pos) {
         }
     }
 
-    // General facts thay may hold
+    // Examine reasons for each occurring fact
+    SigSet factsWithoutChange;
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
 
-        bool newFact = true;
         bool factChange = false;
 
         for (Reason why : pair.second) {
 
             if (why.axiomatic) {
-                newFact = false;
                 continue;
             }
 
             if (why.getOriginPos() == left.getPos()) {
                 // Fact comes from the left
-                newFact = false;
-
                 if (why.sig == factSig) {
                     assert(!why.sig._negated);
                     factChange = true;
-
-                    // frame axioms
-                    //printVar(left.getPos().first, left.getPos().second, factSig);
-                    int oldFactVar = left.getVariable(factSig);
-                    factSupport[factVar];
-                    factSupport[factVar].insert(-oldFactVar);
-                    factSupport[-factVar];
-                    factSupport[-factVar].insert(oldFactVar);
-
-                    factSupportOps[factVar];
-                    factSupportOps[-factVar];
-                    std::get<1>(factSupportOps[factVar]) = -oldFactVar;
-                    std::get<1>(factSupportOps[-factVar]) = oldFactVar;
-
-                } else {
-                    int opVar = left.getVariable(why.sig.abs());
-                    int polarity = why.sig._negated ? -1 : 1;
-
-                    // fact support
-                    factSupport[-polarity * factVar];
-                    factSupport[-polarity * factVar].insert(opVar);
-                    printf("SUPPORT %i <= %i\n", -polarity*factVar, opVar);
-
-                    factSupportOps[-polarity*factVar];
-                    std::get<0>(factSupportOps[-polarity*factVar]) = (-polarity < 0 ? factSig.opposite() : factSig);
-                    std::get<2>(factSupportOps[-polarity*factVar]).insert(why.sig.abs());
-
-                    if (_htn._actions_by_sig.count(why.sig.abs())) {
-                        // action: effect
-                        addClause({-opVar, polarity*factVar});
-                    }
                 }
 
             } else if (why.getOriginPos() == above.getPos()) {
                 // Fact comes from above: propagate meaning
-                newFact = false;
-
                 assert(offset == 0);
                 assert(why.sig == factSig);
 
@@ -191,160 +141,191 @@ void Encoding::encode(int layerIdx, int pos) {
                 addClause({oldFactVar, -factVar});
 
             } else if (why.getOriginPos() == newPos.getPos()) {
-                // Fact comes from this position
-                
-                if (_htn._actions_by_sig.count(why.sig.abs())) {
-                    
-                    // action: precondition
-                    int aVar = newPos.encode(why.sig.abs());
-                    int polarity = why.sig._negated ? -1 : 1;
-                    addClause({-aVar, polarity*factVar});
-
-                } else if (_htn._reductions_by_sig.count(why.sig.abs())) {
-
-                    // reduction: precondition
-                    int rVar = newPos.encode(why.sig.abs());
-                    int polarity = why.sig._negated ? -1 : 1;
-                    addClause({-rVar, polarity*factVar});
-
-                } else {
-
-                    // a q-fact is the reason
-                    newFact = false; // TODO not a new fact if the q fact is not a new fact
-                    assert(_htn.hasQConstants(why.sig));
-                    assert(why.sig._negated == factSig._negated);
-                }
+                // Fact comes from this position -- decoded from a q-fact
+                //newFact = false;                
             } else abort();
         }
 
+        /*
+        if (decodedFact) {
+            decodedFacts.insert(factSig.abs());
+        }
         if (newFact) {
-            if (!_htn.hasQConstants(factSig))
-                newFacts.insert(std::abs(factVar));
-        }
+            newFacts.insert(factSig.abs());
+        }*/
         if (!factChange) {
-            factsWithoutChange.insert(std::abs(factVar));
+            factsWithoutChange.insert(factSig.abs());
         }
     }
 
-    // Initialize new facts to false
-    for (int newFactVar : newFacts) {
-        addClause({-std::abs(newFactVar)});
-    }
+    // Fact supports, frame axioms (only for non-new facts free of q-constants)
+    for (auto pair : newPos.getFacts()) {
+        assert(!pair.first._negated);
+        for (int sign = -1; sign <= 1; sign += 2) {
 
-    // apply fact supports, or initialize "new facts" to false
-    for (auto pair : factSupport) {
-        int factVar = pair.first;
-        const auto& directSupport = pair.second;
-        
-        if (newFacts.count(std::abs(factVar))) continue;
+            const Signature& factSig = (sign > 0 ? pair.first : pair.first.opposite());
 
-        if (factsWithoutChange.count(std::abs(factVar))) {
-            // No fact change to encode
-            continue;
-        } else {
-            // Unpack per-operator support information
-            const Signature& factSig = std::get<0>(factSupportOps[factVar]);
-            int oldFactVar = std::get<1>(factSupportOps[factVar]);
-            SigSet supportingOps = std::get<2>(factSupportOps[factVar]);
+            if (_htn.hasQConstants(factSig)) continue;
+            if (factsWithoutChange.count(factSig.abs())) continue;
+            //if (newFacts.count(factSig.abs())) continue;
 
-            // Generate complete list of all supports, including those from ((in)directly) linked q facts
-            std::vector<Signature> supp;
-            supp.insert(supp.end(), supportingOps.begin(), supportingOps.end());
-            supportingOps.clear();
-            for (int idx = 0; idx < supp.size(); idx++) {
-                const Signature& sig = supp[idx];
-                if (sig._name_id == factSig._name_id) {
-                    // Links to a q constant's support
-                    int otherFactVar = newPos.getVariable(sig);
-                    for (Signature newOp : std::get<2>(factSupportOps[otherFactVar])) {
-                        supp.push_back(newOp);
-                    }
-                    supp.erase(supp.begin()+idx);
-                    idx--;
-                } else {
-                    // Only add ops which are INDIRECT fact supports
-                    // (DIRECT fact supports are added unconditionally)
-                    if (!directSupport.count(left.getVariable(sig.abs()))) {
-                        supportingOps.insert(sig.abs());
+            int oldFactVar = left.getVariable(factSig);
+            int factVar = newPos.encode(factSig);
+
+            // Calculate indirect support through qfact abstractions
+            std::unordered_set<int> indirectSupport;
+            if (newPos.getQFactAbstractions().count(factSig.abs())) {
+                for (Signature sig : newPos.getQFactAbstractions().at(factSig.abs())) {
+                    const Signature qfactSig = (factSig._negated ? sig.opposite() : sig);
+
+                    // For each operation that supports some qfact abstraction of the fact:
+                    if (newPos.getFactSupports().count(qfactSig))
+                    for (Signature opSig : newPos.getFactSupports().at(qfactSig)) {
+                        int opVar = left.getVariable(opSig);
+                        assert(opVar > 0);
+                        
+                        // Calculate and encode prerequisites for indirect support
+
+                        // Find valid sets of substitutions for this operation causing the desired effect
+                        SigSet opSet; opSet.insert(opSig);
+                        auto subMap = _htn._instantiator->getOperationSubstitutionsCausingEffect(opSet, factSig);
+                        assert(subMap.count(opSig));
+                        if (subMap[opSig].empty()) {
+                            // No valid instantiations!
+                            continue;
+                        }
+
+                        // Assemble possible substitution options to get the desired fact support
+                        std::vector<std::vector<int>> substOptions;
+                        bool unconditionalEffect = false;
+                        for (substitution_t s : subMap[opSig]) {
+                            if (s.empty()) {
+                                // Empty substitution does the job
+                                unconditionalEffect = true;
+                                break;
+                            }
+                            // An actual substitution is necessary
+                            std::vector<int> substOpt = std::vector<int>();
+                            for (std::pair<int,int> entry : s) {
+                                int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
+                                substOpt.push_back(substVar);
+                            }
+                            substOptions.push_back(substOpt);
+                        }
+
+                        if (!unconditionalEffect) {
+                            // Bring the found substitution sets to CNF and encode them
+                            std::vector<std::vector<int>> cnfSubs = getCnf(substOptions);
+                            for (std::vector<int> subsCls : cnfSubs) {
+                                // IF fact change AND the operation is applied,
+                                appendClause({oldFactVar, -factVar, -opVar});
+                                // THEN either of the valid substitution combinations
+                                for (int subVar : subsCls) appendClause({subVar});
+                                endClause();
+                            }
+                        }
+
+                        // Add operation to indirect support
+                        indirectSupport.insert(opVar); 
                     }
                 }
             }
-            
+
             // Fact change: 
-            appendClause({factVar, oldFactVar});
+            appendClause({oldFactVar, -factVar});
             // Non-primitiveness wildcard
-            //appendClause({-varPrimitive(layerIdx, pos)});
+            //appendClause({-varPrimitive(layerIdx, pos-1)});
             // DIRECT support
-            for (int opVar : directSupport) {
-                if (opVar != oldFactVar) {
+            if (newPos.getFactSupports().count(factSig)) {
+                for (Signature opSig : newPos.getFactSupports().at(factSig)) {
+                    int opVar = left.getVariable(opSig);
                     assert(opVar > 0);
-                    assert(std::abs(opVar) != std::abs(oldFactVar));
-                    assert(std::abs(opVar) != std::abs(factVar));
                     appendClause({opVar});
                 }
             }
             // INDIRECT support
-            for (Signature op : supportingOps) {
-                assert(!op._negated);
-                appendClause({left.getVariable(op)});
+            for (int opVar : indirectSupport) {
+                appendClause({opVar});
             }
             endClause();
-
-            // Assemble q-fact induced fact changes
-
-            // Collect possible substitutions through which each operator effects the fact
-            auto subs = _htn._instantiator->getOperationSubstitutionsCausingEffect(supportingOps, factSig.opposite());
-            // For each operation in the INDIRECT support:
-            for (const Signature& opSig : supportingOps) {
-                
-                if (!subs.count(opSig) || subs[opSig].empty()) {
-                    // No valid substitutions!
-                    // IF fact change THEN the operation is NOT applied.
-                    addClause({factVar, oldFactVar, -left.getVariable(opSig)});
-                    continue;
+            
+            /*
+            if (newPos.getConditionalFactSupports().count(factSig)) {
+                for (auto entry : newPos.getConditionalFactSupports().at(factSig)) {
+                    const Signature& opSig = entry.first;
+                    int opVar = left.getVariable(opSig);
+                    assert(opVar > 0);
+                    appendClause({opVar});
+                    printf("%s ", varName(layerIdx, pos-1, opSig).c_str());
                 }
+            }*/
 
-                // Collect set of substitution clauses (in DNF) which may let the operation cause the effect
-                //printf("SUBSTITUTIONS %s %s : ", Names::to_string(factSig).c_str(), Names::to_string(opSig).c_str());
+            /*
+            // Assemble q-fact induced fact changes (indirect support)
+            if (newPos.getConditionalFactSupports().count(factSig))
+            for (auto entry : newPos.getConditionalFactSupports().at(factSig)) {
+                const Signature& opSig = entry.first;
+
                 std::vector<std::vector<int>> substOptions;
-                bool anyEmpty = false;
-                for (substitution_t s : subs[opSig]) {
-                    if (s.empty()) anyEmpty = true; 
-                    //printf("{");
+                bool unconditionalEffect = false;
+
+                // Scan all possible combinations of substitutions enabling the fact change
+                for (Reason why : entry.second) {
+                    const Signature& qfactSig = why.sig;
+                    assert(qfactSig._name_id == factSig._name_id);
+                    assert(qfactSig._negated == factSig._negated);
+                    substitution_t s = Substitution::get(qfactSig._args, factSig._args);
+
+                    if (s.empty()) {
+                        // Fact is an effect without any substitution
+                        unconditionalEffect = true;
+                        break;
+                    }
+
+                    // An actual substitution is necessary for the op to have this effect
                     std::vector<int> substOpt = std::vector<int>();
                     for (std::pair<int,int> entry : s) {
                         int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
-                        //printf("%s", Names::to_string(sigSubstitute(entry.first, entry.second)).c_str());
                         substOpt.push_back(substVar);
                     }
-                    //printf("} ");
                     substOptions.push_back(substOpt);
-                    if (anyEmpty) break;
                 }
-                //printf("\n");
+                if (unconditionalEffect) continue;
 
-                if (anyEmpty) {
-                    // allow the operation unconditionally
-                    continue;
-                }
-                
-                // Bring the substitutions to CNF and encode them
+                // Bring the found substitution sets to CNF and encode them
                 std::vector<std::vector<int>> cnfSubs = getCnf(substOptions);
                 for (std::vector<int> subsCls : cnfSubs) {
                     // IF fact change AND the operation is applied,
-                    appendClause({factVar, oldFactVar, -left.getVariable(opSig)});
+                    appendClause({oldFactVar, -factVar, -left.getVariable(opSig)});
                     // THEN either of the valid substitution combinations
                     for (int subVar : subsCls) appendClause({subVar});
                     endClause();
                 }
             }
+            */
         }
     }
 
     std::unordered_map<int, std::vector<int>> expansions;
     std::vector<int> axiomaticOps;
 
-    // actions
+    // Effects of "old" actions to the left
+    for (auto pair : left.getActions()) {
+        const Signature& aSig = pair.first;
+        int aVar = left.encode(aSig);
+
+        for (Signature eff : _htn._actions_by_sig[aSig].getEffects()) {
+            
+            // Check that the action is contained in the effect's support
+            assert(!newPos.getFactSupports().empty());
+            assert(newPos.getFactSupports().count(eff));
+            assert(newPos.getFactSupports().at(eff).count(aSig));
+
+            addClause({-aVar, newPos.encode(eff)});
+        }
+    }
+
+    // New actions
     int numOccurringOps = 0;
     for (auto pair : newPos.getActions()) {
         numOccurringOps++;
@@ -353,6 +334,12 @@ void Encoding::encode(int layerIdx, int pos) {
         //printVar(layerIdx, pos, aSig);
         addClause({-aVar, varPrim});
 
+        // Preconditions
+        for (Signature pre : _htn._actions_by_sig[aSig].getPreconditions()) {
+            addClause({-aVar, newPos.encode(pre)});
+        }
+
+        // Examine reason for the action
         for (Reason why : pair.second) {
             assert(!why.sig._negated);
 
@@ -392,6 +379,11 @@ void Encoding::encode(int layerIdx, int pos) {
                 addClause({-oldRVar});
             }
             continue;
+        }
+
+        // Preconditions
+        for (Signature pre : _htn._actions_by_sig[rSig].getPreconditions()) {
+            addClause({-rVar, newPos.encode(pre)});
         }
 
         // Actual children
@@ -647,7 +639,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     return plan;
 }
 
-void Encoding::checkAndApply(Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos) {
+void Encoding::checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos) {
     //printf("%s\n", Names::to_string(a).c_str());
     for (Signature pre : a.getPreconditions()) {
         assert(value(layer, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
@@ -782,6 +774,14 @@ bool Encoding::value(int layer, int pos, const Signature& sig) {
     return (v < 0) ^ (ipasir_val(_solver, vAbs) > 0);
 }
 
+void Encoding::printSatisfyingAssignment() {
+    printf("SOLUTION_VALS ");
+    for (int v = 1; v <= VariableDomain::getMaxVar(); v++) {
+        printf("%i ", ipasir_val(_solver, v));
+    }
+    printf("\n");
+}
+
 Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
     assert(isEncoded(layer, pos, sig));
     assert(value(layer, pos, sig));
@@ -797,14 +797,16 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
             for (int argSubst : _htn._domains_of_q_constants[arg]) {
                 Signature sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    //printf("%i TRUE\n", varSubstitution(sigSubst));
-                    //printf("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
-                    //        Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
+                    printf("%i TRUE\n", varSubstitution(sigSubst));
+                    printf("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
+                            Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
                     numSubstitutions++;
                     substitution_t sub;
                     sub[arg] = argSubst;
                     sig = sig.substitute(sub);
-                    //printf("%s\n", Names::to_string(sig).c_str());
+                    printf("%s\n", Names::to_string(sig).c_str());
+                } else {
+                    printf("%i FALSE\n", varSubstitution(sigSubst));
                 }
             }
 

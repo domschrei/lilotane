@@ -18,3 +18,6 @@ bool VariableDomain::isLocked() {
 int VariableDomain::nextVar() {
     return _running_var_id++;
 }
+int VariableDomain::getMaxVar() {
+    return _running_var_id;
+}

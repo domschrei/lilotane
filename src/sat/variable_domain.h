@@ -10,6 +10,7 @@ private:
 
 public:
     static int nextVar();
+    static int getMaxVar();
     
     static bool isLocked();
     static void lock();

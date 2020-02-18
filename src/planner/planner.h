@@ -43,21 +43,12 @@ private:
     void createNext(const Position& above, int oldPos);
     void createNext(const Position& left, const Position& above, int oldPos);
 
+    void addPrecondition(const Signature& op, const Signature& fact);
+    void addEffect(const Signature& op, const Signature& fact);
+    void addNewFalseFacts();
+
     std::vector<Signature> getAllReductionsOfTask(const Signature& task, const State& state);
     std::vector<Signature> getAllActionsOfTask(const Signature& task, const State& state);
-
-    /*
-    int getFact(Signature& sig) {
-        return _atom_table(sig);
-    }
-    int getAction(Signature& sig) {
-        return _action_table(sig);
-    }
-    int getReduction(Signature& sig) {
-        return _reduction_table(sig);
-    }
-    */
-
 };
 
 #endif
