@@ -346,16 +346,16 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
 
     // Compute domain of the q constant
     std::unordered_set<int> domain;
-    printf("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
+    //printf("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
     for (int c : _constants_by_sort[sort]) {
         
         // A q constant may *not* be substituted by another q constant
-        //if (!_q_constants.count(c)) {
+        if (!_q_constants.count(c)) {
 
         // A q constant may be substituted by another q constant,
         // but only if the other q constant was created earlier
         // (disallowing cycles)
-        if (!_q_constants.count(c) || c < qConstId) {
+        //if (!_q_constants.count(c) || c < qConstId) {
             domain.insert(c);
             //printf("%s ", Names::to_string(c).c_str());
         } 
@@ -364,13 +364,13 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     _domains_of_q_constants[qConstId] = domain;
 }
 
-std::vector<Signature> HtnInstance::getDecodedObjects(Signature qFact) {
-    if (!hasQConstants(qFact)) return std::vector<Signature>();
+std::vector<Signature> HtnInstance::getDecodedObjects(Signature qSig) {
+    if (!hasQConstants(qSig)) return std::vector<Signature>();
 
-    assert(_instantiator->isFullyGround(qFact));
-    std::vector<std::vector<int>> eligibleArgs(qFact._args.size());
-    for (int argPos = 0; argPos < qFact._args.size(); argPos++) {
-        int arg = qFact._args[argPos];
+    assert(_instantiator->isFullyGround(qSig));
+    std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
+    for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
+        int arg = qSig._args[argPos];
         if (_q_constants.count(arg)) {
             // q constant
             assert(_domains_of_q_constants.count(arg) && _domains_of_q_constants[arg].size() > 0);
@@ -384,7 +384,7 @@ std::vector<Signature> HtnInstance::getDecodedObjects(Signature qFact) {
         assert(eligibleArgs[argPos].size() > 0);
     }
 
-    std::vector<Signature> i = ArgIterator::instantiate(qFact, eligibleArgs);
+    std::vector<Signature> i = ArgIterator::instantiate(qSig, eligibleArgs);
     //printf("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
     for (Signature sig : i) {
         //printf("%s ", Names::to_string(sig).c_str());

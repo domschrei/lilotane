@@ -15,6 +15,9 @@
 
 #include "sat/encoding.h"
 
+#ifndef Q_CONSTANTS
+#define Q_CONSTANTS 
+#endif
 
 class Planner {
 

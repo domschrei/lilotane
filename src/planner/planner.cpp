@@ -41,9 +41,9 @@ void Planner::findPlan() {
             for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
                 initLayer[_pos].addFact(fact, Reason(_layer_idx, _pos, rSig));
                 initLayer[_pos].extendState(fact);
-                for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                    initLayer[_pos].addFact(decFact, Reason(_layer_idx, _pos, fact.abs()));
-                    initLayer[_pos].extendState(decFact);
+                for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                    initLayer[_pos].addQFactDecoding(fact.abs(), decFact);
+                    initLayer[_pos].extendState(fact._negated ? decFact.opposite() : decFact);
                 }
             }
         }
@@ -53,9 +53,9 @@ void Planner::findPlan() {
             for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
                 initLayer[_pos].addFact(fact, Reason(_layer_idx, _pos, aSig));
                 initLayer[_pos].extendState(fact);
-                for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                    initLayer[_pos].addFact(decFact, Reason(_layer_idx, _pos, fact.abs()));
-                    initLayer[_pos].extendState(decFact);
+                for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                    initLayer[_pos].addQFactDecoding(fact.abs(), decFact);
+                    initLayer[_pos].extendState(fact._negated ? decFact.opposite() : decFact);
                 }
             }
         }
@@ -78,12 +78,20 @@ void Planner::findPlan() {
     
     // Next layers
 
-    int maxIterations = 10;
+    int maxIterations = 5;
 
     while (!solved && iteration < maxIterations) {
         _enc.printFailedVars(_layers.back());
         
-        printf("Unsolvable at layer %i\n", _layer_idx);  
+        printf("Unsolvable at layer %i with assumptions\n", _layer_idx);  
+        solved = _enc.solve();
+        if (!solved) {
+            printf("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
+            break;
+        } else {
+            printf("(solvable with assumptions)\n");
+        }
+
         iteration++;      
         printf("ITERATION %i\n", iteration);
         
@@ -169,6 +177,12 @@ void Planner::createNext(const Position& left) {
     for (auto entry : left.getFacts()) {
         newPos.addFact(entry.first, Reason(_layer_idx, _pos-1, entry.first));
     }
+    // Propagate fact decodings
+    for (auto entry : left.getQFactDecodings()) {
+        for (auto dec : entry.second) {
+            newPos.addQFactDecoding(entry.first, dec);
+        }
+    }
 
     // Propagate state
     newPos.extendState(left.getState());
@@ -181,9 +195,9 @@ void Planner::createNext(const Position& left) {
             newPos.addFact(fact.abs(), Reason(_layer_idx, _pos-1, (fact._negated ? aSig.opposite() : aSig)));
             newPos.extendState(fact);
 
-            for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
-                newPos.extendState(decFact);
+            for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                newPos.addQFactDecoding(fact.abs(), decFact);
+                newPos.extendState(fact._negated ? decFact.opposite() : decFact);
             }
         }
     }
@@ -195,9 +209,9 @@ void Planner::createNext(const Position& left) {
             newPos.addFact(fact.abs(), Reason(_layer_idx, _pos-1, (fact._negated ? rSig.opposite() : rSig)));
             newPos.extendState(fact);
 
-            for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
-                newPos.extendState(decFact);
+            for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                newPos.addQFactDecoding(fact.abs(), decFact);
+                newPos.extendState(fact._negated ? decFact.opposite() : decFact);
             }
         }
     }
@@ -213,6 +227,13 @@ void Planner::createNext(const Position& above, int oldPos) {
         // Propagate occurring facts
         for (auto entry : above.getFacts()) {
             newPos.addFact(entry.first, Reason(_layer_idx-1, oldPos, entry.first));
+        }
+
+        // Propagate fact decodings
+        for (auto entry : above.getQFactDecodings()) {
+            for (auto dec : entry.second) {
+                newPos.addQFactDecoding(entry.first, dec);
+            }
         }
     }
 
@@ -232,8 +253,8 @@ void Planner::createNext(const Position& above, int oldPos) {
             for (Signature fact : a.getPreconditions()) {
 
                 newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, (fact._negated ? aSig.opposite() : aSig)));
-                for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                    newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
+                for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                    newPos.addQFactDecoding(fact.abs(), decFact);
                 }
             }
         } else {
@@ -262,8 +283,8 @@ void Planner::createNext(const Position& above, int oldPos) {
                 // Add preconditions of reduction
                 for (Signature fact : subR.getPreconditions()) {
                     newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, fact._negated ? subRSig.opposite() : subRSig));
-                    for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                        newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
+                    for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                        newPos.addQFactDecoding(fact.abs(), decFact);
                     }
                 }
             }
@@ -275,8 +296,8 @@ void Planner::createNext(const Position& above, int oldPos) {
                 const Action& a = _htn._actions_by_sig[aSig];
                 for (Signature fact : a.getPreconditions()) {
                     newPos.addFact(fact.abs(), Reason(_layer_idx, _pos, fact._negated ? aSig.opposite() : aSig));
-                    for (Signature decFact : _htn.getDecodedObjects(fact)) {
-                        newPos.addFact(decFact.abs(), Reason(_layer_idx, _pos, fact.abs()));
+                    for (Signature decFact : _htn.getDecodedObjects(fact.abs())) {
+                        newPos.addQFactDecoding(fact.abs(), decFact);
                     }
                 }
             }
@@ -314,10 +335,11 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
         //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
-
-        //std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
+#ifdef Q_CONSTANTS
+        std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
+#else
         std::vector<Reduction> reductions = _instantiator.getFullApplicableInstantiations(r, state);
-
+#endif
         for (Reduction red : reductions) {
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
@@ -339,8 +361,11 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     Action act = (Action) op;
     //printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
-    //std::vector<Action> actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+#ifdef Q_CONSTANTS
+    std::vector<Action> actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+#else
     std::vector<Action> actions = _instantiator.getFullApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+#endif
     for (Action action : actions) {
         action = _htn.replaceQConstants(action, _layer_idx, _pos);
         Signature sig = action.getSignature();

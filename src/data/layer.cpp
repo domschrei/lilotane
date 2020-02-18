@@ -37,7 +37,7 @@ int Position::encode(const Signature& sig) {
         // introduce a new variable
         assert(!VariableDomain::isLocked() || fail("Unknown variable " + varName(sigAbs) + " queried!\n"));
         _variables[sigAbs] = VariableDomain::nextVar();
-        //printf("VARMAP %i %s\n", _variables[sigAbs], varName(sigAbs).c_str());
+        printf("VARMAP %i %s\n", _variables[sigAbs], varName(sigAbs).c_str());
     }
 
     //printf("%i\n", vars[sig]);

@@ -45,11 +45,86 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({factVar});
     }
 
-    // General facts thay may hold
     std::unordered_map<int, std::unordered_set<int>> factSupport;
     std::unordered_map<int, std::tuple<Signature, int, SigSet>> factSupportOps;
     std::unordered_set<int> newFacts;
     std::unordered_set<int> factsWithoutChange;
+
+    // Link qfacts to their possible decodings
+    for (auto pair : newPos.getQFactDecodings()) {
+        const Signature& qfactSig = pair.first;
+        assert(!qfactSig._negated);
+        int qfactVar = newPos.encode(qfactSig);
+
+        // initialize substitution logic where necessary
+        for (int argPos = 0; argPos < qfactSig._args.size(); argPos++) {
+            int arg = qfactSig._args[argPos];
+            if (!_htn._q_constants.count(arg)) continue;
+            if (_q_constants.count(arg)) continue;
+
+            // arg is a *new* q-constant: initialize substitution logic
+
+            _q_constants.insert(arg);
+
+            std::vector<int> substitutionVars;
+            for (int c : _htn._domains_of_q_constants[arg]) {
+
+                // either of the possible substitutions must be chosen
+                Signature sigSubst = sigSubstitute(arg, c);
+                int varSubst = varSubstitution(sigSubst);
+                substitutionVars.push_back(varSubst);
+                
+                _q_constants_per_arg[c];
+                _q_constants_per_arg[c].push_back(arg);
+            }
+
+            // AT LEAST ONE substitution
+            for (int vSub : substitutionVars) appendClause({vSub});
+            endClause();
+
+            // AT MOST ONE substitution
+            for (int vSub1 : substitutionVars) {
+                for (int vSub2 : substitutionVars) {
+                    if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
+                }
+            } 
+        }
+
+        // For each possible fact decoding:
+        for (const auto& decFactSig : pair.second) {
+            assert(!decFactSig._negated);
+            int decFactVar = newPos.encode(decFactSig);
+
+            // Link the support of the fact to this q fact's support
+            factSupportOps[decFactVar];
+            std::get<0>(factSupportOps[decFactVar]) = decFactSig;
+            std::get<2>(factSupportOps[decFactVar]).insert(qfactSig);
+            // same with the negative fact
+            factSupportOps[-decFactVar];
+            std::get<0>(factSupportOps[-decFactVar]) = decFactSig.opposite();
+            std::get<2>(factSupportOps[-decFactVar]).insert(qfactSig);
+
+            // Get substitution from qfact to its decoded fact
+            substitution_t s = Substitution::get(qfactSig._args, decFactSig._args);
+            std::vector<int> substitutionVars;
+            for (auto sPair : s) {
+                Signature sigSubst = sigSubstitute(sPair.first, sPair.second);
+                substitutionVars.push_back(varSubstitution(sigSubst));
+            }
+            
+            // If the substitution is chosen,
+            // the q-fact and the corresponding actual fact are equivalent
+            for (int sign = -1; sign <= 1; sign += 2) {
+                for (int varSubst : substitutionVars) {
+                    appendClause({-varSubst});
+                }
+                appendClause({sign*qfactVar, -sign*decFactVar});
+                endClause();
+            }
+        }
+    }
+
+    // General facts thay may hold
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
@@ -92,6 +167,7 @@ void Encoding::encode(int layerIdx, int pos) {
                     // fact support
                     factSupport[-polarity * factVar];
                     factSupport[-polarity * factVar].insert(opVar);
+                    printf("SUPPORT %i <= %i\n", -polarity*factVar, opVar);
 
                     factSupportOps[-polarity*factVar];
                     std::get<0>(factSupportOps[-polarity*factVar]) = (-polarity < 0 ? factSig.opposite() : factSig);
@@ -132,17 +208,11 @@ void Encoding::encode(int layerIdx, int pos) {
                     addClause({-rVar, polarity*factVar});
 
                 } else {
+
                     // a q-fact is the reason
+                    newFact = false; // TODO not a new fact if the q fact is not a new fact
                     assert(_htn.hasQConstants(why.sig));
                     assert(why.sig._negated == factSig._negated);
-                    // Link the support of the fact to this q fact's support
-                    factSupportOps[factVar];
-                    std::get<0>(factSupportOps[factVar]) = factSig;
-                    std::get<2>(factSupportOps[factVar]).insert(why.sig);
-                    // same with the negative fact
-                    factSupportOps[-factVar];
-                    std::get<0>(factSupportOps[-factVar]) = factSig.opposite();
-                    std::get<2>(factSupportOps[-factVar]).insert(why.sig.opposite());
                 }
             } else abort();
         }
@@ -153,94 +223,6 @@ void Encoding::encode(int layerIdx, int pos) {
         }
         if (!factChange) {
             factsWithoutChange.insert(std::abs(factVar));
-        }
-        if (_htn.hasQConstants(factSig)) {
-            // Q-Fact: 
-                
-            // initialize substitution logic where necessary
-            for (int argPos = 0; argPos < factSig._args.size(); argPos++) {
-                int arg = factSig._args[argPos];
-                if (!_htn._q_constants.count(arg)) continue;
-                
-                // arg is a q-constant
-
-                // if arg is a *new* q-constant: initialize substitution logic
-                if (!_q_constants.count(arg)) {
-                    _q_constants.insert(arg);
-
-                    std::vector<int> substitutionVars;
-                    for (int c : _htn._domains_of_q_constants[arg]) {
-
-                        // either of the possible substitutions must be chosen
-                        Signature sigSubst = sigSubstitute(arg, c);
-                        int varSubst = varSubstitution(sigSubst);
-                        substitutionVars.push_back(varSubst);
-                        
-                        _q_constants_per_arg[c];
-                        _q_constants_per_arg[c].push_back(arg);
-                    }
-
-                    // AT LEAST ONE substitution
-                    for (int vSub : substitutionVars) appendClause({vSub});
-                    endClause();
-
-                    // AT MOST ONE substitution
-                    for (int vSub1 : substitutionVars) {
-                        for (int vSub2 : substitutionVars) {
-                            if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
-                        }
-                    }
-                } 
-            }
-
-            // Add equivalence to corresponding facts
-            // relative to chosen substitution
-            for (auto factsPair : newPos.getFacts()) {
-                const Signature& substitutedFact = factsPair.first;
-
-                if (substitutedFact._name_id != factSig._name_id) continue;
-
-                // Check if the pair of facts form a valid substitution
-                bool matches = true;
-                bool differs = false;
-                std::vector<int> substitutionVars;
-                for (int i = 0; i < substitutedFact._args.size(); i++) {
-                    int f = factSig._args[i];
-                    int fSub = substitutedFact._args[i];
-
-                    // If original arg is not a q constant, the substituted arg must be the same
-                    if (!_htn._q_constants.count(f)) matches = (f == fSub);
-
-                    // If original arg IS a q-constant, 
-                    // the subst. arg is the same q-constant OR in the original q-constant's domain
-                    if (_htn._q_constants.count(f)) {
-                        matches = f == fSub || _htn._domains_of_q_constants[f].count(fSub);
-                        if (!matches) break;
-                        if (f != fSub) {
-                            Signature sigSubst = sigSubstitute(f, fSub);
-                            substitutionVars.push_back(varSubstitution(sigSubst));
-                        }
-                    } 
-
-                    if (f != fSub) differs = true;
-                    if (!matches) break;
-                }
-                if (!differs || !matches) continue;
-                
-                // Valid substitution found
-                int varQFact = newPos.encode(factSig);
-                int varSubstitutedFact = newPos.encode(substitutedFact);
-                
-                // If the substitution is chosen,
-                // the q-fact and the corresponding actual fact are equivalent
-                for (int sign = -1; sign <= 1; sign += 2) {
-                    for (int varSubst : substitutionVars) {
-                        appendClause({-varSubst});
-                    }
-                    appendClause({sign*varQFact, -sign*varSubstitutedFact});
-                    endClause();
-                }
-            }
         }
     }
 
@@ -290,6 +272,8 @@ void Encoding::encode(int layerIdx, int pos) {
             
             // Fact change: 
             appendClause({factVar, oldFactVar});
+            // Non-primitiveness wildcard
+            //appendClause({-varPrimitive(layerIdx, pos)});
             // DIRECT support
             for (int opVar : directSupport) {
                 if (opVar != oldFactVar) {
@@ -354,13 +338,6 @@ void Encoding::encode(int layerIdx, int pos) {
                     endClause();
                 }
             }
-
-            // TODO instead:
-            // * basic frame axiom only contains fact change + all supporting ops
-            // * additional clause for each (primitive?) supporting op:
-            //   if fact change AND a certain substitution, then 
-            //    (either of the ops whose according substitution actually causes the fact change)
-            // would it work the other way round, too?
         }
     }
 
@@ -582,7 +559,7 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        //printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
     }
     return _substitution_variables[sigAbs];
 }
