@@ -58,18 +58,16 @@ private:
 
     CausalSigSet _facts;
     CausalSigSet _true_facts;
-    SigSet _new_facts;
+    std::unordered_map<Signature, SigSet, SignatureHasher> _fact_supports;
+
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_decodings;
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_abstractions;
-
-    std::unordered_map<Signature, SigSet, SignatureHasher> _fact_supports;
-    std::unordered_map<Signature, CausalSigSet, SignatureHasher> _conditional_fact_supports;
     
     CausalSigSet _actions;
     CausalSigSet _reductions;
     int _max_expansion_size = 1;
 
-    // Not being encoded, just used for reducing instantiation of the next position.
+    // Not being encoded; used for reducing instantiation of the next position.
     std::unordered_map<int, SigSet> _state;
 
     // Prop. variable for each occurring signature.
@@ -81,20 +79,13 @@ public:
 
     void addFact(const Signature& fact, Reason rs = Reason()) {_facts[fact]; _facts[fact].insert(rs);}
     void addTrueFact(const Signature& fact, Reason rs = Reason()) {_true_facts[fact]; _true_facts[fact].insert(rs);}
-    void addNewFact(const Signature& fact) {_new_facts.insert(fact);}
     void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
-        //addFact(decoding, Reason(_layer_idx, _pos, qfact));
     }
     void addFactSupport(const Signature& fact, const Signature& operation) {
         _fact_supports[fact];
         _fact_supports[fact].insert(operation);
-    }
-    void addConditionalFactSupport(const Signature& fact, const Signature& operation, Reason rs = Reason()) {
-        _conditional_fact_supports[fact];
-        _conditional_fact_supports[fact][operation];
-        _conditional_fact_supports[fact][operation].insert(rs);
     }
 
     void addAction(const Signature& action, Reason rs = Reason()) {
@@ -129,11 +120,9 @@ public:
     
     const CausalSigSet& getFacts() const {return _facts;}
     const CausalSigSet& getTrueFacts() const {return _true_facts;}
-    const SigSet& getNewFacts() const {return _new_facts;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
-    const std::unordered_map<Signature, CausalSigSet, SignatureHasher>& getConditionalFactSupports() const {return _conditional_fact_supports;}
 
     const CausalSigSet& getActions() const {return _actions;}
     const CausalSigSet& getReductions() const {return _reductions;}

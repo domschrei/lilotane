@@ -148,22 +148,11 @@ void Encoding::encode(int layerIdx, int pos) {
             if (oldFactVar == 0) {
                 // This fact was not encoded at the position before.
 
-                //printf("NO_PRIOR_FACT ");
-                //printVar(layerIdx, pos, factSig);
-                /*
-                if (!newPos.getTrueFacts().count(factSig)) {
-                    for (Reason why : pair.second) {
-                        if (why.pos == pos-1) printf(" LEFT\n");
-                        else if (why.axiomatic) printf(" AXIOMATIC\n");
-                        else if (why.pos == pos) printf(" HERE\n");
-                        else printf(" ???\n");
-                        if (!why.axiomatic) printf("  %s\n", Names::to_string(why.sig).c_str());
-                    }
-                }*/
-
                 // fact support is trivial: must always hold. 
                 // TODO what about goal facts? These must have a prior fact making them true. (?)
-                if (newPos.getTrueFacts().count(factSig)) continue; 
+                if (newPos.getTrueFacts().count(factSig)) continue;
+
+                // else: proceed with support, where the prior fact var will be missing.
             }
 
             // Calculate indirect support through qfact abstractions
@@ -220,14 +209,14 @@ void Encoding::encode(int layerIdx, int pos) {
                                 // IF fact change AND the operation is applied,
                                 if (oldFactVar != 0) appendClause({oldFactVar});
                                 appendClause({-factVar, -opVar});
-                                printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
+                                //printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                                 // THEN either of the valid substitution combinations
                                 for (int subVar : subsCls) {
                                     appendClause({subVar});
-                                    printf("%i ", subVar);  
+                                    //printf("%i ", subVar);  
                                 } 
                                 endClause();
-                                printf("\n");
+                                //printf("\n");
                             }
                         }
 
@@ -238,7 +227,7 @@ void Encoding::encode(int layerIdx, int pos) {
             }
 
             // Fact change:
-            printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
+            //printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
             if (oldFactVar != 0) appendClause({oldFactVar});
             appendClause({-factVar});
             // Non-primitiveness wildcard
@@ -249,16 +238,16 @@ void Encoding::encode(int layerIdx, int pos) {
                     int opVar = left.getVariable(opSig);
                     assert(opVar > 0);
                     appendClause({opVar});
-                    printf("%i ", opVar);
+                    //printf("%i ", opVar);
                 }
             }
             // INDIRECT support
             for (int opVar : indirectSupport) {
                 appendClause({opVar});
-                printf("%i ", opVar);
+                //printf("%i ", opVar);
             }
             endClause();
-            printf("\n");
+            //printf("\n");
         }
     }
 
