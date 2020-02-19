@@ -31,6 +31,7 @@ private:
 
     int _layer_idx;
     int _pos;
+    int _old_pos;
 
 public:
     Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), 
@@ -39,12 +40,15 @@ public:
 
 private:
 
-    void createNext(const Position& left);
-    void createNext(const Position& above, int oldPos);
-    void createNext(const Position& left, const Position& above, int oldPos);
+    void createNext();
+    void propagateInitialState();
+    void createNextFromAbove(const Position& above);
+    void createNextFromLeft(const Position& left);
 
     void addPrecondition(const Signature& op, const Signature& fact);
     void addEffect(const Signature& op, const Signature& fact);
+    void propagateActions(int offset);
+    void propagateReductions(int offset);
     void addNewFalseFacts();
 
     std::vector<Signature> getAllReductionsOfTask(const Signature& task, const State& state);

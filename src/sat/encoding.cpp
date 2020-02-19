@@ -111,66 +111,60 @@ void Encoding::encode(int layerIdx, int pos) {
     }
 
     // Examine reasons for each occurring fact
-    SigSet factsWithoutChange;
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
 
-        bool factChange = false;
-
         for (Reason why : pair.second) {
 
             if (why.axiomatic) {
+                // An axiomatic fact
                 continue;
-            }
-
-            if (why.getOriginPos() == left.getPos()) {
-                // Fact comes from the left
-                if (why.sig == factSig) {
-                    assert(!why.sig._negated);
-                    factChange = true;
-                }
-
             } else if (why.getOriginPos() == above.getPos()) {
-                // Fact comes from above: propagate meaning
                 assert(offset == 0);
                 assert(why.sig == factSig);
 
+                // Fact comes from above: propagate meaning
                 int oldFactVar = above.getVariable(why.sig);
                 addClause({-oldFactVar, factVar});
                 addClause({oldFactVar, -factVar});
-
-            } else if (why.getOriginPos() == newPos.getPos()) {
-                // Fact comes from this position -- decoded from a q-fact
-                //newFact = false;                
-            } else abort();
-        }
-
-        /*
-        if (decodedFact) {
-            decodedFacts.insert(factSig.abs());
-        }
-        if (newFact) {
-            newFacts.insert(factSig.abs());
-        }*/
-        if (!factChange) {
-            factsWithoutChange.insert(factSig.abs());
+            }
         }
     }
 
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
+    if (pos > 0)
     for (auto pair : newPos.getFacts()) {
         assert(!pair.first._negated);
         for (int sign = -1; sign <= 1; sign += 2) {
 
             const Signature& factSig = (sign > 0 ? pair.first : pair.first.opposite());
-
             if (_htn.hasQConstants(factSig)) continue;
-            if (factsWithoutChange.count(factSig.abs())) continue;
-            //if (newFacts.count(factSig.abs())) continue;
 
-            int oldFactVar = left.getVariable(factSig);
+            int oldFactVar = (left.getFacts().count(factSig.abs()) ? left.getVariable(factSig) : 0);
             int factVar = newPos.encode(factSig);
+
+            // No prior fact?
+            if (oldFactVar == 0) {
+                // This fact was not encoded at the position before.
+
+                //printf("NO_PRIOR_FACT ");
+                //printVar(layerIdx, pos, factSig);
+                /*
+                if (!newPos.getTrueFacts().count(factSig)) {
+                    for (Reason why : pair.second) {
+                        if (why.pos == pos-1) printf(" LEFT\n");
+                        else if (why.axiomatic) printf(" AXIOMATIC\n");
+                        else if (why.pos == pos) printf(" HERE\n");
+                        else printf(" ???\n");
+                        if (!why.axiomatic) printf("  %s\n", Names::to_string(why.sig).c_str());
+                    }
+                }*/
+
+                // fact support is trivial: must always hold. 
+                // TODO what about goal facts? These must have a prior fact making them true. (?)
+                if (newPos.getTrueFacts().count(factSig)) continue; 
+            }
 
             // Calculate indirect support through qfact abstractions
             std::unordered_set<int> indirectSupport;
@@ -224,7 +218,8 @@ void Encoding::encode(int layerIdx, int pos) {
                             std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
                             for (std::set<int> subsCls : cnfSubs) {
                                 // IF fact change AND the operation is applied,
-                                appendClause({oldFactVar, -factVar, -opVar});
+                                if (oldFactVar != 0) appendClause({oldFactVar});
+                                appendClause({-factVar, -opVar});
                                 printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                                 // THEN either of the valid substitution combinations
                                 for (int subVar : subsCls) {
@@ -244,7 +239,8 @@ void Encoding::encode(int layerIdx, int pos) {
 
             // Fact change:
             printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
-            appendClause({oldFactVar, -factVar});
+            if (oldFactVar != 0) appendClause({oldFactVar});
+            appendClause({-factVar});
             // Non-primitiveness wildcard
             //appendClause({-varPrimitive(layerIdx, pos-1)});
             // DIRECT support
@@ -263,61 +259,6 @@ void Encoding::encode(int layerIdx, int pos) {
             }
             endClause();
             printf("\n");
-            
-            /*
-            if (newPos.getConditionalFactSupports().count(factSig)) {
-                for (auto entry : newPos.getConditionalFactSupports().at(factSig)) {
-                    const Signature& opSig = entry.first;
-                    int opVar = left.getVariable(opSig);
-                    assert(opVar > 0);
-                    appendClause({opVar});
-                    printf("%s ", varName(layerIdx, pos-1, opSig).c_str());
-                }
-            }*/
-
-            /*
-            // Assemble q-fact induced fact changes (indirect support)
-            if (newPos.getConditionalFactSupports().count(factSig))
-            for (auto entry : newPos.getConditionalFactSupports().at(factSig)) {
-                const Signature& opSig = entry.first;
-
-                std::vector<std::vector<int>> substOptions;
-                bool unconditionalEffect = false;
-
-                // Scan all possible combinations of substitutions enabling the fact change
-                for (Reason why : entry.second) {
-                    const Signature& qfactSig = why.sig;
-                    assert(qfactSig._name_id == factSig._name_id);
-                    assert(qfactSig._negated == factSig._negated);
-                    substitution_t s = Substitution::get(qfactSig._args, factSig._args);
-
-                    if (s.empty()) {
-                        // Fact is an effect without any substitution
-                        unconditionalEffect = true;
-                        break;
-                    }
-
-                    // An actual substitution is necessary for the op to have this effect
-                    std::vector<int> substOpt = std::vector<int>();
-                    for (std::pair<int,int> entry : s) {
-                        int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
-                        substOpt.push_back(substVar);
-                    }
-                    substOptions.push_back(substOpt);
-                }
-                if (unconditionalEffect) continue;
-
-                // Bring the found substitution sets to CNF and encode them
-                std::vector<std::vector<int>> cnfSubs = getCnf(substOptions);
-                for (std::vector<int> subsCls : cnfSubs) {
-                    // IF fact change AND the operation is applied,
-                    appendClause({oldFactVar, -factVar, -left.getVariable(opSig)});
-                    // THEN either of the valid substitution combinations
-                    for (int subVar : subsCls) appendClause({subVar});
-                    endClause();
-                }
-            }
-            */
         }
     }
 
@@ -327,6 +268,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // Effects of "old" actions to the left
     for (auto pair : left.getActions()) {
         const Signature& aSig = pair.first;
+        if (aSig == Position::NONE_SIG) continue;
         int aVar = left.encode(aSig);
 
         for (Signature eff : _htn._actions_by_sig[aSig].getEffects()) {
@@ -343,8 +285,17 @@ void Encoding::encode(int layerIdx, int pos) {
     // New actions
     int numOccurringOps = 0;
     for (auto pair : newPos.getActions()) {
-        numOccurringOps++;
         const Signature& aSig = pair.first;
+
+        if (aSig == Position::NONE_SIG) {
+            for (Reason why : pair.second) {
+                int oldAVar = above.getVariable(why.sig.abs());
+                addClause({-oldAVar});
+            }
+            continue;
+        }
+
+        numOccurringOps++;
         int aVar = newPos.encode(aSig);
         //printVar(layerIdx, pos, aSig);
         addClause({-aVar, varPrim});
@@ -381,11 +332,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // reductions
     for (auto pair : newPos.getReductions()) {
-        numOccurringOps++;
         const Signature& rSig = pair.first;
-        int rVar = newPos.encode(rSig);
-
-        addClause({-rVar, -varPrim});
 
         // "Virtual children" forbidding parent reductions
         if (rSig == Position::NONE_SIG) {
@@ -395,6 +342,10 @@ void Encoding::encode(int layerIdx, int pos) {
             }
             continue;
         }
+
+        numOccurringOps++;
+        int rVar = newPos.encode(rSig);
+        addClause({-rVar, -varPrim});
 
         // Preconditions
         for (Signature pre : _htn._actions_by_sig[rSig].getPreconditions()) {
@@ -547,8 +498,10 @@ void Encoding::assume(int lit) {
 bool Encoding::solve() {
     printf("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 numClauses, numLits, numAssumptions);
+    bool solved = ipasir_solve(_solver) == 10;
+    if (numAssumptions == 0) _last_assumptions.clear();
     numAssumptions = 0;
-    return ipasir_solve(_solver) == 10;
+    return solved;
 }
 
 bool Encoding::isEncoded(int layer, int pos, const Signature& sig) {
@@ -598,11 +551,12 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     int li = finalLayer.index();
     VariableDomain::lock();
 
-    CausalSigSet state = finalLayer[0].getFacts();
+    State state = finalLayer[0].getState();
     for (auto pair : state) {
-        const Signature& fact = pair.first;
-        if (!fact._negated && isEncoded(0, 0, fact)) assert(value(0, 0, fact));
-        if (fact._negated) assert(!isEncoded(0, 0, fact) || !value(0, 0, fact));
+        for (const Signature& fact : pair.second) {
+            if (!fact._negated) assert((isEncoded(0, 0, fact) && value(0, 0, fact)) || fail(Names::to_string(fact) + " does not hold initially!\n"));
+            if (fact._negated) assert(!isEncoded(0, 0, fact) || value(0, 0, fact) || fail(Names::to_string(fact) + " does not hold initially!\n"));
+        } 
     }
 
     std::vector<PlanItem> plan;
@@ -612,7 +566,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
 
         int chosenActions = 0;
-        CausalSigSet newState = state;
+        State newState = state;
         SigSet effects;
         for (auto pair : finalLayer[pos].getActions()) {
             const Signature& aSig = pair.first;
@@ -658,7 +612,16 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     return plan;
 }
 
-void Encoding::checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos) {
+bool holds(State& state, const Signature& fact) {
+    // Positive fact
+    if (!fact._negated)
+        return state.count(fact._name_id) && state[fact._name_id].count(fact);
+    
+    // Negative fact
+    return !state.count(fact._name_id) || !state[fact._name_id].count(fact);
+}
+
+void Encoding::checkAndApply(const Action& a, State& state, State& newState, int layer, int pos) {
     //printf("%s\n", Names::to_string(a).c_str());
     for (Signature pre : a.getPreconditions()) {
 
@@ -668,13 +631,9 @@ void Encoding::checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet&
         + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos) + "!\n"));
 
         // Check state
-        assert(!state.count(pre.opposite()) || fail("Precondition " + Names::to_string(pre) + " of action "
+        assert(holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
             + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
-        if (!pre._negated) {
-            assert(state.count(pre) || fail("Precondition " + Names::to_string(pre) + " of action "
-            + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
-        }
-
+        
         printf("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
                 layer, pos);
     }
@@ -685,8 +644,9 @@ void Encoding::checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet&
         + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos+1) + "!\n"));
 
         // Apply effect
-        if (state.count(eff.opposite())) newState.erase(eff.opposite());
-        newState[eff];
+        if (holds(state, eff.opposite())) newState[eff._name_id].erase(eff.opposite());
+        newState[eff._name_id];
+        newState[eff._name_id].insert(eff);
 
         printf("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
                 layer, pos);

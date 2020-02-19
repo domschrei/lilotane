@@ -88,7 +88,7 @@ private:
 
     bool value(int layer, int pos, const Signature& sig);
     Signature getDecodedQOp(int layer, int pos, Signature sig);
-    void checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos);
+    void checkAndApply(const Action& a, State& state, State& newState, int layer, int pos);
 
 };
 

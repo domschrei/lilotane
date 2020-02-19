@@ -263,8 +263,9 @@ Action& HtnInstance::createAction(task& task) {
     return _actions[id];
 }
 
-SigSet HtnInstance::getAllFactChanges(const Signature& sig) {        
+SigSet HtnInstance::getAllFactChanges(const Signature& sig) {    
     SigSet result;
+    if (sig == Position::NONE_SIG) return result;    
     //printf("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);

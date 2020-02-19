@@ -85,7 +85,7 @@ public:
     void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
-        addFact(decoding, Reason(_layer_idx, _pos, qfact));
+        //addFact(decoding, Reason(_layer_idx, _pos, qfact));
     }
     void addFactSupport(const Signature& fact, const Signature& operation) {
         _fact_supports[fact];
