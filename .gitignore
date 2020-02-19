@@ -1,0 +1,10 @@
+*.o
+*.a
+lib/*
+treerexx
+.vscode
+OUT
+*.cnf
+CORE
+SOLUTION
+picosat
