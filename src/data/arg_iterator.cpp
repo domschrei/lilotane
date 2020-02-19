@@ -20,10 +20,19 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
     for (int pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
         if (_htn._var_ids.count(arg)) {
+
             // free argument
             int sort = sorts[pos];
             assert(_htn._constants_by_sort.count(sort));
-            constantsPerArg.push_back(_htn._constants_by_sort[sort]);
+
+            // Scan through all eligible arguments, filtering out q constants
+            std::vector<int> eligibleConstants;
+            for (int arg : _htn._constants_by_sort[sort]) {
+                if (_htn._q_constants.count(arg)) continue;
+                eligibleConstants.push_back(arg);
+            }
+
+            constantsPerArg.push_back(eligibleConstants);
         } else {
             // constant
             constantsPerArg.push_back(std::vector<int>(1, arg));

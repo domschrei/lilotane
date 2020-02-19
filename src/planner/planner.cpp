@@ -276,7 +276,7 @@ void Planner::propagateActions(int offset) {
         // Can the action occur here w.r.t. the current state?
         bool valid = true;
         for (Signature fact : a.getPreconditions()) {
-            if (!newPos.containsInState(fact)) {
+            if (!_htn.hasQConstants(fact) && !newPos.containsInState(fact)) {
                 // Action cannot occur here!
                 valid = false; break;
             }
@@ -412,25 +412,30 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
         introduceNewFalseFact(pos, fact);
     }
 
-    // Precondition must be valid
-    assert(pos.containsInState(fact));
+    // Precondition must be valid (or a q fact)
+    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact));
 
     // Add additional reason for the fact / add it first if it's a q-constant
     pos.addFact(factAbs, Reason(_layer_idx, _pos, op));
 
     // For each fact decoded from the q-fact:
-    // TODO what if ALL are impossible? => Forbid!
+    bool somePossible = false;
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
 
         if (!pos.containsInState(decFact)) {
-            // Not a possible fact here
-            continue;
-        }
+            // Not a possible fact here. Add as "false" fact to get a contradiction
+            //printf("IMPOSSIBLE_DECFACT %s\n", Names::to_string(decFact).c_str());
+            pos.addFact(decFact.abs());
+            pos.addTrueFact(decFact.opposite());
+            pos.extendState(decFact.opposite());
+        } else somePossible = true;
 
         pos.addQFactDecoding(factAbs, decFact.abs());
         pos.addFact(factAbs, Reason(_layer_idx, _pos, op)); // also add fact as an (indirect) consequence of op
     }
+    // TODO what if ALL are impossible? (!somePossible) => Forbid!
+    // Right now, the q-fact will just run into a contradiction.
 }
 
 void Planner::addEffect(const Signature& op, const Signature& fact) {
@@ -438,7 +443,15 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     Signature factAbs = fact.abs();
 
     pos.addFact(factAbs, Reason(_layer_idx, _pos-1, op));
+
+    // Depending on whether fact supports are encoded for primitive ops only,
+    // add the fact to the op's support accordingly
+#ifdef NONPRIMITIVE_SUPPORT
     pos.addFactSupport(fact, op);
+#else
+    if (_htn._actions_by_sig.count(op)) pos.addFactSupport(fact, op);
+#endif
+    
     pos.extendState(fact);
 
     Reason why = Reason(_layer_idx, _pos, fact);

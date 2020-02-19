@@ -62,6 +62,8 @@ private:
 
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_decodings;
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_abstractions;
+
+    std::unordered_map<Signature, SigSet, SignatureHasher> _impossible_qfact_decodings;
     
     CausalSigSet _actions;
     CausalSigSet _reductions;
@@ -82,6 +84,9 @@ public:
     void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
+    }
+    void addImpossibleQFactDecoding(const Signature& qfact, const Signature& decoding) {
+        _impossible_qfact_decodings[qfact]; _impossible_qfact_decodings[qfact].insert(decoding);
     }
     void addFactSupport(const Signature& fact, const Signature& operation) {
         _fact_supports[fact];
@@ -121,6 +126,7 @@ public:
     const CausalSigSet& getFacts() const {return _facts;}
     const CausalSigSet& getTrueFacts() const {return _true_facts;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
+    const std::unordered_map<Signature, SigSet, SignatureHasher>& getImpossibleQFactDecodings() const {return _impossible_qfact_decodings;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
 
