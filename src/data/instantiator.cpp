@@ -11,12 +11,7 @@ std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
 
     std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
 
-    // TODO Investigate subtasks of the reduction
-
-    // The preconditions of each reduction in the "results" set are ground and satisfied.
-    // The reductions may still be (partially) lifted.
-    // Add the remaining variables as pseudo-constants to the problem
-    // and treat the reductions as ground.
+    // TODO Investigate subtasks of the reduction?
 
     return reductions;
 }
@@ -124,6 +119,10 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
         // For each holding literal in the state, try an instantiation
         for (Signature groundSig : c) {
+
+            // do not consider q facts for instantiation
+            if (_htn->hasQConstants(groundSig)) continue;
+            
             //printf("  ~> %s\n", Names::to_string(groundSig).c_str());
 
             std::unordered_map<int, int> s;

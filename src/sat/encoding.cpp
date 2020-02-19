@@ -52,38 +52,7 @@ void Encoding::encode(int layerIdx, int pos) {
         int qfactVar = newPos.encode(qfactSig);
 
         // initialize substitution logic where necessary
-        for (int argPos = 0; argPos < qfactSig._args.size(); argPos++) {
-            int arg = qfactSig._args[argPos];
-            if (!_htn._q_constants.count(arg)) continue;
-            if (_q_constants.count(arg)) continue;
-
-            // arg is a *new* q-constant: initialize substitution logic
-
-            _q_constants.insert(arg);
-
-            std::vector<int> substitutionVars;
-            for (int c : _htn._domains_of_q_constants[arg]) {
-
-                // either of the possible substitutions must be chosen
-                Signature sigSubst = sigSubstitute(arg, c);
-                int varSubst = varSubstitution(sigSubst);
-                substitutionVars.push_back(varSubst);
-                
-                _q_constants_per_arg[c];
-                _q_constants_per_arg[c].push_back(arg);
-            }
-
-            // AT LEAST ONE substitution
-            for (int vSub : substitutionVars) appendClause({vSub});
-            endClause();
-
-            // AT MOST ONE substitution
-            for (int vSub1 : substitutionVars) {
-                for (int vSub2 : substitutionVars) {
-                    if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
-                }
-            } 
-        }
+        initSubstitutionVars(qfactSig, newPos);
 
         // For each possible fact decoding:
         for (const auto& decFactSig : pair.second) {
@@ -109,6 +78,23 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
+
+    /*
+    // Forbid impossible qfact decodings
+    for (auto pair : newPos.getImpossibleQFactDecodings()) {
+        const Signature& qfactSig = pair.first;
+        assert(!qfactSig._negated);
+        int qfactVar = newPos.encode(qfactSig);
+
+        // initialize substitution logic where necessary
+        initSubstitutionVars(qfactSig, newPos);
+
+        // For each IMpossible fact decoding:
+        for (const auto& decFactSig : pair.second) {
+            int decFactVar = newPos.encode(decFactSig);
+        }
+    }
+    */
 
     // Examine reasons for each occurring fact
     for (auto pair : newPos.getFacts()) {
@@ -208,6 +194,9 @@ void Encoding::encode(int layerIdx, int pos) {
                             for (std::set<int> subsCls : cnfSubs) {
                                 // IF fact change AND the operation is applied,
                                 if (oldFactVar != 0) appendClause({oldFactVar});
+                                #ifndef NONPRIMITIVE_SUPPORT
+                                appendClause({-varPrimitive(layerIdx, pos-1)});
+                                #endif
                                 appendClause({-factVar, -opVar});
                                 //printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                                 // THEN either of the valid substitution combinations
@@ -230,8 +219,10 @@ void Encoding::encode(int layerIdx, int pos) {
             //printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
             if (oldFactVar != 0) appendClause({oldFactVar});
             appendClause({-factVar});
+            #ifndef NONPRIMITIVE_SUPPORT
             // Non-primitiveness wildcard
-            //appendClause({-varPrimitive(layerIdx, pos-1)});
+            appendClause({-varPrimitive(layerIdx, pos-1)});
+            #endif
             // DIRECT support
             if (newPos.getFactSupports().count(factSig)) {
                 for (Signature opSig : newPos.getFactSupports().at(factSig)) {
@@ -278,6 +269,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         if (aSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
+                printf("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldAVar = above.getVariable(why.sig.abs());
                 addClause({-oldAVar});
             }
@@ -326,6 +318,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // "Virtual children" forbidding parent reductions
         if (rSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
+                printf("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldRVar = above.getVariable(why.sig.abs());
                 addClause({-oldRVar});
             }
@@ -394,6 +387,42 @@ void Encoding::encode(int layerIdx, int pos) {
     printf("[ENC] position (%i,%i) done.\n", layerIdx, pos);
 }
 
+void Encoding::initSubstitutionVars(const Signature& qfactSig, Position& pos) {
+
+    for (int argPos = 0; argPos < qfactSig._args.size(); argPos++) {
+        int arg = qfactSig._args[argPos];
+        if (!_htn._q_constants.count(arg)) continue;
+        if (_q_constants.count(arg)) continue;
+
+        // arg is a *new* q-constant: initialize substitution logic
+
+        _q_constants.insert(arg);
+
+        std::vector<int> substitutionVars;
+        for (int c : _htn._domains_of_q_constants[arg]) {
+
+            // either of the possible substitutions must be chosen
+            Signature sigSubst = sigSubstitute(arg, c);
+            int varSubst = varSubstitution(sigSubst);
+            substitutionVars.push_back(varSubst);
+            
+            _q_constants_per_arg[c];
+            _q_constants_per_arg[c].push_back(arg);
+        }
+
+        // AT LEAST ONE substitution
+        for (int vSub : substitutionVars) appendClause({vSub});
+        endClause();
+
+        // AT MOST ONE substitution
+        for (int vSub1 : substitutionVars) {
+            for (int vSub2 : substitutionVars) {
+                if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
+            }
+        } 
+    }
+}
+
 std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dnf) {
     std::set<std::set<int>> cnf;
 
@@ -431,6 +460,8 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dn
         // Counter finished?
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
+
+    if (cnf.size() > 1000) printf("CNF of size %i generated\n", cnf.size());
 
     return cnf;
 }
@@ -508,7 +539,7 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        //printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
     }
     return _substitution_variables[sigAbs];
 }
@@ -620,11 +651,11 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos) + "!\n"));
 
         // Check state
-        assert(holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
+        assert(_htn.hasQConstants(pre) || holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
             + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
         
-        printf("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
-                layer, pos);
+        //printf("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //        layer, pos);
     }
 
     for (Signature eff : a.getEffects()) {
@@ -637,8 +668,8 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         newState[eff._name_id];
         newState[eff._name_id].insert(eff);
 
-        printf("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
-                layer, pos);
+        //printf("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //        layer, pos);
     }
 }
 
@@ -782,7 +813,7 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
             for (int argSubst : _htn._domains_of_q_constants[arg]) {
                 Signature sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    printf("%i TRUE\n", varSubstitution(sigSubst));
+                    //printf("%i TRUE\n", varSubstitution(sigSubst));
                     printf("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
                             Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
                     numSubstitutions++;
@@ -791,7 +822,7 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
                     sig = sig.substitute(sub);
                     printf("%s\n", Names::to_string(sig).c_str());
                 } else {
-                    printf("%i FALSE\n", varSubstitution(sigSubst));
+                    //printf("%i FALSE\n", varSubstitution(sigSubst));
                 }
             }
 
