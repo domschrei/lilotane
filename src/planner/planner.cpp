@@ -408,7 +408,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     if (fact._negated && !_htn.hasQConstants(fact) && !pos.getFacts().count(fact.abs())) {
         // Negative precondition not contained in facts: initialize
-        printf("NEG_PRE %s\n", Names::to_string(fact).c_str());
+        //printf("NEG_PRE %s\n", Names::to_string(fact).c_str());
         introduceNewFalseFact(pos, fact);
     }
 
