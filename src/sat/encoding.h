@@ -70,7 +70,7 @@ private:
         return Signature(_substitute_name_id, args);
     }
 
-    std::vector<std::vector<int>> getCnf(const std::vector<std::vector<int>>& dnf);
+    std::set<std::set<int>> getCnf(const std::vector<std::vector<int>>& dnf);
 
     void addClause(std::vector<int> lits);
     void addClause(std::initializer_list<int> lits);

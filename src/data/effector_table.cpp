@@ -47,7 +47,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             //printf("%s\n", Names::to_string(nodeSig).c_str());
 
             // Already saw this very signature?
-            if (seenSignatures.count(nodeSig) > 0) continue;
+            if (seenSignatures.count(nodeSig)) continue;
             
             // If it is an action: add effects
             if (_htn->_actions.count(nodeSig._name_id)) {

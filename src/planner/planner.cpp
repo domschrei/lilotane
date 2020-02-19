@@ -57,7 +57,8 @@ void Planner::findPlan() {
     createNext(initLayer[_pos-1]);
     SigSet goalSet = _htn.getGoals();
     for (Signature fact : goalSet) {
-        initLayer[_pos].addFact(fact.abs());
+        assert(initLayer[_pos].containsInState(fact));
+        assert(initLayer[_pos].getFacts().count(fact.abs()));
         initLayer[_pos].addTrueFact(fact);
     }
     addNewFalseFacts();
@@ -186,10 +187,6 @@ void Planner::createNext(const Position& left) {
         const Signature& aSig = entry.first; 
         for (Signature fact : _htn.getAllFactChanges(aSig)) {
             addEffect(aSig, fact);
-            if (!left.getFacts().count(fact)) {
-                // new fact
-                newPos.addNewFact(fact);
-            }
         }
     }
     for (auto entry : left.getReductions()) {
@@ -197,10 +194,6 @@ void Planner::createNext(const Position& left) {
         if (rSig == Position::NONE_SIG) continue;
         for (Signature fact : _htn.getAllFactChanges(rSig)) {
             addEffect(rSig, fact);
-            if (!left.getFacts().count(fact)) {
-                // new fact
-                newPos.addNewFact(fact);
-            }
         }
     }
 
@@ -373,9 +366,16 @@ void Planner::addNewFalseFacts() {
         const Signature& aSig = entry.first;
         for (Signature eff : _htn.getAllFactChanges(aSig)) {
 
-            if (!newPos.getFacts().count(eff.abs())) {
+            if (!_htn.hasQConstants(eff) && !newPos.getFacts().count(eff.abs())) {
                 // New fact: set to false before the action may happen
                 newPos.addTrueFact(eff.abs().opposite());
+            }
+
+            for (Signature decEff : _htn.getDecodedObjects(eff)) {
+                if (!newPos.getFacts().count(decEff.abs())) {
+                    // New fact: set to false before the action may happen
+                    newPos.addTrueFact(decEff.abs().opposite());
+                }
             }
         }
     }
@@ -383,11 +383,19 @@ void Planner::addNewFalseFacts() {
     // For each possible reduction effect: 
     for (auto entry : newPos.getReductions()) {
         const Signature& rSig = entry.first;
+        if (rSig == Position::NONE_SIG) continue;
         for (Signature eff : _htn.getAllFactChanges(rSig)) {
 
-            if (!newPos.getFacts().count(eff.abs())) {
+            if (!_htn.hasQConstants(eff) && !newPos.getFacts().count(eff.abs())) {
                 // New fact: set to false before the reduction may happen
                 newPos.addTrueFact(eff.abs().opposite());
+            }
+
+            for (Signature decEff : _htn.getDecodedObjects(eff)) {
+                if (!newPos.getFacts().count(decEff.abs())) {
+                    // New fact: set to false before the action may happen
+                    newPos.addTrueFact(decEff.abs().opposite());
+                }
             }
         }
     }
@@ -398,11 +406,29 @@ void Planner::addNewFalseFacts() {
 void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
     Signature factAbs = fact.abs();
-    
-    pos.addFact(factAbs, Reason(_layer_idx, _pos, op));
 
+    if (!fact._negated && !_htn.hasQConstants(fact)) {
+        // Positive precondition: must be contained in facts
+        assert(pos.getFacts().count(fact));
+    }
+    
+    if (fact._negated && !_htn.hasQConstants(fact) && !pos.getFacts().count(fact.abs())) {
+        // Negative precondition not contained in facts: initialize to false
+        printf("NEG_PRE %s\n", Names::to_string(fact).c_str());
+        pos.addTrueFact(fact);
+    }
+
+    pos.addFact(factAbs, Reason(_layer_idx, _pos, op));
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
-        pos.addQFactDecoding(factAbs, decFact); // calls addFact(), too
+        if (fact._negated) decFact.negate();
+
+        if (decFact._negated && !pos.getFacts().count(decFact.abs())) {
+            // Negative precondition not contained in facts: initialize to false
+            printf("NEG_PRE %s\n", Names::to_string(decFact).c_str());
+            pos.addTrueFact(decFact);
+        }
+
+        pos.addQFactDecoding(factAbs, decFact.abs()); // calls addFact(), too
     }
 }
 

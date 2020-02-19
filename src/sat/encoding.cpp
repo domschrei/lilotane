@@ -196,7 +196,7 @@ void Encoding::encode(int layerIdx, int pos) {
                         }
 
                         // Assemble possible substitution options to get the desired fact support
-                        std::vector<std::vector<int>> substOptions;
+                        std::set<std::set<int>> substOptions;
                         bool unconditionalEffect = false;
                         for (substitution_t s : subMap[opSig]) {
                             if (s.empty()) {
@@ -205,23 +205,34 @@ void Encoding::encode(int layerIdx, int pos) {
                                 break;
                             }
                             // An actual substitution is necessary
-                            std::vector<int> substOpt = std::vector<int>();
+                            std::set<int> substOpt;
                             for (std::pair<int,int> entry : s) {
                                 int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
-                                substOpt.push_back(substVar);
+                                substOpt.insert(substVar);
                             }
-                            substOptions.push_back(substOpt);
+                            substOptions.insert(substOpt);
                         }
 
                         if (!unconditionalEffect) {
                             // Bring the found substitution sets to CNF and encode them
-                            std::vector<std::vector<int>> cnfSubs = getCnf(substOptions);
-                            for (std::vector<int> subsCls : cnfSubs) {
+                            std::vector<std::vector<int>> dnfSubs;
+                            for (auto set : substOptions) {
+                                std::vector<int> vec;
+                                vec.insert(vec.end(), set.begin(), set.end());
+                                dnfSubs.push_back(vec);
+                            }
+                            std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
+                            for (std::set<int> subsCls : cnfSubs) {
                                 // IF fact change AND the operation is applied,
                                 appendClause({oldFactVar, -factVar, -opVar});
+                                printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                                 // THEN either of the valid substitution combinations
-                                for (int subVar : subsCls) appendClause({subVar});
+                                for (int subVar : subsCls) {
+                                    appendClause({subVar});
+                                    printf("%i ", subVar);  
+                                } 
                                 endClause();
+                                printf("\n");
                             }
                         }
 
@@ -231,7 +242,8 @@ void Encoding::encode(int layerIdx, int pos) {
                 }
             }
 
-            // Fact change: 
+            // Fact change:
+            printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
             appendClause({oldFactVar, -factVar});
             // Non-primitiveness wildcard
             //appendClause({-varPrimitive(layerIdx, pos-1)});
@@ -241,13 +253,16 @@ void Encoding::encode(int layerIdx, int pos) {
                     int opVar = left.getVariable(opSig);
                     assert(opVar > 0);
                     appendClause({opVar});
+                    printf("%i ", opVar);
                 }
             }
             // INDIRECT support
             for (int opVar : indirectSupport) {
                 appendClause({opVar});
+                printf("%i ", opVar);
             }
             endClause();
+            printf("\n");
             
             /*
             if (newPos.getConditionalFactSupports().count(factSig)) {
@@ -439,8 +454,8 @@ void Encoding::encode(int layerIdx, int pos) {
     printf("[ENC] position (%i,%i) done.\n", layerIdx, pos);
 }
 
-std::vector<std::vector<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dnf) {
-    std::vector<std::vector<int>> cnf;
+std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dnf) {
+    std::set<std::set<int>> cnf;
 
     if (dnf.empty()) return cnf;
 
@@ -448,15 +463,15 @@ std::vector<std::vector<int>> Encoding::getCnf(const std::vector<std::vector<int
     std::vector<int> counter(dnf.size(), 0);
     while (true) {
         // Assemble the combination
-        std::vector<int> newCls(counter.size());
+        std::set<int> newCls;
         for (int pos = 0; pos < counter.size(); pos++) {
             
             assert(pos < dnf.size());
             assert(counter[pos] < dnf[pos].size());
 
-            newCls[pos] = dnf[pos][counter[pos]];
+            newCls.insert(dnf[pos][counter[pos]]);
         }
-        cnf.push_back(newCls);            
+        cnf.insert(newCls);            
 
         // Increment exponential counter
         int x = 0;
@@ -584,10 +599,11 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     VariableDomain::lock();
 
     CausalSigSet state = finalLayer[0].getFacts();
-    /*
-    for (Signature f : state) {
-        if (isEncoded(0, 0, f)) assert(value(0, 0, f));
-    }*/
+    for (auto pair : state) {
+        const Signature& fact = pair.first;
+        if (!fact._negated && isEncoded(0, 0, fact)) assert(value(0, 0, fact));
+        if (fact._negated) assert(!isEncoded(0, 0, fact) || !value(0, 0, fact));
+    }
 
     std::vector<PlanItem> plan;
     printf("(actions at layer %i)\n", li);
@@ -616,11 +632,14 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                 // Decode q constants
                 Action& a = _htn._actions_by_sig[aSig];
                 Signature aDec = getDecodedQOp(li, pos, aSig);
-                HtnOp opDecoded = a.substitute(Substitution::get(a.getArguments(), aDec._args));
-                Action aDecoded = (Action) opDecoded;
+                if (aDec != aSig) {
 
-                // Check fact consistency w.r.t. "actual" decoded action
-                checkAndApply(aDecoded, state, newState, li, pos);
+                    HtnOp opDecoded = a.substitute(Substitution::get(a.getArguments(), aDec._args));
+                    Action aDecoded = (Action) opDecoded;
+
+                    // Check fact consistency w.r.t. "actual" decoded action
+                    checkAndApply(aDecoded, state, newState, li, pos);
+                }
 
                 printf("* %s @ %i\n", Names::to_string(aDec).c_str(), pos);
                 plan.push_back({aVar, aDec, aDec, std::vector<int>()});
@@ -642,18 +661,35 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 void Encoding::checkAndApply(const Action& a, CausalSigSet& state, CausalSigSet& newState, int layer, int pos) {
     //printf("%s\n", Names::to_string(a).c_str());
     for (Signature pre : a.getPreconditions()) {
-        assert(value(layer, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
-        + Names::to_string(a) + " does not hold at step " + std::to_string(pos) + "!\n"));
+
+        // Check assignment
+        assert((isEncoded(layer, pos, pre) && value(layer, pos, pre)) 
+            || fail("Precondition " + Names::to_string(pre) + " of action "
+        + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos) + "!\n"));
+
+        // Check state
+        assert(!state.count(pre.opposite()) || fail("Precondition " + Names::to_string(pre) + " of action "
+            + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
+        if (!pre._negated) {
+            assert(state.count(pre) || fail("Precondition " + Names::to_string(pre) + " of action "
+            + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
+        }
+
+        printf("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
+                layer, pos);
     }
+
     for (Signature eff : a.getEffects()) {
-        assert(value(layer, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
-        + Names::to_string(a) + " does not hold at step " + std::to_string(pos+1) + "!\n"));
+        assert(isEncoded(layer, pos+1, eff) && value(layer, pos+1, eff) 
+            || fail("Effect " + Names::to_string(eff) + " of action "
+        + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos+1) + "!\n"));
 
         // Apply effect
-        eff.negate();
-        if (state.count(eff)) newState.erase(eff);
-        eff.negate();
+        if (state.count(eff.opposite())) newState.erase(eff.opposite());
         newState[eff];
+
+        printf("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
+                layer, pos);
     }
 }
 
@@ -831,7 +867,7 @@ Encoding::~Encoding() {
     std::ofstream headerfile;
     headerfile.open("header.cnf");
     VariableDomain::unlock();
-    headerfile << "p cnf " << VariableDomain::nextVar() << " " << (numClauses+_last_assumptions.size()) << "\n";
+    headerfile << "p cnf " << VariableDomain::getMaxVar() << " " << (numClauses+_last_assumptions.size()) << "\n";
     headerfile.flush();
     headerfile.close();
 
