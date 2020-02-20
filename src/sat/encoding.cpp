@@ -25,7 +25,7 @@ void Encoding::encode(int layerIdx, int pos) {
     Position& newPos = newLayer[pos];
     bool hasLeft = pos > 0;
     Position& left = (hasLeft ? newLayer[pos-1] : NULL_POS);
-    int oldPos = 0, offset;
+    int oldPos = 0, offset = 0;
     bool hasAbove = layerIdx > 0;
     if (hasAbove) {
         const Layer& oldLayer = _layers->at(layerIdx-1);
@@ -84,7 +84,7 @@ void Encoding::encode(int layerIdx, int pos) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
 
-        if (offset == 0 && above.getFacts().count(factSig)) {
+        if (hasAbove && offset == 0 && above.getFacts().count(factSig)) {
             // Fact comes from above: propagate meaning
             int oldFactVar = above.getVariable(factSig);
             addClause({-oldFactVar, factVar});
@@ -632,7 +632,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
     }
 
     for (Signature eff : a.getEffects()) {
-        assert(isEncoded(layer, pos+1, eff) && value(layer, pos+1, eff) 
+        assert((isEncoded(layer, pos+1, eff) && value(layer, pos+1, eff)) 
             || fail("Effect " + Names::to_string(eff) + " of action "
         + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos+1) + "!\n"));
 

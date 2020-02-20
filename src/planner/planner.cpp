@@ -174,7 +174,6 @@ void introduceNewFalseFact(Position& newPos, const Signature& fact) {
 }
 
 void Planner::createNext() {
-    Position& newPos = _layers[_layer_idx][_pos];
 
     // Set up all facts that may hold at this position.
     if (_pos == 0) {
@@ -447,7 +446,6 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     pos.addFact(factAbs, Reason(_layer_idx, _pos, op));
 
     // For each fact decoded from the q-fact:
-    bool somePossible = false;
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
 
@@ -457,7 +455,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
             pos.addFact(decFact.abs());
             pos.addTrueFact(decFact.opposite());
             pos.extendState(decFact.opposite());
-        } else somePossible = true;
+        }
 
         pos.addQFactDecoding(factAbs, decFact.abs());
         pos.addFact(factAbs, Reason(_layer_idx, _pos, op)); // also add fact as an (indirect) consequence of op

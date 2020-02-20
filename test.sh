@@ -10,17 +10,19 @@ make
 solved=0
 unsolved=0
 
-for domain in rover transport ; do
+for domain in transport ; do
     dfile=instances/$domain/domain.hddl
     
     for pfile in instances/$domain/p*.hddl; do
         
         set +e
+        echo "Running treerexx on $pfile ..."
         timeout $timeout ./treerexx $dfile $pfile > OUT
+        echo "treerexx terminated."
         set -e
         
         if cat OUT|grep -q "<=="; then
-            ./pandaPIparser $dfile $pfile -vvverify OUT
+            ./pandaPIparser $dfile $pfile -verify OUT
             solved=$((solved+1))
         else
             echo "No plan found on $pfile."
@@ -30,4 +32,4 @@ for domain in rover transport ; do
 done
 
 echo "No verification problems occurred."
-echo "$solved/$unsolved solved within $timeout seconds."
+echo "$solved/$((solved+unsolved)) solved within $timeout seconds."
