@@ -2,7 +2,7 @@
 # Options: minisat220 lingeling glucose4
 IPASIRSOLVER?="glucose4"
 
-TREEREXX_VERSION?="dbg-$(shell date --iso-8601=seconds)"
+TREEREXX_VERSION?="dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}"
 
 SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
 CC=g++

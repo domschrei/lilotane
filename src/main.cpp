@@ -32,8 +32,6 @@ void run(Parameters& params) {
 
 int main(int argc, char** argv) {
 
-    std::string ipasirsolver = "(UNKNOWN)";
-
     printf("\n");
     printf("Welcome to  t r e e r e x x ,  a SAT-based planner for totally-ordered HTN problems\n");
     printf("- Version %s\n", TREEREXX_VERSION);
