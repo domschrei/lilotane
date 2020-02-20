@@ -146,14 +146,6 @@ SigSet HtnInstance::getInitState() {
         }
     }
 
-    for (auto p : _signature_sorts_table) {
-        int sigNameId = p.first;
-        std::string sigName = _name_back_table[sigNameId];
-        if (sigName.rfind("sort") != std::string::npos || sigName.rfind("type") != std::string::npos) {
-            printf("SORTOF %s\n", sigName.c_str());
-        }
-    }
-
     return result;
 }
 SigSet HtnInstance::getGoals() {

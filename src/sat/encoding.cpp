@@ -512,7 +512,7 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        //printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
     }
     return _substitution_variables[sigAbs];
 }
