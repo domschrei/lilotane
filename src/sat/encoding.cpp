@@ -79,42 +79,16 @@ void Encoding::encode(int layerIdx, int pos) {
         }
     }
 
-    /*
-    // Forbid impossible qfact decodings
-    for (auto pair : newPos.getImpossibleQFactDecodings()) {
-        const Signature& qfactSig = pair.first;
-        assert(!qfactSig._negated);
-        int qfactVar = newPos.encode(qfactSig);
-
-        // initialize substitution logic where necessary
-        initSubstitutionVars(qfactSig, newPos);
-
-        // For each IMpossible fact decoding:
-        for (const auto& decFactSig : pair.second) {
-            int decFactVar = newPos.encode(decFactSig);
-        }
-    }
-    */
-
-    // Examine reasons for each occurring fact
+    // Propagate fact assignments from above
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         int factVar = newPos.encode(factSig);
 
-        for (Reason why : pair.second) {
-
-            if (why.axiomatic) {
-                // An axiomatic fact
-                continue;
-            } else if (why.getOriginPos() == above.getPos()) {
-                assert(offset == 0);
-                assert(why.sig == factSig);
-
-                // Fact comes from above: propagate meaning
-                int oldFactVar = above.getVariable(why.sig);
-                addClause({-oldFactVar, factVar});
-                addClause({oldFactVar, -factVar});
-            }
+        if (offset == 0 && above.getFacts().count(factSig)) {
+            // Fact comes from above: propagate meaning
+            int oldFactVar = above.getVariable(factSig);
+            addClause({-oldFactVar, factVar});
+            addClause({oldFactVar, -factVar});
         }
     }
 
@@ -122,24 +96,22 @@ void Encoding::encode(int layerIdx, int pos) {
     if (pos > 0)
     for (auto pair : newPos.getFacts()) {
         assert(!pair.first._negated);
+
+        Signature factSig = pair.first;
+        if (_htn.hasQConstants(factSig)) continue;
+
+        bool firstOccurrence = !left.getFacts().count(factSig);
+        if (firstOccurrence) {
+            // First time the fact occurs must be as a "false fact"
+            assert(newPos.getTrueFacts().count(factSig.opposite()));
+            continue;
+        }
+
         for (int sign = -1; sign <= 1; sign += 2) {
 
-            const Signature& factSig = (sign > 0 ? pair.first : pair.first.opposite());
-            if (_htn.hasQConstants(factSig)) continue;
-
-            int oldFactVar = (left.getFacts().count(factSig.abs()) ? left.getVariable(factSig) : 0);
+            factSig._negated = sign < 0;
+            int oldFactVar = left.getVariable(factSig);
             int factVar = newPos.encode(factSig);
-
-            // No prior fact?
-            if (oldFactVar == 0) {
-                // This fact was not encoded at the position before.
-
-                // fact support is trivial: must always hold. 
-                // TODO what about goal facts? These must have a prior fact making them true. (?)
-                if (newPos.getTrueFacts().count(factSig)) continue;
-
-                // else: proceed with support, where the prior fact var will be missing.
-            }
 
             // Calculate indirect support through qfact abstractions
             std::unordered_set<int> indirectSupport;
@@ -269,7 +241,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         if (aSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
-                printf("FORBID %s\n", Names::to_string(why.sig).c_str());
+                //printf("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldAVar = above.getVariable(why.sig.abs());
                 addClause({-oldAVar});
             }
@@ -318,7 +290,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // "Virtual children" forbidding parent reductions
         if (rSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
-                printf("FORBID %s\n", Names::to_string(why.sig).c_str());
+                //printf("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldRVar = above.getVariable(why.sig.abs());
                 addClause({-oldRVar});
             }
@@ -330,7 +302,8 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({-rVar, -varPrim});
 
         // Preconditions
-        for (Signature pre : _htn._actions_by_sig[rSig].getPreconditions()) {
+        for (Signature pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
+            assert(newPos.getFacts().count(pre.abs()));
             addClause({-rVar, newPos.encode(pre)});
         }
 

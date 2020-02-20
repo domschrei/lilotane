@@ -194,7 +194,6 @@ Reduction& HtnInstance::createReduction(method& method) {
     for (plan_step st : method.ps) {
 
         if (st.task.rfind("__method_precondition_", 0) == 0) {
-
             // This "subtask" is a method precondition which was compiled out
             
             // Find primitive task belonging to this method precondition

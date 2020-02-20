@@ -165,7 +165,13 @@ void Planner::findPlan() {
 
 
 
-
+void introduceNewFalseFact(Position& newPos, const Signature& fact) {
+    newPos.addTrueFact(fact.abs().opposite());
+    newPos.addFact(fact.abs());
+    newPos.extendState(fact.abs().opposite());
+    //printf("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
+    //        newPos.getPos().first, newPos.getPos().second);
+}
 
 void Planner::createNext() {
     Position& newPos = _layers[_layer_idx][_pos];
@@ -250,13 +256,25 @@ void Planner::createNextFromAbove(const Position& above) {
     newPos.setPos(_layer_idx, _pos);
 
     int offset = _pos - _layers[_layer_idx-1].getSuccessorPos(_old_pos);
+    
+    // TODO ordering okay? first fact propagations from above, then actions/reductions?
+
     if (offset == 0) {
+        // Propagate facts
+        for (auto entry : above.getFacts()) {
+            assert(newPos.getFacts().count(entry.first)); // already added as false fact!
+            newPos.addFact(entry.first, Reason(_layer_idx-1, _old_pos, entry.first));
+        }
         // Propagate fact decodings
         for (auto entry : above.getQFactDecodings()) {
             for (auto dec : entry.second) {
                 newPos.addQFactDecoding(entry.first, dec);
             }
         }
+        // Propagate true facts TODO ?
+        //for (auto entry : above.getTrueFacts()) {
+        //    newPos.addTrueFact(entry.first, Reason(_layer_idx-1, _old_pos, entry.first));
+        //}
     }
 
     propagateActions(offset);
@@ -321,13 +339,17 @@ void Planner::propagateReductions(int offset) {
             // reduction(s)?
             for (Signature subRSig : getAllReductionsOfTask(subtask, newPos.getState())) {
                 numAdded++;
+                assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
                 newPos.addReduction(subRSig, why);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
+                //printf("PRECONDS %s ", Names::to_string(subRSig).c_str());
                 for (Signature fact : subR.getPreconditions()) {
                     addPrecondition(subRSig, fact);
+                    //printf("%s ", Names::to_string(fact).c_str());
                 }
+                //printf("\n");
             }
             // action(s)?
             for (Signature aSig : getAllActionsOfTask(subtask, newPos.getState())) {
@@ -351,12 +373,6 @@ void Planner::propagateReductions(int offset) {
             newPos.addReduction(Position::NONE_SIG, why);
         }
     }
-}
-
-void introduceNewFalseFact(Position& newPos, const Signature& fact) {
-    newPos.addTrueFact(fact.abs().opposite());
-    newPos.addFact(fact.abs());
-    newPos.extendState(fact.abs().opposite());
 }
 
 void Planner::addNewFalseFacts() {
@@ -397,6 +413,18 @@ void Planner::addNewFalseFacts() {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
+            }
+        }
+    }
+
+    // For each fact from "above" the next position:
+    if (_layer_idx == 0) return;
+    if (_old_pos+1 < _layers[_layer_idx-1].size() && _layers[_layer_idx-1].getSuccessorPos(_old_pos+1) == _pos+1) {
+        Position& newAbove = _layers[_layer_idx-1][_old_pos+1];
+
+        for (auto entry : newAbove.getFacts()) {
+            if (!newPos.getFacts().count(entry.first)) {
+                introduceNewFalseFact(newPos, entry.first);
             }
         }
     }
@@ -481,7 +509,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     // Filter and minimally instantiate methods
     // applicable in current (super)state
     for (int redId : redIds) {
-        Reduction& r = _htn._reductions[redId];
+        Reduction r = _htn._reductions[redId];
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
         //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
@@ -493,8 +521,10 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         for (Reduction red : reductions) {
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
+            
             Signature sig = red.getSignature();
             _htn._reductions_by_sig[sig] = red;
+
             result.push_back(sig);
         }
     }

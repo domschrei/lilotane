@@ -25,7 +25,10 @@ private:
 public:
     Reduction() : HtnOp() {}
     Reduction(HtnOp& op) : HtnOp(op) {}
-    Reduction(const Reduction& r) : HtnOp(r._id, r._args), _task_name_id(r._task_name_id), _task_args(r._task_args), _subtasks(r._subtasks) {}
+    Reduction(const Reduction& r) : HtnOp(r._id, r._args), _task_name_id(r._task_name_id), _task_args(r._task_args), _subtasks(r._subtasks) {
+        for (auto pre : r.getPreconditions()) addPrecondition(pre);
+        for (auto eff : r.getEffects()) addEffect(eff);
+    }
     Reduction(int nameId, std::vector<int> args, Signature task) : 
             HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
     }
