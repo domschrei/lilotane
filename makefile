@@ -1,13 +1,15 @@
-CC=g++
 
 # Options: minisat220 lingeling glucose4
-IPASIRSOLVER=glucose4
-SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
+IPASIRSOLVER?="glucose4"
 
+TREEREXX_VERSION?="dbg-$(shell date --iso-8601=seconds)"
+
+SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
+CC=g++
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 CERROR=
 
-COMPILEFLAGS=-O3 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
+COMPILEFLAGS=-O3 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\"
 LINKERFLAG=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
 
 #COMPILEFLAGS=-O0 -ggdb -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)

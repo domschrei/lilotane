@@ -5,9 +5,10 @@
 #include <unordered_map>
 #include <assert.h> 
  
-#include "data/layer.h"
 #include "util/names.h"
+#include "util/params.h"
 
+#include "data/layer.h"
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
 #include "data/effector_table.h"
@@ -15,12 +16,10 @@
 
 #include "sat/encoding.h"
 
-//#define Q_CONSTANTS 
-//#define NONPRIMITIVE_SUPPORT
-
 class Planner {
 
 private:
+    Parameters& _params;
     HtnInstance _htn;
 
     std::vector<Layer> _layers;
@@ -33,8 +32,8 @@ private:
     int _old_pos;
 
 public:
-    Planner(ParsedProblem& problem) : _htn(problem), _instantiator(*(_htn._instantiator)), 
-            _effector_table(*(_htn._effector_table)), _enc(_htn, _layers) {}
+    Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(problem), 
+            _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)), _enc(_htn, _layers) {}
     void findPlan();
 
 private:

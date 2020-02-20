@@ -474,11 +474,9 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
-#ifdef NONPRIMITIVE_SUPPORT
-    pos.addFactSupport(fact, op);
-#else
-    if (_htn._actions_by_sig.count(op)) pos.addFactSupport(fact, op);
-#endif
+    if (_params.isSet("nps") || _htn._actions_by_sig.count(op)) {
+        pos.addFactSupport(fact, op);
+    }
     
     pos.extendState(fact);
 
@@ -513,11 +511,12 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
         //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
-#ifdef Q_CONSTANTS
-        std::vector<Reduction> reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
-#else
-        std::vector<Reduction> reductions = _instantiator.getFullApplicableInstantiations(r, state);
-#endif
+        std::vector<Reduction> reductions;
+        if (_params.isSet("q")) {
+            reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
+        } else {
+            reductions = _instantiator.getFullApplicableInstantiations(r, state);
+        }
         for (Reduction red : reductions) {
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
