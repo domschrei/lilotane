@@ -16,7 +16,7 @@
 #include "sat/encoding.h"
 
 //#define Q_CONSTANTS 
-#define NONPRIMITIVE_SUPPORT
+//#define NONPRIMITIVE_SUPPORT
 
 class Planner {
 
