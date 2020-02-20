@@ -34,7 +34,7 @@ struct Signature {
     bool _negated = false;
 
     Signature() : _name_id(-1), _args() {}
-    Signature(int nameId, std::vector<int> args) : _name_id(nameId), _args(args) {}
+    Signature(int nameId, std::vector<int> args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}
 
     void negate() {
         _negated = !_negated;

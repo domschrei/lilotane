@@ -145,6 +145,15 @@ SigSet HtnInstance::getInitState() {
             }
         }
     }
+
+    for (auto p : _signature_sorts_table) {
+        int sigNameId = p.first;
+        std::string sigName = _name_back_table[sigNameId];
+        if (sigName.rfind("sort") != std::string::npos || sigName.rfind("type") != std::string::npos) {
+            printf("SORTOF %s\n", sigName.c_str());
+        }
+    }
+
     return result;
 }
 SigSet HtnInstance::getGoals() {
@@ -230,20 +239,22 @@ Reduction& HtnInstance::createReduction(method& method) {
             }
             //printf("\n");
             assert(sort1 >= 0 && sort2 >= 0);
+            // Use the "larger" sort as the sort for both argument positions
+            int eqSort = (_constants_by_sort[sort1].size() > _constants_by_sort[sort2].size() ? sort1 : sort2);
 
             // Create equality predicate
-            std::string newPredicate = "__equal_" + _name_back_table[sort1] + "_" + _name_back_table[sort2];
+            std::string newPredicate = "__equal_" + _name_back_table[eqSort] + "_" + _name_back_table[eqSort];
             int newPredId = getNameId(newPredicate);
             if (!_signature_sorts_table.count(newPredId)) {
                 // Predicate is new: remember sorts
-                std::vector<int> sorts; sorts.push_back(sort1); sorts.push_back(sort2);
+                std::vector<int> sorts(2, eqSort);
                 _signature_sorts_table[newPredId] = sorts;
                 _equality_predicates.insert(newPredId);
             }
 
             // Add as a precondition to reduction
             std::vector<int> args; args.push_back(getNameId(arg1Str)); args.push_back(getNameId(arg2Str));
-            _reductions[id].addPrecondition(Signature(newPredId, args));
+            _reductions[id].addPrecondition(Signature(newPredId, args, !lit.positive));
         }
     }
 

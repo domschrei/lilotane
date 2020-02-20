@@ -71,9 +71,9 @@ void Planner::findPlan() {
     
     // Next layers
 
-    int maxIterations = 5;
+    int maxIterations = _params.getIntParam("d");
 
-    while (!solved && iteration < maxIterations) {
+    while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
         _enc.printFailedVars(_layers.back());
         
         printf("Unsolvable at layer %i with assumptions\n", _layer_idx);  

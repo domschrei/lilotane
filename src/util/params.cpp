@@ -15,6 +15,7 @@ void Parameters::init(int argc, char** argv) {
             else if (_problem_filename == "") _problem_filename = std::string(arg);
             else {
                 printf("Unrecognized parameter %s.", arg);
+                printUsage();
                 exit(1);
             }
             continue;
@@ -31,6 +32,7 @@ void Parameters::init(int argc, char** argv) {
     }
     if (_problem_filename == "") {
         printf("Please specify both a domain file and a problem file.\n");
+        printUsage();
         exit(1);
     }
 }
@@ -38,6 +40,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     //setParam("-nps"); // non-primitive fact supports
     //setParam("-q"); // q-constants
+    setParam("d", "0"); // max depth (= num iterations)
 }
 
 void Parameters::printUsage() {
@@ -46,10 +49,12 @@ void Parameters::printUsage() {
     printf("  <domainfile>  Path to domain file in HDDL format.\n");
     printf("  <problemfile> Path to problem file in HDDL format.\n");
     printf("\n");
-    printf("Option syntax: either -OPTION or -OPTION=VALUE .\n");
-    printf(" -nps  Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
-    printf(" -q    Encode some variables in reduction/action signatures as virtual q-constants\n");
-    printf("       instead of fully grounding them into actual constants\n");
+    printf("Option syntax: -OPTION or -OPTION=VALUE .\n");
+    printf(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
+    printf("             default: %i\n", getIntParam("d"));
+    printf(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
+    printf(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
+    printf("             instead of fully grounding them into actual constants\n");
 }
 
 std::string Parameters::getDomainFilename() {

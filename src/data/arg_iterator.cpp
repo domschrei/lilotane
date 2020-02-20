@@ -4,19 +4,25 @@
 
 std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, HtnInstance& _htn) {
 
+    // "Empty" signature?    
+    if (sig._args.size() == 0) {
+        return std::vector<Signature>(1, sig);
+    }
 
     // enumerate all arg combinations for variable args
     // Get all constants of the respective type(s)
     assert(_htn._signature_sorts_table.count(sig._name_id));
     std::vector<int> sorts = _htn._signature_sorts_table[sig._name_id];
+    assert(sorts.size() > 0 || fail("Predicate " + Names::to_string(sig) + " has no sorts table!\n"));
     
     /*
     printf("SORTS %s ", Names::to_string(sig._name_id).c_str());
     for (int s : sorts) printf("%s ", Names::to_string(s).c_str());
     printf("\n");
     */
-
+    
     std::vector<std::vector<int>> constantsPerArg;
+
     for (int pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
         if (_htn._var_ids.count(arg)) {
@@ -49,6 +55,7 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
     std::vector<Signature> instantiation;
 
     // Iterate over all possible assignments
+    assert(constantsPerArg.size() > 0);
     std::vector<int> counter(constantsPerArg.size(), 0);
     int numInstantiations = 0;
     while (true) {
