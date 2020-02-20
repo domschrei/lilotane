@@ -56,6 +56,8 @@ struct HtnInstance {
 
     std::unordered_map<int, std::vector<int>> _task_id_to_reduction_ids;
 
+    std::unordered_set<int> _equality_predicates;
+
     Instantiator* _instantiator;
     EffectorTable* _effector_table;
 
@@ -68,11 +70,11 @@ struct HtnInstance {
 
     int getNameId(const std::string& name);
 
-    std::vector<int> getArguments(std::vector<std::pair<string, string>>& vars);
-    std::vector<int> getArguments(std::vector<std::string>& vars);
-    Signature getSignature(task& task);
-    Signature getSignature(method& method);
-    Signature getSignature(literal& literal);
+    std::vector<int> getArguments(const std::vector<std::pair<string, string>>& vars);
+    std::vector<int> getArguments(const std::vector<std::string>& vars);
+    Signature getSignature(const task& task);
+    Signature getSignature(const method& method);
+    Signature getSignature(const literal& literal);
     Signature getInitTaskSignature(int pos);
     SigSet getInitState();
     SigSet getGoals();

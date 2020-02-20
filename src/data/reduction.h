@@ -95,16 +95,20 @@ public:
     Reduction substituteRed(std::unordered_map<int, int> s) const {
         HtnOp op = HtnOp::substitute(s);
         Reduction r(op);
+        
         r._task_name_id = _task_name_id;
+        
         r._task_args.resize(_task_args.size());
         for (int i = 0; i < _task_args.size(); i++) {
             if (s.count(_task_args[i])) r._task_args[i] = s[_task_args[i]];
             else r._task_args[i] = _task_args[i];
         }
+        
         r._subtasks.resize(_subtasks.size());
         for (int i = 0; i < _subtasks.size(); i++) {
             r._subtasks[i] = _subtasks[i].substitute(s);
         }
+
         return r;
     }
 
@@ -118,7 +122,6 @@ public:
     const std::vector<int>& getTaskArguments() {
         return _task_args;
     }
-
     const std::vector<Signature>& getSubtasks() const {
         return _subtasks;
     }

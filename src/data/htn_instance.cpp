@@ -72,14 +72,14 @@ int HtnInstance::getNameId(const std::string& name) {
     return _name_table[name];
 }
 
-std::vector<int> HtnInstance::getArguments(std::vector<std::pair<string, string>>& vars) {
+std::vector<int> HtnInstance::getArguments(const std::vector<std::pair<string, string>>& vars) {
     std::vector<int> args;
     for (auto var : vars) {
         args.push_back(getNameId(var.first));
     }
     return args;
 }
-std::vector<int> HtnInstance::getArguments(std::vector<std::string>& vars) {
+std::vector<int> HtnInstance::getArguments(const std::vector<std::string>& vars) {
     std::vector<int> args;
     for (auto var : vars) {
         args.push_back(getNameId(var));
@@ -87,13 +87,13 @@ std::vector<int> HtnInstance::getArguments(std::vector<std::string>& vars) {
     return args;
 }
 
-Signature HtnInstance::getSignature(task& task) {
+Signature HtnInstance::getSignature(const task& task) {
     return Signature(getNameId(task.name), getArguments(task.vars));
 }
-Signature HtnInstance::getSignature(method& method) {
+Signature HtnInstance::getSignature(const method& method) {
     return Signature(getNameId(method.name), getArguments(method.vars));
 }
-Signature HtnInstance::getSignature(literal& literal) {
+Signature HtnInstance::getSignature(const literal& literal) {
     Signature sig = Signature(getNameId(literal.predicate), getArguments(literal.arguments));
     if (!literal.positive) sig.negate();
     return sig;
@@ -123,6 +123,27 @@ SigSet HtnInstance::getInitState() {
         Signature sig(getNameId(lit.predicate), getArguments(lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
+    }
+
+    // Insert all necessary equality predicates
+
+    // For each equality predicate:
+    for (int eqPredId : _equality_predicates) {
+
+        // For each pair of constants of correct sorts: TODO something more efficient
+        std::vector<int> sorts = _signature_sorts_table[eqPredId];
+        for (int c1 : _constants_by_sort[sorts[0]]) {
+            for (int c2 : _constants_by_sort[sorts[1]]) {
+
+                // Add equality lit to state if the two are equal
+                if (c1 != c2) continue;
+                std::vector<int> args;
+                args.push_back(c1); args.push_back(c2);
+                Signature sig(eqPredId, args);
+                result.insert(sig);
+                printf("EQUALITY %s\n", Names::to_string(sig).c_str());
+            }
+        }
     }
     return result;
 }
@@ -188,7 +209,43 @@ Reduction& HtnInstance::createReduction(method& method) {
 
     assert(_reductions.count(id) == 0);
     _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
-    assert(method.constraints.empty());
+
+    // Extract (in)equality constraints
+    if (!method.constraints.empty()) {
+        for (const literal& lit : method.constraints) {
+            //printf("%s\n", Names::to_string(getSignature(lit)).c_str());
+            assert(lit.predicate == "__equal" || fail("Unknown constraint predicate \"" + lit.predicate + "\"!\n"));
+
+            // Find out "type" of this equality predicate
+            std::string arg1Str = lit.arguments[0];
+            std::string arg2Str = lit.arguments[1];
+            //printf("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
+            int sort1 = -1, sort2 = -1;
+            for (int argPos = 0; argPos < method.vars.size(); argPos++) {
+                //printf("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
+                if (arg1Str == method.vars[argPos].first)
+                    sort1 = getNameId(method.vars[argPos].second);
+                if (arg2Str == method.vars[argPos].first)
+                    sort2 = getNameId(method.vars[argPos].second);
+            }
+            //printf("\n");
+            assert(sort1 >= 0 && sort2 >= 0);
+
+            // Create equality predicate
+            std::string newPredicate = "__equal_" + _name_back_table[sort1] + "_" + _name_back_table[sort2];
+            int newPredId = getNameId(newPredicate);
+            if (!_signature_sorts_table.count(newPredId)) {
+                // Predicate is new: remember sorts
+                std::vector<int> sorts; sorts.push_back(sort1); sorts.push_back(sort2);
+                _signature_sorts_table[newPredId] = sorts;
+                _equality_predicates.insert(newPredId);
+            }
+
+            // Add as a precondition to reduction
+            std::vector<int> args; args.push_back(getNameId(arg1Str)); args.push_back(getNameId(arg2Str));
+            _reductions[id].addPrecondition(Signature(newPredId, args));
+        }
+    }
 
     std::map<std::string, int> subtaskTagToIndex;   
     for (plan_step st : method.ps) {
@@ -324,20 +381,23 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     _q_constants.insert(qConstId);
 
     // If not: add qConstant to constant tables of its type and each of its subtypes
-    std::unordered_set<int> containedSorts;
-    containedSorts.insert(sort);
+    std::vector<int> containedSorts;
+    containedSorts.push_back(sort);
     for (sort_definition sd : _p.sort_definitions) {
-        for (int containedSort : containedSorts) {
+        for (int i = 0; i < containedSorts.size(); i++) {
+            int containedSort = containedSorts[i];
             if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
                 for (std::string newSort : sd.declared_sorts) {
-                    containedSorts.insert(getNameId(newSort));
+                    containedSorts.push_back(getNameId(newSort));
                 }
             }
         }
     }
+    std::unordered_set<int> sortsSet;
+    sortsSet.insert(containedSorts.begin(), containedSorts.end());
     printf("sorts of %s : ", Names::to_string(qConstId).c_str());
     _sorts_of_q_constants[qConstId];
-    for (int sort : containedSorts) {
+    for (int sort : sortsSet) {
         _sorts_of_q_constants[qConstId].push_back(sort);
         _constants_by_sort[sort].push_back(qConstId);
         printf("%s ", Names::to_string(sort).c_str());

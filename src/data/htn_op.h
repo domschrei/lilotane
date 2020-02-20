@@ -20,10 +20,10 @@ public:
     HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
     HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
 
-    void addPrecondition(Signature& sig) {
+    void addPrecondition(const Signature& sig) {
         _preconditions.insert(sig);
     }
-    void addEffect(Signature& sig) {
+    void addEffect(const Signature& sig) {
         _effects.insert(sig);
     }
     void removeInconsistentEffects() {
