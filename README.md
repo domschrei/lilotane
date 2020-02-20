@@ -42,6 +42,6 @@ but also incorporates various original ideas and is written from scratch w.r.t. 
 In Proceedings of the 11th International Conference on Agents and Artificial Intelligence, 
 ICAART 2019, volume 2, 531–538.
 
-[2] Schreiber, Dominik, Damien Pellier, and Humbert Fiorino. 
+[2] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. 2019. 
 **Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.** 
 In Proceedings of the International Conference on Automated Planning and Scheduling, volume 29. No. 1. 2019.
