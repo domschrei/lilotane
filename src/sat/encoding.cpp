@@ -338,6 +338,7 @@ void Encoding::encode(int layerIdx, int pos) {
         }
 
         // At-most-one reduction
+        if (!_params.isSet("aamo")) continue;
         for (auto otherPair : newPos.getReductions()) {
             const Signature& otherSig = otherPair.first;
             if (otherSig == Position::NONE_SIG) continue;
@@ -688,14 +689,15 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
             } 
             //log("%i -> %i\n", predPos, pos);
 
-            int itemsThisPos = 0;
+            int actionsThisPos = 0;
+            int reductionsThisPos = 0;
 
             for (auto pair : l[pos].getReductions()) {
                 Signature rSig = pair.first;
                 if (!isEncoded(i, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
                 if (value(i, pos, rSig)) {
-                    itemsThisPos++;
+                    reductionsThisPos++;
 
                     int v = _layers->at(i)[pos].getVariable(rSig);
                     Reduction& r = _htn._reductions_by_sig[rSig];
@@ -708,10 +710,12 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
 
                     rSig = getDecodedQOp(i, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
-                    itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
 
-                    // TODO check this is a valid subtask relationship
-                    itemsOldLayer[predPos].subtaskIds.push_back(v);
+                    // Add first occurring reduction only
+                    if (reductionsThisPos == 1) {
+                        itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
+                        itemsOldLayer[predPos].subtaskIds.push_back(v);
+                    }
                 }
             }
 
@@ -720,7 +724,7 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                 if (!isEncoded(i, pos, aSig)) continue;
 
                 if (value(i, pos, aSig)) {
-                    itemsThisPos++;
+                    actionsThisPos++;
 
                     if (aSig == _htn._action_blank.getSignature()) continue;
                     
@@ -755,9 +759,19 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                 }
             }
 
-            assert( ((itemsThisPos == 1) ^ (pos+1 == l.size()))
-            || fail(std::to_string(itemsThisPos) 
-                + " items at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+            // At least an item per position (except for closing positions)
+            assert( ((actionsThisPos+reductionsThisPos >= 1) ^ (pos+1 == l.size()))
+            || fail(std::to_string(actionsThisPos+reductionsThisPos) 
+                + " actions at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+            
+            // At most one action per position
+            assert(actionsThisPos <= 1 || fail(std::to_string(actionsThisPos) 
+                + " actions at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+
+            // Either actions OR reductions per position (not both)
+            assert(actionsThisPos == 0 || reductionsThisPos == 0 || fail(std::to_string(actionsThisPos) 
+                + " actions and " + std::to_string(reductionsThisPos) + " reductions at (" 
+                + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
         }
 
         plan.insert(plan.end(), itemsOldLayer.begin(), itemsOldLayer.end());

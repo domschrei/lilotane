@@ -114,8 +114,9 @@ Signature HtnInstance::getInitTaskSignature(int pos) {
             name = matches.str(1);
             newArgs.push_back(getNameId(name));
         } else {
+            // Parameter inside initial task
             log("%s was not matched by initial task argname substitution!\n", name.c_str());
-            exit(1);
+            newArgs.push_back(arg);
         }
     }
     assert(newArgs.size() == subtask._args.size());

@@ -36,7 +36,7 @@ void Planner::findPlan() {
     while (_pos+1 < initLayer.size()) {
         if (_pos > 0) createNext();
 
-        Signature subtask = _htn.getInitTaskSignature(_pos);
+        Signature subtask = _htn.getInitTaskSignature(_pos); // may contain variables!
         for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
             initLayer[_pos].addReduction(rSig);
             initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());

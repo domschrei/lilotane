@@ -42,6 +42,7 @@ void Parameters::setDefaults() {
     setParam("d", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
     //setParam("of"); // output formula to f.cnf
+    //setParam("aamo"); // ALL At-most-one constraints, also for reductions
     //setParam("pvn"); // print variable names
     //setParam("q"); // q-constants
     //setParam("rrp"); // remove rigid predicates
@@ -54,6 +55,7 @@ void Parameters::printUsage() {
     log("  <problemfile> Path to problem file in HDDL format.\n");
     log("\n");
     log("Option syntax: -OPTION or -OPTION=VALUE .\n");
+    log(" -aamo       Add ALL At-most-one constraints, also for reductions\n");
     log(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
     log("             default: %i\n", getIntParam("d"));
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
