@@ -138,7 +138,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
                     for (int i = 0; i < origArgs.size(); i++) {
                         s[origArgs[i]] = sig._args[i];
                     }
-                    result.push_back(subred.substitute(s).getSignature());
+                    result.push_back(subred.getSignature().substitute(s));
                 }
             }
         }

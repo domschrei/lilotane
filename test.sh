@@ -23,7 +23,7 @@ for domain in satellite transport rover ; do
         
         set +e
         echo "Running treerexx on $pfile ..."
-        timeout $timeout ./treerexx $dfile $pfile > OUT
+        timeout $timeout ./treerexx $dfile $pfile $@ > OUT
         echo -ne "treerexx terminated."
         set -e
         

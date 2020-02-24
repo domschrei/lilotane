@@ -40,9 +40,11 @@ void Parameters::init(int argc, char** argv) {
 
 void Parameters::setDefaults() {
     setParam("d", "0"); // max depth (= num iterations)
-    //setParam("-nps"); // non-primitive fact supports
-    //setParam("-of"); // output formula to f.cnf
-    //setParam("-q"); // q-constants
+    //setParam("nps"); // non-primitive fact supports
+    //setParam("of"); // output formula to f.cnf
+    //setParam("pvn"); // print variable names
+    //setParam("q"); // q-constants
+    //setParam("rrp"); // remove rigid predicates
 }
 
 void Parameters::printUsage() {
@@ -56,8 +58,10 @@ void Parameters::printUsage() {
     log("             default: %i\n", getIntParam("d"));
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     log(" -of         Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    log(" -pvn        Print variable names\n");
     log(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
     log("             instead of fully grounding them into actual constants\n");
+    log(" -rrp        Remove rigid predicates\n");
 }
 
 std::string Parameters::getDomainFilename() {
@@ -88,7 +92,7 @@ void Parameters::setParam(const char* name, const char* value) {
     _params[name] = value;
 }
 
-bool Parameters::isSet(const std::string& name) {
+bool Parameters::isSet(const std::string& name) const {
     return _params.count(name);
 }
 

@@ -12,6 +12,7 @@
 #include "data/reduction.h"
 #include "data/signature.h"
 #include "util/names.h"
+#include "util/params.h"
 
 #include "data/instantiator.h"
 #include "data/effector_table.h"
@@ -22,6 +23,8 @@ int run_pandaPIparser(int argc, char** argv);
 ParsedProblem& get_parsed_problem();
 
 struct HtnInstance {
+
+    Parameters& _params;
 
     // The raw parsed problem.
     ParsedProblem& _p;
@@ -67,7 +70,7 @@ struct HtnInstance {
 
     static ParsedProblem& parse(std::string domainFile, std::string problemFile);
 
-    HtnInstance(ParsedProblem& p);
+    HtnInstance(Parameters& params, ParsedProblem& p);
 
     int getNameId(const std::string& name);
 

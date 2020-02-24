@@ -107,11 +107,18 @@ void Planner::findPlan() {
 
             for (int offset = 0; offset < maxOffset; offset++) {
                 assert(_pos == newPos + offset);
+                log(" Position (%i,%i)\n", _layer_idx, _pos);
+                log("  Instantiating ...\n");
 
                 //log("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
                 assert(newPos+offset < newLayer.size());
 
                 createNext();
+                log("  Instantiation done. (%i reductions, %i actions, %i facts)\n", 
+                        _layers[_layer_idx][_pos].getReductions().size(),
+                        _layers[_layer_idx][_pos].getActions().size(),
+                        _layers[_layer_idx][_pos].getFacts().size()
+                );
                 _enc.encode(_layer_idx, _pos++);
              }
         }
@@ -437,8 +444,14 @@ void Planner::addNewFalseFacts() {
         Position& newAbove = _layers[_layer_idx-1][_old_pos+1];
 
         for (auto entry : newAbove.getFacts()) {
+            // If fact was not seen here before
             if (!newPos.getFacts().count(entry.first)) {
-                introduceNewFalseFact(newPos, entry.first);
+                // Add fact
+                newPos.addFact(entry.first.abs());
+                if (!_htn.hasQConstants(entry.first)) {
+                    // Introduce as FALSE fact, if not a q-fact
+                    introduceNewFalseFact(newPos, entry.first);
+                }
             }
         }
     }
@@ -534,9 +547,11 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
             
+            // Remove unneeded rigid conditions from the reduction
+            _htn.removeRigidConditions(red);
+            
             Signature sig = red.getSignature();
             _htn._reductions_by_sig[sig] = red;
-
             result.push_back(sig);
         }
     }
@@ -552,14 +567,20 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
     Action act = (Action) op;
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
-
-#ifdef Q_CONSTANTS
-    std::vector<Action> actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
-#else
-    std::vector<Action> actions = _instantiator.getFullApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
-#endif
+    
+    std::vector<Action> actions;
+    if (_params.isSet("q")) {
+        actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    } else {
+        actions = _instantiator.getFullApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    }
     for (Action action : actions) {
+        // Rename any remaining variables in each action as unique q-constants
         action = _htn.replaceQConstants(action, _layer_idx, _pos);
+        
+        // Remove unneeded rigid conditions from the reduction
+        _htn.removeRigidConditions(action);
+
         Signature sig = action.getSignature();
         _htn._actions_by_sig[sig] = action;
         result.push_back(sig);

@@ -6,17 +6,25 @@
 encodePosition ()
 */
 
+int numLits = 0;
+int numClauses = 0;
+int numAssumptions = 0;
+bool beganLine = false;
+
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers) : 
             _params(params), _htn(htn), _layers(&layers) {
     _solver = ipasir_init();
     _sig_primitive = Signature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
     if (_params.isSet("of")) _out.open("formula.cnf");
+    VariableDomain::init(params);
 }
 
 void Encoding::encode(int layerIdx, int pos) {
     
-    log("[ENC] position (%i,%i) ...\n", layerIdx, pos);
+    log("  Encoding ...\n");
+    int priorLits = numLits;
+    int priorCls = numClauses;
 
     // Calculate relevant environment of the position
     Position NULL_POS;
@@ -41,6 +49,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // Facts that must hold at this position
     for (auto pair : newPos.getTrueFacts()) {
         const Signature& factSig = pair.first;
+        if (_htn.isRigidPredicate(factSig._name_id)) continue;
         int factVar = newPos.encode(factSig);
         addClause({factVar});
     }
@@ -48,6 +57,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // Link qfacts to their possible decodings
     for (auto pair : newPos.getQFactDecodings()) {
         const Signature& qfactSig = pair.first;
+        assert(!_htn.isRigidPredicate(qfactSig._name_id));
         assert(!qfactSig._negated);
         int qfactVar = newPos.encode(qfactSig);
 
@@ -82,6 +92,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // Propagate fact assignments from above
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
+        if (_htn.isRigidPredicate(factSig._name_id)) continue;
         int factVar = newPos.encode(factSig);
 
         if (hasAbove && offset == 0 && above.getFacts().count(factSig)) {
@@ -99,6 +110,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         Signature factSig = pair.first;
         if (_htn.hasQConstants(factSig)) continue;
+        if (_htn.isRigidPredicate(factSig._name_id)) continue;
 
         bool firstOccurrence = !left.getFacts().count(factSig);
         if (firstOccurrence) {
@@ -229,6 +241,8 @@ void Encoding::encode(int layerIdx, int pos) {
             assert(!newPos.getFactSupports().empty());
             assert(newPos.getFactSupports().count(eff));
             assert(newPos.getFactSupports().at(eff).count(aSig));
+            // Predicate must not be rigid
+            assert(!_htn.isRigidPredicate(eff._name_id));
 
             addClause({-aVar, newPos.encode(eff)});
         }
@@ -255,6 +269,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // Preconditions
         for (Signature pre : _htn._actions_by_sig[aSig].getPreconditions()) {
+            assert(!_htn.isRigidPredicate(pre._name_id));
             addClause({-aVar, newPos.encode(pre)});
         }
 
@@ -304,6 +319,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // Preconditions
         for (Signature pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
             assert(newPos.getFacts().count(pre.abs()));
+            assert(!_htn.isRigidPredicate(pre._name_id));
             addClause({-rVar, newPos.encode(pre)});
         }
 
@@ -357,7 +373,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // assume primitiveness
     assume(varPrim);
 
-    log("[ENC] position (%i,%i) done.\n", layerIdx, pos);
+    log("  Encoding done. (%i clauses, total of %i literals)\n", (numClauses-priorCls), (numLits-priorLits));
 }
 
 void Encoding::initSubstitutionVars(const Signature& qfactSig, Position& pos) {
@@ -439,11 +455,6 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dn
     return cnf;
 }
 
-int numLits = 0;
-int numClauses = 0;
-int numAssumptions = 0;
-bool beganLine = false;
-
 void Encoding::addClause(std::initializer_list<int> lits) {
     //log("CNF ");
     for (int lit : lits) {
@@ -512,7 +523,7 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        //log("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        VariableDomain::printVar(_substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
     }
     return _substitution_variables[sigAbs];
 }
@@ -547,8 +558,9 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     State state = finalLayer[0].getState();
     for (auto pair : state) {
         for (const Signature& fact : pair.second) {
-            if (!fact._negated) assert((isEncoded(0, 0, fact) && value(0, 0, fact)) || fail(Names::to_string(fact) + " does not hold initially!\n"));
-            if (fact._negated) assert(!isEncoded(0, 0, fact) || value(0, 0, fact) || fail(Names::to_string(fact) + " does not hold initially!\n"));
+            if (_htn.isRigidPredicate(fact._name_id)) assert(!isEncoded(0, 0, fact));
+            else if (!fact._negated) assert((isEncoded(0, 0, fact) && value(0, 0, fact)) || fail(Names::to_string(fact) + " does not hold initially!\n"));
+            else if (fact._negated) assert(!isEncoded(0, 0, fact) || value(0, 0, fact) || fail(Names::to_string(fact) + " does not hold initially!\n"));
         } 
     }
 
@@ -619,7 +631,8 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
     for (Signature pre : a.getPreconditions()) {
 
         // Check assignment
-        assert((isEncoded(layer, pos, pre) && value(layer, pos, pre)) 
+        if (!_htn.isRigidPredicate(pre._name_id))
+            assert((isEncoded(layer, pos, pre) && value(layer, pos, pre)) 
             || fail("Precondition " + Names::to_string(pre) + " of action "
         + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos) + "!\n"));
 

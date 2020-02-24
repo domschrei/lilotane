@@ -43,12 +43,12 @@ public:
         }
     }
 
-    virtual HtnOp substitute(std::unordered_map<int, int> s) const {
+    virtual HtnOp substitute(const std::unordered_map<int, int>& s) const {
         HtnOp op;
         op._id = _id;
         op._args.resize(_args.size());
         for (int i = 0; i < _args.size(); i++) {
-            if (s.count(_args[i])) op._args[i] = s[_args[i]];
+            if (s.count(_args[i])) op._args[i] = s.at(_args[i]);
             else op._args[i] = _args[i];
         }
         for (Signature sig : _preconditions) {

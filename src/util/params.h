@@ -33,7 +33,7 @@ public:
 	void printParams();
 	void setParam(const char* name);
 	void setParam(const char* name, const char* value);
-	bool isSet(const std::string& name);
+	bool isSet(const std::string& name) const;
 	std::string getParam(const std::string& name, const std::string& defaultValue);
 	std::string getParam(const std::string& name);
 	int getIntParam(const std::string& name, int defaultValue);

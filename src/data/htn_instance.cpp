@@ -19,7 +19,7 @@ ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFil
     return get_parsed_problem();
 }
 
-HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
+HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p) {
 
     Names::init(_name_back_table);
     _instantiator = new Instantiator(*this);
@@ -330,7 +330,7 @@ Action& HtnInstance::createAction(const task& task) {
     for (auto p : task.eff) {
         Signature sig = getSignature(p);
         _actions[id].addEffect(sig);
-        _fluent_predicates.insert(sig._name_id);
+        if (_params.isSet("rrp")) _fluent_predicates.insert(sig._name_id);
     }
     _actions[id].removeInconsistentEffects();
     return _actions[id];
@@ -344,7 +344,7 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
-            _fluent_predicates.insert(sig._name_id);
+            if (_params.isSet("rrp")) _fluent_predicates.insert(sig._name_id);
             result.insert(i);
             //log("%s ", Names::to_string(i).c_str());
         }
@@ -480,6 +480,7 @@ bool HtnInstance::hasQConstants(const Signature& sig) {
 }
 
 bool HtnInstance::isRigidPredicate(int predId) {
+    if (!_params.isSet("rrp")) return false;
     return !_fluent_predicates.count(predId);
 }
 

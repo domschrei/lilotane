@@ -92,7 +92,7 @@ public:
         _subtasks = newSubtasks;
     }
 
-    Reduction substituteRed(std::unordered_map<int, int> s) const {
+    Reduction substituteRed(const std::unordered_map<int, int>& s) const {
         HtnOp op = HtnOp::substitute(s);
         Reduction r(op);
         
@@ -100,7 +100,7 @@ public:
         
         r._task_args.resize(_task_args.size());
         for (int i = 0; i < _task_args.size(); i++) {
-            if (s.count(_task_args[i])) r._task_args[i] = s[_task_args[i]];
+            if (s.count(_task_args[i])) r._task_args[i] = s.at(_task_args[i]);
             else r._task_args[i] = _task_args[i];
         }
         

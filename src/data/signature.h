@@ -49,13 +49,13 @@ struct Signature {
         return out;
     }
 
-    Signature substitute(std::unordered_map<int, int> s) const {
+    Signature substitute(const std::unordered_map<int, int>& s) const {
         Signature sig;
         sig._name_id = _name_id;
         assert(sig._name_id != 0);
         sig._args.resize(_args.size());
         for (int i = 0; i < _args.size(); i++) {
-            if (s.count(_args[i])) sig._args[i] = s[_args[i]];
+            if (s.count(_args[i])) sig._args[i] = s.at(_args[i]);
             else sig._args[i] = _args[i];
             assert(sig._args[i] != 0);
         }

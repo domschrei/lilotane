@@ -56,17 +56,20 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
 
     // Check validity
     assert(constantsPerArg.size() > 0);
+    int numChoices = 1;
     for (auto vec : constantsPerArg) {
         // Empty set of choices => empty result
         if (vec.size() == 0) return instantiation;
+        numChoices *= vec.size();
     }
+    instantiation.reserve(numChoices);
 
     // Iterate over all possible assignments
     std::vector<int> counter(constantsPerArg.size(), 0);
     int numInstantiations = 0;
+    std::vector<int> newArgs(counter.size());
     while (true) {
         // Assemble the assignment
-        std::vector<int> newArgs(counter.size());
         for (int argPos = 0; argPos < counter.size(); argPos++) {
 
             assert(argPos < constantsPerArg.size());
