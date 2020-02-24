@@ -14,10 +14,10 @@ void Planner::findPlan() {
     
     // Begin actual instantiation and solving loop
     int iteration = 0;
-    printf("ITERATION %i\n", iteration);
+    log("ITERATION %i\n", iteration);
 
     int initSize = _htn._init_reduction.getSubtasks().size()+1;
-    printf("Creating initial layer of size %i\n", initSize);
+    log("Creating initial layer of size %i\n", initSize);
     _layer_idx = 0;
     _pos = 0;
     _layers.push_back(Layer(iteration, initSize));
@@ -79,24 +79,24 @@ void Planner::findPlan() {
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
         _enc.printFailedVars(_layers.back());
         
-        printf("Unsolvable at layer %i with assumptions\n", _layer_idx);
+        log("Unsolvable at layer %i with assumptions\n", _layer_idx);
 
         // Attempt to solve formula again, now without assumptions
         // (is usually simple; if it fails, we know the entire problem is unsolvable)
         solved = _enc.solve();
         if (!solved) {
-            printf("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
+            log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
             break;
         } else {
-            printf("(solvable with assumptions)\n");
+            log("(solvable with assumptions)\n");
         }
 
         iteration++;      
-        printf("ITERATION %i\n", iteration);
+        log("ITERATION %i\n", iteration);
         
         _layers.push_back(Layer(iteration, _layers.back().getNextLayerSize()));
         Layer& newLayer = _layers.back();
-        printf(" NEW_LAYER_SIZE %i\n", newLayer.size());
+        log(" NEW_LAYER_SIZE %i\n", newLayer.size());
         Layer& oldLayer = _layers[_layer_idx];
         _layer_idx++;
         _pos = 0;
@@ -108,7 +108,7 @@ void Planner::findPlan() {
             for (int offset = 0; offset < maxOffset; offset++) {
                 assert(_pos == newPos + offset);
 
-                //printf("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
+                //log("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
                 assert(newPos+offset < newLayer.size());
 
                 createNext();
@@ -122,15 +122,15 @@ void Planner::findPlan() {
 
     if (!solved) {
         _enc.printFailedVars(_layers.back());
-        //printf("Limit exceeded. Solving without assumptions ...\n");
+        //log("Limit exceeded. Solving without assumptions ...\n");
         //solved = _enc.solve();
         if (!solved) {
-            printf("No success. Exiting.\n");
+            log("No success. Exiting.\n");
             return;
         }
     }
 
-    printf("Found a solution at layer %i.\n", _layers.size()-1);
+    log("Found a solution at layer %i.\n", _layers.size()-1);
 
     // Extract solution
     std::vector<PlanItem> actionPlan = _enc.extractClassicalPlan();
@@ -145,7 +145,6 @@ void Planner::findPlan() {
     stream << "==>\n";
     std::unordered_set<int> actionIds;
     for (PlanItem item : actionPlan) {
-        if (item.id == 0) continue;
         actionIds.insert(item.id);
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
         stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
@@ -169,9 +168,12 @@ void Planner::findPlan() {
 
     // Feed plan into parser to convert it into a plan to the original problem
     // (w.r.t. previous compilations the parser did) and output it
-    convert_plan(stream, std::cout);
-
-    printf("End of solution plan.\n");
+    std::ostringstream outstream;
+    convert_plan(stream, outstream);
+    log(outstream.str().c_str());
+    log("<==\n");
+    
+    log("End of solution plan.\n");
 
     //_enc.printSatisfyingAssignment();
 }
@@ -182,7 +184,7 @@ void introduceNewFalseFact(Position& newPos, const Signature& fact) {
     newPos.addTrueFact(fact.abs().opposite());
     newPos.addFact(fact.abs());
     newPos.extendState(fact.abs().opposite());
-    //printf("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
+    //log("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
     //        newPos.getPos().first, newPos.getPos().second);
 }
 
@@ -356,12 +358,12 @@ void Planner::propagateReductions(int offset) {
                 newPos.addReduction(subRSig, why);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
-                //printf("PRECONDS %s ", Names::to_string(subRSig).c_str());
+                //log("PRECONDS %s ", Names::to_string(subRSig).c_str());
                 for (Signature fact : subR.getPreconditions()) {
                     addPrecondition(subRSig, fact);
-                    //printf("%s ", Names::to_string(fact).c_str());
+                    //log("%s ", Names::to_string(fact).c_str());
                 }
-                //printf("\n");
+                //log("\n");
             }
             // action(s)?
             for (Signature aSig : getAllActionsOfTask(subtask, newPos.getState())) {
@@ -381,7 +383,7 @@ void Planner::propagateReductions(int offset) {
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
-            //printf("FORBIDDING reduction %s@(%i,%i)\n", Names::to_string(rSig).c_str(), _layer_idx-1, oldPos);
+            //log("FORBIDDING reduction %s@(%i,%i)\n", Names::to_string(rSig).c_str(), _layer_idx-1, oldPos);
             newPos.addReduction(Position::NONE_SIG, why);
         }
     }
@@ -448,7 +450,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     if (fact._negated && !_htn.hasQConstants(fact) && !pos.getFacts().count(fact.abs())) {
         // Negative precondition not contained in facts: initialize
-        //printf("NEG_PRE %s\n", Names::to_string(fact).c_str());
+        //log("NEG_PRE %s\n", Names::to_string(fact).c_str());
         introduceNewFalseFact(pos, fact);
     }
 
@@ -464,7 +466,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
         if (!pos.containsInState(decFact)) {
             // Not a possible fact here. Add as "false" fact to get a contradiction
-            //printf("IMPOSSIBLE_DECFACT %s\n", Names::to_string(decFact).c_str());
+            //log("IMPOSSIBLE_DECFACT %s\n", Names::to_string(decFact).c_str());
             pos.addFact(decFact.abs());
             pos.addTrueFact(decFact.opposite());
             pos.extendState(decFact.opposite());
@@ -513,7 +515,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
 
     std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-    //printf("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
+    //log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
 
     // Filter and minimally instantiate methods
     // applicable in current (super)state
@@ -521,7 +523,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         Reduction r = _htn._reductions[redId];
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
-        //printf("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
+        //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
         std::vector<Reduction> reductions;
         if (_params.isSet("q")) {
             reductions = _instantiator.getMinimalApplicableInstantiations(r, state);
@@ -549,7 +551,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     Action& a = _htn._actions[task._name_id];
     HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
     Action act = (Action) op;
-    //printf("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+    //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
 
 #ifdef Q_CONSTANTS
     std::vector<Action> actions = _instantiator.getMinimalApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());

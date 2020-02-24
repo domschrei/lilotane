@@ -1,7 +1,8 @@
 
 #include "assert.h"
 
-#include "params.h"
+#include "util/params.h"
+#include "util/log.h"
 
 /**
  * Taken from Hordesat:ParameterProcessor.h by Tomas Balyo.
@@ -14,7 +15,7 @@ void Parameters::init(int argc, char** argv) {
             if (_domain_filename == "") _domain_filename = std::string(arg);
             else if (_problem_filename == "") _problem_filename = std::string(arg);
             else {
-                printf("Unrecognized parameter %s.", arg);
+                log("Unrecognized parameter %s.", arg);
                 printUsage();
                 exit(1);
             }
@@ -31,7 +32,7 @@ void Parameters::init(int argc, char** argv) {
         }
     }
     if (_problem_filename == "") {
-        printf("Please specify both a domain file and a problem file.\n");
+        log("Please specify both a domain file and a problem file.\n");
         printUsage();
         exit(1);
     }
@@ -45,16 +46,16 @@ void Parameters::setDefaults() {
 
 void Parameters::printUsage() {
 
-    printf("Usage: treerexx <domainfile> <problemfile> [options]\n");
-    printf("  <domainfile>  Path to domain file in HDDL format.\n");
-    printf("  <problemfile> Path to problem file in HDDL format.\n");
-    printf("\n");
-    printf("Option syntax: -OPTION or -OPTION=VALUE .\n");
-    printf(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
-    printf("             default: %i\n", getIntParam("d"));
-    printf(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
-    printf(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
-    printf("             instead of fully grounding them into actual constants\n");
+    log("Usage: treerexx <domainfile> <problemfile> [options]\n");
+    log("  <domainfile>  Path to domain file in HDDL format.\n");
+    log("  <problemfile> Path to problem file in HDDL format.\n");
+    log("\n");
+    log("Option syntax: -OPTION or -OPTION=VALUE .\n");
+    log(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
+    log("             default: %i\n", getIntParam("d"));
+    log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
+    log(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
+    log("             instead of fully grounding them into actual constants\n");
 }
 
 std::string Parameters::getDomainFilename() {
@@ -74,7 +75,7 @@ void Parameters::printParams() {
         }
     }
     out = out.substr(0, out.size()-2);
-    printf("Called with parameters: %s\n", out.c_str());
+    log("Called with parameters: %s\n", out.c_str());
 }
 
 void Parameters::setParam(const char* name) {

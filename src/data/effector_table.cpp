@@ -44,7 +44,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
         while (!frontier.empty()) {
             Signature nodeSig = frontier.back();
             frontier.pop_back();
-            //printf("%s\n", Names::to_string(nodeSig).c_str());
+            //log("%s\n", Names::to_string(nodeSig).c_str());
 
             // Already saw this very signature?
             if (seenSignatures.count(nodeSig)) continue;
@@ -65,7 +65,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             // Expand node, add children to frontier
             for (Signature child : getPossibleChildren(nodeSig)) {
                 frontier.push_back(child);
-                //printf("-> %s\n", Names::to_string(child).c_str());
+                //log("-> %s\n", Names::to_string(child).c_str());
             }
         }
 
@@ -82,24 +82,24 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     std::vector<Signature>& sigs = _fact_changes[nameId];
     std::vector<Signature> out;
     
-    //printf("   fact changes of %s : ", Names::to_string(sig).c_str());
+    //log("   fact changes of %s : ", Names::to_string(sig).c_str());
     for (Signature fact : sigs) {
         Signature sigRes = fact.substitute(sFromPlaceholder);
         for (int arg : sigRes._args) assert(arg > 0);
         
         for (Signature sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
             out.push_back(sigGround);
-            //printf("%s ", Names::to_string(sigGround).c_str());
+            //log("%s ", Names::to_string(sigGround).c_str());
         }
     }
-    //printf("\n");
+    //log("\n");
     return out;
 }
 
 std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrReduction) {
     std::vector<Signature> result;
 
-    //printf("%s ==> ", Names::to_string(actionOrReduction).c_str());
+    //log("%s ==> ", Names::to_string(actionOrReduction).c_str());
 
     int nameId = actionOrReduction._name_id;
     if (!_htn->_actions.count(nameId)) {
@@ -144,7 +144,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
         }
     }
 
-    //for (Signature x : result) printf("%s ", Names::to_string(x).c_str());
+    //for (Signature x : result) log("%s ", Names::to_string(x).c_str());
 
     return result;
 }

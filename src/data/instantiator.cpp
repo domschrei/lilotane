@@ -64,14 +64,14 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
     // Check ground preconditions of the reduction
     const SigSet& pre = op->getPreconditions();
-    //printf("    %i preconditions\n", pre.size());
+    //log("    %i preconditions\n", pre.size());
     int numFreePreconds = 0;
     for (Signature sig : pre) {
         if (isFullyGround(sig)) {
             // This precondition must definitely hold
             if (!test(sig, facts)) {
                 // does not hold -- no applicable reduction
-                //printf("%s does not hold!\n", Names::to_string(sig).c_str());
+                //log("%s does not hold!\n", Names::to_string(sig).c_str());
                 return result;
             } // else: precondition holds, nothing more to do
         } else numFreePreconds++;
@@ -85,7 +85,7 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
 
     // Instantiate a lifted precondition
     for (Signature sig : pre) {
-        //printf(" pre : %s\n", Names::to_string(sig).c_str());
+        //log(" pre : %s\n", Names::to_string(sig).c_str());
 
         if (isFullyGround(sig)) continue;
 
@@ -123,13 +123,13 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
             // do not consider q facts for instantiation
             if (_htn->hasQConstants(groundSig)) continue;
             
-            //printf("  ~> %s\n", Names::to_string(groundSig).c_str());
+            //log("  ~> %s\n", Names::to_string(groundSig).c_str());
 
             std::unordered_map<int, int> s;
             if (!fits(sig, groundSig, &s)) continue;
 
             // Possible partial instantiation
-            //printf("     %s\n", Names::to_string(s).c_str());
+            //log("     %s\n", Names::to_string(s).c_str());
 
             if (std::is_same<Reduction, T>::value) {
                 // Reduction
@@ -145,13 +145,13 @@ std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<i
                 HtnOp o = op->substitute(s);
                 Action newA = Action(o);
                 
-                //printf("%s :: %s -> %s\n", Names::to_string(groundSig).c_str(), Names::to_string(op->getSignature()).c_str(), Names::to_string(newA.getSignature()).c_str());
+                //log("%s :: %s -> %s\n", Names::to_string(groundSig).c_str(), Names::to_string(op->getSignature()).c_str(), Names::to_string(newA.getSignature()).c_str());
 
                 std::vector<Action> newOps = instantiatePreconditions(newA, facts);
-                //printf("%s : %i\n", Names::to_string(groundSig).c_str(), newOps.size());
+                //log("%s : %i\n", Names::to_string(groundSig).c_str(), newOps.size());
                 for (Action a : newOps) {
                     Signature aSig = a.getSignature();
-                    //printf("  - %s\n", Names::to_string(aSig).c_str());
+                    //log("  - %s\n", Names::to_string(aSig).c_str());
                     result.push_back(static_cast<T>(a));
                 }
             }
@@ -178,7 +178,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
 
     // For each provided HtnOp:
     for (Signature opSig : operations) {
-        //printf("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
+        //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
         std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
 
         // Decode it into a q constant free representation
@@ -195,7 +195,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
             if (eff._negated != fact._negated) continue;
             bool matches = true;
             substitution_t s;
-            //printf("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
+            //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
             for (int argPos = 0; argPos < eff._args.size(); argPos++) {
                 int effArg = eff._args[argPos];
                 int substArg = fact._args[argPos];
@@ -217,9 +217,9 @@ Instantiator::getOperationSubstitutionsCausingEffect(
             if (matches) {
                 // Valid, matching substitution found (possibly empty)
                 if (!substitutions.count(s)) substitutions.insert(s);
-                //printf(" -- yes\n");
+                //log(" -- yes\n");
             } else {
-                //printf(" -- no\n");
+                //log(" -- no\n");
             }
         }
 

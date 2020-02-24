@@ -36,22 +36,22 @@ HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
     
     extractConstants();
 
-    printf("Sorts extracted.\n");
+    log("Sorts extracted.\n");
     for (auto sort_pair : _p.sorts) {
-        printf("%s : ", sort_pair.first.c_str());
+        log("%s : ", sort_pair.first.c_str());
         for (auto c : sort_pair.second) {
-            printf("%s ", c.c_str());
+            log("%s ", c.c_str());
         }
-        printf("\n");
+        log("\n");
     }
 
     for (task t : primitive_tasks) {
         Action& a = createAction(t);
-        //printf("TYPES %s : ", Names::to_string(a).c_str());
+        //log("TYPES %s : ", Names::to_string(a).c_str());
         for (int type : _signature_sorts_table[a.getSignature()._name_id]) {
-            //printf("%s ", Names::to_string(type).c_str());
+            //log("%s ", Names::to_string(type).c_str());
         }
-        //printf("\n");
+        //log("\n");
     }
     
     // Create blank action without any preconditions or effects
@@ -63,7 +63,7 @@ HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
     for (int mIdx = 1; mIdx < methods.size(); mIdx++)
         createReduction(methods[mIdx]);
     
-    printf("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+    log("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
 
 int HtnInstance::getNameId(const std::string& name) {
@@ -114,7 +114,7 @@ Signature HtnInstance::getInitTaskSignature(int pos) {
             name = matches.str(1);
             newArgs.push_back(getNameId(name));
         } else {
-            printf("%s was not matched by initial task argname substitution!\n", name.c_str());
+            log("%s was not matched by initial task argname substitution!\n", name.c_str());
             exit(1);
         }
     }
@@ -147,7 +147,7 @@ SigSet HtnInstance::getInitState() {
                 args.push_back(c1); args.push_back(c2);
                 Signature sig(eqPredId, args);
                 result.insert(sig);
-                printf("EQUALITY %s\n", Names::to_string(sig).c_str());
+                log("EQUALITY %s\n", Names::to_string(sig).c_str());
             }
         }
     }
@@ -200,7 +200,7 @@ void HtnInstance::extractConstants() {
         std::vector<int>& constants = _constants_by_sort[sortId];
         for (std::string c : sortPair.second) {
             constants.push_back(getNameId(c));
-            //printf("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
+            //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
         }
     }
 }
@@ -220,22 +220,22 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Extract (in)equality constraints
     if (!method.constraints.empty()) {
         for (const literal& lit : method.constraints) {
-            //printf("%s\n", Names::to_string(getSignature(lit)).c_str());
+            //log("%s\n", Names::to_string(getSignature(lit)).c_str());
             assert(lit.predicate == "__equal" || fail("Unknown constraint predicate \"" + lit.predicate + "\"!\n"));
 
             // Find out "type" of this equality predicate
             std::string arg1Str = lit.arguments[0];
             std::string arg2Str = lit.arguments[1];
-            //printf("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
+            //log("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
             int sort1 = -1, sort2 = -1;
             for (int argPos = 0; argPos < method.vars.size(); argPos++) {
-                //printf("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
+                //log("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
                 if (arg1Str == method.vars[argPos].first)
                     sort1 = getNameId(method.vars[argPos].second);
                 if (arg2Str == method.vars[argPos].first)
                     sort2 = getNameId(method.vars[argPos].second);
             }
-            //printf("\n");
+            //log("\n");
             assert(sort1 >= 0 && sort2 >= 0);
             // Use the "larger" sort as the sort for both argument positions
             int eqSort = (_constants_by_sort[sort1].size() > _constants_by_sort[sort2].size() ? sort1 : sort2);
@@ -300,13 +300,13 @@ Reduction& HtnInstance::createReduction(const method& method) {
         _reductions[id].orderSubtasks(orderingNodelist);
     }
 
-    printf("ORDERING %s < ", Names::to_string(_reductions[id].getSignature()).c_str());
+    log("ORDERING %s < ", Names::to_string(_reductions[id].getSignature()).c_str());
     for (Signature sg : _reductions[id].getSubtasks()) {
-        printf("%s ", Names::to_string(sg).c_str());
+        log("%s ", Names::to_string(sg).c_str());
     }
-    printf(">\n");
+    log(">\n");
 
-    printf(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
+    log(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());
     return _reductions[id];
@@ -315,11 +315,11 @@ Action& HtnInstance::createAction(const task& task) {
     int id = getNameId(task.name);
     std::vector<int> args = getArguments(task.vars);
 
-    //printf("TYPES %s : ", task.name.c_str());
+    //log("TYPES %s : ", task.name.c_str());
     for (auto pair : task.vars) {
-        //printf("%s-%s ", pair.first.c_str(), pair.second.c_str());
+        //log("%s-%s ", pair.first.c_str(), pair.second.c_str());
     }
-    //printf("\n");
+    //log("\n");
 
     assert(_actions.count(id) == 0);
     _actions[id] = Action(id, args);
@@ -339,17 +339,17 @@ Action& HtnInstance::createAction(const task& task) {
 SigSet HtnInstance::getAllFactChanges(const Signature& sig) {    
     SigSet result;
     if (sig == Position::NONE_SIG) return result;    
-    //printf("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
+    //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
             _fluent_predicates.insert(sig._name_id);
             result.insert(i);
-            //printf("%s ", Names::to_string(i).c_str());
+            //log("%s ", Names::to_string(i).c_str());
         }
     }
-    //printf("\n");
+    //log("\n");
     return result;
 }
 
@@ -378,9 +378,9 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
 
     int arg = sig._args[argPos];
     assert(_name_back_table[arg][0] == '?');
-    //printf("%s\n", Names::to_string(sig).c_str());
+    //log("%s\n", Names::to_string(sig).c_str());
     if (!_signature_sorts_table.count(sig._name_id)) {
-        printf("%s has no sorts!\n", _name_back_table[sig._name_id].c_str());
+        log("%s has no sorts!\n", _name_back_table[sig._name_id].c_str());
         return;
     }
     assert(argPos < _signature_sorts_table[sig._name_id].size());
@@ -413,18 +413,18 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     }
     std::unordered_set<int> sortsSet;
     sortsSet.insert(containedSorts.begin(), containedSorts.end());
-    printf("sorts of %s : ", Names::to_string(qConstId).c_str());
+    log("sorts of %s : ", Names::to_string(qConstId).c_str());
     _sorts_of_q_constants[qConstId];
     for (int sort : sortsSet) {
         _sorts_of_q_constants[qConstId].push_back(sort);
         _constants_by_sort[sort].push_back(qConstId);
-        printf("%s ", Names::to_string(sort).c_str());
+        log("%s ", Names::to_string(sort).c_str());
     } 
-    printf("\n");
+    log("\n");
 
     // Compute domain of the q constant
     std::unordered_set<int> domain;
-    //printf("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
+    //log("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
     for (int c : _constants_by_sort[sort]) {
         
         // A q constant may *not* be substituted by another q constant
@@ -435,10 +435,10 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         // (disallowing cycles)
         //if (!_q_constants.count(c) || c < qConstId) {
             domain.insert(c);
-            //printf("%s ", Names::to_string(c).c_str());
+            //log("%s ", Names::to_string(c).c_str());
         } 
     }
-    //printf("}\n");
+    //log("}\n");
     _domains_of_q_constants[qConstId] = domain;
 }
 
@@ -463,11 +463,11 @@ std::vector<Signature> HtnInstance::getDecodedObjects(Signature qSig) {
     }
 
     std::vector<Signature> i = ArgIterator::instantiate(qSig, eligibleArgs);
-    //printf("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
+    //log("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
     for (Signature sig : i) {
-        //printf("%s ", Names::to_string(sig).c_str());
+        //log("%s ", Names::to_string(sig).c_str());
     }
-    //printf("}\n");
+    //log("}\n");
 
     return i; 
 }

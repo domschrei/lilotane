@@ -16,9 +16,9 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
     assert(sorts.size() > 0 || fail("Predicate " + Names::to_string(sig) + " has no sorts table!\n"));
     
     /*
-    printf("SORTS %s ", Names::to_string(sig._name_id).c_str());
-    for (int s : sorts) printf("%s ", Names::to_string(s).c_str());
-    printf("\n");
+    log("SORTS %s ", Names::to_string(sig._name_id).c_str());
+    for (int s : sorts) log("%s ", Names::to_string(s).c_str());
+    log("\n");
     */
     
     std::vector<std::vector<int>> constantsPerArg;

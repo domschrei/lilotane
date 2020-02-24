@@ -16,7 +16,7 @@ Encoding::Encoding(HtnInstance& htn, std::vector<Layer>& layers) : _htn(htn),
 
 void Encoding::encode(int layerIdx, int pos) {
     
-    printf("[ENC] position (%i,%i) ...\n", layerIdx, pos);
+    log("[ENC] position (%i,%i) ...\n", layerIdx, pos);
 
     // Calculate relevant environment of the position
     Position NULL_POS;
@@ -170,14 +170,14 @@ void Encoding::encode(int layerIdx, int pos) {
                                 appendClause({-varPrimitive(layerIdx, pos-1)});
                                 #endif
                                 appendClause({-factVar, -opVar});
-                                //printf("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
+                                //log("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                                 // THEN either of the valid substitution combinations
                                 for (int subVar : subsCls) {
                                     appendClause({subVar});
-                                    //printf("%i ", subVar);  
+                                    //log("%i ", subVar);  
                                 } 
                                 endClause();
-                                //printf("\n");
+                                //log("\n");
                             }
                         }
 
@@ -188,7 +188,7 @@ void Encoding::encode(int layerIdx, int pos) {
             }
 
             // Fact change:
-            //printf("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
+            //log("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
             if (oldFactVar != 0) appendClause({oldFactVar});
             appendClause({-factVar});
             #ifndef NONPRIMITIVE_SUPPORT
@@ -201,16 +201,16 @@ void Encoding::encode(int layerIdx, int pos) {
                     int opVar = left.getVariable(opSig);
                     assert(opVar > 0);
                     appendClause({opVar});
-                    //printf("%i ", opVar);
+                    //log("%i ", opVar);
                 }
             }
             // INDIRECT support
             for (int opVar : indirectSupport) {
                 appendClause({opVar});
-                //printf("%i ", opVar);
+                //log("%i ", opVar);
             }
             endClause();
-            //printf("\n");
+            //log("\n");
         }
     }
 
@@ -241,7 +241,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         if (aSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
-                //printf("FORBID %s\n", Names::to_string(why.sig).c_str());
+                //log("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldAVar = above.getVariable(why.sig.abs());
                 addClause({-oldAVar});
             }
@@ -290,7 +290,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // "Virtual children" forbidding parent reductions
         if (rSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
-                //printf("FORBID %s\n", Names::to_string(why.sig).c_str());
+                //log("FORBID %s\n", Names::to_string(why.sig).c_str());
                 int oldRVar = above.getVariable(why.sig.abs());
                 addClause({-oldRVar});
             }
@@ -357,7 +357,7 @@ void Encoding::encode(int layerIdx, int pos) {
     // assume primitiveness
     assume(varPrim);
 
-    printf("[ENC] position (%i,%i) done.\n", layerIdx, pos);
+    log("[ENC] position (%i,%i) done.\n", layerIdx, pos);
 }
 
 void Encoding::initSubstitutionVars(const Signature& qfactSig, Position& pos) {
@@ -434,7 +434,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dn
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
 
-    if (cnf.size() > 1000) printf("CNF of size %i generated\n", cnf.size());
+    if (cnf.size() > 1000) log("CNF of size %i generated\n", cnf.size());
 
     return cnf;
 }
@@ -445,28 +445,28 @@ int numAssumptions = 0;
 bool beganLine = false;
 
 void Encoding::addClause(std::initializer_list<int> lits) {
-    //printf("CNF ");
+    //log("CNF ");
     for (int lit : lits) {
         ipasir_add(_solver, lit);
         _out << lit << " ";
-        //printf("%i ", lit);
+        //log("%i ", lit);
     } 
     ipasir_add(_solver, 0);
     _out << "0\n";
-    //printf("0\n");
+    //log("0\n");
 
     numClauses++;
     numLits += lits.size();
 }
 void Encoding::appendClause(std::initializer_list<int> lits) {
     if (!beganLine) {
-        //printf("CNF ");
+        //log("CNF ");
         beganLine = true;
     }
     for (int lit : lits) {
         ipasir_add(_solver, lit);
         _out << lit << " ";
-        //printf("%i ", lit);
+        //log("%i ", lit);
     } 
 
     numLits += lits.size();
@@ -475,7 +475,7 @@ void Encoding::endClause() {
     assert(beganLine);
     ipasir_add(_solver, 0);
     _out << "0\n";
-    //printf("0\n");
+    //log("0\n");
     beganLine = false;
 
     numClauses++;
@@ -483,13 +483,13 @@ void Encoding::endClause() {
 void Encoding::assume(int lit) {
     if (numAssumptions == 0) _last_assumptions.clear();
     ipasir_assume(_solver, lit);
-    //printf("CNF !%i\n", lit);
+    //log("CNF !%i\n", lit);
     _last_assumptions.push_back(lit);
     numAssumptions++;
 }
 
 bool Encoding::solve() {
-    printf("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
+    log("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 numClauses, numLits, numAssumptions);
     bool solved = ipasir_solve(_solver) == 10;
     if (numAssumptions == 0) _last_assumptions.clear();
@@ -512,7 +512,7 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        //printf("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        //log("VARMAP %i %s\n", _substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
     }
     return _substitution_variables[sigAbs];
 }
@@ -522,7 +522,7 @@ std::string Encoding::varName(int layer, int pos, const Signature& sig) {
 }
 
 void Encoding::printVar(int layer, int pos, const Signature& sig) {
-    printf("%s\n", varName(layer, pos, sig).c_str());
+    log("%s\n", varName(layer, pos, sig).c_str());
 }
 
 int Encoding::varPrimitive(int layer, int pos) {
@@ -530,12 +530,12 @@ int Encoding::varPrimitive(int layer, int pos) {
 }
 
 void Encoding::printFailedVars(Layer& layer) {
-    printf("FAILED ");
+    log("FAILED ");
     for (int pos = 0; pos < layer.size(); pos++) {
         int v = varPrimitive(layer.index(), pos);
-        if (ipasir_failed(_solver, v)) printf("%i ", v);
+        if (ipasir_failed(_solver, v)) log("%i ", v);
     }
-    printf("\n");
+    log("\n");
 }
 
 std::vector<PlanItem> Encoding::extractClassicalPlan() {
@@ -553,9 +553,9 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     }
 
     std::vector<PlanItem> plan;
-    printf("(actions at layer %i)\n", li);
+    //log("(actions at layer %i)\n", li);
     for (int pos = 0; pos+1 < finalLayer.size(); pos++) {
-        //printf("%i\n", pos);
+        //log("%i\n", pos);
         assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
 
         int chosenActions = 0;
@@ -565,7 +565,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
             const Signature& aSig = pair.first;
 
             if (!isEncoded(li, pos, aSig)) continue;
-            //printf("  %s ?\n", Names::to_string(aSig).c_str());
+            //log("  %s ?\n", Names::to_string(aSig).c_str());
 
             if (value(li, pos, aSig)) {
                 chosenActions++;
@@ -588,7 +588,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                     checkAndApply(aDecoded, state, newState, li, pos);
                 }
 
-                printf("* %s @ %i\n", Names::to_string(aDec).c_str(), pos);
+                //log("* %s @ %i\n", Names::to_string(aDec).c_str(), pos);
                 plan.push_back({aVar, aDec, aDec, std::vector<int>()});
             }
         }
@@ -601,7 +601,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         assert(chosenActions == 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
     }
 
-    printf("%i actions at final layer of size %i\n", plan.size(), _layers->back().size());
+    //log("%i actions at final layer of size %i\n", plan.size(), _layers->back().size());
     return plan;
 }
 
@@ -615,7 +615,7 @@ bool holds(State& state, const Signature& fact) {
 }
 
 void Encoding::checkAndApply(const Action& a, State& state, State& newState, int layer, int pos) {
-    //printf("%s\n", Names::to_string(a).c_str());
+    //log("%s\n", Names::to_string(a).c_str());
     for (Signature pre : a.getPreconditions()) {
 
         // Check assignment
@@ -627,7 +627,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         assert(_htn.hasQConstants(pre) || holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
             + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
         
-        //printf("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //log("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
         //        layer, pos);
     }
 
@@ -641,7 +641,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         newState[eff._name_id];
         newState[eff._name_id].insert(eff);
 
-        //printf("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //log("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
         //        layer, pos);
     }
 }
@@ -661,7 +661,7 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
 
     for (int i = 0; i < _layers->size(); i++) {
         Layer& l = _layers->at(i);
-        printf("(decomps at layer %i)\n", l.index());
+        //log("(decomps at layer %i)\n", l.index());
 
         itemsNewLayer.resize(l.size());
         
@@ -673,7 +673,7 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                 while (predPos+1 < lastLayer.size() && lastLayer.getSuccessorPos(predPos+1) <= pos) 
                     predPos++;
             } 
-            //printf("%i -> %i\n", predPos, pos);
+            //log("%i -> %i\n", predPos, pos);
 
             int itemsThisPos = 0;
 
@@ -730,10 +730,10 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                     int l = i;
                     int aPos = pos;
                     while (l+1 < _layers->size()) {
-                        //printf("(%i,%i) => ", l, aPos);
+                        //log("(%i,%i) => ", l, aPos);
                         aPos = _layers->at(l).getSuccessorPos(aPos);
                         l++;
-                        //printf("(%i,%i)\n", l, aPos);
+                        //log("(%i,%i)\n", l, aPos);
                     }
                     v = classicalPlan[aPos].id; // _layers->at(l-1)[aPos].getVariable(aSig);
 
@@ -764,11 +764,11 @@ bool Encoding::value(int layer, int pos, const Signature& sig) {
 }
 
 void Encoding::printSatisfyingAssignment() {
-    printf("SOLUTION_VALS ");
+    log("SOLUTION_VALS ");
     for (int v = 1; v <= VariableDomain::getMaxVar(); v++) {
-        printf("%i ", ipasir_val(_solver, v));
+        log("%i ", ipasir_val(_solver, v));
     }
-    printf("\n");
+    log("\n");
 }
 
 Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
@@ -786,16 +786,16 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
             for (int argSubst : _htn._domains_of_q_constants[arg]) {
                 Signature sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    //printf("%i TRUE\n", varSubstitution(sigSubst));
-                    printf("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
+                    //log("%i TRUE\n", varSubstitution(sigSubst));
+                    log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
                             Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
                     numSubstitutions++;
                     substitution_t sub;
                     sub[arg] = argSubst;
                     sig = sig.substitute(sub);
-                    printf("%s\n", Names::to_string(sig).c_str());
+                    log("%s\n", Names::to_string(sig).c_str());
                 } else {
-                    //printf("%i FALSE\n", varSubstitution(sigSubst));
+                    //log("%i FALSE\n", varSubstitution(sigSubst));
                 }
             }
 
@@ -806,7 +806,7 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
     }
 
     if (origSig != sig)
-        printf("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
+        log("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
     return sig;
 }
 
