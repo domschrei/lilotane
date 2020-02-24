@@ -57,6 +57,7 @@ struct HtnInstance {
     std::unordered_map<int, std::vector<int>> _task_id_to_reduction_ids;
 
     std::unordered_set<int> _equality_predicates;
+    std::unordered_set<int> _fluent_predicates;
 
     Instantiator* _instantiator;
     EffectorTable* _effector_table;
@@ -96,6 +97,10 @@ struct HtnInstance {
 
     bool hasQConstants(const Signature& sig);
     std::vector<Signature> getDecodedObjects(Signature qFact);
+
+    bool isRigidPredicate(int predId);
+    void removeRigidConditions(Action& a);
+    void removeRigidConditions(Reduction& r);
 };
 
 #endif

@@ -330,6 +330,7 @@ Action& HtnInstance::createAction(const task& task) {
     for (auto p : task.eff) {
         Signature sig = getSignature(p);
         _actions[id].addEffect(sig);
+        _fluent_predicates.insert(sig._name_id);
     }
     _actions[id].removeInconsistentEffects();
     return _actions[id];
@@ -343,6 +344,7 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
+            _fluent_predicates.insert(sig._name_id);
             result.insert(i);
             //printf("%s ", Names::to_string(i).c_str());
         }
@@ -475,4 +477,30 @@ bool HtnInstance::hasQConstants(const Signature& sig) {
         if (_q_constants.count(arg)) return true;
     }
     return false;
+}
+
+bool HtnInstance::isRigidPredicate(int predId) {
+    return !_fluent_predicates.count(predId);
+}
+
+void HtnInstance::removeRigidConditions(Action& a) {
+
+    SigSet newPres;
+    for (const Signature& pre : a.getPreconditions()) {
+        if (!isRigidPredicate(pre._name_id)) {
+            newPres.insert(pre); // only add fluent preconditions
+        }
+    }
+    a.setPreconditions(newPres);
+}
+
+void HtnInstance::removeRigidConditions(Reduction& r) {
+
+    SigSet newPres;
+    for (const Signature& pre : r.getPreconditions()) {
+        if (!isRigidPredicate(pre._name_id)) {
+            newPres.insert(pre); // only add fluent preconditions
+        }
+    }
+    r.setPreconditions(newPres);
 }

@@ -79,7 +79,10 @@ void Planner::findPlan() {
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
         _enc.printFailedVars(_layers.back());
         
-        printf("Unsolvable at layer %i with assumptions\n", _layer_idx);  
+        printf("Unsolvable at layer %i with assumptions\n", _layer_idx);
+
+        // Attempt to solve formula again, now without assumptions
+        // (is usually simple; if it fails, we know the entire problem is unsolvable)
         solved = _enc.solve();
         if (!solved) {
             printf("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
@@ -139,7 +142,7 @@ void Planner::findPlan() {
     // Print plan into stream
 
     // -- primitive part
-    stream << ("==>\n");
+    stream << "==>\n";
     std::unordered_set<int> actionIds;
     for (PlanItem item : actionPlan) {
         if (item.id == 0) continue;
@@ -172,10 +175,6 @@ void Planner::findPlan() {
 
     //_enc.printSatisfyingAssignment();
 }
-
-
-
-
 
 
 

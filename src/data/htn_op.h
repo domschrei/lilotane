@@ -20,6 +20,9 @@ public:
     HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
     HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
 
+    void setPreconditions(const SigSet& set) {
+        _preconditions = set;
+    }
     void addPrecondition(const Signature& sig) {
         _preconditions.insert(sig);
     }
