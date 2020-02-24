@@ -11,6 +11,7 @@ extern "C" {
 #include <string>
 #include <iostream>
 
+#include "util/params.h"
 #include "data/layer.h"
 #include "data/signature.h"
 #include "data/htn_instance.h"
@@ -31,6 +32,7 @@ struct PlanItem {
 class Encoding {
 
 private:
+    Parameters& _params;
     HtnInstance& _htn;
     std::vector<Layer>* _layers;
     
@@ -48,7 +50,7 @@ private:
     std::vector<int> _last_assumptions;
 
 public:
-    Encoding(HtnInstance& htn, std::vector<Layer>& layers);
+    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
     ~Encoding();
 
     void encode(int layerIdx, int pos);

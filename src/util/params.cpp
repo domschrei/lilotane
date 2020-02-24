@@ -39,9 +39,10 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
-    //setParam("-nps"); // non-primitive fact supports
-    //setParam("-q"); // q-constants
     setParam("d", "0"); // max depth (= num iterations)
+    //setParam("-nps"); // non-primitive fact supports
+    //setParam("-of"); // output formula to f.cnf
+    //setParam("-q"); // q-constants
 }
 
 void Parameters::printUsage() {
@@ -54,6 +55,7 @@ void Parameters::printUsage() {
     log(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
     log("             default: %i\n", getIntParam("d"));
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
+    log(" -of         Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     log(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
     log("             instead of fully grounding them into actual constants\n");
 }

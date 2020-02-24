@@ -6,12 +6,12 @@
 encodePosition ()
 */
 
-Encoding::Encoding(HtnInstance& htn, std::vector<Layer>& layers) : _htn(htn), 
-            _layers(&layers) {
+Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers) : 
+            _params(params), _htn(htn), _layers(&layers) {
     _solver = ipasir_init();
     _sig_primitive = Signature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
-    _out.open("formula.cnf");
+    if (_params.isSet("of")) _out.open("formula.cnf");
 }
 
 void Encoding::encode(int layerIdx, int pos) {
@@ -448,11 +448,11 @@ void Encoding::addClause(std::initializer_list<int> lits) {
     //log("CNF ");
     for (int lit : lits) {
         ipasir_add(_solver, lit);
-        _out << lit << " ";
+        if (_params.isSet("of")) _out << lit << " ";
         //log("%i ", lit);
     } 
     ipasir_add(_solver, 0);
-    _out << "0\n";
+    if (_params.isSet("of")) _out << "0\n";
     //log("0\n");
 
     numClauses++;
@@ -465,7 +465,7 @@ void Encoding::appendClause(std::initializer_list<int> lits) {
     }
     for (int lit : lits) {
         ipasir_add(_solver, lit);
-        _out << lit << " ";
+        if (_params.isSet("of")) _out << lit << " ";
         //log("%i ", lit);
     } 
 
@@ -474,7 +474,7 @@ void Encoding::appendClause(std::initializer_list<int> lits) {
 void Encoding::endClause() {
     assert(beganLine);
     ipasir_add(_solver, 0);
-    _out << "0\n";
+    if (_params.isSet("of")) _out << "0\n";
     //log("0\n");
     beganLine = false;
 
@@ -811,18 +811,39 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
 }
 
 Encoding::~Encoding() {
-    for (int asmpt : _last_assumptions) {
-        _out << asmpt << " 0\n";
+
+    if (_params.isSet("of")) {
+
+        // Append assumptions to written formula, close stream
+        for (int asmpt : _last_assumptions) {
+            _out << asmpt << " 0\n";
+        }
+        _out.flush();
+        _out.close();
+
+        // Create final formula file
+        std::ofstream ffile;
+        ffile.open("f.cnf");
+        
+        // Append header to formula file
+        ffile << "p cnf " << VariableDomain::getMaxVar() << " " << (numClauses+_last_assumptions.size()) << "\n";
+
+        // Append main content to formula file (reading from "old" file)
+        std::ifstream oldfile;
+        oldfile.open("formula.cnf");
+        std::string line;
+        while (std::getline(oldfile, line)) {
+            line = line + "\n";
+            ffile.write(line.c_str(), line.size());
+        }
+        oldfile.close();
+        remove("formula.cnf");
+
+        // Finish
+        ffile.flush();
+        ffile.close();
     }
-    _out.flush();
-    _out.close();
 
-    std::ofstream headerfile;
-    headerfile.open("header.cnf");
-    VariableDomain::unlock();
-    headerfile << "p cnf " << VariableDomain::getMaxVar() << " " << (numClauses+_last_assumptions.size()) << "\n";
-    headerfile.flush();
-    headerfile.close();
-
+    // Release SAT solver
     ipasir_release(_solver);
 }
