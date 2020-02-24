@@ -2,6 +2,9 @@
 #include <iostream>
 #include <functional>
 #include <regex>
+#include <string>
+
+#include "parser/plan.hpp"
 
 #include "planner.h"
 #include "util/log.h"
@@ -130,29 +133,40 @@ void Planner::findPlan() {
     std::vector<PlanItem> actionPlan = _enc.extractClassicalPlan();
     std::vector<PlanItem> decompPlan = _enc.extractDecompositionPlan();
 
-    printf("==>\n");
+    // Create stringstream which is being fed the plan
+    std::stringstream stream;
+
+    // Print plan into stream
+
+    // -- primitive part
+    stream << ("==>\n");
     std::unordered_set<int> actionIds;
     for (PlanItem item : actionPlan) {
+        if (item.id == 0) continue;
         actionIds.insert(item.id);
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
-        printf("%i %s\n", item.id, Names::to_string_nobrackets(item.abstractTask).c_str());
+        stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
     }
-
+    // -- decomposition part
     bool root = true;
     for (PlanItem item : decompPlan) {
         std::string subtaskIdStr;
         for (int subtaskId : item.subtaskIds) subtaskIdStr += " " + std::to_string(subtaskId);
         
         if (root) {
-            printf("root%s\n", subtaskIdStr.c_str());
+            stream << "root " << subtaskIdStr << "\n";
             root = false;
             continue;
         } else if (item.id == 0 || actionIds.count(item.id)) continue;
         
-        printf("%i %s -> %s%s\n", item.id, Names::to_string_nobrackets(item.abstractTask).c_str(),
-                Names::to_string_nobrackets(item.reduction).c_str(), subtaskIdStr.c_str());
+        stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << " -> " 
+            << Names::to_string_nobrackets(item.reduction) << subtaskIdStr << "\n";
     }
-    printf("<==\n");
+    stream << "<==\n";
+
+    // Feed plan into parser to convert it into a plan to the original problem
+    // (w.r.t. previous compilations the parser did) and output it
+    convert_plan(stream, std::cout);
 
     printf("End of solution plan.\n");
 
