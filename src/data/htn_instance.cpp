@@ -430,11 +430,6 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         
         // A q constant may *not* be substituted by another q constant
         if (!_q_constants.count(c)) {
-
-        // A q constant may be substituted by another q constant,
-        // but only if the other q constant was created earlier
-        // (disallowing cycles)
-        //if (!_q_constants.count(c) || c < qConstId) {
             domain.insert(c);
             //log("%s ", Names::to_string(c).c_str());
         } 

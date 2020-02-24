@@ -67,6 +67,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // For each possible fact decoding:
         for (const auto& decFactSig : pair.second) {
             assert(!decFactSig._negated);
+            assert(newPos.getFacts().count(decFactSig));
             int decFactVar = newPos.encode(decFactSig);
 
             // Get substitution from qfact to its decoded fact

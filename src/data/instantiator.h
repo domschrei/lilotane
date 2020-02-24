@@ -16,10 +16,11 @@ class HtnInstance; // incomplete forward def
 class Instantiator {
 
 private:
+    Parameters& _params;
     HtnInstance* _htn;
 
 public:
-    Instantiator(HtnInstance& htn) : _htn(&htn) {}
+    Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn) {}
 
     std::vector<Reduction> getMinimalApplicableInstantiations(Reduction& r, 
             std::unordered_map<int, SigSet> facts);
@@ -45,11 +46,11 @@ public:
             const std::unordered_set<Signature, SignatureHasher>& operations, 
             const Signature& fact);
 
-    bool isFullyGround(Signature& sig);
+    bool isFullyGround(const Signature& sig);
     std::vector<int> getFreeArgPositions(const Signature& sig);
     bool fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution);
 
-    bool test(Signature& sig, std::unordered_map<int, SigSet> facts);
+    bool test(const Signature& sig, std::unordered_map<int, SigSet> facts);
 
     std::unordered_map<int, int> substitution(std::vector<int> origArgs, std::vector<int> newArgs) {
         std::unordered_map<int, int> s;

@@ -477,19 +477,15 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
 
-        if (!pos.containsInState(decFact)) {
-            // Not a possible fact here. Add as "false" fact to get a contradiction
-            //log("IMPOSSIBLE_DECFACT %s\n", Names::to_string(decFact).c_str());
-            pos.addFact(decFact.abs());
-            pos.addTrueFact(decFact.opposite());
-            pos.extendState(decFact.opposite());
+        if (!pos.getFacts().count(decFact.abs())) {
+            // Decoded fact did not occur before.
+            introduceNewFalseFact(pos, decFact);
         }
-
+        
         pos.addQFactDecoding(factAbs, decFact.abs());
-        pos.addFact(factAbs, Reason(_layer_idx, _pos, op)); // also add fact as an (indirect) consequence of op
+        pos.addFact(decFact.abs(), Reason(_layer_idx, _pos, op)); // also add fact as an (indirect) consequence of op
     }
     // TODO what if ALL are impossible? (!somePossible) => Forbid!
-    // Right now, the q-fact will just run into a contradiction.
 }
 
 void Planner::addEffect(const Signature& op, const Signature& fact) {

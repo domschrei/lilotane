@@ -6,16 +6,6 @@
 #include "data/htn_instance.h"
 #include "data/arg_iterator.h"
 
-std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
-    Reduction& r, std::unordered_map<int, SigSet> facts) {
-
-    std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
-
-    // TODO Investigate subtasks of the reduction?
-
-    return reductions;
-}
-
 std::vector<Reduction> Instantiator::getFullApplicableInstantiations(
     Reduction& r, std::unordered_map<int, SigSet> facts) {
 
@@ -30,12 +20,6 @@ std::vector<Reduction> Instantiator::getFullApplicableInstantiations(
         }
     }
     return result;
-}
-
-std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
-    Action& a, std::unordered_map<int, SigSet> facts) {
-
-    return instantiatePreconditions<Action>(a, facts);
 }
 
 std::vector<Action> Instantiator::getFullApplicableInstantiations(
@@ -54,7 +38,45 @@ std::vector<Action> Instantiator::getFullApplicableInstantiations(
     return result;
 }
 
+std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
+    Reduction& r, std::unordered_map<int, SigSet> facts) {
 
+    std::vector<Reduction> reductions;
+
+    if (_params.isSet("qq")) {
+        // Instantiate nothing, only check if supplied op. is applicable
+        for (const Signature& pre : r.getPreconditions()) {
+            // Ground precondition that does not hold: return empty instantiation
+            if (isFullyGround(pre) && !test(pre, facts)) return reductions;
+        }
+        reductions.push_back(r);
+    } else {
+        // Instantiate all preconditions, some variables may still be left
+        std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
+    }
+
+    return reductions;
+}
+
+std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
+    Action& a, std::unordered_map<int, SigSet> facts) {
+    
+    std::vector<Action> actions;
+
+    if (_params.isSet("qq")) {
+        // Instantiate nothing, only check if supplied op. is applicable
+        for (const Signature& pre : a.getPreconditions()) {
+            // Ground precondition that does not hold: return empty instantiation
+            if (isFullyGround(pre) && !test(pre, facts)) return actions;
+        }
+        actions.push_back(a);
+    } else {
+        // Instantiate all preconditions, some variables may still be left
+        actions = instantiatePreconditions<Action>(a, facts);
+    }
+
+    return actions;
+}
 
 template<class T>
 std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<int, SigSet> facts) {
@@ -228,7 +250,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
     return result;
 }
 
-bool Instantiator::isFullyGround(Signature& sig) {
+bool Instantiator::isFullyGround(const Signature& sig) {
     for (int arg : sig._args) {
         if (_htn->_var_ids.count(arg)) return false;
     }
@@ -261,7 +283,7 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map
     return true;
 }
 
-bool Instantiator::test(Signature& sig, std::unordered_map<int, SigSet> facts) {
+bool Instantiator::test(const Signature& sig, std::unordered_map<int, SigSet> facts) {
     assert(isFullyGround(sig));
     bool positive = !sig._negated;
     
@@ -289,9 +311,5 @@ bool Instantiator::test(Signature& sig, std::unordered_map<int, SigSet> facts) {
     //         (fact never occured negative, but positive)
     // NOTin posFacts, NOTin negFacts : return true !
     //         (fact assumed to be false due to closed-world-asmpt)
-    sig.negate();
-    bool contained = facts[sig._name_id].count(sig) == 0;
-    sig.negate();
-    return contained;
-    
+    return facts[sig._name_id].count(sig.opposite()) == 0;
 }

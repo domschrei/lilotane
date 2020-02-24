@@ -45,6 +45,7 @@ void Parameters::setDefaults() {
     //setParam("aamo"); // ALL At-most-one constraints, also for reductions
     //setParam("pvn"); // print variable names
     //setParam("q"); // q-constants
+    //setParam("qq"); // no instantiation of preconditions
     //setParam("rrp"); // remove rigid predicates
 }
 
@@ -63,6 +64,7 @@ void Parameters::printUsage() {
     log(" -pvn        Print variable names\n");
     log(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
     log("             instead of fully grounding them into actual constants\n");
+    log(" -qq         Introduce q-constants for preconditions instead of instantiating them (only relevant with -q)\n");
     log(" -rrp        Remove rigid predicates\n");
 }
 
