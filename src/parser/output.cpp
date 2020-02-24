@@ -151,6 +151,18 @@ void simple_hddl_output(ostream & dout){
 	// determine whether the instance actually has action costs. If not, we insert in the output that every action has cost 1
 	bool instance_has_action_costs = metric_target != dummy_function_type;
 
+
+	bool instance_is_classical = true;
+	for (task t : abstract_tasks)
+		if (t.name == "__top") instance_is_classical = false;
+
+	// if we are in a classical domain remove everything HTNy
+	if (instance_is_classical){
+		abstract_tasks.clear();
+		methods.clear();
+	}
+	
+
 	map<string,int> task_id;
 	vector<pair<task,bool>> task_out;
 	for (task t : primitive_tasks){
@@ -192,13 +204,14 @@ void simple_hddl_output(ostream & dout){
 		for(string s : f.argument_sorts) assert(sort_id.count(s)), dout << " " << sort_id[s];
 		dout << endl;
 	}
+	
 	dout << "#number_primitive_tasks_and_number_abstract_tasks" << endl;
 	dout << primitive_tasks.size() << " " << abstract_tasks.size() << endl;
 
 	for (auto tt : task_out){
 		task t = tt.first;
-		dout << "#begin_task_name_number_of_variables" << endl;
-		dout << t.name << " " << t.vars.size() << endl;
+		dout << "#begin_task_name_number_of_original_variables_and_number_of_variables" << endl;
+		dout << t.name << " " << t.number_of_original_vars << " " << t.vars.size() << endl;
 		dout << "#sorts_of_variables" << endl;
 		map<string,int> v_id;
 		for (auto v : t.vars) assert(sort_id.count(v.second)), dout << sort_id[v.second] << " ", v_id[v.first] = v_id.size();
@@ -262,11 +275,12 @@ void simple_hddl_output(ostream & dout){
 				dout << endl;
 			}
 	
-			dout << "#variable_constaints_first_number_then_individual_constraints" << endl;
+			dout << "#variable_constraints_first_number_then_individual_constraints" << endl;
 			dout << t.constraints.size() << endl;
 			for (literal l : t.constraints){
 				if (!l.positive) dout << "!";
 				dout << "= " << v_id[l.arguments[0]] << " " << v_id[l.arguments[1]] << endl;
+				assert(l.arguments[0][0] == '?'); // cannot be a constant
 				assert(l.arguments[1][0] == '?'); // cannot be a constant
 			}
 		}
@@ -343,6 +357,8 @@ void simple_hddl_output(ostream & dout){
 	dout << function_lines.size() << endl;
 	for (string l : function_lines)
 		dout << l << endl;
+
 	dout << "#initial_task" << endl;
-	dout << task_id["__top"] << endl;
+	if (instance_is_classical) dout << "-1" << endl;
+	else dout << task_id["__top"] << endl;
 }

@@ -79,13 +79,13 @@ struct HtnInstance {
     SigSet getInitState();
     SigSet getGoals();
 
-    void extractPredSorts(predicate_definition& p);
-    void extractTaskSorts(task& t);
-    void extractMethodSorts(method& m);
+    void extractPredSorts(const predicate_definition& p);
+    void extractTaskSorts(const task& t);
+    void extractMethodSorts(const method& m);
     void extractConstants();
 
-    Reduction& createReduction(method& method);
-    Action& createAction(task& task);
+    Reduction& createReduction(const method& method);
+    Action& createAction(const task& task);
 
     SigSet getAllFactChanges(const Signature& sig);
 

@@ -2,12 +2,24 @@
 #include "parsetree.hpp"
 #include "domain.hpp" // for sorts of constants
 #include "cwa.hpp"
+#include "orderingDecomposition.hpp"
 #include <iostream>
 #include <algorithm>
 #include <cassert>
 #include <variant>
 #include <bitset>
 #include <functional>
+
+string get_hpdl_sort_name(string original_sort_name){
+	// all sorts have lower case names
+	transform(original_sort_name.begin(), original_sort_name.end(), original_sort_name.begin(), ::tolower);	
+
+	// "object" denotes in HPDL the root sort of the type hierarchy. HDDL does not have a dedicated root, so we change the same of any sort "object"
+	if (original_sort_name == "object")
+		return "object__compiled";
+
+	return original_sort_name;
+}
 
 
 function<string(string)> variable_output_closure(map<string,string> var2const){
@@ -32,12 +44,12 @@ function<string(string)> variable_declaration_closure(map<string,string> method2
 		if (! *declareVar) return varOrConst;
 
 		if (method2TaskSort.count(varOrConst))
-			return varOrConst + " - " + method2TaskSort[varOrConst];
+			return varOrConst + " - " + get_hpdl_sort_name(method2TaskSort[varOrConst]);
 		// write declaration
 		for (auto varDecl :  m.vars->vars)
 			if (varDecl.first == varOrConst){
 				declared.insert(varOrConst);
-		        return varOrConst + " - " + varDecl.second;
+		        return varOrConst + " - " + get_hpdl_sort_name(varDecl.second);
 			}
 
 		cout << "FAIL !! for " << varOrConst << endl;
@@ -52,7 +64,7 @@ void write_HPDL_parameters(ostream & out, parsed_task & task){
 	for (pair<string,string> var : task.arguments->vars){
 		if (! first) out << " ";
 	    first = false;	
-		out << var.first << " - " << var.second;
+		out << var.first << " - " << get_hpdl_sort_name(var.second);
 	}
 	out << ")" << endl;
 }
@@ -91,7 +103,7 @@ void write_HPDL_general_formula(ostream & out, general_formula * f, function<str
 			int first = 0;
 			for(pair<string,string> varDecl : f->qvariables.vars){
 				if (first++) out << " ";
-				out << varDecl.first << " - " << varDecl.second;
+				out << varDecl.first << " - " << get_hpdl_sort_name(varDecl.second);
 			}
 			out << ")" << endl;
 		}
@@ -115,7 +127,7 @@ void write_HPDL_general_formula(ostream & out, general_formula * f, function<str
 
 	if (f->type == OFSORT || f->type == NOTOFSORT){
 		if (f->type == NOTOFSORT) out << "(not ";
-		out << "(type_member_" << f->arg2 << " " << var(f->arg1) << ")";
+		out << "(type_member_" << get_hpdl_sort_name(f->arg2) << " " << var(f->arg1) << ")";
 		if (f->type == NOTOFSORT) out << ")";
 		out << endl;
 		return;
@@ -134,6 +146,14 @@ void write_HPDL_general_formula_outer_and(ostream & out, general_formula * f, fu
 		for (general_formula* s : f->subformulae) write_HPDL_general_formula(out,s,var, indent);
 	} else {
 		write_HPDL_general_formula(out,f,var,indent);
+	}
+}
+
+void add_consts_to_set(additional_variables additionalVars, set<string> & const_set){
+	for(pair<string,string> varDecl : additionalVars){
+		// determine const of this sort
+		assert(sorts[varDecl.second].size() == 1);
+		const_set.insert(*(sorts[varDecl.second].begin()));
 	}
 }
 
@@ -175,6 +195,32 @@ vector<sub_task*> get_tasks_in_total_order(vector<sub_task*> tasks, vector<pair<
 	return ordered_subtasks;
 }
 
+
+// writes the ordering of subtask in the format of HPDL
+void write_hpdl_order_decomposition(ostream & dout, order_decomposition* order, map<string,sub_task*> & sub_tasks_for_id, function<string(string)> variable_declaration, int depth){
+	if (!order && depth == 1) dout << "()" << endl;
+	if (!order) return;
+
+	if (depth != 1) write_HPDL_indent(dout,2+depth);
+	if (order->isParallel) dout << "["; else dout << "(";
+	dout << endl;
+
+	for (variant<string,order_decomposition*> elem : order->elements){
+		if (holds_alternative<string>(elem)){
+			sub_task* ps = sub_tasks_for_id[get<string>(elem)];
+			write_HPDL_indent(dout,3+depth);
+			dout << "(" << ps->task;
+			for (string & var : ps->arguments->vars) dout << " " << variable_declaration(var);
+			dout << ")" << endl;
+		} else
+			write_hpdl_order_decomposition(dout, get<order_decomposition*>(elem), sub_tasks_for_id, variable_declaration, depth+1);
+	}
+	
+	write_HPDL_indent(dout,2+depth);
+	if (order->isParallel) dout << "]"; else dout << ")";
+	dout << endl;
+}
+
 void write_instance_as_HPDL(ostream & dout, ostream & pout){
 	dout << "(define (domain dom)" << endl;
 	dout << "  (:requirements " << endl;
@@ -196,77 +242,175 @@ void write_instance_as_HPDL(ostream & dout, ostream & pout){
 	for (sort_definition sort_def : sort_definitions){
 		assert(!lastSorts); // only one sort definition without parents
 
-		string _s = *(sort_def.declared_sorts.begin()); transform(_s.begin(), _s.end(), _s.begin(), ::tolower);
-
-		if (sort_def.declared_sorts.size() == 1 && _s == "object"){
-			sorts_rhs.insert(sort_def.parent_sort);
-			continue; // ignore the rest of this definition
-		}
-
-		_s = sort_def.parent_sort; transform(_s.begin(), _s.end(), _s.begin(), ::tolower);
-
-		if (sort_def.has_parent_sort && _s == "object"){
-			for (string sort : sort_def.declared_sorts)
-				sorts_rhs.insert(sort);
-			continue;
-		}
-
 		dout << "   ";
 		for (string sort : sort_def.declared_sorts){
-			_s = sort; transform(_s.begin(), _s.end(), _s.begin(), ::tolower);
-			if (_s != "object") // it is a build-in in HPDL 
-				dout << " " << sort, sorts_lhs.insert(sort);
+			string output_sort = get_hpdl_sort_name(sort);
+			dout << " " << output_sort;
+			sorts_lhs.insert(output_sort);
 		}
 
-		if (sort_def.has_parent_sort)
-			dout << " - " << sort_def.parent_sort, sorts_rhs.insert(sort_def.parent_sort);
-		else {
+		if (sort_def.has_parent_sort){
+			string output_sort = get_hpdl_sort_name(sort_def.parent_sort);
+			dout << " - " << output_sort;
+			sorts_rhs.insert(output_sort);
+		} else {
 			lastSorts = true;
 		}
 
 		dout << endl;
 	}
 	// output all sorts on the RHS, which are not on an LHS
-	for (string r : sorts_rhs) if (!sorts_lhs.count(r)) dout << " " << r;
+	bool anyOutputSorts = false;
+	for (string r : sorts_rhs) if (!sorts_lhs.count(r)) dout << " " << r, anyOutputSorts = true;
+	if (anyOutputSorts) dout << " - object"; // output that they are children of the root-type
 	dout << "  )" << endl;
 
 	dout << endl;
-	dout << "  (:constants" << endl;
-	for (auto & s_entry : sorts){
-		if (s_entry.first.rfind("sort_for", 0) == 0) continue;
-		if (!s_entry.second.size()) continue;
-			
-		dout << "   ";
-		for(string constant : s_entry.second) dout << " " << constant;
-		dout << " - " << s_entry.first << endl;
+
+	// determine which constants need to be declared in the domain
+	set<string> constants_in_domain;
+	for (parsed_task & at : parsed_abstract){
+		if (at.name == "__top") continue; // the __top task will be written into the problem file
+		for (parsed_method & method : parsed_methods[at.name]){
+			// determine which variables are actually constants
+			add_consts_to_set(method.newVarForAT,constants_in_domain);
+			for (sub_task* st : method.tn->tasks)
+				add_consts_to_set(st->arguments->newVar,constants_in_domain);
+		}
 	}
+	// constants in primitices
+	for (parsed_task prim : parsed_primitive){
+		add_consts_to_set(prim.prec->variables_for_constants(),constants_in_domain);
+		add_consts_to_set(prim.eff->variables_for_constants(),constants_in_domain);
+	}
+
+
+	pout << "(define (problem prob) (:domain dom)" << endl;
+
+	dout << "  (:constants" << endl;
+	pout << "  (:objects" << endl;
+	for (auto & s_entry : sorts){
+		// don't write sorts that are artificial
+		if (s_entry.first.rfind("sort_for", 0) == 0) continue;
+
+		set<string> dconst;
+		set<string> pconst;
+		
+		for(string constant : s_entry.second) 
+			if (constants_in_domain.count(constant))
+				dconst.insert(constant);
+			else
+				pconst.insert(constant);
+			
+		
+		if (dconst.size()){
+			dout << "   ";
+			for(string constant : dconst) dout << " " << constant;
+			dout << " - " << get_hpdl_sort_name(s_entry.first) << endl;
+		}
+		if (pconst.size()){
+			pout << "   ";
+			for(string constant : pconst) pout << " " << constant;
+			pout << " - " << get_hpdl_sort_name(s_entry.first) << endl;
+		}
+	}
+	pout << "  )" << endl << endl;
 	dout << "  )" << endl << endl;
 
+	// write the rest of the problem s.t. we can insert the content of the top method at the correct position
+	pout << "  (:init" << endl;
+	for (ground_literal & lit : init){
+		if (!lit.positive) continue;
+		pout << "    (" << lit.predicate;
+		for (string & arg : lit.args)
+			pout << " " << arg;
+		pout << ")" << endl;
+	}
+	// expand sorts before writing the sort membership information to keep them correct
+	expand_sorts(); // add constants to all sorts
+	for(auto [s, elems] : sorts){
+		(void) elems; // get rid of unused variable
+		if (s.rfind("sort_for", 0) == 0) continue;
+		for (string constant : sorts[s]){
+			pout << "    (type_member_" << get_hpdl_sort_name(s) << " " << constant << ")" << endl;
+		}
+	}
+	pout << "  )" << endl << endl;
+	pout << "  (:tasks-goal" << endl;
 
+
+
+
+
+	///////////////////////////////////////////////////// Writing the main part of the domain
 	dout << "  (:predicates" << endl;
 	for(auto [s,elems] : sorts){
 		(void) elems; // get rid of unused variable
 		if (s.rfind("sort_for", 0) == 0) continue;
-		dout << "    (type_member_" << s << " ?var - " << s << ")" << endl;
+		dout << "    (type_member_" << get_hpdl_sort_name(s) << " ?var - object)" << endl;
 	}
 	for (predicate_definition pred_def : predicate_definitions){
 		dout << "    (" << pred_def.name;
 		for(unsigned int i = 0; i < pred_def.argument_sorts.size(); i++)
-			dout << " ?var" << i << " - " << pred_def.argument_sorts[i];
+			dout << " ?var" << i << " - " << get_hpdl_sort_name(pred_def.argument_sorts[i]);
 		dout << ")" << endl;
 	}
 	dout << "  )" << endl;
 
 	dout << endl << endl;
 
-	//set<string> sortsWithDeclaredPredicates;
+	// Creating a new task as a wrapper_compound for each primitive
+	for (parsed_task prim : parsed_primitive) {
+		dout << "  (:task ";
+		dout << prim.name << endl;
+
+		// Parameters -------------------------
+		dout << "    :parameters (";
+		bool first = true;
+		for (pair<string,string> var : prim.arguments->vars){
+			if (! first) dout << " ";
+			first = false;	
+			dout << var.first << " - object";
+		}
+		dout << ")" << endl;
+
+		dout << "    (:method method1" << endl;
+
+		// Precondition ------------------------
+		dout << "      :precondition (";
+		if (prim.arguments->vars.size() > 0) dout << "and";
+		dout << endl;
+		for (pair<string,string> & arg : prim.arguments->vars) {
+			dout << "        (type_member_" << get_hpdl_sort_name(arg.second) << " " << arg.first << ")" << endl;
+		}
+		dout << "      )" << endl;
+		
+		// subtasks --------------------------
+		dout << "      :tasks (" << endl;
+
+		dout << "        (" << prim.name << "_primitive";
+		for (pair<string,string> v : prim.arguments->vars) {
+			dout << " " << v.first << " - " << get_hpdl_sort_name(v.second);
+		}
+		dout << ")" << endl;
+		dout << "      )" << endl;
+		dout << "    )" << endl;
+		dout << "  )" << endl << endl;
+	}
+
+	dout << "; ************************************************************" << endl;
+	dout << "; ************************************************************" << endl;
 
 	// write abstract tasks
 	for (parsed_task & at : parsed_abstract){
-		dout << "  (:task ";
-		if (at.name[0] == '_') dout << "t";
-		dout << at.name << endl;
-		write_HPDL_parameters(dout,at);
+		bool top_task = at.name == "__top";
+
+		if (!top_task){
+			dout << "  (:task ";
+			if (at.name[0] == '_') dout << "t";
+			dout << at.name << endl;
+			write_HPDL_parameters(dout,at);
+		}
 			
 		set<string> atArgs;
 		for (unsigned int i = 0; i < at.arguments->vars.size(); i++)
@@ -274,9 +418,12 @@ void write_instance_as_HPDL(ostream & dout, ostream & pout){
 		
 		// HPDL puts methods into the abstract tasks, so output them
 		for (parsed_method & method : parsed_methods[at.name]){
-			dout << "    (:method ";
-			if (method.name[0] == '_') dout << "t";
-			dout << method.name << endl;
+			// the top task will have just one!
+			if (!top_task){
+				dout << "    (:method ";
+				if (method.name[0] == '_') dout << "t";
+				dout << method.name << endl;
+			}
 
 			// determine which variables are actually constants
 			map<string,string> varsForConst;
@@ -321,76 +468,90 @@ void write_instance_as_HPDL(ostream & dout, ostream & pout){
 				assert(sortOfParam.size()); // must be found
 				if (sortOfAT == sortOfParam) continue;
 				variableTypesToCheck.push_back(make_pair(atArg,sortOfParam));
-				//sortsWithDeclaredPredicates.insert(sortOfParam);
 			}
 
-
-
-			// preconditions
-			dout << "      :precondition (";
-			bool variableToBind = false;
-			for (pair<string,string> & varDecl : method.vars->vars){
-				if (varsForConst.count(varDecl.first)) continue;
-				variableToBind = true; break;
+			// the top tasks method does not have a precondition
+			if (!top_task){
+				// preconditions
+				dout << "      :precondition (";
+				bool variableToBind = false;
+				for (pair<string,string> & varDecl : method.vars->vars){
+					if (varsForConst.count(varDecl.first)) continue;
+					variableToBind = true; break;
+				}
+				
+				if ((method.prec != NULL && method.prec->type != EMPTY) ||
+					(method.tn->constraint != NULL && method.tn->constraint->type != EMPTY) ||
+				  	variableToBind || variableConstantToCheck.size() ||
+					variableTypesToCheck.size() ) dout << "and";
+				dout << endl;
 			}
-			
-			if ((method.prec != NULL && method.prec->type != EMPTY) ||
-				(method.tn->constraint != NULL && method.tn->constraint->type != EMPTY) ||
-			  	variableToBind || variableConstantToCheck.size() ||
-				variableTypesToCheck.size() ) dout << "and";
-			dout << endl;
 			
 		
 			set<string> state_declared_variables;
 			bool declareVariables = true;
 			auto variable_declaration = variable_declaration_closure(method2Task,method2TaskSort,varsForConst,method,&declareVariables,state_declared_variables);
 			// bind all variables
-			for (pair<string,string> & varDecl : method.vars->vars){
+			if (!top_task) for (pair<string,string> & varDecl : method.vars->vars){
 				if (varsForConst.count(varDecl.first)) continue;
 				write_HPDL_indent(dout,4);
-				//sortsWithDeclaredPredicates.insert(varDecl.second);
-				dout << "(type_member_" << varDecl.second << " " << variable_declaration(varDecl.first) << ")" << endl;
+				dout << "(type_member_" << get_hpdl_sort_name(varDecl.second) << " " << variable_declaration(varDecl.first) << ")" << endl;
 			}
 
 			declareVariables = false;
-			write_HPDL_general_formula_outer_and(dout,method.prec,variable_declaration,4);
-			write_HPDL_general_formula_outer_and(dout,method.tn->constraint,variable_declaration,4);
-			for (pair<string,string> v : variableConstantToCheck){
-				write_HPDL_indent(dout,4);
-				dout << "(= " << v.first << " " << v.second << ")" << endl;
+			if (!top_task){
+			   	write_HPDL_general_formula_outer_and(dout,method.prec,variable_declaration,4);
+				write_HPDL_general_formula_outer_and(dout,method.tn->constraint,variable_declaration,4);
+				// constraints!
+				for (pair<string,string> v : variableConstantToCheck){
+					write_HPDL_indent(dout,4);
+					dout << "(= " << v.first << " " << v.second << ")" << endl;
+				}
+				for (pair<string,string> v : variableTypesToCheck){
+					write_HPDL_indent(dout,4);
+					dout << "(type_member_" << get_hpdl_sort_name(v.second) << " " << v.first << ")" << endl;
+				}
+				dout << "      )" << endl;
 			}
-			for (pair<string,string> v : variableTypesToCheck){
-				write_HPDL_indent(dout,4);
-				dout << "(type_member_" << v.second << " " << v.first << ")" << endl;
-			}
-			// constraints!
-			dout << "      )" << endl;
 
-			// subtasks
-			declareVariables = false;
-			dout << "      :tasks (" << endl;
-			for (sub_task* t : get_tasks_in_total_order(method.tn->tasks,method.tn->ordering)){
-				dout << "        (" << t->task;
-				for (string & var : t->arguments->vars)
-					dout << " " << variable_declaration(var);
-				dout << ")" << endl;
-			}
-			dout << "      )" << endl;
 
-			dout << "    )" << endl;
+			// the orderings in the task network are pointers, so de-ref them
+			vector<pair<string,string>> task_network_ordering;
+			for (pair<string,string>* ord : method.tn->ordering)
+				task_network_ordering.push_back(*ord);
+
+			vector<string> subtask_ids;
+			map<string,sub_task*> subtasks_for_id; // create a map to find tasks quicker
+			for (sub_task* task : method.tn->tasks){
+				subtask_ids.push_back(task->id);
+				subtasks_for_id[task->id] = task;
+			}
+
+			(top_task?pout:dout) << "      :tasks ";
+			// compute the order decomposition
+			if (subtask_ids.size()){
+				order_decomposition* order = extract_order_decomposition(task_network_ordering, subtask_ids);
+				order = simplify_order_decomposition(order);
+
+				// writesubtasks
+				declareVariables = false;
+				write_hpdl_order_decomposition((top_task?pout:dout),order,subtasks_for_id,variable_declaration, 1);
+			} else dout << "()" << endl;
+			if (!top_task) dout << "    )" << endl;
 		}
 
 
-		dout << "  )" << endl << endl;
+		if (!top_task) dout << "  )" << endl << endl;
 	}
 
 	for (parsed_task prim : parsed_primitive){
 		map<string,string> varsForConst;
-		auto simple_variable_output = variable_output_closure(varsForConst);
 		add_var_for_const_to_map(prim.prec->variables_for_constants(),varsForConst);
 		add_var_for_const_to_map(prim.eff->variables_for_constants(),varsForConst);
+		auto simple_variable_output = variable_output_closure(varsForConst);
 
-		dout << "  (:action " << prim.name << endl;
+		// Adding prefix "_primitive" to each primitive
+		dout << "  (:action " << prim.name << "_primitive" << endl;
 		write_HPDL_parameters(dout,prim);
 		// preconditions
 		dout << "    :precondition (";
@@ -408,35 +569,11 @@ void write_instance_as_HPDL(ostream & dout, ostream & pout){
 
 		dout << "  )" << endl << endl;
 	}
-	
 	dout << ")" << endl;
 
 
 
-	pout << "(define (problem prob) (:domain dom)" << endl;
-
-	pout << "  (:init" << endl;
-	for (ground_literal & lit : init){
-		if (!lit.positive) continue;
-		pout << "    (" << lit.predicate;
-		for (string & arg : lit.args)
-			pout << " " << arg;
-		pout << ")" << endl;
-	}
-	// expand sorts before writing the sort membership information to keep them correct
-	expand_sorts(); // add constants to all sorts
-	for(auto [s, elems] : sorts){
-		(void) elems; // get rid of unused variable
-		if (s.rfind("sort_for", 0) == 0) continue;
-		for (string constant : sorts[s]){
-			pout << "    (type_member_" << s << " " << constant << ")" << endl;
-		}
-	}
-	pout << "  )" << endl << endl;
-
-	pout << "  (:tasks-goal" << endl << "    :tasks (" << endl;
-	pout << "      (t__top)" << endl;
-	pout << "    )" << endl;
+	// problem is done. Close its brackets
 	pout << "  )" << endl;
 	pout << ")" << endl;
 }

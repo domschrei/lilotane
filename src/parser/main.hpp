@@ -6,19 +6,19 @@
 #include <map>
 #include <cstring>
 
-#include "parsetree.hpp"
-#include "hddl.hpp"
-#include "domain.hpp"
-#include "sortexpansion.hpp"
-#include "parametersplitting.hpp"
 #include "cwa.hpp"
+#include "domain.hpp"
+#include "hddl.hpp"
+#include "hpdlWriter.hpp"
+#include "output.hpp"
+#include "parametersplitting.hpp"
+#include "parsetree.hpp"
+#include "plan.hpp"
+#include "shopWriter.hpp"
+#include "sortexpansion.hpp"
 #include "typeof.hpp"
 #include "util.hpp"
-#include "output.hpp"
-#include "shopWriter.hpp"
-#include "hpdlWriter.hpp"
 #include "verify.hpp"
-#include "plan.hpp"
 
 using namespace std;
 

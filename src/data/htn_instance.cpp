@@ -25,13 +25,13 @@ HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
     _instantiator = new Instantiator(*this);
     _effector_table = new EffectorTable(*this);
 
-    for (predicate_definition p : predicate_definitions)
+    for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
-    for (task t : primitive_tasks)
+    for (const task& t : primitive_tasks)
         extractTaskSorts(t);
-    for (task t : abstract_tasks)
+    for (const task& t : abstract_tasks)
         extractTaskSorts(t);
-    for (method m : methods)
+    for (const method& m : methods)
         extractMethodSorts(m);
     
     extractConstants();
@@ -45,8 +45,14 @@ HtnInstance::HtnInstance(ParsedProblem& p) : _p(p) {
         printf("\n");
     }
 
-    for (task t : primitive_tasks)
-        createAction(t);
+    for (task t : primitive_tasks) {
+        Action& a = createAction(t);
+        //printf("TYPES %s : ", Names::to_string(a).c_str());
+        for (int type : _signature_sorts_table[a.getSignature()._name_id]) {
+            //printf("%s ", Names::to_string(type).c_str());
+        }
+        //printf("\n");
+    }
     
     // Create blank action without any preconditions or effects
     int blankId = getNameId("__BLANK___");
@@ -158,33 +164,33 @@ SigSet HtnInstance::getGoals() {
     return result;
 }
 
-void HtnInstance::extractPredSorts(predicate_definition& p) {
+void HtnInstance::extractPredSorts(const predicate_definition& p) {
     int pId = getNameId(p.name);
     std::vector<int> sorts;
     for (auto var : p.argument_sorts) {
         sorts.push_back(getNameId(var));
     }
-    assert(_signature_sorts_table.count(pId) == 0);
+    assert(!_signature_sorts_table.count(pId));
     _signature_sorts_table[pId] = sorts;
 }
-void HtnInstance::extractTaskSorts(task& t) {
+void HtnInstance::extractTaskSorts(const task& t) {
     std::vector<int> sorts;
     for (auto var : t.vars) {
         int sortId = getNameId(var.second);
         sorts.push_back(sortId);
     }
     int tId = getNameId(t.name);
-    assert(_signature_sorts_table.count(tId) == 0);
+    assert(!_signature_sorts_table.count(tId));
     _signature_sorts_table[tId] = sorts;
 }
-void HtnInstance::extractMethodSorts(method& m) {
+void HtnInstance::extractMethodSorts(const method& m) {
     std::vector<int> sorts;
     for (auto var : m.vars) {
         int sortId = getNameId(var.second);
         sorts.push_back(sortId);
     }
     int mId = getNameId(m.name);
-    assert(_signature_sorts_table.count(mId) == 0);
+    assert(!_signature_sorts_table.count(mId));
     _signature_sorts_table[mId] = sorts;
 }
 void HtnInstance::extractConstants() {
@@ -199,7 +205,7 @@ void HtnInstance::extractConstants() {
     }
 }
 
-Reduction& HtnInstance::createReduction(method& method) {
+Reduction& HtnInstance::createReduction(const method& method) {
     int id = getNameId(method.name);
     std::vector<int> args = getArguments(method.vars);
     
@@ -305,9 +311,16 @@ Reduction& HtnInstance::createReduction(method& method) {
                 _reductions[id].getSubtasks().size());
     return _reductions[id];
 }
-Action& HtnInstance::createAction(task& task) {
+Action& HtnInstance::createAction(const task& task) {
     int id = getNameId(task.name);
     std::vector<int> args = getArguments(task.vars);
+
+    //printf("TYPES %s : ", task.name.c_str());
+    for (auto pair : task.vars) {
+        //printf("%s-%s ", pair.first.c_str(), pair.second.c_str());
+    }
+    //printf("\n");
+
     assert(_actions.count(id) == 0);
     _actions[id] = Action(id, args);
     for (auto p : task.prec) {

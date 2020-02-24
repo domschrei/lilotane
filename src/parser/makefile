@@ -10,7 +10,7 @@ LINKERFLAG=-O3 -lm -flto
 
 .PHONY = parser clean
 
-pandaPIparser: hddl-token.o hddl.o main.o sortexpansion.o parsetree.o util.o domain.o output.o parametersplitting.o cwa.o typeof.o shopWriter.o hpdlWriter.o plan.o verify.o 
+pandaPIparser: hddl-token.o hddl.o main.o sortexpansion.o parsetree.o util.o domain.o output.o parametersplitting.o cwa.o typeof.o shopWriter.o hpdlWriter.o plan.o verify.o orderingDecomposition.o
 	#${CC} ${LINKERFLAG} $^ -o pandaPIparser 
 	echo "Panda modules compiled."
 

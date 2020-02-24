@@ -374,6 +374,34 @@ vector<pair<map<string,int>,map<string,string>>> generateAssignmentsDFS(parsed_m
 							int debugMode){
 	vector<pair<map<string,int>,map<string,string>>> ret;
 	if (doneIDs.size() == subtasks.size()){
+		for (pair<string,string> varDecl : varDecls){
+			string sort = varDecl.second;
+			if (!variableAssignment.count(varDecl.first)){
+				// Domain may contain free variable ...
+				print_n_spaces(1 + 2*curpos);
+				cout << color(COLOR_RED,"Unassigned variable ") << varDecl.first << endl;
+				
+				for (string varVal : sorts[sort]){
+					map<string,string> newVariableAssignment = variableAssignment;
+					newVariableAssignment[varDecl.first] = varVal;
+					if (debugMode){
+						print_n_spaces(1 + 2*curpos+1);
+						cout << color(COLOR_PURPLE,"Assigning variable ") << varDecl.first << " to " << varVal << endl;
+					}
+
+					auto recursive = generateAssignmentsDFS(m, tasks, doneIDs,
+										   subtasks, curpos + 1,
+										   newVariableAssignment, matching,
+										   varDecls, useOrderInformation, debugMode);
+		
+					for (auto r : recursive) ret.push_back(r);
+				}
+				// expanded all possible values for variable
+				return ret;
+			}
+		}
+
+
 		if (debugMode) {
 			print_n_spaces(1 + 2*curpos);
 			cout << color(COLOR_GREEN,"Found compatible linearisation.") << endl;
@@ -382,12 +410,6 @@ vector<pair<map<string,int>,map<string,string>>> generateAssignmentsDFS(parsed_m
 		}
 		for (pair<string,string> varDecl : varDecls){
 			string sort = varDecl.second;
-			if (!variableAssignment.count(varDecl.first)){
-				// this should not happen
-				cout << color(COLOR_RED,"Unassigned variable ") << varDecl.first << endl;
-				exit(2);
-			}
-
 			string param = variableAssignment[varDecl.first];
 			if (!sorts[sort].count(param)){
 				if (debugMode){
@@ -800,6 +822,9 @@ pair<pair<bool,bool>,vector<pair<int,int>>> findLinearisation(int currentTask,
 		map<int,parsed_task> & taskIDToParsedTask,
 		// chosen method instantiations
 		map<int,map<string,string>> & chosen_method_matchings,
+		// chosen non-unique matching positions
+		vector<pair<int,int>> & chosen_non_unique_matchings,
+		map<int,set<int>> & forbidden_matchings,
 		bool uniqueMatching,
 		bool rootTask,
 		int debugMode,
@@ -833,11 +858,23 @@ pair<pair<bool,bool>,vector<pair<int,int>>> findLinearisation(int currentTask,
 	bool foundMatching = false;
 
 	// now try all orderings
-	for (auto & matching : matchings[currentTask]){
+	for (size_t matchingNr = 0; matchingNr < matchings[currentTask].size(); matchingNr++){
+		auto & matching = matchings[currentTask][matchingNr];
+
 		if (debugMode){
 			print_n_spaces(1+2*level+1);
 			cout << color(COLOR_PURPLE,"Attempting matching") << endl;
 		}
+
+		if (forbidden_matchings[currentTask].count(matchingNr)){
+			if (debugMode){
+				print_n_spaces(1+2*level+1);
+				cout << color(COLOR_RED,"Matching is forbidden due to previous unsuccessful attempt.") << endl;
+			}
+			continue;
+		}
+
+
 		// check all orderings
 		bool badOrdering = false;
 		for (auto ordering : parsedMethodForTask[currentTask].tn->ordering){
@@ -862,18 +899,24 @@ pair<pair<bool,bool>,vector<pair<int,int>>> findLinearisation(int currentTask,
 			cout << color(COLOR_RED,"Bad ordering.") << endl;
 		}
 		if (badOrdering) continue;
+
+		if (matchings[currentTask].size() > 1) chosen_non_unique_matchings.push_back(make_pair(currentTask,matchingNr));
+
 		// check recursively
 		bool subtasksOk = true;
 		vector<pair<int,int>> recursiveEdges;
 		for (int st : subtasksForTask[currentTask]){
-			pair<pair<bool,bool>,vector<pair<int,int>>> linearisation = findLinearisation(st,parsedMethodForTask,tasks,subtasksForTask,matchings,pos_in_primitive_plan,primitive_plan,task_variable_values,taskIDToParsedTask,chosen_method_matchings,uniqueMatching,false,debugMode,level+1);
+			pair<pair<bool,bool>,vector<pair<int,int>>> linearisation = findLinearisation(st,parsedMethodForTask,tasks,subtasksForTask,matchings,pos_in_primitive_plan,primitive_plan,task_variable_values,taskIDToParsedTask,chosen_method_matchings,chosen_non_unique_matchings,forbidden_matchings, uniqueMatching,false,debugMode,level+1);
 			// add all edges to result
 			recursiveEdges.insert(recursiveEdges.end(),linearisation.second.begin(), linearisation.second.end());
 			subtasksOk &= linearisation.first.first;
 		}
 		
 		// if any subtask is not possible, just try the next one
-		if (!subtasksOk) continue;
+		if (!subtasksOk) {
+			chosen_non_unique_matchings.pop_back();
+			continue;
+		}
 
 		
 		chosen_method_matchings[currentTask] = matching.second;
@@ -955,7 +998,28 @@ pair<pair<bool,bool>,vector<pair<int,int>>> findLinearisation(int currentTask,
 					print_n_spaces(1+2*level+1);
 					cout << color(COLOR_RED,"Cannot find executable linearisation.") << endl;
 				}
-				continue;
+
+				// look what has happened
+				if (chosen_method_matchings.size() == 0){
+					// this means, we had no choice in getting here
+					if (debugMode){
+						print_n_spaces(1+2*level+1);
+						cout << color(COLOR_RED,"No further matchings are available.") << endl;
+					}
+					continue;
+				} else {
+					if (debugMode){
+						print_n_spaces(1+2*level-1);
+						cout << endl << color(COLOR_RED,"Forbidding deepest matching: ") << chosen_non_unique_matchings.back().first << 
+							" -> " << chosen_non_unique_matchings.back().second << endl;
+					}
+
+					forbidden_matchings[chosen_non_unique_matchings.back().first].insert(chosen_non_unique_matchings.back().second);
+					chosen_non_unique_matchings.clear();
+					chosen_method_matchings.clear();
+				
+					return findLinearisation(currentTask,parsedMethodForTask,tasks,subtasksForTask,matchings,pos_in_primitive_plan,primitive_plan,task_variable_values,taskIDToParsedTask,chosen_method_matchings,chosen_non_unique_matchings,forbidden_matchings,true,true,debugMode,0);
+				}
 			}
 			if (debugMode){
 				print_n_spaces(1+2*level+1);
@@ -1193,15 +1257,17 @@ bool verify_plan(istream & plan, bool useOrderInformation, int debugMode){
 	bool orderingIsConsistent = true;
 
 	map<int,map<string,string>> chosen_method_matchings;
+	vector<pair<int,int>> chosen_non_unique_matchings;
+	map<int,set<int>> forbidden_matchings;
 	if (debugMode){
 		cout << color(COLOR_YELLOW,"Check whether primitive plan is a linearisation of the orderings resulting from applied decomposition methods.", MODE_UNDERLINE) << endl;
 	}
-	pair<pair<bool,bool>,vector<pair<int,int>>> linearisation = findLinearisation(root_task,parsedMethodForTask,tasks,subtasksForTask,possibleMethodInstantiations,pos_in_primitive_plan,primitive_plan,taskVariableValues,taskIDToParsedTask,chosen_method_matchings,true,true,debugMode,0);
+	pair<pair<bool,bool>,vector<pair<int,int>>> linearisation = findLinearisation(root_task,parsedMethodForTask,tasks,subtasksForTask,possibleMethodInstantiations,pos_in_primitive_plan,primitive_plan,taskVariableValues,taskIDToParsedTask,chosen_method_matchings,chosen_non_unique_matchings,forbidden_matchings,true,true,debugMode,0);
 	if (debugMode){
 		cout << "Result " << linearisation.first.first << " " << linearisation.first.second << endl;
 	}
 	
-	if (!linearisation.first.first){
+	if (!linearisation.first.first && !forbidden_matchings.size()){
 		cout << color(COLOR_RED,"Order of applied methods is under no matching compatible with given primitive plan.") << endl;
 		orderingIsConsistent = false;
 	}

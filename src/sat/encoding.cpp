@@ -606,12 +606,12 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 }
 
 bool holds(State& state, const Signature& fact) {
+
     // Positive fact
-    if (!fact._negated)
-        return state.count(fact._name_id) && state[fact._name_id].count(fact);
+    if (!fact._negated) return state[fact._name_id].count(fact);
     
-    // Negative fact
-    return !state.count(fact._name_id) || !state[fact._name_id].count(fact);
+    // Negative fact: fact is contained, OR counterpart is NOT contained
+    return state[fact._name_id].count(fact) || !state[fact._name_id].count(fact.opposite());
 }
 
 void Encoding::checkAndApply(const Action& a, State& state, State& newState, int layer, int pos) {

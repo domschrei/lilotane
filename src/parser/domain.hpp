@@ -29,6 +29,7 @@ struct literal{
 
 struct task{
 	string name;
+	int number_of_original_vars; // the first N variables are original, i.e. exist in the HDDL input file. The rest is artificial and was added by this parser for compilation
 	vector<pair<string,string>> vars;
 	vector<literal> prec;
 	vector<literal> eff;

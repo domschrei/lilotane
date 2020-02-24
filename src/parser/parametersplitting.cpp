@@ -68,6 +68,7 @@ void split_independent_parameters(){
 					}
 				}
 			}
+			at.number_of_original_vars = at.vars.size(); // does not matter as it will get pruned
 			abstract_tasks.push_back(at);
 			task_name_map[at.name] = at;
 			
