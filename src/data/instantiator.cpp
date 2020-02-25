@@ -49,10 +49,15 @@ std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
             // Ground precondition that does not hold: return empty instantiation
             if (isFullyGround(pre) && !test(pre, facts)) return reductions;
         }
-        reductions.push_back(r);
+        if (hasSomeInstantiation(r.getSignature()))
+            reductions.push_back(r);
     } else {
         // Instantiate all preconditions, some variables may still be left
-        reductions = instantiatePreconditions<Reduction>(r, facts);
+        std::vector<Reduction> inst = instantiatePreconditions<Reduction>(r, facts);
+        for (Reduction& r : inst) {
+            if (hasSomeInstantiation(r.getSignature()))
+                reductions.push_back(r);
+        }
     }
 
     return reductions;
@@ -69,13 +74,29 @@ std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
             // Ground precondition that does not hold: return empty instantiation
             if (isFullyGround(pre) && !test(pre, facts)) return actions;
         }
-        actions.push_back(a);
+        if (hasSomeInstantiation(a.getSignature()))
+            actions.push_back(a);
     } else {
         // Instantiate all preconditions, some variables may still be left
-        actions = instantiatePreconditions<Action>(a, facts);
+        std::vector<Action> inst = instantiatePreconditions<Action>(a, facts);
+        for (Action& a : inst) {
+            if (hasSomeInstantiation(a.getSignature()))
+                actions.push_back(a);
+        }
     }
 
     return actions;
+}
+
+bool Instantiator::hasSomeInstantiation(const Signature& sig) {
+    std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
+    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+        int sort = types[argPos];
+        if (_htn->_constants_by_sort[sort].empty()) {
+            return false;
+        }
+    }
+    return true;
 }
 
 template<class T>
@@ -279,6 +300,20 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map
         if (substitution != NULL) {
             substitution->insert(std::pair<int, int>(sig._args[i], groundSig._args[i]));
         }
+    }
+    return true;
+}
+
+bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
+    std::vector<int>& taskSorts = _htn->_signature_sorts_table[sig._name_id];
+    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+        int sort = taskSorts[argPos];
+        int arg = sig._args[argPos];
+        bool valid = _htn->_q_constants.count(arg) || _htn->_var_ids.count(arg);
+        for (int c : _htn->_constants_by_sort[sort]) {
+            if (c == arg) valid = true; 
+        }
+        if (!valid) return false;
     }
     return true;
 }

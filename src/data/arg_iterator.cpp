@@ -13,13 +13,11 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
     // Get all constants of the respective type(s)
     assert(_htn._signature_sorts_table.count(sig._name_id));
     std::vector<int> sorts = _htn._signature_sorts_table[sig._name_id];
-    assert(sorts.size() > 0 || fail("Predicate " + Names::to_string(sig) + " has no sorts table!\n"));
+    assert(sorts.size() == sig._args.size() || fail("Sorts table of predicate " + Names::to_string(sig) + " has an invalid size\n"));
     
-    /*
-    log("SORTS %s ", Names::to_string(sig._name_id).c_str());
-    for (int s : sorts) log("%s ", Names::to_string(s).c_str());
-    log("\n");
-    */
+    //log("SORTS %s ", Names::to_string(sig._name_id).c_str());
+    //for (int s : sorts) log("%s ", Names::to_string(s).c_str());
+    //log("\n");
     
     std::vector<std::vector<int>> constantsPerArg;
 
@@ -37,6 +35,10 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
                 if (_htn._q_constants.count(arg)) continue;
                 eligibleConstants.push_back(arg);
             }
+
+            // Empty instantiation if there is not a single eligible constant at some pos
+            //log("OF_SORT %s : %i constants\n", _htn._name_back_table[sort].c_str(), eligibleConstants.size());
+            if (eligibleConstants.empty()) return std::vector<Signature>();
 
             constantsPerArg.push_back(eligibleConstants);
         } else {
@@ -58,10 +60,9 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
     assert(constantsPerArg.size() > 0);
     int numChoices = 1;
     for (auto vec : constantsPerArg) {
-        // Empty set of choices => empty result
-        if (vec.size() == 0) return instantiation;
         numChoices *= vec.size();
     }
+    if (numChoices == 0) return instantiation;
     instantiation.reserve(numChoices);
 
     // Iterate over all possible assignments

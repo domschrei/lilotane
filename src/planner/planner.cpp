@@ -32,14 +32,19 @@ void Planner::findPlan() {
         initLayer[_pos].extendState(fact);
     }
 
+    std::vector<Reduction> parents = _htn._init_reduction_choices;
+    if (parents.empty()) {
+        parents.push_back(_htn._init_reduction);
+    }
+    log("Initial reductions: ");
+    for (auto p : parents) {
+        log("%s ", Names::to_string(p.getSignature()).c_str());
+    }
+    log("\n");
+
     // For each position where there is an initial task
     while (_pos+1 < initLayer.size()) {
         if (_pos > 0) createNext();
-
-        std::vector<Reduction> parents = _htn._init_reduction_choices;
-        if (parents.empty()) {
-            parents.push_back(_htn._init_reduction);
-        }
 
         for (Reduction& parent : parents) {
             Reason why(-1, 0, parent.getSignature());
@@ -47,6 +52,7 @@ void Planner::findPlan() {
             //Signature subtask = _htn.getInitTaskSignature(_pos);
             Signature subtask = parent.getSubtasks()[_pos];
             for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
+                if (!_instantiator.hasConsistentlyTypedArgs(rSig)) continue;
                 initLayer[_pos].addReduction(rSig, why);
                 initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());
                 // Add preconditions
@@ -55,6 +61,7 @@ void Planner::findPlan() {
                 }
             }
             for (Signature aSig : getAllActionsOfTask(subtask, initLayer[_pos].getState())) {
+                if (!_instantiator.hasConsistentlyTypedArgs(aSig)) continue;
                 initLayer[_pos].addAction(aSig, why);
                 // Add preconditions
                 for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
@@ -369,6 +376,7 @@ void Planner::propagateReductions(int offset) {
             const Signature& subtask = r.getSubtasks()[offset];
             // reduction(s)?
             for (Signature subRSig : getAllReductionsOfTask(subtask, newPos.getState())) {
+                if (!_instantiator.hasConsistentlyTypedArgs(subRSig)) continue;
                 numAdded++;
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
@@ -384,6 +392,7 @@ void Planner::propagateReductions(int offset) {
             }
             // action(s)?
             for (Signature aSig : getAllActionsOfTask(subtask, newPos.getState())) {
+                if (!_instantiator.hasConsistentlyTypedArgs(aSig)) continue;
                 numAdded++;
                 newPos.addAction(aSig, why);
                 // Add preconditions of action
@@ -491,11 +500,10 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
             // Decoded fact did not occur before.
             introduceNewFalseFact(pos, decFact);
         }
-        
+
         pos.addQFactDecoding(factAbs, decFact.abs());
         pos.addFact(decFact.abs(), Reason(_layer_idx, _pos, op)); // also add fact as an (indirect) consequence of op
     }
-    // TODO what if ALL are impossible? (!somePossible) => Forbid!
 }
 
 void Planner::addEffect(const Signature& op, const Signature& fact) {
@@ -533,6 +541,9 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
 
     if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
 
+    // Check if the created reduction has consistent sorts
+    if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
+
     std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
     //log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
 
@@ -542,6 +553,8 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         Reduction r = _htn._reductions[redId];
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
+        if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
+
         //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
         std::vector<Reduction> reductions;
         if (_params.isSet("q")) {
@@ -550,13 +563,18 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
             reductions = _instantiator.getFullApplicableInstantiations(r, state);
         }
         for (Reduction red : reductions) {
+            Signature sig = red.getSignature();
+
+            // Check if the created reduction has consistent sorts
+            if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+            
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
             
             // Remove unneeded rigid conditions from the reduction
             _htn.removeRigidConditions(red);
             
-            Signature sig = red.getSignature();
+            sig = red.getSignature();
             _htn._reductions_by_sig[sig] = red;
             result.push_back(sig);
         }
@@ -569,7 +587,11 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
 
     if (!_htn._actions.count(task._name_id)) return result;
 
+    // Check if the supplied task has consistent sorts
+    if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
+
     Action& a = _htn._actions[task._name_id];
+
     HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
     Action act = (Action) op;
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
@@ -581,13 +603,16 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
         actions = _instantiator.getFullApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
     }
     for (Action action : actions) {
+        Signature sig = action.getSignature();
+        if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+
         // Rename any remaining variables in each action as unique q-constants
         action = _htn.replaceQConstants(action, _layer_idx, _pos);
         
         // Remove unneeded rigid conditions from the reduction
         _htn.removeRigidConditions(action);
 
-        Signature sig = action.getSignature();
+        sig = action.getSignature();
         _htn._actions_by_sig[sig] = action;
         result.push_back(sig);
     }

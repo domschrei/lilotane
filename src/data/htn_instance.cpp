@@ -59,17 +59,21 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _action_blank = Action(blankId, std::vector<int>());
     _actions[blankId] = _action_blank;
 
-    // Initial "top" method
-    _init_reduction = createReduction(methods[0]);
-    // Instantiate all possible init. reductions if the initial HTN is parametrized
-    if (!_instantiator->isFullyGround(_init_reduction.getSignature())) {
-        _init_reduction_choices = _instantiator->getFullApplicableInstantiations(
-                _init_reduction, std::unordered_map<int, SigSet>());
-    }
-
     // All other methods
-    for (int mIdx = 1; mIdx < methods.size(); mIdx++)
-        createReduction(methods[mIdx]);
+    for (method& method : methods) {
+        if (method.name.rfind("__top_method") == 0) {
+            // Initial "top" method
+            _init_reduction = createReduction(method);
+            // Instantiate all possible init. reductions if the initial HTN is parametrized
+            if (!_instantiator->isFullyGround(_init_reduction.getSignature())) {
+                _init_reduction_choices = _instantiator->getFullApplicableInstantiations(
+                        _init_reduction, std::unordered_map<int, SigSet>());
+            }
+        } else {
+            // Normal method
+            createReduction(method);
+        }
+    }
     
     log("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
@@ -347,7 +351,7 @@ Action& HtnInstance::createAction(const task& task) {
 
 SigSet HtnInstance::getAllFactChanges(const Signature& sig) {    
     SigSet result;
-    if (sig == Position::NONE_SIG) return result;    
+    if (sig == Position::NONE_SIG) return result;
     //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
     for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
@@ -426,7 +430,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     _sorts_of_q_constants[qConstId];
     for (int sort : sortsSet) {
         _sorts_of_q_constants[qConstId].push_back(sort);
-        _constants_by_sort[sort].push_back(qConstId);
+        //_constants_by_sort[sort].push_back(qConstId);
         log("%s ", Names::to_string(sort).c_str());
     } 
     log("\n");
@@ -443,6 +447,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         } 
     }
     //log("}\n");
+    assert(!domain.empty());
     _domains_of_q_constants[qConstId] = domain;
 }
 

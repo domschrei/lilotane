@@ -1,6 +1,7 @@
 #!/bin/bash
 
 timeout=10
+domains="umtranslog satellite transport rover entertainment"
 
 set -e
 
@@ -9,8 +10,17 @@ set -e
 
 solved=0
 unsolved=0
+all=0
 
-for domain in satellite transport rover ; do
+# Count instances
+for domain in $domains ; do    
+    for pfile in instances/$domain/p*.hddl; do
+        all=$((all+1))
+    done
+done
+
+# Attempt to solve each instance
+for domain in $domains ; do
     dfile=instances/$domain/domain.hddl
     
     for pfile in instances/$domain/p*.hddl; do
@@ -22,7 +32,7 @@ for domain in satellite transport rover ; do
         fi
         
         set +e
-        echo "Running treerexx on $pfile ..."
+        echo "[$((solved+unsolved))/$all] Running treerexx on $pfile ..."
         timeout $timeout ./treerexx $dfile $pfile $@ > OUT
         echo -ne "treerexx terminated."
         set -e
@@ -41,4 +51,4 @@ for domain in satellite transport rover ; do
 done
 
 echo "No verification problems occurred."
-echo "$solved/$((solved+unsolved)) solved within $timeout seconds."
+echo "$solved/$all solved within $timeout seconds."

@@ -108,6 +108,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
         assert(_htn->_reductions.count(nameId));
         Reduction r = _htn->_reductions[nameId];
         r = r.substituteRed(Substitution::get(r.getArguments(), actionOrReduction._args));
+
         std::vector<Signature> subtasks = r.getSubtasks();
 
         // For each of the reduction's subtasks:
@@ -117,14 +118,15 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
             if (_htn->_actions.count(taskNameId)) {
                 // Action
                 Action& subaction = _htn->_actions[taskNameId];
-
                 std::unordered_map<int, int> s;
                 std::vector<int> origArgs = subaction.getArguments();
                 assert(origArgs.size() == sig._args.size());
                 for (int i = 0; i < origArgs.size(); i++) {
                     s[origArgs[i]] = sig._args[i];
                 }
-                result.push_back(subaction.substitute(s).getSignature());
+                Signature substSig = subaction.substitute(s).getSignature();
+                if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
+                result.push_back(substSig);
             } else {
                 // Reduction
                 std::vector<int> subredIds = _htn->_task_id_to_reduction_ids[taskNameId];
@@ -138,7 +140,9 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
                     for (int i = 0; i < origArgs.size(); i++) {
                         s[origArgs[i]] = sig._args[i];
                     }
-                    result.push_back(subred.getSignature().substitute(s));
+                    Signature substSig = subred.getSignature().substitute(s);
+                    if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
+                    result.push_back(substSig);
                 }
             }
         }

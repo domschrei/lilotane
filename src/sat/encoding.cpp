@@ -290,6 +290,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 // Init reduction expansion
                 if (!_init_reduction_variables.count(why.sig)) {
                     _init_reduction_variables[why.sig] = VariableDomain::nextVar();
+                    VariableDomain::printVar(_init_reduction_variables[why.sig], (Names::to_string(why.sig) + "@(-1,0)").c_str());
                 }
                 expansions[_init_reduction_variables[why.sig]];
                 expansions[_init_reduction_variables[why.sig]].push_back(aVar);
@@ -346,6 +347,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 // Init reduction expansion
                 if (!_init_reduction_variables.count(why.sig)) {
                     _init_reduction_variables[why.sig] = VariableDomain::nextVar();
+                    VariableDomain::printVar(_init_reduction_variables[why.sig], (Names::to_string(why.sig) + "@(-1,0)").c_str());
                 }
                 expansions[_init_reduction_variables[why.sig]];
                 expansions[_init_reduction_variables[why.sig]].push_back(rVar);
@@ -759,6 +761,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     rSig = getDecodedQOp(i, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
+                    log("%s @ (%i,%i)\n", Names::to_string(rSig).c_str(), i, pos);
 
                     // Lookup parent reduction
                     Reduction parentRed;
@@ -766,6 +769,9 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     if (i > 0) {
                         offset = pos - _layers->at(i-1).getSuccessorPos(predPos);
                         PlanItem& parent = itemsOldLayer[predPos];
+                        assert(_htn._reductions.count(parent.reduction._name_id) || 
+                            fail("Reduction " + std::to_string(parent.id) + " at " + std::to_string(i-1) + ", " + std::to_string(predPos) + "\n"));
+
                         parentRed = _htn._reductions[parent.reduction._name_id];
                         parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), parent.reduction._args));
                     } else { // initial layer
@@ -776,10 +782,12 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // Is the current reduction a proper subtask?
                     assert(offset < parentRed.getSubtasks().size());
-                    if (parentRed.getSubtasks()[offset] == r.getTaskSignature()) {
+                    if (parentRed.getSubtasks()[offset] == rDecoded.getTaskSignature()) {
                         itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
-                    }
+                    } else {
+                        log("%s != %s\n", Names::to_string(parentRed.getSubtasks()[offset]).c_str(), Names::to_string(r.getTaskSignature()).c_str());
+                    } 
                 }
             }
 
