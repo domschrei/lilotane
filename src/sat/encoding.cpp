@@ -286,6 +286,13 @@ void Encoding::encode(int layerIdx, int pos) {
                 int oldOpVar = above.getVariable(why.sig.abs());
                 expansions[oldOpVar];
                 expansions[oldOpVar].push_back(aVar);
+            } else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
+                // Init reduction expansion
+                if (!_init_reduction_variables.count(why.sig)) {
+                    _init_reduction_variables[why.sig] = VariableDomain::nextVar();
+                }
+                expansions[_init_reduction_variables[why.sig]];
+                expansions[_init_reduction_variables[why.sig]].push_back(aVar);
             } else abort();
         }
 
@@ -335,6 +342,13 @@ void Encoding::encode(int layerIdx, int pos) {
                 int oldRVar = above.getVariable(why.sig.abs());
                 expansions[oldRVar];
                 expansions[oldRVar].push_back(rVar);
+            } else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
+                // Init reduction expansion
+                if (!_init_reduction_variables.count(why.sig)) {
+                    _init_reduction_variables[why.sig] = VariableDomain::nextVar();
+                }
+                expansions[_init_reduction_variables[why.sig]];
+                expansions[_init_reduction_variables[why.sig]].push_back(rVar);
             } else abort();
         }
 
@@ -370,6 +384,26 @@ void Encoding::encode(int layerIdx, int pos) {
             appendClause({var});
         }
         endClause();
+    }
+
+    // Finalize initial reductions, one must be chosen
+    if (layerIdx == 0 && pos+1 == _layers[layerIdx].size()) {
+        
+        // At-least-one
+        for (auto pair : _init_reduction_variables) {
+            appendClause({pair.second});
+        }
+        endClause();
+
+        // At-most-one
+        if (_params.isSet("aamo"))
+        for (auto pair : _init_reduction_variables) {
+            for (auto pair2 : _init_reduction_variables) {
+                if (pair.second != pair2.second) {
+                    addClause({-pair.second, pair2.second});
+                }
+            }
+        }
     }
 
     // assume primitiveness
@@ -661,14 +695,28 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
     }
 }
 
-std::vector<PlanItem> Encoding::extractDecompositionPlan() {
+std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() {
 
-    std::vector<PlanItem> plan;
-    std::vector<PlanItem> classicalPlan = extractClassicalPlan();
+    auto result = std::pair<std::vector<PlanItem>, std::vector<PlanItem>>();
+    std::vector<PlanItem>& classicalPlan = result.first;
+    std::vector<PlanItem>& plan = result.second;
+
+    result.first = extractClassicalPlan();
+
+    int numChosen = 0;
+    Signature chosenInitReduction(_htn.getNameId("root"), std::vector<int>());
+    for (auto pair : _init_reduction_variables) {
+        if (ipasir_val(_solver, pair.second) > 0) {
+            chosenInitReduction = pair.first;
+            printf("Chosen initial reduction: %s\n", Names::to_string(chosenInitReduction).c_str());
+            numChosen++;
+        } 
+    }
+    assert(numChosen <= 1 || fail("Chose multiple init reductions!\n"));
 
     PlanItem root({0, 
                 Signature(_htn.getNameId("root"), std::vector<int>()), 
-                Signature(_htn.getNameId("root"), std::vector<int>()), 
+                chosenInitReduction, 
                 std::vector<int>()});
     
     std::vector<PlanItem> itemsOldLayer, itemsNewLayer;
@@ -712,8 +760,23 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
                     rSig = getDecodedQOp(i, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
 
-                    // Add first occurring reduction only
-                    if (reductionsThisPos == 1) {
+                    // Lookup parent reduction
+                    Reduction parentRed;
+                    int offset;
+                    if (i > 0) {
+                        offset = pos - _layers->at(i-1).getSuccessorPos(predPos);
+                        PlanItem& parent = itemsOldLayer[predPos];
+                        parentRed = _htn._reductions[parent.reduction._name_id];
+                        parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), parent.reduction._args));
+                    } else { // initial layer
+                        offset = pos;
+                        parentRed = _htn._reductions[chosenInitReduction._name_id];
+                        parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), chosenInitReduction._args));
+                    }
+
+                    // Is the current reduction a proper subtask?
+                    assert(offset < parentRed.getSubtasks().size());
+                    if (parentRed.getSubtasks()[offset] == r.getTaskSignature()) {
                         itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
                     }
@@ -780,9 +843,9 @@ std::vector<PlanItem> Encoding::extractDecompositionPlan() {
         itemsOldLayer = itemsNewLayer;
         itemsNewLayer.clear();
     }
-
     plan.insert(plan.end(), itemsOldLayer.begin(), itemsOldLayer.end());
-    return plan;
+
+    return result;
 }
 
 bool Encoding::value(int layer, int pos, const Signature& sig) {

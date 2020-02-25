@@ -10,6 +10,7 @@
 #include "data/action.h"
 #include "data/code_table.h"
 #include "data/signature.h"
+#include "util/params.h"
 
 class HtnInstance; // incomplete forward def
 

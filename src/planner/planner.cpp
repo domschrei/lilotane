@@ -36,22 +36,33 @@ void Planner::findPlan() {
     while (_pos+1 < initLayer.size()) {
         if (_pos > 0) createNext();
 
-        Signature subtask = _htn.getInitTaskSignature(_pos); // may contain variables!
-        for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
-            initLayer[_pos].addReduction(rSig);
-            initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());
-            // Add preconditions
-            for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
-                addPrecondition(rSig, fact);
+        std::vector<Reduction> parents = _htn._init_reduction_choices;
+        if (parents.empty()) {
+            parents.push_back(_htn._init_reduction);
+        }
+
+        for (Reduction& parent : parents) {
+            Reason why(-1, 0, parent.getSignature());
+
+            //Signature subtask = _htn.getInitTaskSignature(_pos);
+            Signature subtask = parent.getSubtasks()[_pos];
+            for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
+                initLayer[_pos].addReduction(rSig, why);
+                initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());
+                // Add preconditions
+                for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
+                    addPrecondition(rSig, fact);
+                }
+            }
+            for (Signature aSig : getAllActionsOfTask(subtask, initLayer[_pos].getState())) {
+                initLayer[_pos].addAction(aSig, why);
+                // Add preconditions
+                for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
+                    addPrecondition(aSig, fact);
+                }
             }
         }
-        for (Signature aSig : getAllActionsOfTask(subtask, initLayer[_pos].getState())) {
-            initLayer[_pos].addAction(aSig);
-            // Add preconditions
-            for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
-                addPrecondition(aSig, fact);
-            }
-        }
+        
 
         addNewFalseFacts();
         _enc.encode(_layer_idx, _pos++);
@@ -140,8 +151,7 @@ void Planner::findPlan() {
     log("Found a solution at layer %i.\n", _layers.size()-1);
 
     // Extract solution
-    std::vector<PlanItem> actionPlan = _enc.extractClassicalPlan();
-    std::vector<PlanItem> decompPlan = _enc.extractDecompositionPlan();
+    auto planPair = _enc.extractPlan();
 
     // Create stringstream which is being fed the plan
     std::stringstream stream;
@@ -151,14 +161,14 @@ void Planner::findPlan() {
     // -- primitive part
     stream << "==>\n";
     std::unordered_set<int> actionIds;
-    for (PlanItem item : actionPlan) {
+    for (PlanItem& item : planPair.first) {
         actionIds.insert(item.id);
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
         stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
     }
     // -- decomposition part
     bool root = true;
-    for (PlanItem item : decompPlan) {
+    for (PlanItem& item : planPair.second) {
         std::string subtaskIdStr;
         for (int subtaskId : item.subtaskIds) subtaskIdStr += " " + std::to_string(subtaskId);
         

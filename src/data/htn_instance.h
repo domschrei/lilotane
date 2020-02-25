@@ -66,6 +66,7 @@ struct HtnInstance {
     EffectorTable* _effector_table;
 
     Reduction _init_reduction;
+    std::vector<Reduction> _init_reduction_choices;
     Action _action_blank;
 
     static ParsedProblem& parse(std::string domainFile, std::string problemFile);

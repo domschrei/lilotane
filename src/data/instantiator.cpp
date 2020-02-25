@@ -52,7 +52,7 @@ std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
         reductions.push_back(r);
     } else {
         // Instantiate all preconditions, some variables may still be left
-        std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
+        reductions = instantiatePreconditions<Reduction>(r, facts);
     }
 
     return reductions;

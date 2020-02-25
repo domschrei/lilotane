@@ -22,7 +22,7 @@ ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFil
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p) {
 
     Names::init(_name_back_table);
-    _instantiator = new Instantiator(*this);
+    _instantiator = new Instantiator(params, *this);
     _effector_table = new EffectorTable(*this);
 
     for (const predicate_definition& p : predicate_definitions)
@@ -59,7 +59,15 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _action_blank = Action(blankId, std::vector<int>());
     _actions[blankId] = _action_blank;
 
+    // Initial "top" method
     _init_reduction = createReduction(methods[0]);
+    // Instantiate all possible init. reductions if the initial HTN is parametrized
+    if (!_instantiator->isFullyGround(_init_reduction.getSignature())) {
+        _init_reduction_choices = _instantiator->getFullApplicableInstantiations(
+                _init_reduction, std::unordered_map<int, SigSet>());
+    }
+
+    // All other methods
     for (int mIdx = 1; mIdx < methods.size(); mIdx++)
         createReduction(methods[mIdx]);
     

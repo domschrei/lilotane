@@ -37,6 +37,7 @@ private:
     std::vector<Layer>* _layers;
     
     std::unordered_map<Signature, int, SignatureHasher> _substitution_variables;
+    std::unordered_map<Signature, int, SignatureHasher> _init_reduction_variables;
 
     void* _solver;
     std::ofstream _out;
@@ -54,8 +55,10 @@ public:
     ~Encoding();
 
     void encode(int layerIdx, int pos);
+    void encodeInitialTaskNetwork();
     bool solve();
 
+    std::pair<std::vector<PlanItem>, std::vector<PlanItem>> extractPlan();
     std::vector<PlanItem> extractClassicalPlan();
     std::vector<PlanItem> extractDecompositionPlan();
 
