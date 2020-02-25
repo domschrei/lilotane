@@ -16,7 +16,7 @@ namespace Substitution {
 
     struct Hasher {
         std::size_t operator()(const substitution_t& s) const {
-            size_t hash = 0;
+            size_t hash = 1337;
             for (auto pair : s) {
                 hash_combine(hash, pair.first);
                 hash_combine(hash, pair.second);
@@ -88,20 +88,12 @@ struct Signature {
 struct SignatureHasher {
     std::size_t operator()(const Signature& s) const {
 
-        /*
-        int hash = 1337;
-        hash ^= s._name_id;
-        for (auto arg : s._args) {
-            hash ^= arg;
-        }
-        return hash;*/
-
-        size_t hash = 0;
-        hash_combine(hash, s._name_id);
+        size_t hash = 1337;
+        hash_combine(hash, s._negated);
         for (auto arg : s._args) {
             hash_combine(hash, arg);
         }
-        hash_combine(hash, s._negated);
+        hash_combine(hash, s._name_id);
         return hash;
     }
 };

@@ -391,17 +391,34 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
 
     int arg = sig._args[argPos];
     assert(_name_back_table[arg][0] == '?');
-    //log("%s\n", Names::to_string(sig).c_str());
-    if (!_signature_sorts_table.count(sig._name_id)) {
-        log("%s has no sorts!\n", _name_back_table[sig._name_id].c_str());
-        return;
-    }
+    assert(_signature_sorts_table.count(sig._name_id));
     assert(argPos < _signature_sorts_table[sig._name_id].size());
     int sort = _signature_sorts_table[sig._name_id][argPos];
-    // TODO fix naming / uniqueness: unique q-consts within a single reduction,
-    // but the same q-constant in between reductions
-    std::string qConstName = "!_" + std::to_string(layerIdx) + "_" 
-        + std::to_string(pos) + "_" + std::to_string(argPos) + "_" + _name_back_table[sort];
+    //log("%s\n", Names::to_string(sig).c_str());
+
+    // Compute domain of the q constant
+    std::unordered_set<int> domain;
+    //log("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
+    for (int c : _constants_by_sort[sort]) {
+        // A q constant may *not* be substituted by another q constant
+        if (!_q_constants.count(c)) {
+            domain.insert(c);
+            //log("%s ", Names::to_string(c).c_str());
+        } 
+    }
+    //log("}\n");  
+
+    // If there is only a single option for the q constant: 
+    // just insert that one option.
+    if (domain.size() == 1) {
+        int c; for (int x : domain) c = x;
+        s[arg] = c;
+        return;
+    }   
+     
+    std::string qConstName = "!" + std::to_string(layerIdx) + "," 
+        + std::to_string(pos) + "_" + std::to_string(SignatureHasher()(sig))
+        + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
     int qConstId = getNameId(qConstName);
 
     // Add q const to substitution
@@ -411,12 +428,12 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     if (_q_constants.count(qConstId)) return;
     _q_constants.insert(qConstId);
 
-    // If not: add qConstant to constant tables of its type and each of its subtypes
+    // Collect all types of the q-constant
     std::vector<int> containedSorts;
     containedSorts.push_back(sort);
-    for (sort_definition sd : _p.sort_definitions) {
-        for (int i = 0; i < containedSorts.size(); i++) {
-            int containedSort = containedSorts[i];
+    for (int i = 0; i < containedSorts.size(); i++) {
+        int containedSort = containedSorts[i];
+        for (sort_definition sd : _p.sort_definitions) {
             if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
                 for (std::string newSort : sd.declared_sorts) {
                     containedSorts.push_back(getNameId(newSort));
@@ -425,7 +442,8 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         }
     }
     std::unordered_set<int> sortsSet;
-    sortsSet.insert(containedSorts.begin(), containedSorts.end());
+    for (int c : containedSorts) sortsSet.insert(c);
+
     log("sorts of %s : ", Names::to_string(qConstId).c_str());
     _sorts_of_q_constants[qConstId];
     for (int sort : sortsSet) {
@@ -435,18 +453,6 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     } 
     log("\n");
 
-    // Compute domain of the q constant
-    std::unordered_set<int> domain;
-    //log("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
-    for (int c : _constants_by_sort[sort]) {
-        
-        // A q constant may *not* be substituted by another q constant
-        if (!_q_constants.count(c)) {
-            domain.insert(c);
-            //log("%s ", Names::to_string(c).c_str());
-        } 
-    }
-    //log("}\n");
     assert(!domain.empty());
     _domains_of_q_constants[qConstId] = domain;
 }

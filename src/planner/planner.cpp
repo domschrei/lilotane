@@ -553,8 +553,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
         Reduction r = _htn._reductions[redId];
         r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
         Signature origSig = r.getSignature();
-        if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
-
+        
         //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
         std::vector<Reduction> reductions;
         if (_params.isSet("q")) {

@@ -89,7 +89,7 @@ std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
 }
 
 bool Instantiator::hasSomeInstantiation(const Signature& sig) {
-    std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
+    const std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = types[argPos];
         if (_htn->_constants_by_sort[sort].empty()) {
@@ -305,13 +305,22 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map
 }
 
 bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
-    std::vector<int>& taskSorts = _htn->_signature_sorts_table[sig._name_id];
+    const std::vector<int>& taskSorts = _htn->_signature_sorts_table[sig._name_id];
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = taskSorts[argPos];
         int arg = sig._args[argPos];
-        bool valid = _htn->_q_constants.count(arg) || _htn->_var_ids.count(arg);
-        for (int c : _htn->_constants_by_sort[sort]) {
-            if (c == arg) valid = true; 
+        if (_htn->_var_ids.count(arg)) continue; // skip variable
+        bool valid = false;
+        if (_htn->_q_constants.count(arg)) {
+            // q constant: check if it has the correct sort
+            for (int qsort : _htn->_sorts_of_q_constants[arg]) {
+                if (qsort == sort) valid = true;
+            }
+        } else {
+            // normal constant: check if it is contained in the correct sort
+            for (int c : _htn->_constants_by_sort[sort]) {
+                if (c == arg) valid = true; 
+            }
         }
         if (!valid) return false;
     }

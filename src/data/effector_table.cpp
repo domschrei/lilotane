@@ -125,7 +125,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
                     s[origArgs[i]] = sig._args[i];
                 }
                 Signature substSig = subaction.substitute(s).getSignature();
-                if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
+                //if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
                 result.push_back(substSig);
             } else {
                 // Reduction
@@ -141,7 +141,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
                         s[origArgs[i]] = sig._args[i];
                     }
                     Signature substSig = subred.getSignature().substitute(s);
-                    if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
+                    //if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
                     result.push_back(substSig);
                 }
             }
