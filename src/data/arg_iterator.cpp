@@ -13,7 +13,8 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
     // Get all constants of the respective type(s)
     assert(_htn._signature_sorts_table.count(sig._name_id));
     std::vector<int> sorts = _htn._signature_sorts_table[sig._name_id];
-    assert(sorts.size() == sig._args.size() || fail("Sorts table of predicate " + Names::to_string(sig) + " has an invalid size\n"));
+    assert(sorts.size() == sig._args.size() || fail("Sorts table of predicate " 
+            + Names::to_string(sig) + " has an invalid size\n"));
     
     //log("SORTS %s ", Names::to_string(sig._name_id).c_str());
     //for (int s : sorts) log("%s ", Names::to_string(s).c_str());
@@ -23,7 +24,7 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
 
     for (int pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
-        
+
         if (_htn._var_ids.count(arg)) {
             // free argument
 

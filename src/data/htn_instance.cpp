@@ -427,25 +427,63 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
     if (_q_constants.count(qConstId)) return;
     _q_constants.insert(qConstId);
 
+    // CALCULATE SORTS OF Q CONSTANT
+
+    // 1. take single sort of the q-constant to start with: int sort.
+    // 2. assume that the q-constant is of ALL (super) sorts
+    std::set<int> qConstSorts;
+    for (auto sortPair : _p.sorts) qConstSorts.insert(getNameId(sortPair.first));
+
+    // 3. for each constant of the single sort:
+    //      remove all q-constant sorts NOT containing that constant
+    for (int c : _constants_by_sort[sort]) {
+        std::vector<int> sortsToRemove;
+        for (int qsort : qConstSorts) {
+            if (std::find(_constants_by_sort[qsort].begin(), _constants_by_sort[qsort].end(), c) 
+                    == _constants_by_sort[qsort].end()) {
+                sortsToRemove.push_back(qsort);
+            }
+        }
+        for (int remSort : sortsToRemove) qConstSorts.erase(remSort);
+    }
+    // RESULT: The intersection of all sorts of all eligible constants
+
+    /*
+    TODO
+    
+    In a type consistency check of an HtnOp where a q-constant is contained
+    and where the only error lies in the q-constant's (common / most general) sorts,
+    the check should return all (VALID|INVALID) q-constant choices in the signature.
+
+    Then, the HtnOp should not be forbidden. Instead, the concerned substitutions
+    must be constrained in the encoding in case the surrounding action / reduction is being used.
+    */
+
+/*
     // Collect all types of the q-constant
-    std::vector<int> containedSorts;
-    containedSorts.push_back(sort);
+    std::vector<std::string> containedSorts;
+    containedSorts.push_back(_name_back_table[sort]);
     for (int i = 0; i < containedSorts.size(); i++) {
-        int containedSort = containedSorts[i];
+        std::string containedSort = containedSorts[i];
         for (sort_definition sd : _p.sort_definitions) {
-            if (sd.has_parent_sort && getNameId(sd.parent_sort) == containedSort) {
+            if (sd.has_parent_sort && sd.parent_sort == containedSort) {
                 for (std::string newSort : sd.declared_sorts) {
-                    containedSorts.push_back(getNameId(newSort));
+                    containedSorts.push_back(newSort);
                 }
             }
         }
     }
-    std::unordered_set<int> sortsSet;
-    for (int c : containedSorts) sortsSet.insert(c);
+    // Filter sorts which were simplified away
+    std::unordered_set<int> sortsSet;   
+    for (std::string sortStr : containedSorts) {
+        if (_p.sorts.count(sortStr)) sortsSet.insert(getNameId(sortStr));
+    }*/
 
-    log("sorts of %s : ", Names::to_string(qConstId).c_str());
+    log("  q-constant for arg %s @ pos %i of %s : %s\n   sorts ", 
+            _name_back_table[arg].c_str(), argPos, 
+            Names::to_string(sig).c_str(), Names::to_string(qConstId).c_str());
     _sorts_of_q_constants[qConstId];
-    for (int sort : sortsSet) {
+    for (int sort : qConstSorts) {
         _sorts_of_q_constants[qConstId].push_back(sort);
         //_constants_by_sort[sort].push_back(qConstId);
         log("%s ", Names::to_string(sort).c_str());

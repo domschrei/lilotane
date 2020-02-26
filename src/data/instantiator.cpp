@@ -111,6 +111,8 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
     int doneInstSize = argsByPriority.size(); // ALL
     if (_inst_mode == INSTANTIATE_NOTHING) doneInstSize = 0;
     if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
+        // Search the position where the rating becomes zero
+        // (meaning that the args occur in no conditions)
         int lastRating = 999999;
         for (int i = 0; i < argsByPriority.size(); i++) {
             int rating = comp.rating(argsByPriority[i]);
