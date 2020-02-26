@@ -4,6 +4,7 @@ timeout=10
 domains="umtranslog satellite transport rover entertainment"
 
 set -e
+set -o pipefail
 
 #make cleantr
 #make
@@ -30,23 +31,28 @@ for domain in $domains ; do
             rm STOP
             exit 0
         fi
+        outfile="OUT_$(date +%s)_$@"
         
         set +e
         echo "[$((solved+unsolved))/$all] Running treerexx on $pfile ..."
-        timeout $timeout ./treerexx $dfile $pfile $@ > OUT
-        echo -ne "treerexx terminated."
+        /usr/bin/timeout $timeout ./treerexx $dfile $pfile $@ > "$outfile"
+        retval="$?"
+        if [ "$retval" != "0" ]; then
+            echo "Exit code $retval"
+        fi
         set -e
         
-        if cat OUT|grep -q "<=="; then
-            ./pandaPIparser $dfile $pfile -verify OUT
+        if cat "$outfile"|grep -q "<=="; then
+            if ./pandaPIparser $dfile $pfile -verify "$outfile"|grep -q "false"; then
+                echo "Verification error! Output:"
+                ./pandaPIparser $dfile $pfile -verify "$outfile"
+                exit 1
+            fi
             solved=$((solved+1))
         else
-            echo ""
             echo "No plan found on $pfile."
             unsolved=$((unsolved+1))
         fi
-        
-        echo ""
     done
 done
 
