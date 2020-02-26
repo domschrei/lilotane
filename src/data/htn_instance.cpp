@@ -38,7 +38,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
 
     log("Sorts extracted.\n");
     for (auto sort_pair : _p.sorts) {
-        log("%s : ", sort_pair.first.c_str());
+        log(" %s : ", sort_pair.first.c_str());
         for (auto c : sort_pair.second) {
             log("%s ", c.c_str());
         }
@@ -64,11 +64,9 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         if (method.name.rfind("__top_method") == 0) {
             // Initial "top" method
             _init_reduction = createReduction(method);
-            // Instantiate all possible init. reductions if the initial HTN is parametrized
-            if (!_instantiator->isFullyGround(_init_reduction.getSignature())) {
-                _init_reduction_choices = _instantiator->getFullApplicableInstantiations(
-                        _init_reduction, std::unordered_map<int, SigSet>());
-            }
+            // Instantiate all possible init. reductions
+            _init_reduction_choices = _instantiator->getApplicableInstantiations(
+                    _init_reduction, std::unordered_map<int, SigSet>(), INSTANTIATE_FULL);
         } else {
             // Normal method
             createReduction(method);
@@ -151,6 +149,7 @@ SigSet HtnInstance::getInitState() {
 
         // For each pair of constants of correct sorts: TODO something more efficient
         std::vector<int> sorts = _signature_sorts_table[eqPredId];
+        assert(sorts[0] == sorts[1]);
         for (int c1 : _constants_by_sort[sorts[0]]) {
             for (int c2 : _constants_by_sort[sorts[1]]) {
 
@@ -357,7 +356,7 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
         for (Signature i : instantiation) {
             assert(_instantiator->isFullyGround(i));
-            if (_params.isSet("rrp")) _fluent_predicates.insert(sig._name_id);
+            if (_params.isSet("rrp")) _fluent_predicates.insert(i._name_id);
             result.insert(i);
             //log("%s ", Names::to_string(i).c_str());
         }
@@ -499,24 +498,13 @@ bool HtnInstance::isRigidPredicate(int predId) {
     return !_fluent_predicates.count(predId);
 }
 
-void HtnInstance::removeRigidConditions(Action& a) {
+void HtnInstance::removeRigidConditions(HtnOp& op) {
 
     SigSet newPres;
-    for (const Signature& pre : a.getPreconditions()) {
+    for (const Signature& pre : op.getPreconditions()) {
         if (!isRigidPredicate(pre._name_id)) {
             newPres.insert(pre); // only add fluent preconditions
         }
     }
-    a.setPreconditions(newPres);
-}
-
-void HtnInstance::removeRigidConditions(Reduction& r) {
-
-    SigSet newPres;
-    for (const Signature& pre : r.getPreconditions()) {
-        if (!isRigidPredicate(pre._name_id)) {
-            newPres.insert(pre); // only add fluent preconditions
-        }
-    }
-    r.setPreconditions(newPres);
+    op.setPreconditions(newPres);
 }

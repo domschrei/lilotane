@@ -436,6 +436,7 @@ void Encoding::initSubstitutionVars(const Signature& qfactSig, Position& pos) {
             _q_constants_per_arg[c];
             _q_constants_per_arg[c].push_back(arg);
         }
+        assert(!substitutionVars.empty());
 
         // AT LEAST ONE substitution
         for (int vSub : substitutionVars) appendClause({vSub});
@@ -454,6 +455,12 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dn
     std::set<std::set<int>> cnf;
 
     if (dnf.empty()) return cnf;
+
+    int size = 1;
+    for (auto lits : dnf) {
+        size *= lits.size();
+    }
+    assert(size > 0);
 
     // Iterate over all possible combinations
     std::vector<int> counter(dnf.size(), 0);

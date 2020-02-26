@@ -103,8 +103,7 @@ struct HtnInstance {
     std::vector<Signature> getDecodedObjects(Signature qFact);
 
     bool isRigidPredicate(int predId);
-    void removeRigidConditions(Action& a);
-    void removeRigidConditions(Reduction& r);
+    void removeRigidConditions(HtnOp& op);
 };
 
 #endif

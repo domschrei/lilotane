@@ -5,7 +5,7 @@
 std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, HtnInstance& _htn) {
 
     // "Empty" signature?    
-    if (sig._args.size() == 0) {
+    if (sig._args.empty()) {
         return std::vector<Signature>(1, sig);
     }
 
@@ -23,9 +23,10 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
 
     for (int pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
+        
         if (_htn._var_ids.count(arg)) {
-
             // free argument
+
             int sort = sorts[pos];
             assert(_htn._constants_by_sort.count(sort));
 
@@ -100,12 +101,8 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
 
-    int requiredNumInstantiations = 1;
-    for (int i = 0; i < constantsPerArg.size(); i++) {
-        requiredNumInstantiations *= constantsPerArg[i].size();
-    }
-    assert(requiredNumInstantiations == numInstantiations || 
-        fail(std::to_string(requiredNumInstantiations) + " != " + std::to_string(numInstantiations)) + "\n");
+    assert(numChoices == numInstantiations || 
+        fail(std::to_string(numChoices) + " != " + std::to_string(numInstantiations)) + "\n");
     
     return instantiation;
 }

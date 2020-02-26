@@ -13,21 +13,15 @@
 #define IPASIRSOLVER "(unknown)"
 #endif
 
-void run(Parameters& params) {
+int run(Parameters& params) {
 
     ParsedProblem& p = HtnInstance::parse(params.getDomainFilename(), params.getProblemFilename());
 
     log("%i methods, %i abstract tasks, %i primitive tasks\n", 
         p.methods.size(), p.abstract_tasks.size(), p.primitive_tasks.size());
-    
-    log("initial abstract task: %s\n", p.task_name_map["__top"].name.c_str());
-    std::vector<parsed_method>& initMethods = p.parsed_methods["__top"];
-    for (auto m : initMethods) {
-        log("  init method : %i tasks in tn\n", m.tn->tasks.size());
-    }
 
     Planner planner(params, p);
-    planner.findPlan();
+    return planner.findPlan();
 }
 
 int main(int argc, char** argv) {
@@ -46,7 +40,8 @@ int main(int argc, char** argv) {
     Parameters params;
     params.init(argc, argv);
 
-    run(params);
+    int result = run(params);
 
-    log("Exiting happily.\n");
+    if (result == 0) log("Exiting happily.\n");
+    return result;
 }

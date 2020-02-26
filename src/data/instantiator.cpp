@@ -1,94 +1,54 @@
 
 #include <assert.h>
+#include <set>
 
 #include "data/instantiator.h"
 #include "util/names.h"
 #include "data/htn_instance.h"
 #include "data/arg_iterator.h"
 
-std::vector<Reduction> Instantiator::getFullApplicableInstantiations(
-    Reduction& r, std::unordered_map<int, SigSet> facts) {
+std::vector<Reduction> Instantiator::getApplicableInstantiations(
+    Reduction& r, std::unordered_map<int, SigSet> facts, int mode) {
+
+    int oldMode = _inst_mode;
+    if (mode >= 0) _inst_mode = mode;
 
     std::vector<Reduction> result;
 
-    std::vector<Reduction> reductions = instantiatePreconditions<Reduction>(r, facts);
-    for (const Reduction& r : reductions) {
-        std::vector<Signature> inst = ArgIterator::getFullInstantiation(r.getSignature(), *_htn);
-        for (Signature sig : inst) {
-            Reduction red = r.substituteRed(Substitution::get(r.getArguments(), sig._args));
-            result.push_back(red);
-        }
+    SigSet inst = instantiate(r, facts);
+    for (const Signature& sig : inst) {
+        //log("%s\n", Names::to_string(sig).c_str());
+        result.push_back(r.substituteRed(Substitution::get(r.getArguments(), sig._args)));
     }
+
+    _inst_mode = oldMode;
+
     return result;
 }
 
-std::vector<Action> Instantiator::getFullApplicableInstantiations(
-    Action& a, std::unordered_map<int, SigSet> facts) {
+std::vector<Action> Instantiator::getApplicableInstantiations(
+    Action& a, std::unordered_map<int, SigSet> facts, int mode) {
+
+    int oldMode = _inst_mode;
+    if (mode >= 0) _inst_mode = mode;
 
     std::vector<Action> result;
 
-    std::vector<Action> actions = instantiatePreconditions<Action>(a, facts);
-    for (const Action& a : actions) {
-        std::vector<Signature> inst = ArgIterator::getFullInstantiation(a.getSignature(), *_htn);
-        for (Signature sig : inst) {
-            HtnOp op = a.substitute(Substitution::get(a.getArguments(), sig._args));
-            result.push_back((Action) op);
-        }
+    SigSet inst = instantiate(a, facts);
+    for (const Signature& sig : inst) {
+        //log("%s\n", Names::to_string(sig).c_str());
+        assert(isFullyGround(sig));
+        HtnOp newOp = a.substitute(Substitution::get(a.getArguments(), sig._args));
+        result.push_back((Action) newOp);
     }
+
+    _inst_mode = oldMode;
+
     return result;
 }
 
-std::vector<Reduction> Instantiator::getMinimalApplicableInstantiations(
-    Reduction& r, std::unordered_map<int, SigSet> facts) {
-
-    std::vector<Reduction> reductions;
-
-    if (_params.isSet("qq")) {
-        // Instantiate nothing, only check if supplied op. is applicable
-        for (const Signature& pre : r.getPreconditions()) {
-            // Ground precondition that does not hold: return empty instantiation
-            if (isFullyGround(pre) && !test(pre, facts)) return reductions;
-        }
-        if (hasSomeInstantiation(r.getSignature()))
-            reductions.push_back(r);
-    } else {
-        // Instantiate all preconditions, some variables may still be left
-        std::vector<Reduction> inst = instantiatePreconditions<Reduction>(r, facts);
-        for (Reduction& r : inst) {
-            if (hasSomeInstantiation(r.getSignature()))
-                reductions.push_back(r);
-        }
-    }
-
-    return reductions;
-}
-
-std::vector<Action> Instantiator::getMinimalApplicableInstantiations(
-    Action& a, std::unordered_map<int, SigSet> facts) {
-    
-    std::vector<Action> actions;
-
-    if (_params.isSet("qq")) {
-        // Instantiate nothing, only check if supplied op. is applicable
-        for (const Signature& pre : a.getPreconditions()) {
-            // Ground precondition that does not hold: return empty instantiation
-            if (isFullyGround(pre) && !test(pre, facts)) return actions;
-        }
-        if (hasSomeInstantiation(a.getSignature()))
-            actions.push_back(a);
-    } else {
-        // Instantiate all preconditions, some variables may still be left
-        std::vector<Action> inst = instantiatePreconditions<Action>(a, facts);
-        for (Action& a : inst) {
-            if (hasSomeInstantiation(a.getSignature()))
-                actions.push_back(a);
-        }
-    }
-
-    return actions;
-}
-
 bool Instantiator::hasSomeInstantiation(const Signature& sig) {
+
     const std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = types[argPos];
@@ -99,116 +59,133 @@ bool Instantiator::hasSomeInstantiation(const Signature& sig) {
     return true;
 }
 
-template<class T>
-std::vector<T> Instantiator::instantiatePreconditions(T& r, std::unordered_map<int, SigSet> facts) {
+const HtnOp* __op;
+struct CompArgs {
+    bool operator()(const int& a, const int& b) const {
+        return rating(a) > rating(b);
+    }
+    int rating(int arg) const {
+        int r = 0;
+        for (const Signature& pre : __op->getPreconditions()) {
+            for (int preArg : pre._args) {
+                if (preArg == arg) r++;
+            } 
+        }
+        for (const Signature& eff : __op->getEffects()) {
+            for (int effArg : eff._args) {
+                if (effArg == arg) r++;
+            } 
+        }
+        return r;
+    }
+};
 
-    std::vector<T> result;
-    HtnOp* op = static_cast<HtnOp*>(&r);
+SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, SigSet>& facts) {
+    __op = &op;
 
-    // Check ground preconditions of the reduction
-    const SigSet& pre = op->getPreconditions();
-    //log("    %i preconditions\n", pre.size());
-    int numFreePreconds = 0;
-    for (Signature sig : pre) {
-        if (isFullyGround(sig)) {
-            // This precondition must definitely hold
-            if (!test(sig, facts)) {
-                // does not hold -- no applicable reduction
-                //log("%s does not hold!\n", Names::to_string(sig).c_str());
-                return result;
-            } // else: precondition holds, nothing more to do
-        } else numFreePreconds++;
+    if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
+
+    // Create structure for arguments ordered by priority
+    std::vector<int> argsByPriority;
+    for (int arg : op.getArguments()) {
+        if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
     }
 
-    // Fully ground preconditions -- finished, a single instantiation
-    if (numFreePreconds == 0) {
-        result.push_back(r);
-        return result;
+    int priorSize = argsByPriority.size();
+    CompArgs comp;
+    std::sort(argsByPriority.begin(), argsByPriority.end(), comp);
+    assert(priorSize == argsByPriority.size());
+
+    // Create back transformation of argument positions
+    std::unordered_map<int, int> argPosBackMapping;
+    for (int j = 0; j < argsByPriority.size(); j++) {
+        for (int i = 0; i < op.getArguments().size(); i++) {
+            if (op.getArguments()[i] == argsByPriority[j]) {
+                argPosBackMapping[j] = i;
+                break;
+            }
+        }   
     }
 
-    // Instantiate a lifted precondition
-    for (Signature sig : pre) {
-        //log(" pre : %s\n", Names::to_string(sig).c_str());
+    SigSet instantiation;
+    int doneInstSize = argsByPriority.size(); // ALL
+    if (_inst_mode == INSTANTIATE_NOTHING) doneInstSize = 0;
+    if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
+        int lastRating = 999999;
+        for (int i = 0; i < argsByPriority.size(); i++) {
+            int rating = comp.rating(argsByPriority[i]);
+            assert(lastRating >= rating);
+            lastRating = rating;
 
-        if (isFullyGround(sig)) continue;
-
-        // This precondition must hold relative to its arguments:
-        // Are there instantiations in the facts where it holds?
-
-        // Find out which facts of the same predicate hold in the state
-        int predId = sig._name_id;
-        SigSet c = facts.count(predId) ? facts[predId] : SigSet();
-
-        if (sig._negated) {
-            // Negative preconditions for which some instantiation 
-            // does not occur in posFacts nor in negFacts => need to be instantiated, too!
-            
-            // Get all constants of the respective type(s)
-            std::vector<Signature> inst = ArgIterator::getFullInstantiation(sig, *_htn);
-            for (Signature sigNew : inst) {
-                // Try the assignment
-                if (c.count(sigNew) == 0) {
-                    sigNew.negate();
-                    if (c.count(sigNew) == 0) {
-                        // Occurs neither positive nor negative
-                        sigNew.negate();
-                        c.insert(sigNew);
-                    } else {
-                        sigNew.negate();
-                    }
-                }
+            if (rating == 0) {
+                doneInstSize = i;
+                break;
             }
         }
-
-        // For each holding literal in the state, try an instantiation
-        for (Signature groundSig : c) {
-
-            // do not consider q facts for instantiation
-            if (_htn->hasQConstants(groundSig)) continue;
-            
-            //log("  ~> %s\n", Names::to_string(groundSig).c_str());
-
-            std::unordered_map<int, int> s;
-            if (!fits(sig, groundSig, &s)) continue;
-
-            // Possible partial instantiation
-            //log("     %s\n", Names::to_string(s).c_str());
-
-            if (std::is_same<Reduction, T>::value) {
-                // Reduction
-                Reduction newRed = dynamic_cast<Reduction*>(op)->substituteRed(s);
-                
-                // Recursively find all fitting instantiations for remaining preconditions
-                std::vector<Reduction> newOps = instantiatePreconditions(newRed, facts);
-                for (Reduction r : newOps) {
-                    result.push_back(static_cast<T>(r));
-                }
-            } else if (std::is_same<Action, T>::value) {
-                // Action
-                HtnOp o = op->substitute(s);
-                Action newA = Action(o);
-                
-                //log("%s :: %s -> %s\n", Names::to_string(groundSig).c_str(), Names::to_string(op->getSignature()).c_str(), Names::to_string(newA.getSignature()).c_str());
-
-                std::vector<Action> newOps = instantiatePreconditions(newA, facts);
-                //log("%s : %i\n", Names::to_string(groundSig).c_str(), newOps.size());
-                for (Action a : newOps) {
-                    Signature aSig = a.getSignature();
-                    //log("  - %s\n", Names::to_string(aSig).c_str());
-                    result.push_back(static_cast<T>(a));
-                }
-            }
-        }
-        
-        // end after 1st successful substitution chain:
-        // another recursive call did the remaining substitutions 
-        if (!result.empty()) break; 
-        // else: no successful substitution for this condition! Failure.
-        else return std::vector<T>();
+        //log("Instantiate until arg %i/%i\n", doneInstSize, argsByPriority.size());
+    }
+    
+    if (doneInstSize == 0 || argsByPriority.empty()) {
+        if (hasValidPreconditions(op, facts) 
+            && hasSomeInstantiation(op.getSignature())) 
+            instantiation.insert(op.getSignature());
+        return instantiation;
     }
 
-    return result;
+    std::vector<std::vector<int>> assignmentsStack;
+    assignmentsStack.push_back(std::vector<int>());
+    while (!assignmentsStack.empty()) {
+        const std::vector<int> assignment = assignmentsStack.back();
+        assignmentsStack.pop_back();
+
+        // Pick constant for next argument position
+        int argPos = argPosBackMapping[assignment.size()];
+        int sort = _htn->_signature_sorts_table[op.getSignature()._name_id][argPos];
+        for (int c : _htn->_constants_by_sort[sort]) {
+
+            // Create new assignment
+            std::vector<int> newAssignment = assignment;
+            newAssignment.push_back(c);
+
+            // Create corresponding op
+            substitution_t s;
+            for (int i = 0; i < newAssignment.size(); i++) {
+                assert(i < argsByPriority.size());
+                s[argsByPriority[i]] = newAssignment[i];
+            }
+            HtnOp newOp = op.substitute(s);
+
+            // Test validity
+            if (!hasValidPreconditions(newOp, facts)) continue;
+
+            // All ok -- add to stack
+            if (newAssignment.size() == doneInstSize) {
+                // If there are remaining variables: 
+                // is there some valid constant for each of them?
+                if (!hasSomeInstantiation(newOp.getSignature())) continue;
+
+                assert(hasConsistentlyTypedArgs(newOp.getSignature()));
+
+                // This instantiation is finished:
+                // Assemble instantiated signature
+                instantiation.insert(newOp.getSignature());
+            } else {
+                // Unfinished instantiation
+                assignmentsStack.push_back(newAssignment);
+            }
+        }
+    }
+
+    __op = NULL;
+
+    return instantiation;
 }
+
+
+
+
+
+
 
 // Given a fact (signature) and (a set of ground htn operations containing q constants),
 // compute the possible sets of substitutions that are necessary to let each operation
@@ -290,14 +267,16 @@ std::vector<int> Instantiator::getFreeArgPositions(const Signature& sig) {
 bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution) {
     assert(sig._name_id == groundSig._name_id);
     assert(sig._args.size() == groundSig._args.size());
+    assert(isFullyGround(groundSig));
     if (sig._negated != groundSig._negated) return false;
     for (int i = 0; i < sig._args.size(); i++) {
-        if (_htn->_var_ids.count(sig._args[i]) == 0) {
+        if (!_htn->_var_ids.count(sig._args[i])) {
             // Constant parameter: must be equal
             if (sig._args[i] != groundSig._args[i]) return false;
         }
 
         if (substitution != NULL) {
+            assert(!substitution->count(sig._args[i]));
             substitution->insert(std::pair<int, int>(sig._args[i], groundSig._args[i]));
         }
     }
@@ -331,29 +310,33 @@ bool Instantiator::test(const Signature& sig, std::unordered_map<int, SigSet> fa
     assert(isFullyGround(sig));
     bool positive = !sig._negated;
     
-    if (facts.count(sig._name_id) == 0) {
+    if (!facts.count(sig._name_id)) {
         // Never saw such a predicate: cond. holds iff it is negative
         return !positive;
     }
 
-    for (int arg : sig._args) {
-        if (_htn->_q_constants.count(arg)) {
-            // Q-Fact: assume that it holds
-            return true;
-        }
-    }
+    // Q-Fact: assume that it holds
+    if (_htn->hasQConstants(sig)) return true;
 
     // fact positive : true iff contained in facts
-    if (positive) return facts[sig._name_id].count(sig) > 0;
+    if (positive) return facts[sig._name_id].count(sig);
     
-    // fact negative:
-    //      if contained in facts : return true
-    //              (fact occurred negative)
-    if (facts[sig._name_id].count(sig) > 0) return true;
+    // fact negative.
+
+    // if contained in facts : return true
+    //   (fact occurred negative)
+    if (facts[sig._name_id].count(sig)) return true;
     
-    // in posFacts, NOTin negFacts : return false
-    //         (fact never occured negative, but positive)
-    // NOTin posFacts, NOTin negFacts : return true !
-    //         (fact assumed to be false due to closed-world-asmpt)
-    return facts[sig._name_id].count(sig.opposite()) == 0;
+    // else: return true iff fact does NOT occur in positive form
+    return !facts[sig._name_id].count(sig.opposite());
+}
+
+bool Instantiator::hasValidPreconditions(const HtnOp& op, std::unordered_map<int, SigSet> facts) {
+
+    for (const Signature& pre : op.getPreconditions()) {
+        if (isFullyGround(pre) && !test(pre, facts)) {
+            return false;
+        }
+    }
+    return true;
 }

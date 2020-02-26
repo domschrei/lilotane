@@ -35,7 +35,7 @@ public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
             _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)), 
             _enc(_params, _htn, _layers) {}
-    void findPlan();
+    int findPlan();
 
 private:
 

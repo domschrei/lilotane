@@ -12,12 +12,12 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     
     // Get original signature of this operator (fully lifted)
     Signature origSig;
-    if (_htn->_reductions.count(nameId) == 0) {
-        // Action
-        origSig = _htn->_actions[nameId].getSignature();
-    } else {
+    if (_htn->_reductions.count(nameId)) {
         // Reduction
         origSig = _htn->_reductions[nameId].getSignature();
+    } else {
+        // Action
+        origSig = _htn->_actions[nameId].getSignature();
     }
 
     // Substitution mapping from original signature
@@ -53,8 +53,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             if (_htn->_actions.count(nodeSig._name_id)) {
                 Action a = _htn->_actions[nodeSig._name_id];
                 HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
-                a = Action(op);
-                for (Signature eff : a.getEffects()) {
+                for (Signature eff : op.getEffects()) {
                     facts.insert(eff);
                 }
             }
@@ -63,23 +62,22 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
             seenSignatures.insert(nodeSig);
 
             // Expand node, add children to frontier
-            for (Signature child : getPossibleChildren(nodeSig)) {
+            for (const Signature& child : getPossibleChildren(nodeSig)) {
                 frontier.push_back(child);
                 //log("-> %s\n", Names::to_string(child).c_str());
             }
         }
 
         // Convert result to vector
-        std::vector<Signature> result;
+        std::vector<Signature>& result = _fact_changes[nameId];
         result.reserve(facts.size());
-        for (Signature sig : facts) {
+        for (const Signature& sig : facts) {
             result.push_back(sig);
         }
-        _fact_changes[nameId] = result;
     }
 
     // Get fact changes, substitute arguments
-    std::vector<Signature>& sigs = _fact_changes[nameId];
+    const std::vector<Signature>& sigs = _fact_changes[nameId];
     std::vector<Signature> out;
     
     //log("   fact changes of %s : ", Names::to_string(sig).c_str());
@@ -99,56 +97,38 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
 std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrReduction) {
     std::vector<Signature> result;
 
-    //log("%s ==> ", Names::to_string(actionOrReduction).c_str());
-
     int nameId = actionOrReduction._name_id;
-    if (!_htn->_actions.count(nameId)) {
-        // Reduction
+    if (!_htn->_reductions.count(nameId)) return result;
 
-        assert(_htn->_reductions.count(nameId));
-        Reduction r = _htn->_reductions[nameId];
-        r = r.substituteRed(Substitution::get(r.getArguments(), actionOrReduction._args));
+    // Reduction
+    Reduction r = _htn->_reductions[nameId];
+    r = r.substituteRed(Substitution::get(r.getArguments(), actionOrReduction._args));
 
-        std::vector<Signature> subtasks = r.getSubtasks();
+    const std::vector<Signature>& subtasks = r.getSubtasks();
 
-        // For each of the reduction's subtasks:
-        for (Signature sig : subtasks) {
-            // Find all possible (sub-)reductions of this subtask
-            int taskNameId = sig._name_id;
-            if (_htn->_actions.count(taskNameId)) {
-                // Action
-                Action& subaction = _htn->_actions[taskNameId];
-                std::unordered_map<int, int> s;
-                std::vector<int> origArgs = subaction.getArguments();
-                assert(origArgs.size() == sig._args.size());
-                for (int i = 0; i < origArgs.size(); i++) {
-                    s[origArgs[i]] = sig._args[i];
-                }
-                Signature substSig = subaction.substitute(s).getSignature();
-                //if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
+    // For each of the reduction's subtasks:
+    for (const Signature& sig : subtasks) {
+        // Find all possible (sub-)reductions of this subtask
+        int taskNameId = sig._name_id;
+        if (_htn->_actions.count(taskNameId)) {
+            // Action
+            Action& subaction = _htn->_actions[taskNameId];
+            const std::vector<int>& origArgs = subaction.getArguments();
+            Signature substSig = sig.substitute(Substitution::get(origArgs, sig._args));
+            result.push_back(substSig);
+        } else {
+            // Reduction
+            std::vector<int> subredIds = _htn->_task_id_to_reduction_ids[taskNameId];
+            for (int subredId : subredIds) {
+                Reduction& subred = _htn->_reductions[subredId];
+                // Substitute original subred. arguments
+                // with the subtask's arguments
+                const std::vector<int>& origArgs = subred.getTaskArguments();
+                Signature substSig = subred.getSignature().substitute(Substitution::get(origArgs, sig._args));
                 result.push_back(substSig);
-            } else {
-                // Reduction
-                std::vector<int> subredIds = _htn->_task_id_to_reduction_ids[taskNameId];
-                for (int subredId : subredIds) {
-                    Reduction& subred = _htn->_reductions[subredId];
-                    // Substitute original subred. arguments
-                    // with the subtask's arguments
-                    std::unordered_map<int, int> s;
-                    std::vector<int> origArgs = subred.getTaskArguments();
-                    assert(origArgs.size() == sig._args.size());
-                    for (int i = 0; i < origArgs.size(); i++) {
-                        s[origArgs[i]] = sig._args[i];
-                    }
-                    Signature substSig = subred.getSignature().substitute(s);
-                    //if (!_htn->_instantiator->hasConsistentlyTypedArgs(substSig)) continue;
-                    result.push_back(substSig);
-                }
             }
         }
     }
-
-    //for (Signature x : result) log("%s ", Names::to_string(x).c_str());
 
     return result;
 }
