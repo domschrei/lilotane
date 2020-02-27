@@ -168,7 +168,17 @@ int Planner::findPlan() {
     // -- primitive part
     stream << "==>\n";
     std::unordered_set<int> actionIds;
+    std::unordered_set<int> idsToRemove;
     for (PlanItem& item : planPair.first) {
+        if (_htn._name_back_table[item.abstractTask._name_id].rfind("_SECOND") != std::string::npos) {
+            // Second part of a split action: discard
+            idsToRemove.insert(item.id);
+            continue;
+        }
+        if (_htn._name_back_table[item.abstractTask._name_id].rfind("_FIRST") != std::string::npos) {
+            // First part of a split action: change name, then handle normally
+            item.abstractTask._name_id = _htn._split_action_from_first[item.abstractTask._name_id];
+        }
         actionIds.insert(item.id);
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
         stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
@@ -177,7 +187,9 @@ int Planner::findPlan() {
     bool root = true;
     for (PlanItem& item : planPair.second) {
         std::string subtaskIdStr;
-        for (int subtaskId : item.subtaskIds) subtaskIdStr += " " + std::to_string(subtaskId);
+        for (int subtaskId : item.subtaskIds) {
+            if (!idsToRemove.count(subtaskId)) subtaskIdStr += " " + std::to_string(subtaskId);
+        } 
         
         if (root) {
             stream << "root " << subtaskIdStr << "\n";
@@ -340,8 +352,8 @@ void Planner::propagateActions(int offset) {
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
-            log("FORBIDDING action %s@(%i,%i): no children at offset %i\n", 
-                    Names::to_string(aSig).c_str(), _layer_idx-1, _old_pos, offset);
+            //log("FORBIDDING action %s@(%i,%i): no children at offset %i\n", 
+            //        Names::to_string(aSig).c_str(), _layer_idx-1, _old_pos, offset);
             newPos.addAction(Position::NONE_SIG, Reason(_layer_idx-1, _old_pos, aSig));
             continue;
         }
@@ -411,8 +423,8 @@ void Planner::propagateReductions(int offset) {
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
-            log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
-                    Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
+            //log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
+            //        Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
             newPos.addReduction(Position::NONE_SIG, why);
         }
     }
@@ -611,8 +623,11 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
 
         //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
 
-        // Rename any remaining variables in each action as unique q-constants
+        // Rename any remaining variables in each action as unique q-constants,
         action = _htn.replaceQConstants(action, _layer_idx, _pos);
+
+        // Remove any inconsistent effects that were just created
+        action.removeInconsistentEffects();
 
         // Check validity
         if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;

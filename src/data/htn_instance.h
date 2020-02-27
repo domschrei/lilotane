@@ -69,6 +69,8 @@ struct HtnInstance {
     std::vector<Reduction> _init_reduction_choices;
     Action _action_blank;
 
+    std::unordered_map<int, int> _split_action_from_first;
+
     static ParsedProblem& parse(std::string domainFile, std::string problemFile);
 
     HtnInstance(Parameters& params, ParsedProblem& p);

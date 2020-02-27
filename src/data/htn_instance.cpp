@@ -45,13 +45,9 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         log("\n");
     }
 
+    // Create actions
     for (task t : primitive_tasks) {
-        Action& a = createAction(t);
-        //log("TYPES %s : ", Names::to_string(a).c_str());
-        for (int type : _signature_sorts_table[a.getSignature()._name_id]) {
-            //log("%s ", Names::to_string(type).c_str());
-        }
-        //log("\n");
+        createAction(t);
     }
     
     // Create blank action without any preconditions or effects
@@ -59,17 +55,108 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _action_blank = Action(blankId, std::vector<int>());
     _actions[blankId] = _action_blank;
 
-    // All other methods
+    // Create reductions
     for (method& method : methods) {
-        if (method.name.rfind("__top_method") == 0) {
+        createReduction(method);
+    }
+
+    // If necessary, compile out actions which have some effect predicate
+    // in positive AND negative form: create two new actions in these cases
+    if (_params.isSet("q") || _params.isSet("qq")) {
+
+        std::unordered_map<int, Action> newActions;
+
+        for (const auto& pair : _actions) {
+            int aId = pair.first;
+            const Action& a = pair.second;
+            const Signature& aSig = a.getSignature();
+
+            // Find all negative effects to move
+            std::unordered_set<int> posEffPreds;
+            std::unordered_set<Signature, SignatureHasher> negEffsToMove;
+            // Collect positive effect predicates
+            for (const Signature& eff : a.getEffects()) {
+                if (eff._negated) continue;
+                posEffPreds.insert(eff._name_id);
+            }
+            // Match against negative effects
+            for (const Signature& eff : a.getEffects()) {
+                if (!eff._negated) continue;
+                if (posEffPreds.count(eff._name_id)) {
+                    // Must be factorized
+                    negEffsToMove.insert(eff);
+                }
+            }
+            
+            if (negEffsToMove.empty()) {
+                // Nothing to do
+                newActions[aId] = a;
+                continue;
+            }
+
+            // Create two new actions
+            std::string oldName = _name_back_table[aId];
+
+            // First action: all preconditions, only the neg. effects to be moved
+            int idFirst = getNameId(oldName + "_FIRST");
+            Action aFirst = Action(idFirst, aSig._args);
+            aFirst.setPreconditions(a.getPreconditions());
+            for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
+            _signature_sorts_table[aFirst.getSignature()._name_id] = _signature_sorts_table[aId];
+            newActions[idFirst] = aFirst;
+
+            // Second action: no preconditions, all other effects
+            int idSecond = getNameId(oldName + "_SECOND");
+            Action aSecond = Action(idSecond, aSig._args);
+            for (const Signature& eff : a.getEffects()) {
+                if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
+            }
+            _signature_sorts_table[aSecond.getSignature()._name_id] = _signature_sorts_table[aId];
+            newActions[idSecond] = aSecond;
+
+            // Replace all occurrences of the action with BOTH new actions in correct order
+            for (auto& rPair : _reductions) {
+                Reduction& r = rPair.second;
+                bool change = false;
+                std::vector<Signature> newSubtasks;
+                for (int i = 0; i < r.getSubtasks().size(); i++) {
+                    const Signature& subtask = r.getSubtasks()[i];
+                    if (subtask._name_id == aId) {
+                        // Replace
+                        change = true;
+                        substitution_t s = Substitution::get(aSig._args, subtask._args);
+                        newSubtasks.push_back(aFirst.getSignature().substitute(s));
+                        newSubtasks.push_back(aSecond.getSignature().substitute(s));
+                    } else {
+                        newSubtasks.push_back(subtask);
+                    }
+                }
+                if (change) {
+                    r.setSubtasks(newSubtasks);
+                } 
+            }
+
+            log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", Names::to_string(a).c_str(), 
+                    Names::to_string(aFirst).c_str(), 
+                    Names::to_string(aSecond).c_str());
+            
+            // Remember original action name ID
+            _split_action_from_first[idFirst] = aId;
+        }
+
+        _actions = newActions;
+    }
+
+    // Instantiate possible "root" / "top" methods
+    for (const auto& rPair : _reductions) {
+        const Reduction& r = rPair.second;
+        if (_name_back_table[r.getSignature()._name_id].rfind("__top_method") == 0) {
             // Initial "top" method
-            _init_reduction = createReduction(method);
+            _init_reduction = r;
+            
             // Instantiate all possible init. reductions
             _init_reduction_choices = _instantiator->getApplicableInstantiations(
                     _init_reduction, std::unordered_map<int, SigSet>(), INSTANTIATE_FULL);
-        } else {
-            // Normal method
-            createReduction(method);
         }
     }
     
@@ -229,11 +316,53 @@ Reduction& HtnInstance::createReduction(const method& method) {
     assert(_reductions.count(id) == 0);
     _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
 
-    // Extract (in)equality constraints
+    std::vector<literal> condLiterals;
+
+    // Extract (in)equality constraints, put into preconditions to process later
     if (!method.constraints.empty()) {
-        for (const literal& lit : method.constraints) {
+        for (const literal& lit : method.constraints) {            
             //log("%s\n", Names::to_string(getSignature(lit)).c_str());
             assert(lit.predicate == "__equal" || fail("Unknown constraint predicate \"" + lit.predicate + "\"!\n"));
+            condLiterals.push_back(lit);
+        }
+    }
+
+    // Go through expansion of the method
+    std::map<std::string, int> subtaskTagToIndex;   
+    for (plan_step st : method.ps) {
+
+        if (st.task.rfind("__method_precondition_", 0) == 0) {
+            // This "subtask" is a method precondition which was compiled out
+            
+            // Find primitive task belonging to this method precondition
+            task precTask;
+            for (task t : primitive_tasks) {
+                if (t.name == st.task) {
+                    precTask = t;
+                    break;
+                }
+            }
+            // Add its preconditions to the method's preconditions
+            for (literal lit : precTask.prec) {
+                log("COND_LIT %s\n", lit.predicate.c_str());
+                condLiterals.push_back(lit);
+            }
+            // (Do not add the task to the method's subtasks)
+
+        } else {
+            
+            // Actual subtask
+            Signature sig(getNameId(st.task), getArguments(st.args));
+            _reductions[id].addSubtask(sig);
+            subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
+        }
+    }
+
+    // Process preconditions and constraints of the method
+    for (literal lit : condLiterals) {
+
+        if (lit.predicate == "__equal") {
+            // Equality precondition
 
             // Find out "type" of this equality predicate
             std::string arg1Str = lit.arguments[0];
@@ -265,36 +394,11 @@ Reduction& HtnInstance::createReduction(const method& method) {
             // Add as a precondition to reduction
             std::vector<int> args; args.push_back(getNameId(arg1Str)); args.push_back(getNameId(arg2Str));
             _reductions[id].addPrecondition(Signature(newPredId, args, !lit.positive));
-        }
-    }
-
-    std::map<std::string, int> subtaskTagToIndex;   
-    for (plan_step st : method.ps) {
-
-        if (st.task.rfind("__method_precondition_", 0) == 0) {
-            // This "subtask" is a method precondition which was compiled out
-            
-            // Find primitive task belonging to this method precondition
-            task precTask;
-            for (task t : primitive_tasks) {
-                if (t.name == st.task) {
-                    precTask = t;
-                    break;
-                }
-            }
-            // Add its preconditions to the method's preconditions
-            for (auto p : precTask.prec) {
-                Signature sig = getSignature(p);
-                _reductions[id].addPrecondition(sig);
-            }
-            // (Do not add the task to the method's subtasks)
 
         } else {
-            
-            // Actual subtask
-            Signature sig(getNameId(st.task), getArguments(st.args));
-            _reductions[id].addSubtask(sig);
-            subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
+            // Normal precondition
+            Signature sig = getSignature(lit);
+            _reductions[id].addPrecondition(sig);
         }
     }
 
@@ -326,12 +430,6 @@ Reduction& HtnInstance::createReduction(const method& method) {
 Action& HtnInstance::createAction(const task& task) {
     int id = getNameId(task.name);
     std::vector<int> args = getArguments(task.vars);
-
-    //log("TYPES %s : ", task.name.c_str());
-    for (auto pair : task.vars) {
-        //log("%s-%s ", pair.first.c_str(), pair.second.c_str());
-    }
-    //log("\n");
 
     assert(_actions.count(id) == 0);
     _actions[id] = Action(id, args);
@@ -447,18 +545,6 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         for (int remSort : sortsToRemove) qConstSorts.erase(remSort);
     }
     // RESULT: The intersection of all sorts of all eligible constants
-
-    /*
-    TODO
-    
-    In a type consistency check of an HtnOp where a q-constant is contained
-    and where the only error lies in the q-constant's (common / most general) sorts,
-    the check should return all (VALID|INVALID) q-constant choices in the signature.
-
-    Then, the HtnOp should not be forbidden. Instead, the concerned substitutions
-    must be constrained in the encoding in case the surrounding action / reduction is being used.
-    */
-
 /*
     // Collect all types of the q-constant
     std::vector<std::string> containedSorts;

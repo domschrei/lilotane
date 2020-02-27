@@ -139,6 +139,7 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
     while (!assignmentsStack.empty()) {
         const std::vector<int> assignment = assignmentsStack.back();
         assignmentsStack.pop_back();
+        //for (int a : assignment) log("%i ", a); log("\n");
 
         // Pick constant for next argument position
         int argPos = argPosBackMapping[assignment.size()];
@@ -295,6 +296,7 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
             for (int cnst : _htn->_domains_of_q_constants[arg]) {
                 if (_htn->getConstantsOfSort(sort).count(cnst)) {
                     valid = true;
+                    break;
                 }
             }
         } else {
@@ -303,7 +305,10 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
                 if (c == arg) valid = true; 
             }
         }
-        if (!valid) return false;
+        if (!valid) {
+            //log("arg %s not of sort %s => %s invalid\n", Names::to_string(arg).c_str(), Names::to_string(sort).c_str(), Names::to_string(sig).c_str());
+            return false;
+        } 
     }
     return true;
 }

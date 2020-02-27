@@ -115,6 +115,9 @@ public:
     void addSubtask(Signature subtask) {
         _subtasks.push_back(subtask);
     }
+    void setSubtasks(const std::vector<Signature>& subtasks) {
+        _subtasks = subtasks;
+    }
 
     Signature getTaskSignature() {
         return Signature(_task_name_id, _task_args);
