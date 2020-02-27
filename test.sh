@@ -43,11 +43,15 @@ for domain in $domains ; do
         set -e
         
         if cat "$outfile"|grep -q "<=="; then
-            if ./pandaPIparser $dfile $pfile -verify "$outfile"|grep -q "false"; then
+	    echo -ne "Verifying ... "
+	    ./pandaPIparser $dfile $pfile -verify "$outfile" > "VERIFY_$outfile"
+            if grep -q "false" "VERIFY_$outfile"; then
                 echo "Verification error! Output:"
-                ./pandaPIparser $dfile $pfile -verify "$outfile"
+		cat "VERIFY_$outfile"
                 exit 1
-            fi
+            else
+		echo "All ok."
+	    fi	
             solved=$((solved+1))
         else
             echo "No plan found on $pfile."
