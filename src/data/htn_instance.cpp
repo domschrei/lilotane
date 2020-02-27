@@ -524,6 +524,18 @@ std::vector<Signature> HtnInstance::getDecodedObjects(Signature qSig) {
     return i; 
 }
 
+std::unordered_set<int> HtnInstance::getSortsOfQConstant(int qconst) {
+    std::unordered_set<int> sorts;
+    for (int sort : _sorts_of_q_constants[qconst]) sorts.insert(sort);
+    return sorts;
+}
+
+std::unordered_set<int> HtnInstance::getConstantsOfSort(int sort) {
+    std::unordered_set<int> cs;
+    for (int c : _constants_by_sort[sort]) cs.insert(c);
+    return cs; 
+}
+
 bool HtnInstance::hasQConstants(const Signature& sig) {
     for (int arg : sig._args) {
         if (_q_constants.count(arg)) return true;

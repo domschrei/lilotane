@@ -80,7 +80,10 @@ public:
     std::vector<int> getFreeArgPositions(const Signature& sig);
     bool fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution);
     bool hasSomeInstantiation(const Signature& sig);
+
     bool hasConsistentlyTypedArgs(const Signature& sig);
+    std::vector<TypeConstraint> getQConstantTypeConstraints(const Signature& sig);
+
     bool test(const Signature& sig, std::unordered_map<int, SigSet> facts);
     bool hasValidPreconditions(const HtnOp& op, std::unordered_map<int, SigSet> facts);
 

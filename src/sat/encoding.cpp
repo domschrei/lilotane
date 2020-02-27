@@ -371,6 +371,32 @@ void Encoding::encode(int layerIdx, int pos) {
             || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
     }
 
+    // Q-constants type constraints
+    const auto& constraints = newPos.getQConstantsTypeConstraints();
+    for (const auto& pair : constraints) {
+        const Signature& opSig = pair.first;
+        if (isEncoded(layerIdx, pos, opSig)) {
+            for (const TypeConstraint& c : pair.second) {
+                int qconst = c.qconstant;
+                bool positiveConstraint = c.sign;
+
+                if (positiveConstraint) {
+                    // EITHER of the GOOD constants - one big clause
+                    appendClause({-newPos.getVariable(opSig)});
+                    for (int cnst : c.constants) {
+                        appendClause({varSubstitution(sigSubstitute(qconst, cnst))});
+                    }
+                    endClause();
+                } else {
+                    // NEITHER of the BAD constants - many 2-clauses
+                    for (int cnst : c.constants) {
+                        addClause({-newPos.getVariable(opSig), -varSubstitution(sigSubstitute(qconst, cnst))});
+                    }
+                }
+            }
+        }
+    }
+
     // expansions
     for (auto pair : expansions) {
         int parent = pair.first;

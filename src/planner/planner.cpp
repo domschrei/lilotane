@@ -58,14 +58,15 @@ int Planner::findPlan() {
                 for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
                     addPrecondition(rSig, fact);
                 }
+                addQConstantTypeConstraints(rSig);
             }
             for (Signature aSig : getAllActionsOfTask(subtask, initLayer[_pos].getState())) {
-                if (!_instantiator.hasConsistentlyTypedArgs(aSig)) continue;
                 initLayer[_pos].addAction(aSig, why);
                 // Add preconditions
                 for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
                     addPrecondition(aSig, fact);
                 }
+                addQConstantTypeConstraints(aSig);
             }
         }
         
@@ -388,6 +389,7 @@ void Planner::propagateReductions(int offset) {
                     addPrecondition(subRSig, fact);
                     //log("%s ", Names::to_string(fact).c_str());
                 }
+                addQConstantTypeConstraints(subRSig);
                 //log("\n");
             }
             // action(s)?
@@ -399,6 +401,7 @@ void Planner::propagateReductions(int offset) {
                 for (Signature fact : a.getPreconditions()) {
                     addPrecondition(aSig, fact);
                 }
+                addQConstantTypeConstraints(aSig);
             }
         } else {
             // Blank
@@ -534,7 +537,14 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     }
 }
 
-
+void Planner::addQConstantTypeConstraints(const Signature& op) {
+    // Add type constraints for q constants
+    std::vector<TypeConstraint> cs = _instantiator.getQConstantTypeConstraints(op);
+    // Add to this position's data structure
+    for (const TypeConstraint& c : cs) {
+        _layers[_layer_idx][_pos].addQConstantTypeConstraint(op, c);
+    }
+}
 
 
 std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, const State& state) {
@@ -543,7 +553,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
 
     // Check if the created reduction has consistent sorts
-    if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
+    //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
 
     std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
     //log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
@@ -561,7 +571,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
             Signature sig = red.getSignature();
 
             // Check if the created reduction has consistent sorts
-            if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+            //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
 
             // Rename any remaining variables in each action as unique q-constants 
             red = _htn.replaceQConstants(red, _layer_idx, _pos);
@@ -587,7 +597,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     if (!_htn._actions.count(task._name_id)) return result;
 
     // Check if the supplied task has consistent sorts
-    if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
+    //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
 
     Action& a = _htn._actions[task._name_id];
 
@@ -599,7 +609,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     for (Action action : actions) {
         Signature sig = action.getSignature();
 
-        if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+        //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
 
         // Rename any remaining variables in each action as unique q-constants
         action = _htn.replaceQConstants(action, _layer_idx, _pos);

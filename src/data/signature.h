@@ -9,6 +9,15 @@
 
 #include "util/hash.h"
 
+
+struct TypeConstraint {
+    int qconstant;
+    bool sign;
+    std::vector<int> constants;
+    TypeConstraint(int qconstant, bool sign, const std::vector<int>& constants) : 
+        qconstant(qconstant), sign(sign), constants(constants) {}
+};
+
 typedef std::unordered_map<int, int> substitution_t;
 
 namespace Substitution {

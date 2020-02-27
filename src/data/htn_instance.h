@@ -101,6 +101,8 @@ struct HtnInstance {
 
     bool hasQConstants(const Signature& sig);
     std::vector<Signature> getDecodedObjects(Signature qFact);
+    std::unordered_set<int> getSortsOfQConstant(int qconst);
+    std::unordered_set<int> getConstantsOfSort(int sort);
 
     bool isRigidPredicate(int predId);
     void removeRigidConditions(HtnOp& op);

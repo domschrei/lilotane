@@ -83,7 +83,7 @@ struct CompArgs {
 SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, SigSet>& facts) {
     __op = &op;
 
-    if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
+    //if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
 
     // Create structure for arguments ordered by priority
     std::vector<int> argsByPriority;
@@ -165,8 +165,6 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
                 // If there are remaining variables: 
                 // is there some valid constant for each of them?
                 if (!hasSomeInstantiation(newOp.getSignature())) continue;
-
-                assert(hasConsistentlyTypedArgs(newOp.getSignature()));
 
                 // This instantiation is finished:
                 // Assemble instantiated signature
@@ -293,9 +291,11 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
         if (_htn->_var_ids.count(arg)) continue; // skip variable
         bool valid = false;
         if (_htn->_q_constants.count(arg)) {
-            // q constant: check if it has the correct sort
-            for (int qsort : _htn->_sorts_of_q_constants[arg]) {
-                if (qsort == sort) valid = true;
+            // q constant: TODO check if SOME SUBSTITUTEABLE CONSTANT has the correct sort
+            for (int cnst : _htn->_domains_of_q_constants[arg]) {
+                if (_htn->getConstantsOfSort(sort).count(cnst)) {
+                    valid = true;
+                }
             }
         } else {
             // normal constant: check if it is contained in the correct sort
@@ -306,6 +306,48 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
         if (!valid) return false;
     }
     return true;
+}
+
+std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Signature& sig) {
+
+    std::vector<TypeConstraint> constraints;
+
+    const std::vector<int>& taskSorts = _htn->_signature_sorts_table[sig._name_id];
+    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+        int sigSort = taskSorts[argPos];
+        int arg = sig._args[argPos];
+        
+        // Not a q-constant here
+        if (!_htn->_q_constants.count(arg)) {
+            // Must be of valid type
+            assert(_htn->getConstantsOfSort(sigSort).count(arg));
+            continue;
+        }
+
+        // Type is fine no matter which substitution is chosen
+        if (_htn->getSortsOfQConstant(arg).count(sigSort)) continue;
+
+        // Type is NOT fine, at least for some substitutions
+        std::vector<int> good;
+        std::vector<int> bad;
+        std::unordered_set<int> validConstants = _htn->getConstantsOfSort(sigSort);
+        // For each value the qconstant can assume:
+        for (int c : _htn->_domains_of_q_constants[arg]) {
+            // Is that constant of correct type?
+            if (validConstants.count(c)) good.push_back(c);
+            else bad.push_back(c);
+        }
+
+        if (good.size() >= bad.size()) {
+            // arg must be EITHER of the GOOD ones
+            constraints.emplace_back(arg, true, good);
+        } else {
+            // arg must be NEITHER of the BAD ones
+            constraints.emplace_back(arg, false, bad);
+        }
+    }
+
+    return constraints;
 }
 
 bool Instantiator::test(const Signature& sig, std::unordered_map<int, SigSet> facts) {

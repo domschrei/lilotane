@@ -1,7 +1,7 @@
 #!/bin/bash
 
 timeout=10
-domains="umtranslog satellite transport rover entertainment"
+domains="smartphone umtranslog satellite transport rover entertainment"
 
 set -e
 set -o pipefail

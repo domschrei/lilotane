@@ -63,8 +63,8 @@ private:
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_decodings;
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_abstractions;
 
-    std::unordered_map<Signature, SigSet, SignatureHasher> _impossible_qfact_decodings;
-    
+    std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
+
     CausalSigSet _actions;
     CausalSigSet _reductions;
     int _max_expansion_size = 1;
@@ -85,12 +85,13 @@ public:
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
     }
-    void addImpossibleQFactDecoding(const Signature& qfact, const Signature& decoding) {
-        _impossible_qfact_decodings[qfact]; _impossible_qfact_decodings[qfact].insert(decoding);
-    }
     void addFactSupport(const Signature& fact, const Signature& operation) {
         _fact_supports[fact];
         _fact_supports[fact].insert(operation);
+    }
+    void addQConstantTypeConstraint(const Signature& op, const TypeConstraint& c) {
+        _q_constants_type_constraints[op];
+        _q_constants_type_constraints[op].push_back(c);
     }
 
     void addAction(const Signature& action, Reason rs = Reason()) {
@@ -126,9 +127,11 @@ public:
     const CausalSigSet& getFacts() const {return _facts;}
     const CausalSigSet& getTrueFacts() const {return _true_facts;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
-    const std::unordered_map<Signature, SigSet, SignatureHasher>& getImpossibleQFactDecodings() const {return _impossible_qfact_decodings;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
+    const std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
+        return _q_constants_type_constraints;
+    }
 
     const CausalSigSet& getActions() const {return _actions;}
     const CausalSigSet& getReductions() const {return _reductions;}

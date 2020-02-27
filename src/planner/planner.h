@@ -46,6 +46,7 @@ private:
 
     void addPrecondition(const Signature& op, const Signature& fact);
     void addEffect(const Signature& op, const Signature& fact);
+    void addQConstantTypeConstraints(const Signature& op);
     void propagateActions(int offset);
     void propagateReductions(int offset);
     void addNewFalseFacts();
