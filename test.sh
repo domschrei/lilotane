@@ -37,7 +37,11 @@ for domain in $domains ; do
             rm STOP
             exit 0
         fi
-        outfile="OUT_$(date +%s)_$@"
+        
+        logdir="logs/${domain}_$(basename $pfile .hddl)_$@_$(date +%s)/"
+        mkdir -p "$logdir"
+        outfile="$logdir/OUT"
+        verifile="$logdir/VERIFY"
         
         set +e
         echo -ne "[$((solved+unsolved))/$all] Running treerexx on ${blue}$pfile${reset} ... "
@@ -52,10 +56,10 @@ for domain in $domains ; do
         
         if cat "$outfile"|grep -q "<=="; then
             echo -ne "Verifying ... "
-            ./pandaPIparser $dfile $pfile -verify "$outfile" > "VERIFY_$outfile"
-            if grep -q "false" "VERIFY_$outfile"; then
+            ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile"
+            if grep -q "false" "$verifile"; then
                 echo "${red}Verification error!${reset} Output:"
-                cat "VERIFY_$outfile"
+                cat "$verifile"
                 exit 1
             else
                 echo "${green}All ok.${reset}"
@@ -65,14 +69,8 @@ for domain in $domains ; do
             echo ""
             unsolved=$((unsolved+1))
         fi
-        
-        set +e
-        rm "$outfile" "VERIFY_$outfile" 2> /dev/null
-        set -e
     done
 done
 
 echo "No verification problems occurred."
 echo "$solved/$all solved within $timeout seconds."
-
-rm $cleanfiles 2> /dev/null
