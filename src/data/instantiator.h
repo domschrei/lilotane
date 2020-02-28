@@ -59,15 +59,12 @@ public:
         }
     }
 
-    std::vector<Reduction> getApplicableInstantiations(Reduction& r,
-            std::unordered_map<int, SigSet> facts, int mode = -1);
-    std::vector<Action> getApplicableInstantiations(Action& a,
-            std::unordered_map<int, SigSet> facts, int mode = -1);
+    std::vector<Reduction> getApplicableInstantiations(const Reduction& r,
+            const std::unordered_map<int, SigSet>& facts, int mode = -1);
+    std::vector<Action> getApplicableInstantiations(const Action& a,
+            const std::unordered_map<int, SigSet>& facts, int mode = -1);
 
     SigSet instantiate(const HtnOp& op, const std::unordered_map<int, SigSet>& facts);
-            
-    std::pair<std::unordered_map<int, SigSet>, std::unordered_map<int, SigSet>> getPossibleFactChanges(Reduction& r);
-    std::pair<std::unordered_map<int, SigSet>, std::unordered_map<int, SigSet>> getFactChanges(Action& a);
 
     std::unordered_map<Signature, 
                        std::unordered_set<substitution_t, Substitution::Hasher>, 
@@ -84,18 +81,8 @@ public:
     bool hasConsistentlyTypedArgs(const Signature& sig);
     std::vector<TypeConstraint> getQConstantTypeConstraints(const Signature& sig);
 
-    bool test(const Signature& sig, std::unordered_map<int, SigSet> facts);
-    bool hasValidPreconditions(const HtnOp& op, std::unordered_map<int, SigSet> facts);
-
-    std::unordered_map<int, int> substitution(std::vector<int> origArgs, std::vector<int> newArgs) {
-        std::unordered_map<int, int> s;
-        assert(origArgs.size() == newArgs.size());
-        for (int i = 0; i < origArgs.size(); i++) {
-            s[origArgs[i]] = newArgs[i];
-        }
-        return s;
-    }
-
+    bool test(const Signature& sig, const std::unordered_map<int, SigSet>& facts);
+    bool hasValidPreconditions(const HtnOp& op, const std::unordered_map<int, SigSet>& facts);
 };
 
 

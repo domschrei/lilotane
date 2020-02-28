@@ -6,7 +6,7 @@
 #include "util/names.h"
 #include "data/htn_instance.h"
 
-std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
+std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& sig) {
 
     int nameId = sig._name_id;
     
@@ -94,7 +94,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(Signature sig) {
     return out;
 }
 
-std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrReduction) {
+std::vector<Signature> EffectorTable::getPossibleChildren(const Signature& actionOrReduction) {
     std::vector<Signature> result;
 
     int nameId = actionOrReduction._name_id;

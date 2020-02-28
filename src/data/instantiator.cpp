@@ -8,7 +8,7 @@
 #include "data/arg_iterator.h"
 
 std::vector<Reduction> Instantiator::getApplicableInstantiations(
-    Reduction& r, std::unordered_map<int, SigSet> facts, int mode) {
+    const Reduction& r, const std::unordered_map<int, SigSet>& facts, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
@@ -27,7 +27,7 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 }
 
 std::vector<Action> Instantiator::getApplicableInstantiations(
-    Action& a, std::unordered_map<int, SigSet> facts, int mode) {
+    const Action& a, const std::unordered_map<int, SigSet>& facts, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
@@ -353,7 +353,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Sign
     return constraints;
 }
 
-bool Instantiator::test(const Signature& sig, std::unordered_map<int, SigSet> facts) {
+bool Instantiator::test(const Signature& sig, const std::unordered_map<int, SigSet>& facts) {
     assert(isFullyGround(sig));
     bool positive = !sig._negated;
     
@@ -366,19 +366,19 @@ bool Instantiator::test(const Signature& sig, std::unordered_map<int, SigSet> fa
     if (_htn->hasQConstants(sig)) return true;
 
     // fact positive : true iff contained in facts
-    if (positive) return facts[sig._name_id].count(sig);
+    if (positive) return facts.at(sig._name_id).count(sig);
     
     // fact negative.
 
     // if contained in facts : return true
     //   (fact occurred negative)
-    if (facts[sig._name_id].count(sig)) return true;
+    if (facts.at(sig._name_id).count(sig)) return true;
     
     // else: return true iff fact does NOT occur in positive form
-    return !facts[sig._name_id].count(sig.opposite());
+    return !facts.at(sig._name_id).count(sig.opposite());
 }
 
-bool Instantiator::hasValidPreconditions(const HtnOp& op, std::unordered_map<int, SigSet> facts) {
+bool Instantiator::hasValidPreconditions(const HtnOp& op, const std::unordered_map<int, SigSet>& facts) {
 
     for (const Signature& pre : op.getPreconditions()) {
         if (isFullyGround(pre) && !test(pre, facts)) {
