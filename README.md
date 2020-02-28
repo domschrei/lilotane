@@ -34,24 +34,20 @@ Execute the planner executable like this:
 ## License
 
 The code of the planner is published under the GNU GPLv3. Consult the LICENSE file for details.  
-The planner uses (slightly adapted) code from the pandaPIparser project [1] which is also GPLv3 licensed.
+The planner uses (slightly adapted) code from the [https://github.com/panda-planner-dev/pandaPIparser](pandaPIparser project) [1] which is also GPLv3 licensed.
 
 Note that depending on the SAT solver compiled into the planner, usage and redistribution rights may be subject to their licensing.
 If you want to make sure that everything is Free and Open Source, I suggest to use MIT-licensed lingeling as the solver.
 
-## Background
+## Background and References
 
-This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>.
-It is mainly based on previous work by D. Schreiber, D. Pellier, H. Fiorino and T. Balyo [1], [2] 
-but also incorporates various original ideas and is written from scratch w.r.t. previous code projects.
+This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>.  
+Its direct predecessor is Tree-REX by D. Schreiber, D. Pellier, H. Fiorino and T. Balyo [2]. 
+However, Treerexx incorporates various conceptual and practical ideas that enable its performance gains. Most prominently, the prior grounding engine was dropped; instead, lazy "just-in-time" grounding and partially lifted encodings are employed.  
+Treerexx is written from scratch in C++.
 
 [1] Behnke, G., Höller, D., Schmid, A., Bercher, P., & Biundo, S. (2020). **On succinct groundings of HTN planning problems.** In Proceedings of the 34th AAAI Conference on Artificial Intelligence (AAAI). AAAI Press.
 
 [2] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. 2019. 
-**Efficient SAT encodings for hierarchical planning.** 
-In Proceedings of the 11th International Conference on Agents and Artificial Intelligence, 
-ICAART 2019, volume 2, 531–538.
-
-[3] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. 2019. 
 **Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.** 
 In Proceedings of the International Conference on Automated Planning and Scheduling, volume 29. No. 1. 2019.
