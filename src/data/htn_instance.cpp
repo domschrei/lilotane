@@ -136,10 +136,11 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
                 } 
             }
 
+            /*
             log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", Names::to_string(a).c_str(), 
                     Names::to_string(aFirst).c_str(), 
                     Names::to_string(aSecond).c_str());
-            
+            */
             // Remember original action name ID
             _split_action_from_first[idFirst] = aId;
         }
@@ -416,11 +417,13 @@ Reduction& HtnInstance::createReduction(const method& method) {
         _reductions[id].orderSubtasks(orderingNodelist);
     }
 
+    /*
     log("ORDERING %s < ", Names::to_string(_reductions[id].getSignature()).c_str());
     for (Signature sg : _reductions[id].getSubtasks()) {
         log("%s ", Names::to_string(sg).c_str());
     }
     log(">\n");
+    */
 
     log(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
@@ -544,37 +547,21 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         }
         for (int remSort : sortsToRemove) qConstSorts.erase(remSort);
     }
-    // RESULT: The intersection of all sorts of all eligible constants
-/*
-    // Collect all types of the q-constant
-    std::vector<std::string> containedSorts;
-    containedSorts.push_back(_name_back_table[sort]);
-    for (int i = 0; i < containedSorts.size(); i++) {
-        std::string containedSort = containedSorts[i];
-        for (sort_definition sd : _p.sort_definitions) {
-            if (sd.has_parent_sort && sd.parent_sort == containedSort) {
-                for (std::string newSort : sd.declared_sorts) {
-                    containedSorts.push_back(newSort);
-                }
-            }
-        }
-    }
-    // Filter sorts which were simplified away
-    std::unordered_set<int> sortsSet;   
-    for (std::string sortStr : containedSorts) {
-        if (_p.sorts.count(sortStr)) sortsSet.insert(getNameId(sortStr));
-    }*/
+    // RESULT: The intersection of sorts of all eligible constants.
+    // => If the q-constant has some sort, it means that ALL possible substitutions have that sort.
 
+    /*
     log("  q-constant for arg %s @ pos %i of %s : %s\n   sorts ", 
             _name_back_table[arg].c_str(), argPos, 
             Names::to_string(sig).c_str(), Names::to_string(qConstId).c_str());
+    */
     _sorts_of_q_constants[qConstId];
     for (int sort : qConstSorts) {
         _sorts_of_q_constants[qConstId].push_back(sort);
         //_constants_by_sort[sort].push_back(qConstId);
-        log("%s ", Names::to_string(sort).c_str());
+        //log("%s ", Names::to_string(sort).c_str());
     } 
-    log("\n");
+    //log("\n");
 
     assert(!domain.empty());
     _domains_of_q_constants[qConstId] = domain;

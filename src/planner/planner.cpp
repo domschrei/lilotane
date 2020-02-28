@@ -52,7 +52,13 @@ int Planner::findPlan() {
             //Signature subtask = _htn.getInitTaskSignature(_pos);
             Signature subtask = parent.getSubtasks()[_pos];
             for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
+                
                 initLayer[_pos].addReduction(rSig, why);
+                /*
+                log("ADD %s:%s @ (%i,%i)\n", Names::to_string(_htn._reductions_by_sig[rSig].getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), _layer_idx, _pos);
+                for (auto st : _htn._reductions_by_sig[rSig].getSubtasks())
+                    log(" - %s\n", Names::to_string(st).c_str());
+                */
                 initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());
                 // Add preconditions
                 for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
@@ -195,7 +201,7 @@ int Planner::findPlan() {
             stream << "root " << subtaskIdStr << "\n";
             root = false;
             continue;
-        } else if (item.id == 0 || actionIds.count(item.id)) continue;
+        } else if (item.id <= 0 || actionIds.count(item.id)) continue;
         
         stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << " -> " 
             << Names::to_string_nobrackets(item.reduction) << subtaskIdStr << "\n";
@@ -306,9 +312,6 @@ void Planner::createNextFromAbove(const Position& above) {
     newPos.setPos(_layer_idx, _pos);
 
     int offset = _pos - _layers[_layer_idx-1].getSuccessorPos(_old_pos);
-    
-    // TODO ordering okay? first fact propagations from above, then actions/reductions?
-
     if (offset == 0) {
         // Propagate facts
         for (auto entry : above.getFacts()) {
@@ -321,10 +324,6 @@ void Planner::createNextFromAbove(const Position& above) {
                 newPos.addQFactDecoding(entry.first, dec);
             }
         }
-        // Propagate true facts TODO ?
-        //for (auto entry : above.getTrueFacts()) {
-        //    newPos.addTrueFact(entry.first, Reason(_layer_idx-1, _old_pos, entry.first));
-        //}
     }
 
     propagateActions(offset);
@@ -394,6 +393,7 @@ void Planner::propagateReductions(int offset) {
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
                 newPos.addReduction(subRSig, why);
+                if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
                 //log("PRECONDS %s ", Names::to_string(subRSig).c_str());
@@ -576,30 +576,37 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     // applicable in current (super)state
     for (int redId : redIds) {
         Reduction r = _htn._reductions[redId];
-        r = r.substituteRed(Substitution::get(r.getTaskArguments(), task._args));
-        Signature origSig = r.getSignature();
-        
-        //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
-        std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(r, state);
-        for (Reduction red : reductions) {
-            Signature sig = red.getSignature();
+        std::vector<substitution_t> subs = Substitution::getAll(r.getTaskArguments(), task._args);
+        for (substitution_t s : subs) {
 
-            // Check if the created reduction has consistent sorts
-            //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+            //if (_layer_idx <= 1) log("SUBST %s\n", Names::to_string(s).c_str());
+            Reduction rSub = r.substituteRed(s);
+            Signature origSig = rSub.getSignature();
+            if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
+            
+            //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
+            std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
+            for (Reduction red : reductions) {
+                Signature sig = red.getSignature();
 
-            // Rename any remaining variables in each action as unique q-constants 
-            red = _htn.replaceQConstants(red, _layer_idx, _pos);
-            
-            // Check validity
-            if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-            if (!_instantiator.hasValidPreconditions(red, state)) continue;
-            
-            // Remove unneeded rigid conditions from the reduction
-            _htn.removeRigidConditions(red);
-            
-            sig = red.getSignature();
-            _htn._reductions_by_sig[sig] = red;
-            result.push_back(sig);
+                // Check if the created reduction has consistent sorts
+                //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+
+                // Rename any remaining variables in each action as new, unique q-constants 
+                red = _htn.replaceQConstants(red, _layer_idx, _pos);
+                
+                // Check validity
+                if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+                if (!_instantiator.hasValidPreconditions(red, state)) continue;
+                if (red.getTaskSignature() != task) continue;
+                
+                // Remove unneeded rigid conditions from the reduction
+                _htn.removeRigidConditions(red);
+                
+                sig = red.getSignature();
+                _htn._reductions_by_sig[sig] = red;
+                result.push_back(sig);
+            }
         }
     }
     return result;
@@ -634,6 +641,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
         // Check validity
         if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
         if (!_instantiator.hasValidPreconditions(action, state)) continue;
+        if (action.getSignature() != task) continue;
         
         // Remove unneeded rigid conditions from the reduction
         _htn.removeRigidConditions(action);

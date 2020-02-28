@@ -747,7 +747,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             numChosen++;
         } 
     }
-    assert(numChosen <= 1 || fail("Chose multiple init reductions!\n"));
+    assert(numChosen == 1 || fail("Invalid number of init reductions!\n"));
 
     PlanItem root({0, 
                 Signature(_htn.getNameId("root"), std::vector<int>()), 
@@ -780,21 +780,23 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                 Signature rSig = pair.first;
                 if (!isEncoded(i, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
+                //log("? %s @ (%i,%i)\n", Names::to_string(rSig).c_str(), i, pos);
+
                 if (value(i, pos, rSig)) {
-                    reductionsThisPos++;
 
                     int v = _layers->at(i)[pos].getVariable(rSig);
-                    Reduction& r = _htn._reductions_by_sig[rSig];
+                    const Reduction& r = _htn._reductions_by_sig[rSig];
 
                     // Check preconditions
                     for (Signature pre : r.getPreconditions()) {
                         assert(value(i, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of reduction "
-                        + Names::to_string(r) + " does not hold at step " + std::to_string(pos) + "!\n"));
+                        + Names::to_string(r.getSignature()) + " does not hold at step " + std::to_string(pos) + "!\n"));
                     }
 
+                    log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), i, pos);
                     rSig = getDecodedQOp(i, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
-                    log("%s @ (%i,%i)\n", Names::to_string(rSig).c_str(), i, pos);
+                    log("%s:%s @ (%i,%i)\n", Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), i, pos);
 
                     // Lookup parent reduction
                     Reduction parentRed;
@@ -802,8 +804,9 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     if (i > 0) {
                         offset = pos - _layers->at(i-1).getSuccessorPos(predPos);
                         PlanItem& parent = itemsOldLayer[predPos];
+                        assert(parent.id >= 0 || fail("No parent at " + std::to_string(i-1) + "," + std::to_string(predPos) + "!\n"));
                         assert(_htn._reductions.count(parent.reduction._name_id) || 
-                            fail("Reduction " + std::to_string(parent.id) + " at " + std::to_string(i-1) + ", " + std::to_string(predPos) + "\n"));
+                            fail("Invalid reduction id=" + std::to_string(parent.reduction._name_id) + " at " + std::to_string(i-1) + "," + std::to_string(predPos) + "\n"));
 
                         parentRed = _htn._reductions[parent.reduction._name_id];
                         parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), parent.reduction._args));
@@ -816,10 +819,16 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     // Is the current reduction a proper subtask?
                     assert(offset < parentRed.getSubtasks().size());
                     if (parentRed.getSubtasks()[offset] == rDecoded.getTaskSignature()) {
+                        if (itemsOldLayer[predPos].subtaskIds.size() > offset) {
+                            // This subtask has already been written!
+                            log(" -- is a redundant child -> dismiss\n");
+                            continue;
+                        }
                         itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
+                        reductionsThisPos++;
                     } else {
-                        log("%s != %s\n", Names::to_string(parentRed.getSubtasks()[offset]).c_str(), Names::to_string(r.getTaskSignature()).c_str());
+                        log(" -- invalid : %s != %s\n", Names::to_string(parentRed.getSubtasks()[offset]).c_str(), Names::to_string(rDecoded.getTaskSignature()).c_str());
                     } 
                 }
             }
@@ -867,7 +876,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             // At least an item per position (except for closing positions)
             assert( ((actionsThisPos+reductionsThisPos >= 1) ^ (pos+1 == l.size()))
             || fail(std::to_string(actionsThisPos+reductionsThisPos) 
-                + " actions at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+                + " ops at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
             
             // At most one action per position
             assert(actionsThisPos <= 1 || fail(std::to_string(actionsThisPos) 
@@ -910,39 +919,37 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
     Signature origSig = sig;
     while (true) {
         bool containsQConstants = false;
-        for (int arg : sig._args) 
-            if (_htn._q_constants.count(arg)) {
-                log("%s : QCONST\n", Names::to_string(arg).c_str());
-                // q constant found
-                containsQConstants = true;
+        for (int arg : sig._args) if (_htn._q_constants.count(arg)) {
+            // q constant found
+            containsQConstants = true;
 
-                int numSubstitutions = 0;
-                for (int argSubst : _htn._domains_of_q_constants[arg]) {
-                    Signature sigSubst = sigSubstitute(arg, argSubst);
-                    if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                        //log("%i TRUE\n", varSubstitution(sigSubst));
-                        log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
-                                Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
-                        numSubstitutions++;
-                        substitution_t sub;
-                        sub[arg] = argSubst;
-                        sig = sig.substitute(sub);
-                        log("%s\n", Names::to_string(sig).c_str());
-                    } else {
-                        //log("%i FALSE\n", varSubstitution(sigSubst));
-                    }
+            int numSubstitutions = 0;
+            for (int argSubst : _htn._domains_of_q_constants[arg]) {
+                Signature sigSubst = sigSubstitute(arg, argSubst);
+                if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
+                    //log("%i TRUE\n", varSubstitution(sigSubst));
+                    log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
+                            Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
+                    numSubstitutions++;
+                    substitution_t sub;
+                    sub[arg] = argSubst;
+                    sig = sig.substitute(sub);
+                    log("%s\n", Names::to_string(sig).c_str());
+                } else {
+                    //log("%i FALSE\n", varSubstitution(sigSubst));
                 }
+            }
 
             assert(numSubstitutions == 1);
-            } else {
-                log("%s : NO_QCONST\n", Names::to_string(arg).c_str());
-            }
+        }
 
         if (!containsQConstants) break; // done
     }
 
+    
     if (origSig != sig)
         log("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
+    
     return sig;
 }
 

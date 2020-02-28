@@ -119,10 +119,10 @@ public:
         _subtasks = subtasks;
     }
 
-    Signature getTaskSignature() {
+    Signature getTaskSignature() const {
         return Signature(_task_name_id, _task_args);
     }
-    const std::vector<int>& getTaskArguments() {
+    const std::vector<int>& getTaskArguments() const {
         return _task_args;
     }
     const std::vector<Signature>& getSubtasks() const {

@@ -80,7 +80,10 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
 
             newArgs[argPos] = constantsPerArg[argPos][counter[argPos]];
         }
-        instantiation.push_back(sig.substitute(Substitution::get(sig._args, newArgs)));            
+        // There may be multiple possible substitutions
+        for (substitution_t s : Substitution::getAll(sig._args, newArgs)) {
+            instantiation.push_back(sig.substitute(s));            
+        }
 
         // Increment exponential counter
         int x = 0;
@@ -102,8 +105,8 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
 
-    assert(numChoices == numInstantiations || 
-        fail(std::to_string(numChoices) + " != " + std::to_string(numInstantiations)) + "\n");
+    assert(numChoices <= numInstantiations || 
+        fail(std::to_string(numChoices) + " > " + std::to_string(numInstantiations)) + "\n");
     
     return instantiation;
 }

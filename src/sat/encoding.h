@@ -23,7 +23,7 @@ extern "C" {
 typedef std::unordered_map<int, SigSet> State;
 
 struct PlanItem {
-    int id;
+    int id = -1;
     Signature abstractTask;
     Signature reduction;
     std::vector<int> subtaskIds;

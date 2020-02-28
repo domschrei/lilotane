@@ -202,8 +202,6 @@ Instantiator::getOperationSubstitutionsCausingEffect(
         //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
         std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
 
-        // Decode it into a q constant free representation
-        //for (Signature decOpSig : _htn->getDecodedObjects(opSig)) {
         assert(isFullyGround(opSig));
 
         // Collect its (possible) effects

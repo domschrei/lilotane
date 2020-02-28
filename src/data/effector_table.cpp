@@ -124,8 +124,12 @@ std::vector<Signature> EffectorTable::getPossibleChildren(Signature& actionOrRed
                 // Substitute original subred. arguments
                 // with the subtask's arguments
                 const std::vector<int>& origArgs = subred.getTaskArguments();
-                Signature substSig = subred.getSignature().substitute(Substitution::get(origArgs, sig._args));
-                result.push_back(substSig);
+                // When substituting task args of a reduction, there may be multiple possibilities
+                std::vector<substitution_t> ss = Substitution::getAll(origArgs, sig._args);
+                for (substitution_t s : ss) {
+                    Signature substSig = subred.getSignature().substitute(s);
+                    result.push_back(substSig);
+                }
             }
         }
     }

@@ -6,6 +6,12 @@ domains="woodworking smartphone umtranslog satellite transport rover entertainme
 set -e
 set -o pipefail
 
+red=`tput setaf 1`
+green=`tput setaf 2`
+yellow=`tput setaf 3`
+blue=`tput setaf 4`
+reset=`tput sgr0`
+
 #make cleantr
 #make
 
@@ -34,31 +40,39 @@ for domain in $domains ; do
         outfile="OUT_$(date +%s)_$@"
         
         set +e
-        echo "[$((solved+unsolved))/$all] Running treerexx on $pfile ..."
+        echo -ne "[$((solved+unsolved))/$all] Running treerexx on ${blue}$pfile${reset} ... "
         /usr/bin/timeout $timeout ./treerexx $dfile $pfile $@ > "$outfile"
         retval="$?"
-        if [ "$retval" != "0" ]; then
-            echo "Exit code $retval"
+        if [ "$retval" == "0" ]; then
+            echo -ne "exit code ${green}$retval${reset}. "
+        else
+            echo -ne "${yellow}exit code $retval.${reset} "
         fi
         set -e
         
         if cat "$outfile"|grep -q "<=="; then
-	    echo -ne "Verifying ... "
-	    ./pandaPIparser $dfile $pfile -verify "$outfile" > "VERIFY_$outfile"
+            echo -ne "Verifying ... "
+            ./pandaPIparser $dfile $pfile -verify "$outfile" > "VERIFY_$outfile"
             if grep -q "false" "VERIFY_$outfile"; then
-                echo "Verification error! Output:"
-		cat "VERIFY_$outfile"
+                echo "${red}Verification error!${reset} Output:"
+                cat "VERIFY_$outfile"
                 exit 1
             else
-		echo "All ok."
-	    fi	
+                echo "${green}All ok.${reset}"
+            fi
             solved=$((solved+1))
         else
-            echo "No plan found on $pfile."
+            echo ""
             unsolved=$((unsolved+1))
         fi
+        
+        set +e
+        rm "$outfile" "VERIFY_$outfile" 2> /dev/null
+        set -e
     done
 done
 
 echo "No verification problems occurred."
 echo "$solved/$all solved within $timeout seconds."
+
+rm $cleanfiles 2> /dev/null
