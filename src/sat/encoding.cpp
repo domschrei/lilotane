@@ -54,15 +54,17 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({factVar});
     }
 
+    // Init substitution vars where necessary
+    for (int qconst : _htn._q_constants) {
+        initSubstitutionVars(qconst, newPos);
+    }
+
     // Link qfacts to their possible decodings
     for (auto pair : newPos.getQFactDecodings()) {
         const Signature& qfactSig = pair.first;
         assert(!_htn.isRigidPredicate(qfactSig._name_id));
         assert(!qfactSig._negated);
         int qfactVar = newPos.encode(qfactSig);
-
-        // initialize substitution logic where necessary
-        initSubstitutionVars(qfactSig, newPos);
 
         // For each possible fact decoding:
         for (const auto& decFactSig : pair.second) {
@@ -94,6 +96,7 @@ void Encoding::encode(int layerIdx, int pos) {
     for (auto pair : newPos.getFacts()) {
         const Signature& factSig = pair.first;
         if (_htn.isRigidPredicate(factSig._name_id)) continue;
+        
         int factVar = newPos.encode(factSig);
 
         if (hasAbove && offset == 0 && above.getFacts().count(factSig)) {
@@ -379,6 +382,7 @@ void Encoding::encode(int layerIdx, int pos) {
             for (const TypeConstraint& c : pair.second) {
                 int qconst = c.qconstant;
                 bool positiveConstraint = c.sign;
+                assert(_q_constants.count(qconst));
 
                 if (positiveConstraint) {
                     // EITHER of the GOOD constants - one big clause
@@ -440,41 +444,37 @@ void Encoding::encode(int layerIdx, int pos) {
     log("  Encoding done. (%i clauses, total of %i literals)\n", (numClauses-priorCls), (numLits-priorLits));
 }
 
-void Encoding::initSubstitutionVars(const Signature& qfactSig, Position& pos) {
+void Encoding::initSubstitutionVars(int arg, Position& pos) {
 
-    for (int argPos = 0; argPos < qfactSig._args.size(); argPos++) {
-        int arg = qfactSig._args[argPos];
-        if (!_htn._q_constants.count(arg)) continue;
-        if (_q_constants.count(arg)) continue;
+    if (!_htn._q_constants.count(arg)) return;
+    if (_q_constants.count(arg)) return;
+    // arg is a *new* q-constant: initialize substitution logic
 
-        // arg is a *new* q-constant: initialize substitution logic
+    _q_constants.insert(arg);
 
-        _q_constants.insert(arg);
+    std::vector<int> substitutionVars;
+    for (int c : _htn._domains_of_q_constants[arg]) {
 
-        std::vector<int> substitutionVars;
-        for (int c : _htn._domains_of_q_constants[arg]) {
-
-            // either of the possible substitutions must be chosen
-            Signature sigSubst = sigSubstitute(arg, c);
-            int varSubst = varSubstitution(sigSubst);
-            substitutionVars.push_back(varSubst);
-            
-            _q_constants_per_arg[c];
-            _q_constants_per_arg[c].push_back(arg);
-        }
-        assert(!substitutionVars.empty());
-
-        // AT LEAST ONE substitution
-        for (int vSub : substitutionVars) appendClause({vSub});
-        endClause();
-
-        // AT MOST ONE substitution
-        for (int vSub1 : substitutionVars) {
-            for (int vSub2 : substitutionVars) {
-                if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
-            }
-        } 
+        // either of the possible substitutions must be chosen
+        Signature sigSubst = sigSubstitute(arg, c);
+        int varSubst = varSubstitution(sigSubst);
+        substitutionVars.push_back(varSubst);
+        
+        _q_constants_per_arg[c];
+        _q_constants_per_arg[c].push_back(arg);
     }
+    assert(!substitutionVars.empty());
+
+    // AT LEAST ONE substitution
+    for (int vSub : substitutionVars) appendClause({vSub});
+    endClause();
+
+    // AT MOST ONE substitution
+    for (int vSub1 : substitutionVars) {
+        for (int vSub2 : substitutionVars) {
+            if (vSub1 < vSub2) addClause({-vSub1, -vSub2});
+        }
+    } 
 }
 
 std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dnf) {
@@ -910,29 +910,33 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
     Signature origSig = sig;
     while (true) {
         bool containsQConstants = false;
-        for (int arg : sig._args) if (_q_constants.count(arg)) {
-            // q constant found
-            containsQConstants = true;
+        for (int arg : sig._args) 
+            if (_htn._q_constants.count(arg)) {
+                log("%s : QCONST\n", Names::to_string(arg).c_str());
+                // q constant found
+                containsQConstants = true;
 
-            int numSubstitutions = 0;
-            for (int argSubst : _htn._domains_of_q_constants[arg]) {
-                Signature sigSubst = sigSubstitute(arg, argSubst);
-                if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    //log("%i TRUE\n", varSubstitution(sigSubst));
-                    log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
-                            Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
-                    numSubstitutions++;
-                    substitution_t sub;
-                    sub[arg] = argSubst;
-                    sig = sig.substitute(sub);
-                    log("%s\n", Names::to_string(sig).c_str());
-                } else {
-                    //log("%i FALSE\n", varSubstitution(sigSubst));
+                int numSubstitutions = 0;
+                for (int argSubst : _htn._domains_of_q_constants[arg]) {
+                    Signature sigSubst = sigSubstitute(arg, argSubst);
+                    if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
+                        //log("%i TRUE\n", varSubstitution(sigSubst));
+                        log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
+                                Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
+                        numSubstitutions++;
+                        substitution_t sub;
+                        sub[arg] = argSubst;
+                        sig = sig.substitute(sub);
+                        log("%s\n", Names::to_string(sig).c_str());
+                    } else {
+                        //log("%i FALSE\n", varSubstitution(sigSubst));
+                    }
                 }
-            }
 
             assert(numSubstitutions == 1);
-        }
+            } else {
+                log("%s : NO_QCONST\n", Names::to_string(arg).c_str());
+            }
 
         if (!containsQConstants) break; // done
     }

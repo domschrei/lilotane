@@ -513,7 +513,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos
         return;
     }   
      
-    std::string qConstName = "!" + std::to_string(layerIdx) + "," 
+    std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
         + std::to_string(pos) + "_" + std::to_string(SignatureHasher()(sig))
         + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
     int qConstId = getNameId(qConstName);

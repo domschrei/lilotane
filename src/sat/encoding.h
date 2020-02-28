@@ -67,7 +67,7 @@ public:
 
 private:
 
-    void initSubstitutionVars(const Signature& qfactSig, Position& pos);
+    void initSubstitutionVars(int qconst, Position& pos);
 
     Signature sigSubstitute(int qConstId, int trueConstId) {
         assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);

@@ -509,6 +509,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     pos.addFact(factAbs, Reason(_layer_idx, _pos, op));
 
     // For each fact decoded from the q-fact:
+    assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
 
@@ -537,6 +538,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     pos.extendState(fact);
 
     Reason why = Reason(_layer_idx, _pos, fact);
+    assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         Signature decFactSigned = fact._negated ? decFact.opposite() : decFact;
         assert(!decFact._negated && !factAbs._negated);
