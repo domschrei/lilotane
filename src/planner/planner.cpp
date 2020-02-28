@@ -257,19 +257,10 @@ void Planner::createNextFromLeft(const Position& left) {
     newPos.setPos(_layer_idx, _pos);
     assert(left.getPos() == IntPair(_layer_idx, _pos-1));
 
-    // Propagate occurring facts
-    for (auto entry : left.getFacts()) {
-        newPos.addFact(entry.first, Reason(_layer_idx, _pos-1, entry.first));
-    }
-    // Propagate fact decodings
-    for (auto entry : left.getQFactDecodings()) {
-        for (auto dec : entry.second) {
-            newPos.addQFactDecoding(entry.first, dec);
-        }
-    }
-
     // Propagate state
     newPos.extendState(left.getState());
+
+    std::unordered_set<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
     for (auto entry : left.getActions()) {
@@ -277,12 +268,47 @@ void Planner::createNextFromLeft(const Position& left) {
         for (Signature fact : _htn.getAllFactChanges(aSig)) {
             addEffect(aSig, fact);
         }
+        for (const int& arg : aSig._args) {
+            if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
+        }
     }
     for (auto entry : left.getReductions()) {
         const Signature& rSig = entry.first; 
         if (rSig == Position::NONE_SIG) continue;
         for (Signature fact : _htn.getAllFactChanges(rSig)) {
             addEffect(rSig, fact);
+        }
+        for (const int& arg : rSig._args) {
+            if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
+        }
+    }
+
+    // Propagate occurring facts
+    for (auto entry : left.getFacts()) {
+        bool add = true;
+        for (const int& arg : entry.first._args) {
+            if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
+        }
+        if (!add) {
+            // forget q-facts that have become irrelevant
+            //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
+            continue;
+        }
+        newPos.addFact(entry.first, Reason(_layer_idx, _pos-1, entry.first));
+    }
+    // Propagate fact decodings
+    for (auto entry : left.getQFactDecodings()) {
+        bool add = true;
+        for (const int& arg : entry.first._args) {
+            if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
+        }
+        if (!add) {
+            // forget q-fact decodings that have become irrelevant
+            //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
+            continue;
+        } 
+        for (auto dec : entry.second) {
+            newPos.addQFactDecoding(entry.first, dec);
         }
     }
 }
@@ -315,7 +341,7 @@ void Planner::createNextFromAbove(const Position& above) {
     if (offset == 0) {
         // Propagate facts
         for (auto entry : above.getFacts()) {
-            assert(newPos.getFacts().count(entry.first)); // already added as false fact!
+            //assert(newPos.getFacts().count(entry.first)); // already added as false fact!
             newPos.addFact(entry.first, Reason(_layer_idx-1, _old_pos, entry.first));
         }
         // Propagate fact decodings
@@ -393,7 +419,7 @@ void Planner::propagateReductions(int offset) {
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
                 newPos.addReduction(subRSig, why);
-                if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
+                //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
                 //log("PRECONDS %s ", Names::to_string(subRSig).c_str());
