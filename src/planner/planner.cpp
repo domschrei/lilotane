@@ -16,7 +16,7 @@ int Planner::findPlan() {
     int iteration = 0;
     log("ITERATION %i\n", iteration);
 
-    int initSize = _htn._init_reduction.getSubtasks().size()+1;
+    int initSize = 2; //_htn._init_reduction.getSubtasks().size()+1;
     log("Creating initial layer of size %i\n", initSize);
     _layer_idx = 0;
     _pos = 0;
@@ -24,6 +24,8 @@ int Planner::findPlan() {
     Layer& initLayer = _layers[0];
     initLayer[_pos].setPos(_layer_idx, _pos);
     
+    /***** LAYER 0, POSITION 0 ******/
+
     // Initial state
     SigSet initState = _htn.getInitState();
     for (Signature fact : initState) {
@@ -32,68 +34,60 @@ int Planner::findPlan() {
         initLayer[_pos].extendState(fact);
     }
 
-    std::vector<Reduction> parents = _htn._init_reduction_choices;
-    if (parents.empty()) {
-        parents.push_back(_htn._init_reduction);
-    }
-    log("Initial reductions: ");
-    for (auto p : parents) {
-        log("%s ", Names::to_string(p.getSignature()).c_str());
-    }
-    log("\n");
+    // Instantiate all possible init. reductions
+    _htn._init_reduction_choices = _instantiator.getApplicableInstantiations(
+            _htn._init_reduction, initLayer[0].getState());
+    std::vector<Reduction> roots = _htn._init_reduction_choices;
+    for (const Reduction& r : roots) {
 
-    // For each position where there is an initial task
-    while (_pos+1 < initLayer.size()) {
-        if (_pos > 0) createNext();
-
-        for (Reduction& parent : parents) {
-            Reason why(-1, 0, parent.getSignature());
-
-            //Signature subtask = _htn.getInitTaskSignature(_pos);
-            Signature subtask = parent.getSubtasks()[_pos];
-            for (Signature rSig : getAllReductionsOfTask(subtask, initLayer[_pos].getState())) {
-                
-                initLayer[_pos].addReduction(rSig, why);
-                /*
-                log("ADD %s:%s @ (%i,%i)\n", Names::to_string(_htn._reductions_by_sig[rSig].getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), _layer_idx, _pos);
-                for (auto st : _htn._reductions_by_sig[rSig].getSubtasks())
-                    log(" - %s\n", Names::to_string(st).c_str());
-                */
-                initLayer[_pos].addExpansionSize(_htn._reductions_by_sig[rSig].getSubtasks().size());
-                // Add preconditions
-                for (Signature fact : _htn._reductions_by_sig[rSig].getPreconditions()) {
-                    addPrecondition(rSig, fact);
-                }
-                addQConstantTypeConstraints(rSig);
-            }
-            for (Signature aSig : getAllActionsOfTask(subtask, initLayer[_pos].getState())) {
-                initLayer[_pos].addAction(aSig, why);
-                // Add preconditions
-                for (Signature fact : _htn._actions_by_sig[aSig].getPreconditions()) {
-                    addPrecondition(aSig, fact);
-                }
-                addQConstantTypeConstraints(aSig);
-            }
-        }
+        Reduction red = _htn.replaceQConstants(r, _layer_idx, _pos);
+        Signature sig = red.getSignature();
         
+        // Check validity
+        if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
+        if (!_instantiator.hasValidPreconditions(red, initLayer[_pos].getState())) continue;
+        
+        // Remove unneeded rigid conditions from the reduction
+        _htn.removeRigidConditions(red);
 
-        addNewFalseFacts();
-        _enc.encode(_layer_idx, _pos++);
+        _htn._reductions_by_sig[sig] = red;
+
+        initLayer[_pos].addReduction(sig);
+        initLayer[_pos].addExpansionSize(red.getSubtasks().size());
+        // Add preconditions
+        for (Signature fact : red.getPreconditions()) {
+            addPrecondition(sig, fact);
+        }
+        addQConstantTypeConstraints(sig);
     }
+    addNewFalseFacts();
+    _enc.encode(_layer_idx, _pos++);
 
-    // Final position with goal state
-    createNext();
+    /***** LAYER 0, POSITION 1 ******/
+
+    createNext(); // position 1
+
+    // Create virtual goal action
+    Action goalAction(_htn.getNameId("_GOAL_ACTION_"), std::vector<int>());
+    Signature goalSig = goalAction.getSignature();
+    _htn._actions[goalSig._name_id] = goalAction;
+    initLayer[_pos].addAction(goalSig);
+    
+    // Extract primitive goals, add to preconds of goal action
     SigSet goalSet = _htn.getGoals();
     for (Signature fact : goalSet) {
         assert(initLayer[_pos].containsInState(fact));
         assert(initLayer[_pos].getFacts().count(fact.abs()));
-        initLayer[_pos].addTrueFact(fact);
+        goalAction.addPrecondition(fact);
+        addPrecondition(goalSig, fact);
     }
-    //addNewFalseFacts();
+    _htn._actions_by_sig[goalSig] = goalAction;
+    
     _enc.encode(_layer_idx, _pos++);
 
-    initLayer.consolidate();
+    /***** LAYER 0 END ******/
 
+    initLayer.consolidate();
     bool solved = _enc.solve();
     
     // Next layers
@@ -192,10 +186,12 @@ int Planner::findPlan() {
     // -- decomposition part
     bool root = true;
     for (PlanItem& item : planPair.second) {
-        std::string subtaskIdStr;
+        if (item.id < 0) continue;
+
+        std::string subtaskIdStr = "";
         for (int subtaskId : item.subtaskIds) {
             if (!idsToRemove.count(subtaskId)) subtaskIdStr += " " + std::to_string(subtaskId);
-        } 
+        }
         
         if (root) {
             stream << "root " << subtaskIdStr << "\n";

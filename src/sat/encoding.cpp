@@ -289,7 +289,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 int oldOpVar = above.getVariable(why.sig.abs());
                 expansions[oldOpVar];
                 expansions[oldOpVar].push_back(aVar);
-            } else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
+            } /*else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
                 // Init reduction expansion
                 if (!_init_reduction_variables.count(why.sig)) {
                     _init_reduction_variables[why.sig] = VariableDomain::nextVar();
@@ -297,7 +297,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 }
                 expansions[_init_reduction_variables[why.sig]];
                 expansions[_init_reduction_variables[why.sig]].push_back(aVar);
-            } else abort();
+            } */else abort();
         }
 
         // At-most-one action
@@ -346,7 +346,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 int oldRVar = above.getVariable(why.sig.abs());
                 expansions[oldRVar];
                 expansions[oldRVar].push_back(rVar);
-            } else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
+            } /*else if (why.getOriginPos() == std::make_pair<int, int>(-1, 0)) {
                 // Init reduction expansion
                 if (!_init_reduction_variables.count(why.sig)) {
                     _init_reduction_variables[why.sig] = VariableDomain::nextVar();
@@ -354,7 +354,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 }
                 expansions[_init_reduction_variables[why.sig]];
                 expansions[_init_reduction_variables[why.sig]].push_back(rVar);
-            } else abort();
+            } */else abort();
         }
 
         // At-most-one reduction
@@ -418,6 +418,7 @@ void Encoding::encode(int layerIdx, int pos) {
         endClause();
     }
 
+    /*
     // Finalize initial reductions, one must be chosen
     if (layerIdx == 0 && pos+1 == _layers[layerIdx].size()) {
         
@@ -436,7 +437,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 }
             }
         }
-    }
+    }*/
 
     // assume primitiveness
     assume(varPrim);
@@ -637,7 +638,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
     std::vector<PlanItem> plan;
     //log("(actions at layer %i)\n", li);
-    for (int pos = 0; pos+1 < finalLayer.size(); pos++) {
+    for (int pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
         assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
 
@@ -737,28 +738,11 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
     std::vector<PlanItem>& plan = result.second;
 
     result.first = extractClassicalPlan();
-
-    int numChosen = 0;
-    Signature chosenInitReduction(_htn.getNameId("root"), std::vector<int>());
-    for (auto pair : _init_reduction_variables) {
-        if (ipasir_val(_solver, pair.second) > 0) {
-            chosenInitReduction = pair.first;
-            printf("Chosen initial reduction: %s\n", Names::to_string(chosenInitReduction).c_str());
-            numChosen++;
-        } 
-    }
-    assert(numChosen == 1 || fail("Invalid number of init reductions!\n"));
-
-    PlanItem root({0, 
-                Signature(_htn.getNameId("root"), std::vector<int>()), 
-                chosenInitReduction, 
-                std::vector<int>()});
     
     std::vector<PlanItem> itemsOldLayer, itemsNewLayer;
-    itemsOldLayer.push_back(root);
 
-    for (int i = 0; i < _layers->size(); i++) {
-        Layer& l = _layers->at(i);
+    for (int layerIdx = 0; layerIdx < _layers->size(); layerIdx++) {
+        Layer& l = _layers->at(layerIdx);
         //log("(decomps at layer %i)\n", l.index());
 
         itemsNewLayer.resize(l.size());
@@ -766,8 +750,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
         for (int pos = 0; pos < l.size(); pos++) {
 
             int predPos = 0;
-            if (i > 0) {
-                Layer& lastLayer = _layers->at(i-1);
+            if (layerIdx > 0) {
+                Layer& lastLayer = _layers->at(layerIdx-1);
                 while (predPos+1 < lastLayer.size() && lastLayer.getSuccessorPos(predPos+1) <= pos) 
                     predPos++;
             } 
@@ -778,43 +762,46 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
             for (auto pair : l[pos].getReductions()) {
                 Signature rSig = pair.first;
-                if (!isEncoded(i, pos, rSig) || rSig == Position::NONE_SIG) continue;
+                if (!isEncoded(layerIdx, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
                 //log("? %s @ (%i,%i)\n", Names::to_string(rSig).c_str(), i, pos);
 
-                if (value(i, pos, rSig)) {
+                if (value(layerIdx, pos, rSig)) {
 
-                    int v = _layers->at(i)[pos].getVariable(rSig);
+                    int v = _layers->at(layerIdx)[pos].getVariable(rSig);
                     const Reduction& r = _htn._reductions_by_sig[rSig];
 
                     // Check preconditions
                     for (Signature pre : r.getPreconditions()) {
-                        assert(value(i, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of reduction "
+                        assert(value(layerIdx, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of reduction "
                         + Names::to_string(r.getSignature()) + " does not hold at step " + std::to_string(pos) + "!\n"));
                     }
 
-                    log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), i, pos);
-                    rSig = getDecodedQOp(i, pos, rSig);
+                    log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
+                    rSig = getDecodedQOp(layerIdx, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
-                    log("%s:%s @ (%i,%i)\n", Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), i, pos);
+                    log("%s:%s @ (%i,%i)\n", Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
+
+                    if (layerIdx == 0) {
+                        // Initial reduction
+                        PlanItem root(0, 
+                            Signature(_htn.getNameId("root"), std::vector<int>()), 
+                            rSig, std::vector<int>());
+                        itemsNewLayer[0] = root;
+                        reductionsThisPos++;
+                        continue;
+                    }
 
                     // Lookup parent reduction
                     Reduction parentRed;
-                    int offset;
-                    if (i > 0) {
-                        offset = pos - _layers->at(i-1).getSuccessorPos(predPos);
-                        PlanItem& parent = itemsOldLayer[predPos];
-                        assert(parent.id >= 0 || fail("No parent at " + std::to_string(i-1) + "," + std::to_string(predPos) + "!\n"));
-                        assert(_htn._reductions.count(parent.reduction._name_id) || 
-                            fail("Invalid reduction id=" + std::to_string(parent.reduction._name_id) + " at " + std::to_string(i-1) + "," + std::to_string(predPos) + "\n"));
+                    int offset = pos - _layers->at(layerIdx-1).getSuccessorPos(predPos);
+                    PlanItem& parent = itemsOldLayer[predPos];
+                    assert(parent.id >= 0 || fail("No parent at " + std::to_string(layerIdx-1) + "," + std::to_string(predPos) + "!\n"));
+                    assert(_htn._reductions.count(parent.reduction._name_id) || 
+                        fail("Invalid reduction id=" + std::to_string(parent.reduction._name_id) + " at " + std::to_string(layerIdx-1) + "," + std::to_string(predPos) + "\n"));
 
-                        parentRed = _htn._reductions[parent.reduction._name_id];
-                        parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), parent.reduction._args));
-                    } else { // initial layer
-                        offset = pos;
-                        parentRed = _htn._reductions[chosenInitReduction._name_id];
-                        parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), chosenInitReduction._args));
-                    }
+                    parentRed = _htn._reductions[parent.reduction._name_id];
+                    parentRed = parentRed.substituteRed(Substitution::get(parentRed.getArguments(), parent.reduction._args));
 
                     // Is the current reduction a proper subtask?
                     assert(offset < parentRed.getSubtasks().size());
@@ -824,7 +811,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                             log(" -- is a redundant child -> dismiss\n");
                             continue;
                         }
-                        itemsNewLayer[pos] = PlanItem({v, rDecoded.getTaskSignature(), rSig, std::vector<int>()});
+                        itemsNewLayer[pos] = PlanItem(v, rDecoded.getTaskSignature(), rSig, std::vector<int>());
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
                         reductionsThisPos++;
                     } else {
@@ -835,30 +822,30 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
             for (auto pair : l[pos].getActions()) {
                 Signature aSig = pair.first;
-                if (!isEncoded(i, pos, aSig)) continue;
+                if (!isEncoded(layerIdx, pos, aSig)) continue;
 
-                if (value(i, pos, aSig)) {
+                if (value(layerIdx, pos, aSig)) {
                     actionsThisPos++;
 
                     if (aSig == _htn._action_blank.getSignature()) continue;
                     
-                    int v = _layers->at(i)[pos].getVariable(aSig);
+                    int v = _layers->at(layerIdx)[pos].getVariable(aSig);
                     Action a = _htn._actions_by_sig[aSig];
 
                     // Check preconditions, effects
                     for (Signature pre : a.getPreconditions()) {
-                        assert(value(i, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
+                        assert(value(layerIdx, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
                         + Names::to_string(aSig) + " does not hold at step " + std::to_string(pos) + "!\n"));
                     }
                     for (Signature eff : a.getEffects()) {
-                        assert(value(i, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
+                        assert(value(layerIdx, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
                         + Names::to_string(aSig) + " does not hold at step " + std::to_string(pos+1) + "!\n"));
                     }
 
                     // TODO check this is a valid subtask relationship
 
                     // Find the actual action variable at the final layer, not at this (inner) layer
-                    int l = i;
+                    int l = layerIdx;
                     int aPos = pos;
                     while (l+1 < _layers->size()) {
                         //log("(%i,%i) => ", l, aPos);
@@ -869,23 +856,23 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     v = classicalPlan[aPos].id; // _layers->at(l-1)[aPos].getVariable(aSig);
 
                     //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
-                    itemsOldLayer[predPos].subtaskIds.push_back(v);
+                    if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
                 }
             }
 
-            // At least an item per position (except for closing positions)
-            assert( ((actionsThisPos+reductionsThisPos >= 1) ^ (pos+1 == l.size()))
+            // At least an item per position 
+            assert( (actionsThisPos+reductionsThisPos >= 1)
             || fail(std::to_string(actionsThisPos+reductionsThisPos) 
-                + " ops at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+                + " ops at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
             
             // At most one action per position
             assert(actionsThisPos <= 1 || fail(std::to_string(actionsThisPos) 
-                + " actions at (" + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+                + " actions at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
 
             // Either actions OR reductions per position (not both)
             assert(actionsThisPos == 0 || reductionsThisPos == 0 || fail(std::to_string(actionsThisPos) 
                 + " actions and " + std::to_string(reductionsThisPos) + " reductions at (" 
-                + std::to_string(i) + "," + std::to_string(pos) + ") !\n"));
+                + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
         }
 
         plan.insert(plan.end(), itemsOldLayer.begin(), itemsOldLayer.end());

@@ -96,10 +96,10 @@ struct HtnInstance {
 
     SigSet getAllFactChanges(const Signature& sig);
 
-    Action replaceQConstants(Action& a, int layerIdx, int pos);
-    Reduction replaceQConstants(Reduction& red, int layerIdx, int pos);
-    std::unordered_map<int, int> addQConstants(Signature& sig, int layerIdx, int pos);
-    void addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s);
+    Action replaceQConstants(const Action& a, int layerIdx, int pos);
+    Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos);
+    std::unordered_map<int, int> addQConstants(const Signature& sig, int layerIdx, int pos);
+    void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s);
 
     bool hasQConstants(const Signature& sig);
     std::vector<Signature> getDecodedObjects(Signature qFact);

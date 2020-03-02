@@ -23,6 +23,14 @@ extern "C" {
 typedef std::unordered_map<int, SigSet> State;
 
 struct PlanItem {
+    PlanItem() {
+        id = -1;
+        abstractTask = Position::NONE_SIG;
+        reduction = Position::NONE_SIG;
+        subtaskIds = std::vector<int>(0);
+    }
+    PlanItem(int id, const Signature& abstractTask, const Signature& reduction, const std::vector<int> subtaskIds) :
+        id(id), abstractTask(abstractTask), reduction(reduction), subtaskIds(subtaskIds) {}
     int id = -1;
     Signature abstractTask;
     Signature reduction;
@@ -37,7 +45,6 @@ private:
     std::vector<Layer>* _layers;
     
     std::unordered_map<Signature, int, SignatureHasher> _substitution_variables;
-    std::unordered_map<Signature, int, SignatureHasher> _init_reduction_variables;
 
     void* _solver;
     std::ofstream _out;

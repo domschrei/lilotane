@@ -154,10 +154,6 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         if (_name_back_table[r.getSignature()._name_id].rfind("__top_method") == 0) {
             // Initial "top" method
             _init_reduction = r;
-            
-            // Instantiate all possible init. reductions
-            _init_reduction_choices = _instantiator->getApplicableInstantiations(
-                    _init_reduction, std::unordered_map<int, SigSet>(), INSTANTIATE_FULL);
         }
     }
     
@@ -466,19 +462,19 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
     return result;
 }
 
-Action HtnInstance::replaceQConstants(Action& a, int layerIdx, int pos) {
+Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos) {
     Signature sig = a.getSignature();
     std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
     HtnOp op = a.substitute(s);
     return Action(op);
 }
-Reduction HtnInstance::replaceQConstants(Reduction& red, int layerIdx, int pos) {
+Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos) {
     Signature sig = red.getSignature();
     std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
     return red.substituteRed(s);
 }
 
-std::unordered_map<int, int> HtnInstance::addQConstants(Signature& sig, int layerIdx, int pos) {
+std::unordered_map<int, int> HtnInstance::addQConstants(const Signature& sig, int layerIdx, int pos) {
     std::unordered_map<int, int> s;
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig);
     for (int argPos : freeArgPositions) {
@@ -487,7 +483,7 @@ std::unordered_map<int, int> HtnInstance::addQConstants(Signature& sig, int laye
     return s;
 }
 
-void HtnInstance::addQConstant(int layerIdx, int pos, Signature& sig, int argPos, std::unordered_map<int, int>& s) {
+void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s) {
 
     int arg = sig._args[argPos];
     assert(_name_back_table[arg][0] == '?');
