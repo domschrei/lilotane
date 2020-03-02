@@ -180,7 +180,11 @@ int Planner::findPlan() {
             item.abstractTask._name_id = _htn._split_action_from_first[item.abstractTask._name_id];
         }
         actionIds.insert(item.id);
+
+        // Do not write blank actions or the virtual goal action
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
+        if (item.abstractTask._name_id == _htn.getNameId("_GOAL_ACTION_")) continue;
+
         stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
     }
     // -- decomposition part
