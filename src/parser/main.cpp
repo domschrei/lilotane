@@ -40,7 +40,6 @@ ParsedProblem& get_parsed_problem() {
 }
 
 int run_pandaPIparser(int argc, char** argv) {
-
 	cin.sync_with_stdio(false);
 	cout.sync_with_stdio(false);
 	int dfile = -1;
@@ -48,8 +47,10 @@ int run_pandaPIparser(int argc, char** argv) {
 	int doutfile = -1;
 	int poutfile = -1;
 	bool splitParameters = true;
+	bool compileConditionalEffects = true;
 	bool shopOutput = false;
 	bool hpdlOutput = false;
+	bool hddlOutput = false;
 	bool verboseOutput = false;
 	bool verifyPlan = false;
 	bool useOrderInPlanVerification = true;
@@ -57,27 +58,30 @@ int run_pandaPIparser(int argc, char** argv) {
 	int verbosity = 0;
 	
 	struct option options[] = {
-		{"no-split-parameters", no_argument,       NULL,   's'},
-		{"shop"               , no_argument,       NULL,   'S'},
-		{"shop2"              , no_argument,       NULL,   'S'},
-		{"shop1"              , no_argument,       NULL,   '1'},
-		{"hpdl"               , no_argument,       NULL,   'H'},
+		{"no-split-parameters"     , no_argument,       NULL,   's'},
+		{"keep-conditional-effects", no_argument,       NULL,   'k'},
 		
-		{"panda-converter"    , no_argument,       NULL,   'c'},
-		{"verify"             , optional_argument, NULL,   'v'},
-		{"vverify"            , no_argument,       NULL,   'V'},
-		{"vvverify"           , no_argument,       NULL,   'W'},
-		{"verify-no-order"    , no_argument,       NULL,   'o'},
+		{"shop"                    , no_argument,       NULL,   'S'},
+		{"shop2"                   , no_argument,       NULL,   'S'},
+		{"shop1"                   , no_argument,       NULL,   '1'},
+		{"hpdl"                    , no_argument,       NULL,   'H'},
+		{"hddl"                    , no_argument,       NULL,   'h'},
 		
-		{"no-color"           , no_argument,       NULL,   'C'},
-		{"debug"              , optional_argument, NULL,   'd'},
+		{"panda-converter"         , no_argument,       NULL,   'c'},
+		{"verify"                  , optional_argument, NULL,   'v'},
+		{"vverify"                 , no_argument,       NULL,   'V'},
+		{"vvverify"                , no_argument,       NULL,   'W'},
+		{"verify-no-order"         , no_argument,       NULL,   'o'},
 		
-		{NULL,                            0,              NULL,   0},
+		{"no-color"                , no_argument,       NULL,   'C'},
+		{"debug"                   , optional_argument, NULL,   'd'},
+		
+		{NULL                      , 0,                 NULL,   0},
 	};
 
 	bool optionsValid = true;
 	while (true) {
-		int c = getopt_long_only (argc, argv, "sS1HcvVWoCd", options, NULL);
+		int c = getopt_long_only (argc, argv, "sS1HcvVWoCdkh", options, NULL);
 		if (c == -1)
 			break;
 		if (c == '?' || c == ':'){
@@ -87,9 +91,11 @@ int run_pandaPIparser(int argc, char** argv) {
 		}
 
 		if (c == 's') splitParameters = false;
+		else if (c == 'k') compileConditionalEffects = false;
 		else if (c == 'S') shopOutput = true;
 		else if (c == '1') { shopOutput = true; shop_1_compatability_mode = true; }
 	   	else if (c == 'H') hpdlOutput = true;
+	   	else if (c == 'h') hddlOutput = true;
 		else if (c == 'c') convertPlan = true;
 		else if (c == 'v') {
 			verifyPlan = true;
@@ -158,7 +164,7 @@ int run_pandaPIparser(int argc, char** argv) {
 		cout << "I can't open " << argv[pfile] << "!" << endl;
 		return 2;
 	}
-	if (!shopOutput && !hpdlOutput && poutfile != -1){
+	if (!shopOutput && !hpdlOutput && !hddlOutput && poutfile != -1){
 		cout << "For ordinary pandaPI output, you may only specify one output file, but you specified two: " << argv[doutfile] << " and " << argv[poutfile] << endl;
 	}
 	
@@ -187,11 +193,11 @@ int run_pandaPIparser(int argc, char** argv) {
 
 	if (!hpdlOutput) {
 		// flatten all primitive tasks
-		flatten_tasks();
+		flatten_tasks(compileConditionalEffects);
 		// .. and the goal
 		flatten_goal();
 		// create appropriate methods and expand method preconditions
-		parsed_method_to_data_structures();
+		parsed_method_to_data_structures(compileConditionalEffects);
 	}
 
 	if (shopOutput || hpdlOutput){
@@ -228,17 +234,38 @@ int run_pandaPIparser(int argc, char** argv) {
 	reduce_constraints();
 	clean_up_sorts();
 	remove_unnecessary_predicates();
-
+	
 	// Write into ParsedProblem struct
 	parsed_problem = new ParsedProblem(has_typeof_predicate, sort_definitions, 
 		predicate_definitions, parsed_primitive, parsed_abstract, parsed_methods, 
 		parsed_functions, metric_target, sorts, methods, primitive_tasks, 
 		abstract_tasks, task_name_map);
-		
-	/*
+	
+	/*	
 	// write to output
 	if (verboseOutput) verbose_output(verbosity);
-	else {
+	else if (hddlOutput) {
+		// produce streams for output
+		ostream * dout = &cout;
+		ostream * pout = &cout;
+		if (doutfile != -1){
+			ofstream * df  = new ofstream(argv[doutfile]);
+			if (!df->is_open()){
+				cout << "I can't open " << argv[doutfile] << "!" << endl;
+				return 2;
+			}
+			dout = df;
+		}
+		if (poutfile != -1){
+			ofstream * pf  = new ofstream(argv[poutfile]);
+			if (!pf->is_open()){
+				cout << "I can't open " << argv[poutfile] << "!" << endl;
+				return 2;
+			}
+			pout = pf;
+		}
+		hddl_output(*dout,*pout);
+	} else {
 		ostream * dout = &cout;
 		if (doutfile != -1){
 			ofstream * df  = new ofstream(argv[doutfile]);
@@ -249,5 +276,6 @@ int run_pandaPIparser(int argc, char** argv) {
 			dout = df;
 		}
 		simple_hddl_output(*dout);
-	}*/
+	}
+	*/
 }

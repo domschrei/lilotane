@@ -1038,6 +1038,68 @@ pair<pair<bool,bool>,vector<pair<int,int>>> findLinearisation(int currentTask,
 }
 
 
+bool check_executability_of_primitive_plan(parsed_plan & plan, map<int,parsed_task> taskIDToParsedTask, map<int,map<string,string>> taskVariableValues, int debugMode){
+	set<ground_literal> current_state;
+	current_state.insert(init.begin(), init.end());
+
+	for (int & primID : plan.primitive_plan){
+		parsed_task t = taskIDToParsedTask[primID];
+		if (debugMode){
+			print_n_spaces(1);
+			cout << "Evaluating precondition of task " << primID << endl;
+		}
+
+		if (!evaluateFormulaOnState(t.prec,current_state,taskVariableValues[primID],false,debugMode, 1)){
+			cout << color(COLOR_RED,"Precondition not satisfied") << endl;
+			return false;
+		} else if (debugMode){
+			print_n_spaces(1);
+			cout << "Precondition of task " << primID << " is satisfied " << endl;
+		}
+		
+		// execute action on state
+		set<ground_literal> new_state = current_state;
+		executeFormulaOnState(t.eff,current_state,new_state,taskVariableValues[primID], debugMode, 1);
+
+		if (debugMode){
+			print_n_spaces(1);
+			cout << color(COLOR_BLUE,"The new state is:") << endl;
+			for (ground_literal literal : current_state){
+				print_n_spaces(1);
+				cout << "  " << literal.predicate;
+				for (string arg : literal.args)	cout << " " << arg;
+				cout << endl;
+			}
+		}
+		current_state = new_state;
+	}
+	
+	
+	map<string,string> no_variables_declared;
+	bool goal_reached = goal_formula == NULL || evaluateFormulaOnState(goal_formula,current_state,no_variables_declared,false, debugMode, 1);
+
+	
+	
+	if (!goal_reached){
+		cout << color(COLOR_RED,"Primitive plan does not reach the goal state .... ") << endl;
+		cout << color(COLOR_RED,"The current state is:") << endl;
+		for (ground_literal literal : current_state){
+			cout << "  " << color(COLOR_RED, literal.predicate);
+			for (string arg : literal.args){
+				cout << " " << color(COLOR_RED, arg);
+			}
+			cout << endl;
+		}
+
+		return false;
+	}
+
+	return true;
+}
+
+
+
+
 
 bool verify_plan(istream & plan, bool useOrderInformation, int debugMode){
 
@@ -1052,7 +1114,7 @@ bool verify_plan(istream & plan, bool useOrderInformation, int debugMode){
 	
 	// if the input does not use the __top task, add it so that we can check the initial plan uniformly
 	int root_task;
-	if (parsed_root_tasks.size() > 1 || (parsed_root_tasks.size() == 1 && tasks[parsed_root_tasks[0]].name != "__top")){
+	if (parsed_root_tasks.size() > 1 || (parsed_root_tasks.size() == 1 && parsed_root_tasks[0] != -1 && tasks[parsed_root_tasks[0]].name != "__top")){
 		// create a new root task
 		instantiated_plan_step top;
 		top.name = "__top";
@@ -1152,6 +1214,16 @@ bool verify_plan(istream & plan, bool useOrderInformation, int debugMode){
 	else cout << color(COLOR_RED,"false",MODE_BOLD) << endl;
 	overallResult &= !wrongTaskDeclarations;
 
+
+	// if this is a primitive plan only, check it separately
+	if (root_task == -1){
+		cout << color(COLOR_BLUE,"Primitive plan only (only valid if there are no method effects) ...") << endl;
+		bool primitive_plan_ok = check_executability_of_primitive_plan(pplan, taskIDToParsedTask, taskVariableValues, debugMode);
+		cout << "Primitive plan alone executable: ";
+		if (primitive_plan_ok) cout << color(COLOR_GREEN,"true",MODE_BOLD) << endl;
+		else cout << color(COLOR_RED,"false",MODE_BOLD) << endl;
+		return false;
+	}
 
 
 	

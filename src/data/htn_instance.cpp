@@ -312,6 +312,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
 
     assert(_reductions.count(id) == 0);
     _reductions[id] = Reduction(id, args, Signature(taskId, taskArgs));
+    Reduction& r = _reductions[id];
 
     std::vector<literal> condLiterals;
 
@@ -328,22 +329,46 @@ Reduction& HtnInstance::createReduction(const method& method) {
     std::map<std::string, int> subtaskTagToIndex;   
     for (plan_step st : method.ps) {
 
-        if (st.task.rfind("__method_precondition_", 0) == 0) {
+        if (st.task.rfind("__method_precondition_") != std::string::npos) {
             // This "subtask" is a method precondition which was compiled out
-            
+
             // Find primitive task belonging to this method precondition
             task precTask;
+            int minSize = 99999999;
+            int numFound = 0;
             for (task t : primitive_tasks) {
-                if (t.name == st.task) {
+                if (t.name.rfind("__method_precondition_" + method.name) != std::string::npos) {
+
+                    int size = t.name.size();
+                    if (size > minSize) continue;
+                    minSize = size;
+
+                    numFound++;
                     precTask = t;
-                    break;
                 }
             }
+            assert(numFound >= 1);
+
             // Add its preconditions to the method's preconditions
             for (literal lit : precTask.prec) {
-                log("COND_LIT %s\n", lit.predicate.c_str());
+                //log("COND_LIT %s\n", lit.predicate.c_str());
                 condLiterals.push_back(lit);
             }
+
+            // If necessary, (re-)add parameters of the method precondition task
+            for (auto varPair : precTask.vars) {
+                
+                if (varPair.first[0] != '?') continue; // not a variable
+
+                int varId = getNameId(varPair.first);
+                if (std::find(args.begin(), args.end(), varId) == args.end()) {
+                    // Arg is not contained, must be added
+                    r.addArgument(varId);
+                    args = r.getArguments();
+                    _signature_sorts_table[id].push_back(getNameId(varPair.second));
+                }
+            }
+
             // (Do not add the task to the method's subtasks)
 
         } else {

@@ -23,7 +23,7 @@ bool operator< (const ground_literal& lhs, const ground_literal& rhs){
 
 void flatten_goal(){
 	if (goal_formula == NULL) return;
-	vector<pair<pair<vector<literal>,vector<literal> >, additional_variables> > ex = goal_formula->expand();
+	vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, additional_variables> > ex = goal_formula->expand(false);
 	assert(ex.size() == 1);
 	assert(ex[0].first.second.size() == 0);
 	map<string,string> access;
@@ -33,11 +33,14 @@ void flatten_goal(){
 		access[x.first] = *sorts[sort].begin();
 	}
 
-	for (literal l : ex[0].first.first){
+	for (variant<literal,conditional_effect> l : ex[0].first.first){
+		if (holds_alternative<conditional_effect>(l))
+			assert(false); // goal may not contain conditional effects
+
 		ground_literal gl;
-		gl.predicate = l.predicate;
-		gl.positive = l.positive;
-		for (string v : l.arguments) gl.args.push_back(access[v]);
+		gl.predicate = get<literal>(l).predicate;
+		gl.positive = get<literal>(l).positive;
+		for (string v : get<literal>(l).arguments) gl.args.push_back(access[v]);
 		goal.push_back(gl);
 	}
 }
@@ -82,11 +85,18 @@ void compute_cwa(){
 	// find predicates occurring negatively in preconditions and their types
 	map<string,set<vector<string>>> neg_predicates_with_arg_sorts;
 	
-	for (task t : primitive_tasks) for (literal l : t.prec) if (!l.positive) {
-		vector<string> argSorts;
-		for (string v : l.arguments) for (auto x : t.vars) if (x.first == v) argSorts.push_back(x.second);
-		assert(argSorts.size() == l.arguments.size());
-		neg_predicates_with_arg_sorts[l.predicate].insert(argSorts);
+	for (task t : primitive_tasks) {
+		vector<literal> literals = t.prec;
+		for (conditional_effect ceff : t.ceff)
+			for (literal l : ceff.condition)
+				literals.push_back(l);
+		
+		for (literal l : literals) if (!l.positive) {
+			vector<string> argSorts;
+			for (string v : l.arguments) for (auto x : t.vars) if (x.first == v) argSorts.push_back(x.second);
+			assert(argSorts.size() == l.arguments.size());
+			neg_predicates_with_arg_sorts[l.predicate].insert(argSorts);
+		}
 	}
 	
 	// predicates negative in goal

@@ -52,6 +52,7 @@ int Planner::findPlan() {
 
         _htn._reductions_by_sig[sig] = red;
 
+        assert(_instantiator.isFullyGround(sig));
         initLayer[_pos].addReduction(sig);
         initLayer[_pos].addExpansionSize(red.getSubtasks().size());
         // Add preconditions
@@ -386,6 +387,7 @@ void Planner::propagateActions(int offset) {
         Reason why = Reason(_layer_idx-1, _old_pos, aSig);
         if (offset < 1) {
             // proper action propagation
+            assert(_instantiator.isFullyGround(aSig));
             newPos.addAction(aSig, why);
             // Add preconditions of action
             for (Signature fact : a.getPreconditions()) {
@@ -418,6 +420,10 @@ void Planner::propagateReductions(int offset) {
                 numAdded++;
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
+
+                assert(subRSig == _htn._reductions_by_sig[subRSig].getSignature());
+                assert(_instantiator.isFullyGround(subRSig));
+                
                 newPos.addReduction(subRSig, why);
                 //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
@@ -433,6 +439,7 @@ void Planner::propagateReductions(int offset) {
             // action(s)?
             for (Signature aSig : getAllActionsOfTask(subtask, newPos.getState())) {
                 numAdded++;
+                assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig, why);
                 // Add preconditions of action
                 const Action& a = _htn._actions_by_sig[aSig];
@@ -529,7 +536,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     //log("pre %s of %s\n", Names::to_string(fact).c_str(), Names::to_string(op).c_str());
     // Precondition must be valid (or a q fact)
-    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact));
+    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact) || fail(Names::to_string(fact) + " not contained in state!\n"));
 
     // Add additional reason for the fact / add it first if it's a q-constant
     pos.addFact(factAbs, Reason(_layer_idx, _pos, op));

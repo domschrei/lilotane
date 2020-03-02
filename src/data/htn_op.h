@@ -30,6 +30,9 @@ public:
     void addEffect(const Signature& sig) {
         _effects.insert(sig);
     }
+    void addArgument(int arg) {
+        _args.push_back(arg);
+    }
     void removeInconsistentEffects() {
         // Collect all neg. preconds for which the pos. precond is contained, too
         SigSet inconsistentEffs;

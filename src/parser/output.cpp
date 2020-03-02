@@ -121,6 +121,7 @@ void simple_hddl_output(ostream & dout){
 
 	set<string> neg_pred;
 	for (task t : primitive_tasks) for (literal l : t.prec) if (!l.positive) neg_pred.insert(l.predicate);
+	for (task t : primitive_tasks) for (conditional_effect ceff : t.ceff) for (literal l : ceff.condition) if (!l.positive) neg_pred.insert(l.predicate);
 	for (auto l : goal) if (!l.positive) neg_pred.insert(l.predicate);
 
 	map<string,int> predicates;
@@ -166,10 +167,12 @@ void simple_hddl_output(ostream & dout){
 	map<string,int> task_id;
 	vector<pair<task,bool>> task_out;
 	for (task t : primitive_tasks){
+		assert(task_id.count(t.name) == 0);
 		task_id[t.name] = task_id.size();
 		task_out.push_back(make_pair(t,true));
 	}
 	for (task t : abstract_tasks){
+		assert(task_id.count(t.name) == 0);
 		task_id[t.name] = task_id.size();
 		task_out.push_back(make_pair(t,false));
 	}
@@ -255,6 +258,16 @@ void simple_hddl_output(ostream & dout){
 				else if (l.positive) add++;
 				else del++;
 			}
+
+			// count conditional add and delete effects
+			int cadd = 0, cdel = 0;
+			for (conditional_effect ceff : t.ceff) {
+				literal l = ceff.effect;
+				if (neg_pred.count(l.predicate)) cadd++,cdel++;
+				else if (l.positive) cadd++;
+				else cdel++;
+			}
+
 			dout << "#add_each_predicate_and_argument_variables" << endl;
 			dout << add << endl;
 			for (literal l : t.eff){
@@ -264,6 +277,28 @@ void simple_hddl_output(ostream & dout){
 				for (string v : l.arguments) dout << " " << v_id[v];
 				dout << endl;
 			}
+
+			dout << "#conditional_add_each_with_conditions_and_effect" << endl;
+			dout << cadd << endl;
+			for (conditional_effect ceff : t.ceff) {
+				// if this is a delete effect and the "-" predicates is not necessary
+				if (!neg_pred.count(ceff.effect.predicate) && !ceff.effect.positive) continue;
+				// number of conditions
+				dout << ceff.condition.size();
+				for (literal l : ceff.condition){
+					string p = (l.positive ? "+" : "-") + l.predicate;
+					dout << "  "  << predicates[p]; // two spaces for better human readability
+					for (string v : l.arguments) dout << " " << v_id[v];
+				}
+
+				// effect
+				string p = (ceff.effect.positive ? "+" : "-") + ceff.effect.predicate;
+				dout << "  "  << predicates[p]; // two spaces for better human readability
+				for (string v : ceff.effect.arguments) dout << " " << v_id[v];
+
+				dout << endl;
+			}
+
 			
 			dout << "#del_each_predicate_and_argument_variables" << endl;
 			dout << del << endl;
@@ -274,6 +309,28 @@ void simple_hddl_output(ostream & dout){
 				for (string v : l.arguments) dout << " " << v_id[v];
 				dout << endl;
 			}
+
+			dout << "#conditional_del_each_with_conditions_and_effect" << endl;
+			dout << cdel << endl;
+			for (conditional_effect ceff : t.ceff) {
+				// if this is an add effect and the "+" predicates is not necessary
+				if (!neg_pred.count(ceff.effect.predicate) && ceff.effect.positive) continue;
+				// number of conditions
+				dout << ceff.condition.size();
+				for (literal l : ceff.condition){
+					string p = (l.positive ? "+" : "-") + l.predicate;
+					dout << "  "  << predicates[p]; // two spaces for better human readability
+					for (string v : l.arguments) dout << " " << v_id[v];
+				}
+
+				// effect
+				string p = (ceff.effect.positive ? "+" : "-") + ceff.effect.predicate;
+				dout << "  "  << predicates[p]; // two spaces for better human readability
+				for (string v : ceff.effect.arguments) dout << " " << v_id[v];
+
+				dout << endl;
+			}
+
 	
 			dout << "#variable_constraints_first_number_then_individual_constraints" << endl;
 			dout << t.constraints.size() << endl;
@@ -361,4 +418,305 @@ void simple_hddl_output(ostream & dout){
 	dout << "#initial_task" << endl;
 	if (instance_is_classical) dout << "-1" << endl;
 	else dout << task_id["__top"] << endl;
+}
+
+
+void hddl_output(ostream & dout, ostream & pout){
+	set<string> neg_pred;
+	for (task t : primitive_tasks) for (literal l : t.prec) if (!l.positive) neg_pred.insert(l.predicate);
+	for (task t : primitive_tasks) for (conditional_effect ceff : t.ceff) for (literal l : ceff.condition) if (!l.positive) neg_pred.insert(l.predicate);
+	for (auto l : goal) if (!l.positive) neg_pred.insert(l.predicate);
+
+
+
+	dout << "(define (domain d)" << endl;
+	dout << "  (:requirements :typing)" << endl;
+	
+	dout << endl;
+
+	// sorts
+	dout << "  (:types" << endl;
+	for (auto x : sorts) dout << "    " << x.first << endl;
+	dout << "  )" << endl;
+	
+	dout << endl;
+
+	// predicate definitions
+	dout << "  (:predicates" << endl;
+	for (auto p : predicate_definitions) for (int negative = 0; negative < 2; negative++){
+		if (negative && !neg_pred.count(p.name)) continue;
+		dout << "    (";
+		if (negative) dout << "not-";
+		dout << p.name;
+
+		// arguments
+		for (size_t arg = 0; arg < p.argument_sorts.size(); arg++)
+			dout << " ?var" << arg << " - " << p.argument_sorts[arg]; 
+		
+		dout << ")" << endl;
+	}
+	dout << "  )" << endl;
+
+	dout << endl;
+
+	bool hasActionCosts = metric_target != dummy_function_type;
+
+	// functions (for cost expressions)
+	if (parsed_functions.size() && hasActionCosts){
+		dout << "  (:functions" << endl;
+		for(auto f : parsed_functions){
+			dout << "    (" << f.first.name;
+			for (size_t arg = 0; arg < f.first.argument_sorts.size(); arg++)
+				dout << " ?var" << arg << " - " << f.first.argument_sorts[arg]; 
+			dout << ") - " << f.second << endl;
+		}
+		dout << "  )" << endl;
+	}
+	dout << endl;
+
+	// abstract tasks
+	for (task t : abstract_tasks){
+		dout << "  (:task ";
+		if (t.name[0] == '_') dout << "t";
+		dout << t.name;
+		dout << " :parameters (";
+		bool first = true;
+		for (auto v : t.vars){
+			if (!first) dout << " ";
+			first = false;
+			dout << v.first << " - " << v.second;
+		}
+		dout << "))" << endl;
+	}
+	
+	dout << endl;
+
+	// decomposition methods
+	for (method m : methods){
+		dout << "  (:method ";
+		if (m.name[0] == '_') dout << "m";
+	   	dout << m.name << endl;
+		dout << "    :parameters (";
+		bool first = true;
+		for (auto v : m.vars){
+			if (!first) dout << " ";
+			first = false;
+			dout << v.first << " - " << v.second;
+		}
+		dout << ")" << endl;
+
+		// AT
+		dout << "    :task (";
+		if (m.at[0] == '_') dout << "t";
+		dout << m.at;
+		for (string v : m.atargs) dout << " " << v;
+		dout << ")" << endl;
+
+		// constraints
+		if (m.constraints.size()){
+			dout << "    :precondition (and" << endl;
+			
+			for (literal l : m.constraints){
+				dout << "      ";
+				if (!l.positive) dout << "(not ";
+				dout << "(= " << l.arguments[0] << " " << l.arguments[1] << ")";
+				if (!l.positive) dout << ")";
+				dout << endl;
+			}
+			
+			dout << "    )" << endl;
+		}
+
+		// subtasks
+		dout << "    :subtasks (and" << endl;
+		for (plan_step ps : m.ps){
+			dout << "      (x" << ps.id << " (";
+			if (ps.task[0] == '_') dout << "t";
+			dout << ps.task;
+			for (string v : ps.args) dout << " " << v;
+			dout << "))" << endl;
+		}
+		dout << "    )" << endl;
+
+		
+		if (m.ordering.size()){
+			// ordering of subtasks
+			dout << "    :ordering (and" << endl;
+			for (auto o : m.ordering)
+				dout << "      (x" << o.first << " < x" << o.second << ")" << endl;
+			dout << "    )" << endl;
+		}
+
+		dout << "  )" << endl << endl;
+	}
+
+
+	// actions
+	for (task t : primitive_tasks){
+		dout << "  (:action ";
+		if (t.name[0] == '_') dout << "t";
+		dout << t.name << endl;
+		dout << "    :parameters (";
+		bool first = true;
+		for (auto v : t.vars){
+			if (!first) dout << " ";
+			first = false;
+			dout << v.first << " - " << v.second;
+		}
+		dout << ")" << endl;
+		
+	
+		if (t.prec.size() || t.constraints.size()){
+			// precondition
+			dout << "    :precondition (and" << endl;
+			
+			for (literal l : t.constraints){
+				dout << "      ";
+				if (!l.positive) dout << "(not ";
+				dout << "(= " << l.arguments[0] << " " << l.arguments[1] << ")";
+				if (!l.positive) dout << ")";
+				dout << endl;
+			}
+			
+			for (literal l : t.prec){
+				string p = (l.positive ? "" : "not-") + l.predicate;
+				dout << "      (" << p;
+				for (string v : l.arguments) dout << " " << v;
+				dout << ")" << endl;
+			}
+			dout << "    )" << endl;
+		}
+
+		
+		if (t.eff.size() || t.ceff.size() || 
+				(hasActionCosts && t.costExpression.size())){
+			// effect
+			dout << "    :effect (and" << endl;
+
+			for (literal l : t.eff){
+				for (int positive = 0; positive < 2; positive ++){
+					if (neg_pred.count(l.predicate) || (l.positive == positive)){
+						dout << "      (";
+						if (!positive) dout << "not (";
+						dout << ((l.positive == positive) ? "" : "not-") << l.predicate;
+						for (string v : l.arguments) dout << " " << v;
+						if (!positive) dout << ")";
+						dout << ")" << endl;
+					}
+				}
+			}
+
+			for (conditional_effect ceff : t.ceff) {
+				for (int positive = 0; positive < 2; positive ++){
+					if (neg_pred.count(ceff.effect.predicate) || (ceff.effect.positive == positive)){
+
+						dout << "      (when (and";
+					
+						for (literal l : ceff.condition){
+							dout << " (" << (l.positive ? "" : "not-") << l.predicate;
+							for (string v : l.arguments) dout << " " << v;
+							dout << ")";
+						}
+
+						dout << ") (";
+
+						// actual effect
+						if (!positive) dout << "not (";
+						dout << ((ceff.effect.positive == positive) ? "" : "not-") << ceff.effect.predicate;
+						for (string v : ceff.effect.arguments) dout << " " << v;
+						if (!positive) dout << ")";
+
+						dout << "))" << endl;
+					}
+				}
+			}
+			
+			if (hasActionCosts){
+				for (auto c : t.costExpression){
+					dout << "      (increase (" << metric_target << ") ";
+					if (c.isConstantCostExpression)
+						 dout << c.costValue << ")" << endl;
+					else {
+						dout << "(" << c.predicate;
+						for (string v : c.arguments) dout << " " << v;
+						dout << ")";
+					}
+					dout << ")" << endl;
+				}
+			}
+	
+			dout << "    )" << endl;
+		}
+	
+		dout << "  )" << endl << endl;
+	}
+
+	dout << ")" << endl;
+
+
+	pout << "(define" << endl;
+	pout << "  (problem p)" << endl;
+	pout << "  (:domain d)" << endl;
+
+	pout << "  (:objects" << endl;
+		for (auto x : sorts) for (string s : x.second)
+			pout << "    " << s << " - " << x.first << endl;
+	pout << "  )" << endl;
+
+
+	pout << "  (:htn" << endl;
+	pout << "    :parameters ()" << endl;
+	pout << "    :subtasks (and (t__top))" << endl;
+	pout << "  )" << endl;
+
+	pout << "  (:init" << endl;
+	for (auto gl : init){
+		pout << "    (" << (gl.positive ? "" : "not-") + gl.predicate;
+		for (string c : gl.args) pout << " " << c;
+		pout << ")" << endl;
+	}
+
+	// metric 
+	if (hasActionCosts)
+		for (auto f : init_functions){
+			pout << "    (= (" << f.first.predicate;
+			for (auto c : f.first.args) pout << " " + c;
+			pout << ") " << f.second << ")" << endl;
+		}
+
+	pout << "  )" << endl;
+
+	if (goal.size()){
+		pout << "  (:goal (and" << endl;
+		for (auto gl : goal){
+			pout << "    (" << (gl.positive ? "" : "not-") + gl.predicate;
+			for (string c : gl.args) pout << " " << c;
+			pout << endl;
+		}
+		pout << "  )" << endl;
+	}
+
+	if (hasActionCosts)
+		pout << "  (:metric minimize (" << metric_target << "))" << endl;
+
+
+	pout << ")" << endl;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 }

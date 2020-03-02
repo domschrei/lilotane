@@ -26,6 +26,12 @@ struct literal{
 	int costValue;
 };
 
+struct conditional_effect{
+	vector<literal> condition;
+	literal effect;
+
+	conditional_effect(vector<literal> cond, literal eff);
+};
 
 struct task{
 	string name;
@@ -33,6 +39,7 @@ struct task{
 	vector<pair<string,string>> vars;
 	vector<literal> prec;
 	vector<literal> eff;
+	vector<conditional_effect> ceff;
 	vector<literal> constraints;
 	vector<literal> costExpression;
 
@@ -65,8 +72,8 @@ extern vector<task> primitive_tasks;
 extern vector<task> abstract_tasks;
 extern map<string, task> task_name_map;
 
-void flatten_tasks();
-void parsed_method_to_data_structures();
+void flatten_tasks(bool compileConditionalEffects);
+void parsed_method_to_data_structures(bool compileConditionalEffects);
 void reduce_constraints();
 void clean_up_sorts();
 void remove_unnecessary_predicates();

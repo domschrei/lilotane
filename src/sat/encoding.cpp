@@ -456,6 +456,8 @@ void Encoding::initSubstitutionVars(int arg, Position& pos) {
     std::vector<int> substitutionVars;
     for (int c : _htn._domains_of_q_constants[arg]) {
 
+        assert(!_htn._var_ids.count(c));
+
         // either of the possible substitutions must be chosen
         Signature sigSubst = sigSubstitute(arg, c);
         int varSubst = varSubstitution(sigSubst);
@@ -777,7 +779,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                         + Names::to_string(r.getSignature()) + " does not hold at step " + std::to_string(pos) + "!\n"));
                     }
 
-                    log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
+                    //log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
                     rSig = getDecodedQOp(layerIdx, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
                     log("%s:%s @ (%i,%i)\n", Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
@@ -915,13 +917,13 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
                 Signature sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
                     //log("%i TRUE\n", varSubstitution(sigSubst));
-                    log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
-                            Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
+                    //log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
+                    //        Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
                     numSubstitutions++;
                     substitution_t sub;
                     sub[arg] = argSubst;
                     sig = sig.substitute(sub);
-                    log("%s\n", Names::to_string(sig).c_str());
+                    //log("%s\n", Names::to_string(sig).c_str());
                 } else {
                     //log("%i FALSE\n", varSubstitution(sigSubst));
                 }
@@ -933,10 +935,10 @@ Signature Encoding::getDecodedQOp(int layer, int pos, Signature sig) {
         if (!containsQConstants) break; // done
     }
 
-    
+    /*
     if (origSig != sig)
         log("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
-    
+    */
     return sig;
 }
 
