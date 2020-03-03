@@ -102,7 +102,7 @@ struct HtnInstance {
     void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s);
 
     bool hasQConstants(const Signature& sig);
-    std::vector<Signature> getDecodedObjects(Signature qFact);
+    std::vector<Signature> getDecodedObjects(const Signature& qFact);
     std::unordered_set<int> getSortsOfQConstant(int qconst);
     std::unordered_set<int> getConstantsOfSort(int sort);
 
