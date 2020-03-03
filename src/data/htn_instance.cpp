@@ -343,7 +343,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
             
             // Find primitive task belonging to this method precondition
             task precTask;
-            int minSize = 99999999;
+            int maxSize = 0;
             int numFound = 0;
             for (task t : primitive_tasks) {
                 
@@ -354,18 +354,20 @@ Reduction& HtnInstance::createReduction(const method& method) {
                     taskName = matches.str(1);
                 }
 
-                log(" %s\n", taskName.c_str());
+                //log(" %s\n", taskName.c_str());
                 if (subtaskName.rfind(taskName) != std::string::npos) {
 
                     int size = t.name.size();
-                    if (size > minSize) continue;
-                    minSize = size;
+                    if (size < maxSize) continue;
+                    maxSize = size;
 
                     numFound++;
                     precTask = t;
                 }
             }
             assert(numFound >= 1);
+            log("Using %i preconds of prim. task %s as preconds of method %s\n", 
+                    precTask.prec.size(), precTask.name.c_str(), st.task.c_str());
 
             // Add its preconditions to the method's preconditions
             for (literal lit : precTask.prec) {
