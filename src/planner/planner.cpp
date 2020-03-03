@@ -171,6 +171,7 @@ int Planner::findPlan() {
     std::unordered_set<int> actionIds;
     std::unordered_set<int> idsToRemove;
     for (PlanItem& item : planPair.first) {
+        if (item.id < 0) continue;
         if (_htn._name_back_table[item.abstractTask._name_id].rfind("_SECOND") != std::string::npos) {
             // Second part of a split action: discard
             idsToRemove.insert(item.id);

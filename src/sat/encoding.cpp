@@ -257,6 +257,7 @@ void Encoding::encode(int layerIdx, int pos) {
     for (auto pair : newPos.getActions()) {
         const Signature& aSig = pair.first;
 
+        // Forbid actions that turned out to be impossible
         if (aSig == Position::NONE_SIG) {
             for (Reason why : pair.second) {
                 //log("FORBID %s\n", Names::to_string(why.sig).c_str());
@@ -269,6 +270,8 @@ void Encoding::encode(int layerIdx, int pos) {
         numOccurringOps++;
         int aVar = newPos.encode(aSig);
         //printVar(layerIdx, pos, aSig);
+
+        // If the action occurs, the position is primitive
         addClause({-aVar, varPrim});
 
         // Preconditions
@@ -326,7 +329,22 @@ void Encoding::encode(int layerIdx, int pos) {
 
         numOccurringOps++;
         int rVar = newPos.encode(rSig);
-        addClause({-rVar, -varPrim});
+
+        bool trivialReduction = _htn._reductions_by_sig[rSig].getSubtasks().size() == 0;
+        if (trivialReduction) {
+            // If a trivial reduction occurs, the position is primitive
+            addClause({-rVar, varPrim});
+
+            // Add At-most-one constraints to "proper" actions
+            for (auto otherPair : newPos.getActions()) {
+                const Signature& otherSig = otherPair.first;
+                int otherVar = newPos.encode(otherSig);
+                addClause({-rVar, -otherVar});
+            }
+        } else {
+            // If a non-trivial reduction occurs, the position is non-primitive
+            addClause({-rVar, -varPrim});
+        }
 
         // Preconditions
         for (Signature pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
@@ -684,7 +702,10 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         //}
         state = newState;
 
-        assert(chosenActions == 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
+        assert(chosenActions <= 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
+        if (chosenActions == 0) {
+            plan.emplace_back(-1, Signature(), Signature(), std::vector<int>());
+        }
     }
 
     //log("%i actions at final layer of size %i\n", plan.size(), _layers->back().size());
@@ -782,7 +803,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     //log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
                     rSig = getDecodedQOp(layerIdx, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution::get(r.getArguments(), rSig._args));
-                    log("%s:%s @ (%i,%i)\n", Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
+                    log("[%i] %s:%s @ (%i,%i)\n", v, Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
 
                     if (layerIdx == 0) {
                         // Initial reduction
@@ -846,6 +867,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // TODO check this is a valid subtask relationship
 
+                    log("[%i] %s @ (%i,%i)\n", v, Names::to_string(aSig).c_str(), layerIdx, pos);                    
+
                     // Find the actual action variable at the final layer, not at this (inner) layer
                     int l = layerIdx;
                     int aPos = pos;
@@ -856,6 +879,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                         //log("(%i,%i)\n", l, aPos);
                     }
                     v = classicalPlan[aPos].id; // _layers->at(l-1)[aPos].getVariable(aSig);
+                    assert(v > 0);
 
                     //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
                     if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
