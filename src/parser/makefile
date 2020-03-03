@@ -29,7 +29,7 @@ hddl.cpp: hddl.y
 hddl.hpp: hddl.cpp
 
 clear:
-	rm hddl-token.cpp
-	rm hddl.cpp
-	rm hddl.hpp
-	rm *o 
+	[ ! -f hddl-token.cpp ] || rm hddl-token.cpp
+	[ ! -f hddl.cpp ] || rm hddl.cpp
+	[ ! -f hddl.hpp ] || rm hddl.hpp
+	[ ! -f *o ] || rm *o 
