@@ -39,6 +39,8 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
+    setParam("aamo"); // All at-most-one constraints
+    //setParam("cs"); // check solvability (without assumptions)
     setParam("d", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
     //setParam("of"); // output formula to f.cnf
@@ -57,14 +59,16 @@ void Parameters::printUsage() {
     log("\n");
     log("Option syntax: -OPTION or -OPTION=VALUE .\n");
     log(" -aamo       Add ALL At-most-one constraints, also for reductions\n");
+    log(" -cs         Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
+    log("             to see whether the formula has become generally unsatisfiable\n");
     log(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
     log("             default: %i\n", getIntParam("d"));
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     log(" -of         Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     log(" -pvn        Print variable names\n");
-    log(" -q          Encode some variables in reduction/action signatures as virtual q-constants\n");
-    log("             instead of fully grounding them into actual constants\n");
-    log(" -qq         Introduce q-constants for preconditions instead of instantiating them (only relevant with -q)\n");
+    log(" -q          For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
+    log("             after fully instantiating all preconditions\n");
+    log(" -qq         For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
     log(" -rrp        Remove rigid predicates\n");
 }
 

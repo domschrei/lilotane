@@ -97,17 +97,21 @@ int Planner::findPlan() {
 
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
         _enc.printFailedVars(_layers.back());
-        
-        log("Unsolvable at layer %i with assumptions\n", _layer_idx);
 
-        // Attempt to solve formula again, now without assumptions
-        // (is usually simple; if it fails, we know the entire problem is unsolvable)
-        solved = _enc.solve();
-        if (!solved) {
-            log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
-            break;
+        if (_params.isSet("cs")) {
+            log("Unsolvable at layer %i with assumptions\n", _layer_idx);
+
+            // Attempt to solve formula again, now without assumptions
+            // (is usually simple; if it fails, we know the entire problem is unsolvable)
+            solved = _enc.solve();
+            if (!solved) {
+                log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
+                break;
+            } else {
+                log("Solvable without assumptions - expanding by another layer\n");
+            }
         } else {
-            log("Solvable without assumptions - expanding by another layer\n");
+            log("Unsolvable at layer %i -- expanding.\n", _layer_idx);
         }
 
         iteration++;      
