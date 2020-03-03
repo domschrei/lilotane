@@ -79,5 +79,4 @@ for domain in $domains ; do
     done
 done
 
-echo "No verification problems occurred."
 echo "$solved/$all solved within $timeout seconds."
