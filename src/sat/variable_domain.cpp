@@ -2,6 +2,7 @@
 #include "variable_domain.h"
 
 #include "util/log.h"
+#include "util/names.h"
 
 int VariableDomain::_running_var_id = 1;
 bool VariableDomain::_locked = false;
@@ -18,10 +19,14 @@ int VariableDomain::getMaxVar() {
     return _running_var_id-1;
 }
 
-void VariableDomain::printVar(int var, const char* desc) {
+void VariableDomain::printVar(int var, int layerIdx, int pos, const Signature& sig) {
     if (_print_variables) {
-        log("VARMAP %i %s\n", var, desc);
+        log("VARMAP %i %s\n", var, varName(layerIdx, pos, sig).c_str());
     }
+}
+std::string VariableDomain::varName(int layerIdx, int pos, const Signature& sig) {
+    std::string out = Names::to_string(sig) + "@(" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")";
+    return out;
 }
 
 void VariableDomain::lock() {

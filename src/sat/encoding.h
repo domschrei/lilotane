@@ -57,6 +57,8 @@ private:
 
     std::vector<int> _last_assumptions;
 
+    const bool _print_formula;
+
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
     ~Encoding();

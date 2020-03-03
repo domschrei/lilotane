@@ -3,6 +3,7 @@
 #define DOMPASCH_TREE_REXX_VARIABLE_DOMAIN_H
 
 #include "util/params.h"
+#include "data/signature.h"
 
 class VariableDomain {
 
@@ -18,7 +19,8 @@ public:
     static int nextVar();
     static int getMaxVar();
 
-    static void printVar(int var, const char* desc);
+    static void printVar(int var, int layerIdx, int pos, const Signature& sig);
+    static std::string varName(int layerIdx, int pos, const Signature& sig);
     
     static bool isLocked();
     static void lock();

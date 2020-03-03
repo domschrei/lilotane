@@ -35,9 +35,9 @@ int Position::encode(const Signature& sig) {
 
     if (!_variables.count(sigAbs)) {
         // introduce a new variable
-        assert(!VariableDomain::isLocked() || fail("Unknown variable " + varName(sigAbs) + " queried!\n"));
+        assert(!VariableDomain::isLocked() || fail("Unknown variable " + VariableDomain::varName(_layer_idx, _pos, sigAbs) + " queried!\n"));
         _variables[sigAbs] = VariableDomain::nextVar();
-        VariableDomain::printVar(_variables[sigAbs], varName(sigAbs).c_str());
+        VariableDomain::printVar(_variables[sigAbs], _layer_idx, _pos, sigAbs);
     }
 
     //log("%i\n", vars[sig]);

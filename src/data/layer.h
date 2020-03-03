@@ -79,8 +79,8 @@ public:
     Position() {}
     void setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-    void addFact(const Signature& fact, Reason rs = Reason()) {_facts[fact]; _facts[fact].insert(rs);}
-    void addTrueFact(const Signature& fact, Reason rs = Reason()) {_true_facts[fact]; _true_facts[fact].insert(rs);}
+    void addFact(const Signature& fact, const Reason& rs = Reason()) {_facts[fact]; _facts[fact].insert(rs);}
+    void addTrueFact(const Signature& fact, const Reason& rs = Reason()) {_true_facts[fact]; _true_facts[fact].insert(rs);}
     void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
@@ -94,16 +94,16 @@ public:
         _q_constants_type_constraints[op].push_back(c);
     }
 
-    void addAction(const Signature& action, Reason rs = Reason()) {
+    void addAction(const Signature& action, const Reason& rs = Reason()) {
         _actions[action]; 
         _actions[action].insert(rs);
     }
-    void addReduction(const Signature& reduction, Reason rs = Reason()) {
+    void addReduction(const Signature& reduction, const Reason& rs = Reason()) {
         _reductions[reduction]; 
         _reductions[reduction].insert(rs);
     }
     void addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
-    void setFacts(CausalSigSet facts) {
+    void setFacts(const CausalSigSet& facts) {
         _facts = facts;
     }
     void extendState(const Signature& fact) {_state[fact._name_id].insert(fact);}
@@ -137,11 +137,6 @@ public:
     const CausalSigSet& getReductions() const {return _reductions;}
     const std::unordered_map<int, SigSet>& getState() const {return _state;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
-
-    std::string varName(const Signature& sig) const {
-        std::string out = Names::to_string(sig) + "@(" + std::to_string(_layer_idx) + "," + std::to_string(_pos) + ")";
-        return out;
-    }
 };
 
 class Layer {

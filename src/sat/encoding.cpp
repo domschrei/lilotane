@@ -12,11 +12,11 @@ int numAssumptions = 0;
 bool beganLine = false;
 
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers) : 
-            _params(params), _htn(htn), _layers(&layers) {
+            _params(params), _htn(htn), _layers(&layers), _print_formula(params.isSet("of")) {
     _solver = ipasir_init();
     _sig_primitive = Signature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
-    if (_params.isSet("of")) _out.open("formula.cnf");
+    if (_print_formula) _out.open("formula.cnf");
     VariableDomain::init(params);
 }
 
@@ -45,6 +45,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Important variables for this position
     int varPrim = varPrimitive(layerIdx, pos);
+    int prevVarPrim = varPrimitive(layerIdx, pos-1);
     
     // Facts that must hold at this position
     for (auto pair : newPos.getTrueFacts()) {
@@ -183,7 +184,7 @@ void Encoding::encode(int layerIdx, int pos) {
                                 // IF fact change AND the operation is applied,
                                 if (oldFactVar != 0) appendClause({oldFactVar});
                                 #ifndef NONPRIMITIVE_SUPPORT
-                                appendClause({-varPrimitive(layerIdx, pos-1)});
+                                appendClause({-prevVarPrim});
                                 #endif
                                 appendClause({-factVar, -opVar});
                                 //log("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
@@ -209,7 +210,7 @@ void Encoding::encode(int layerIdx, int pos) {
             appendClause({-factVar});
             #ifndef NONPRIMITIVE_SUPPORT
             // Non-primitiveness wildcard
-            appendClause({-varPrimitive(layerIdx, pos-1)});
+            appendClause({-prevVarPrim});
             #endif
             // DIRECT support
             if (newPos.getFactSupports().count(factSig)) {
@@ -551,11 +552,11 @@ void Encoding::addClause(std::initializer_list<int> lits) {
     //log("CNF ");
     for (int lit : lits) {
         ipasir_add(_solver, lit);
-        if (_params.isSet("of")) _out << lit << " ";
+        if (_print_formula) _out << lit << " ";
         //log("%i ", lit);
     } 
     ipasir_add(_solver, 0);
-    if (_params.isSet("of")) _out << "0\n";
+    if (_print_formula) _out << "0\n";
     //log("0\n");
 
     numClauses++;
@@ -568,7 +569,7 @@ void Encoding::appendClause(std::initializer_list<int> lits) {
     }
     for (int lit : lits) {
         ipasir_add(_solver, lit);
-        if (_params.isSet("of")) _out << lit << " ";
+        if (_print_formula) _out << lit << " ";
         //log("%i ", lit);
     } 
 
@@ -577,7 +578,7 @@ void Encoding::appendClause(std::initializer_list<int> lits) {
 void Encoding::endClause() {
     assert(beganLine);
     ipasir_add(_solver, 0);
-    if (_params.isSet("of")) _out << "0\n";
+    if (_print_formula) _out << "0\n";
     //log("0\n");
     beganLine = false;
 
@@ -615,17 +616,17 @@ int Encoding::varSubstitution(Signature sigSubst) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
         _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        VariableDomain::printVar(_substitution_variables[sigAbs], Names::to_string(sigSubst).c_str());
+        VariableDomain::printVar(_substitution_variables[sigAbs], -1, -1, sigSubst);
     }
     return _substitution_variables[sigAbs];
 }
 
 std::string Encoding::varName(int layer, int pos, const Signature& sig) {
-    return _layers->at(layer)[pos].varName(sig);
+    return VariableDomain::varName(layer, pos, sig);
 }
 
 void Encoding::printVar(int layer, int pos, const Signature& sig) {
-    log("%s\n", varName(layer, pos, sig).c_str());
+    log("%s\n", VariableDomain::varName(layer, pos, sig).c_str());
 }
 
 int Encoding::varPrimitive(int layer, int pos) {

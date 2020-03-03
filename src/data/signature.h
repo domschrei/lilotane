@@ -21,8 +21,8 @@ struct TypeConstraint {
 typedef std::unordered_map<int, int> substitution_t;
 
 namespace Substitution {
-    substitution_t get(std::vector<int> src, std::vector<int> dest);
-    std::vector<substitution_t> getAll(std::vector<int> src, std::vector<int> dest);
+    substitution_t get(const std::vector<int>& src, const std::vector<int>& dest);
+    std::vector<substitution_t> getAll(const std::vector<int>& src, const std::vector<int>& dest);
 
     struct Hasher {
         std::size_t operator()(const substitution_t& s) const {
@@ -44,7 +44,7 @@ struct Signature {
     bool _negated = false;
 
     Signature() : _name_id(-1), _args() {}
-    Signature(int nameId, std::vector<int> args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}
+    Signature(int nameId, const std::vector<int>& args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}
 
     void negate() {
         _negated = !_negated;
