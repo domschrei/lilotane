@@ -11,3 +11,5 @@ picosat
 PANDA.jar
 pandaPIparser
 logs/
+src/parser/hddl.*
+
