@@ -39,6 +39,7 @@ clean:
 	[ ! -e treerexx ] || rm treerexx
 	touch NONE && rm NONE $(wildcard src/*.o src/*/*.o)
 	touch NONE && rm NONE $(wildcard lib/${IPASIRSOLVER}/*.a)
+	cd src/parser && make clear
 
 cleantr:
 	[ ! -e treerexx ] || rm treerexx

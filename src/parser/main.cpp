@@ -241,6 +241,8 @@ int run_pandaPIparser(int argc, char** argv) {
 		parsed_functions, metric_target, sorts, methods, primitive_tasks, 
 		abstract_tasks, task_name_map);
 	
+	return 0;
+
 	/*	
 	// write to output
 	if (verboseOutput) verbose_output(verbosity);

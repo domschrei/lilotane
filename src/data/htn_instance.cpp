@@ -1,5 +1,6 @@
 
 #include <regex>
+#include <algorithm>
 
 #include "data/htn_instance.h"
 
@@ -328,16 +329,33 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Go through expansion of the method
     std::map<std::string, int> subtaskTagToIndex;   
     for (plan_step st : method.ps) {
+        
+        // Normalize task name
+        std::string subtaskName = st.task;
+        std::smatch matches;
+        while (std::regex_match(subtaskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
+            subtaskName = matches.str(1);
+        }
+        log("%s\n", subtaskName.c_str());
 
-        if (st.task.rfind("__method_precondition_") != std::string::npos) {
+        if (subtaskName.rfind(method_precondition_action_name) != std::string::npos) {
             // This "subtask" is a method precondition which was compiled out
-
+            
             // Find primitive task belonging to this method precondition
             task precTask;
             int minSize = 99999999;
             int numFound = 0;
             for (task t : primitive_tasks) {
-                if (t.name.rfind("__method_precondition_" + method.name) != std::string::npos) {
+                
+                // Normalize task name
+                std::string taskName = t.name;
+                std::smatch matches;
+                while (std::regex_match(taskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
+                    taskName = matches.str(1);
+                }
+
+                log(" %s\n", taskName.c_str());
+                if (subtaskName.rfind(taskName) != std::string::npos) {
 
                     int size = t.name.size();
                     if (size > minSize) continue;
@@ -383,7 +401,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Process preconditions and constraints of the method
     for (literal lit : condLiterals) {
 
-        if (lit.predicate == "__equal") {
+        if (lit.predicate == dummy_equal_literal) {
             // Equality precondition
 
             // Find out "type" of this equality predicate
@@ -449,6 +467,12 @@ Reduction& HtnInstance::createReduction(const method& method) {
     log(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());
+    log("  PRE ");
+    for (const Signature& sig : r.getPreconditions()) {
+        log("%s ", Names::to_string(sig).c_str());
+    }
+    log("\n");
+
     return _reductions[id];
 }
 Action& HtnInstance::createAction(const task& task) {
