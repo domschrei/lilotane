@@ -45,7 +45,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Important variables for this position
     int varPrim = varPrimitive(layerIdx, pos);
-    int prevVarPrim = varPrimitive(layerIdx, pos-1);
+    int prevVarPrim = hasLeft ? varPrimitive(layerIdx, pos-1) : 0;
     
     // Facts that must hold at this position
     for (auto pair : newPos.getTrueFacts()) {

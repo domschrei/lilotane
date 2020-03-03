@@ -3,7 +3,7 @@
 
 namespace Substitution {
 
-    substitution_t get(std::vector<int> src, std::vector<int> dest) {
+    substitution_t get(const std::vector<int>& src, const std::vector<int>& dest) {
         substitution_t s;
         assert(src.size() == dest.size());
         for (int i = 0; i < src.size(); i++) {
@@ -15,7 +15,7 @@ namespace Substitution {
         return s;
     }
 
-    std::vector<substitution_t> getAll(std::vector<int> src, std::vector<int> dest) {
+    std::vector<substitution_t> getAll(const std::vector<int>& src, const std::vector<int>& dest) {
         std::vector<substitution_t> ss;
         ss.push_back(substitution_t()); // start with empty substitution
         assert(src.size() == dest.size());
