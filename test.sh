@@ -1,7 +1,9 @@
 #!/bin/bash
 
 timeout=10
-domains="woodworking smartphone umtranslog satellite transport rover entertainment"
+domains="entertainment miconic rover satellite smartphone transport umtranslog woodworking zenotravel"
+
+exit_on_verify_fail=false
 
 set -e
 set -o pipefail
@@ -58,9 +60,14 @@ for domain in $domains ; do
             echo -ne "Verifying ... "
             ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile"
             if grep -q "false" "$verifile"; then
-                echo "${red}Verification error!${reset} Output:"
-                cat "$verifile"
-                exit 1
+                echo -ne "${red}Verification error!${reset}"
+                if $exit_on_verify_fail ; then
+                    echo " Output:"
+                    cat "$verifile"
+                    exit 1
+                else
+                    echo ""
+                fi
             else
                 echo "${green}All ok.${reset}"
             fi
