@@ -18,10 +18,13 @@ INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = parser clean
 
-treerexx: $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
+treerexx: src/parser/hddl.o src/parser/hddl-token.o $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
 	cd lib/${IPASIRSOLVER} && bash fetch_and_build.sh
-	${CC} $^ -o treerexx ${LINKERFLAG}
+	${CC} ${INCLUDES} $^ -o treerexx ${LINKERFLAG}
 
+src/parser/hddl.o:
+	cd src/parser && make
+	
 src/parser/%.o: src/parser/%.cpp src/parser/%.hpp
 	cd src/parser && make
 	
@@ -36,10 +39,10 @@ ${SOLVERLIB}:
 
 clean:
 #	[ ! -e libpandaPIparser.a ] || rm libpandaPIparser.a
+	cd src/parser && make clear
 	[ ! -e treerexx ] || rm treerexx
 	touch NONE && rm NONE $(wildcard src/*.o src/*/*.o)
 	touch NONE && rm NONE $(wildcard lib/${IPASIRSOLVER}/*.a)
-	cd src/parser && make clear
 
 cleantr:
 	[ ! -e treerexx ] || rm treerexx
