@@ -53,7 +53,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
             if (_htn->_actions.count(nodeSig._name_id)) {
                 Action a = _htn->_actions[nodeSig._name_id];
                 HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
-                for (Signature eff : op.getEffects()) {
+                for (const Signature& eff : op.getEffects()) {
                     facts.insert(eff);
                 }
             }
@@ -81,11 +81,11 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
     std::vector<Signature> out;
     
     //log("   fact changes of %s : ", Names::to_string(sig).c_str());
-    for (Signature fact : sigs) {
+    for (const Signature& fact : sigs) {
         Signature sigRes = fact.substitute(sFromPlaceholder);
         for (int arg : sigRes._args) assert(arg > 0);
         
-        for (Signature sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
+        for (const Signature& sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
             out.push_back(sigGround);
             //log("%s ", Names::to_string(sigGround).c_str());
         }
@@ -126,7 +126,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(const Signature& actio
                 const std::vector<int>& origArgs = subred.getTaskArguments();
                 // When substituting task args of a reduction, there may be multiple possibilities
                 std::vector<substitution_t> ss = Substitution::getAll(origArgs, sig._args);
-                for (substitution_t s : ss) {
+                for (const substitution_t& s : ss) {
                     Signature substSig = subred.getSignature().substitute(s);
                     result.push_back(substSig);
                 }

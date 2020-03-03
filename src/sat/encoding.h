@@ -103,7 +103,7 @@ private:
     void printVar(int layer, int pos, const Signature& sig);
 
     bool value(int layer, int pos, const Signature& sig);
-    Signature getDecodedQOp(int layer, int pos, Signature sig);
+    Signature getDecodedQOp(int layer, int pos, const Signature& sig);
     void checkAndApply(const Action& a, State& state, State& newState, int layer, int pos);
 
 };

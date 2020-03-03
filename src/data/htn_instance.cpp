@@ -38,16 +38,16 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     extractConstants();
 
     log("Sorts extracted.\n");
-    for (auto sort_pair : _p.sorts) {
+    for (const auto& sort_pair : _p.sorts) {
         log(" %s : ", sort_pair.first.c_str());
-        for (auto c : sort_pair.second) {
+        for (const std::string& c : sort_pair.second) {
             log("%s ", c.c_str());
         }
         log("\n");
     }
 
     // Create actions
-    for (task t : primitive_tasks) {
+    for (const task& t : primitive_tasks) {
         createAction(t);
     }
     
@@ -57,7 +57,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _actions[blankId] = _action_blank;
 
     // Create reductions
-    for (method& method : methods) {
+    for (const method& method : methods) {
         createReduction(method);
     }
 
@@ -175,14 +175,14 @@ int HtnInstance::getNameId(const std::string& name) {
 
 std::vector<int> HtnInstance::getArguments(const std::vector<std::pair<string, string>>& vars) {
     std::vector<int> args;
-    for (auto var : vars) {
+    for (const auto& var : vars) {
         args.push_back(getNameId(var.first));
     }
     return args;
 }
 std::vector<int> HtnInstance::getArguments(const std::vector<std::string>& vars) {
     std::vector<int> args;
-    for (auto var : vars) {
+    for (const auto& var : vars) {
         args.push_back(getNameId(var));
     }
     return args;
@@ -221,7 +221,7 @@ Signature HtnInstance::getInitTaskSignature(int pos) {
 
 SigSet HtnInstance::getInitState() {
     SigSet result;
-    for (ground_literal lit : init) {
+    for (const ground_literal& lit : init) {
         Signature sig(getNameId(lit.predicate), getArguments(lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
@@ -253,7 +253,7 @@ SigSet HtnInstance::getInitState() {
 }
 SigSet HtnInstance::getGoals() {
     SigSet result;
-    for (ground_literal lit : goal) {
+    for (const ground_literal& lit : goal) {
         Signature sig(getNameId(lit.predicate), getArguments(lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
@@ -264,7 +264,7 @@ SigSet HtnInstance::getGoals() {
 void HtnInstance::extractPredSorts(const predicate_definition& p) {
     int pId = getNameId(p.name);
     std::vector<int> sorts;
-    for (auto var : p.argument_sorts) {
+    for (const std::string& var : p.argument_sorts) {
         sorts.push_back(getNameId(var));
     }
     assert(!_signature_sorts_table.count(pId));
@@ -272,7 +272,7 @@ void HtnInstance::extractPredSorts(const predicate_definition& p) {
 }
 void HtnInstance::extractTaskSorts(const task& t) {
     std::vector<int> sorts;
-    for (auto var : t.vars) {
+    for (const auto& var : t.vars) {
         int sortId = getNameId(var.second);
         sorts.push_back(sortId);
     }
@@ -282,7 +282,7 @@ void HtnInstance::extractTaskSorts(const task& t) {
 }
 void HtnInstance::extractMethodSorts(const method& m) {
     std::vector<int> sorts;
-    for (auto var : m.vars) {
+    for (const auto& var : m.vars) {
         int sortId = getNameId(var.second);
         sorts.push_back(sortId);
     }
@@ -291,11 +291,11 @@ void HtnInstance::extractMethodSorts(const method& m) {
     _signature_sorts_table[mId] = sorts;
 }
 void HtnInstance::extractConstants() {
-    for (auto sortPair : _p.sorts) {
+    for (const auto& sortPair : _p.sorts) {
         int sortId = getNameId(sortPair.first);
         _constants_by_sort[sortId] = std::vector<int>();
         std::vector<int>& constants = _constants_by_sort[sortId];
-        for (std::string c : sortPair.second) {
+        for (const std::string& c : sortPair.second) {
             constants.push_back(getNameId(c));
             //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
         }
@@ -328,7 +328,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
 
     // Go through expansion of the method
     std::map<std::string, int> subtaskTagToIndex;   
-    for (plan_step st : method.ps) {
+    for (const plan_step& st : method.ps) {
         
         // Normalize task name
         std::string subtaskName = st.task;
@@ -345,7 +345,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
             task precTask;
             int maxSize = 0;
             int numFound = 0;
-            for (task t : primitive_tasks) {
+            for (const task& t : primitive_tasks) {
                 
                 // Normalize task name
                 std::string taskName = t.name;
@@ -370,13 +370,13 @@ Reduction& HtnInstance::createReduction(const method& method) {
                     precTask.prec.size(), precTask.name.c_str(), st.task.c_str());
 
             // Add its preconditions to the method's preconditions
-            for (literal lit : precTask.prec) {
+            for (const literal& lit : precTask.prec) {
                 //log("COND_LIT %s\n", lit.predicate.c_str());
                 condLiterals.push_back(lit);
             }
 
             // If necessary, (re-)add parameters of the method precondition task
-            for (auto varPair : precTask.vars) {
+            for (const auto& varPair : precTask.vars) {
                 
                 if (varPair.first[0] != '?') continue; // not a variable
 
@@ -401,7 +401,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
     }
 
     // Process preconditions and constraints of the method
-    for (literal lit : condLiterals) {
+    for (const literal& lit : condLiterals) {
 
         if (lit.predicate == dummy_equal_literal) {
             // Equality precondition
@@ -447,7 +447,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Order subtasks
     if (!method.ordering.empty()) {
         std::map<int, std::vector<int>> orderingNodelist;
-        for (auto order : method.ordering) {
+        for (const auto& order : method.ordering) {
             int indexLeft = subtaskTagToIndex[order.first];
             int indexRight = subtaskTagToIndex[order.second];
             assert(indexLeft >= 0 && indexLeft < _reductions[id].getSubtasks().size());
@@ -457,14 +457,6 @@ Reduction& HtnInstance::createReduction(const method& method) {
         }
         _reductions[id].orderSubtasks(orderingNodelist);
     }
-
-    /*
-    log("ORDERING %s < ", Names::to_string(_reductions[id].getSignature()).c_str());
-    for (Signature sg : _reductions[id].getSubtasks()) {
-        log("%s ", Names::to_string(sg).c_str());
-    }
-    log(">\n");
-    */
 
     log(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
                 _reductions[id].getPreconditions().size(), 
@@ -483,11 +475,11 @@ Action& HtnInstance::createAction(const task& task) {
 
     assert(_actions.count(id) == 0);
     _actions[id] = Action(id, args);
-    for (auto p : task.prec) {
+    for (const auto& p : task.prec) {
         Signature sig = getSignature(p);
         _actions[id].addPrecondition(sig);
     }
-    for (auto p : task.eff) {
+    for (const auto& p : task.eff) {
         Signature sig = getSignature(p);
         _actions[id].addEffect(sig);
         if (_params.isSet("rrp")) _fluent_predicates.insert(sig._name_id);
@@ -500,9 +492,9 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
     SigSet result;
     if (sig == Position::NONE_SIG) return result;
     //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
-    for (Signature effect : _effector_table->getPossibleFactChanges(sig)) {
+    for (const Signature& effect : _effector_table->getPossibleFactChanges(sig)) {
         std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
-        for (Signature i : instantiation) {
+        for (const Signature& i : instantiation) {
             assert(_instantiator->isFullyGround(i));
             if (_params.isSet("rrp")) _fluent_predicates.insert(i._name_id);
             result.insert(i);
@@ -580,7 +572,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     // 1. take single sort of the q-constant to start with: int sort.
     // 2. assume that the q-constant is of ALL (super) sorts
     std::set<int> qConstSorts;
-    for (auto sortPair : _p.sorts) qConstSorts.insert(getNameId(sortPair.first));
+    for (const auto& sortPair : _p.sorts) qConstSorts.insert(getNameId(sortPair.first));
 
     // 3. for each constant of the single sort:
     //      remove all q-constant sorts NOT containing that constant
@@ -635,12 +627,6 @@ std::vector<Signature> HtnInstance::getDecodedObjects(Signature qSig) {
     }
 
     std::vector<Signature> i = ArgIterator::instantiate(qSig, eligibleArgs);
-    //log("DECODED_FACTS %s : { ", Names::to_string(qFact).c_str());
-    for (Signature sig : i) {
-        //log("%s ", Names::to_string(sig).c_str());
-    }
-    //log("}\n");
-
     return i; 
 }
 

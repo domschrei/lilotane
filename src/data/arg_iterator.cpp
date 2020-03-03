@@ -61,7 +61,7 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
     // Check validity
     assert(constantsPerArg.size() > 0);
     int numChoices = 1;
-    for (auto vec : constantsPerArg) {
+    for (const auto& vec : constantsPerArg) {
         numChoices *= vec.size();
     }
     if (numChoices == 0) return instantiation;
@@ -81,7 +81,7 @@ std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std:
             newArgs[argPos] = constantsPerArg[argPos][counter[argPos]];
         }
         // There may be multiple possible substitutions
-        for (substitution_t s : Substitution::getAll(sig._args, newArgs)) {
+        for (const substitution_t& s : Substitution::getAll(sig._args, newArgs)) {
             instantiation.push_back(sig.substitute(s));            
         }
 

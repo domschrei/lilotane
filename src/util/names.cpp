@@ -19,7 +19,7 @@ namespace Names {
         return nbt->at(nameId);
     }
 
-    std::string to_string(Signature sig) {
+    std::string to_string(const Signature& sig) {
         std::string out = "";
         if (sig._negated) out += "!";
         out += "(" + to_string(sig._name_id);
@@ -30,7 +30,7 @@ namespace Names {
         return out;
     }
 
-    std::string to_string_nobrackets(Signature sig) {
+    std::string to_string_nobrackets(const Signature& sig) {
         std::string out = "";
         if (sig._negated) out += "!";
         out += to_string(sig._name_id);
@@ -40,21 +40,21 @@ namespace Names {
         return out;
     }
 
-    std::string to_string(std::unordered_map<int, int> s) {
+    std::string to_string(const std::unordered_map<int, int>& s) {
         std::string out = "";
-        for (auto pair : s) {
+        for (const auto& pair : s) {
             out += "[" + to_string(pair.first) + "/" + to_string(pair.second) + "]";
         }
         return out;
     }
 
-    std::string to_string(Action a) {
+    std::string to_string(const Action& a) {
         std::string out = "{ ";
-        for (Signature pre : a.getPreconditions()) {
+        for (const Signature& pre : a.getPreconditions()) {
             out += to_string(pre) + " ";
         }
         out += "} " + to_string(a.getSignature()) + " { ";
-        for (Signature eff : a.getEffects()) {
+        for (const Signature& eff : a.getEffects()) {
             out += to_string(eff) + " ";
         }
         return out + "}";

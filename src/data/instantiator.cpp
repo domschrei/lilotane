@@ -198,7 +198,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
     std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
 
     // For each provided HtnOp:
-    for (Signature opSig : operations) {
+    for (const Signature& opSig : operations) {
         //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
         std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
 
@@ -209,7 +209,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
 
         // For each such effect: check if it is a valid result
         // of some series of q const substitutions
-        for (Signature eff : effects) {
+        for (const Signature& eff : effects) {
             if (eff._name_id != fact._name_id) continue;
             if (eff._negated != fact._negated) continue;
             bool matches = true;

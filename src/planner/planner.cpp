@@ -28,7 +28,7 @@ int Planner::findPlan() {
 
     // Initial state
     SigSet initState = _htn.getInitState();
-    for (Signature fact : initState) {
+    for (const Signature& fact : initState) {
         initLayer[_pos].addFact(fact.abs());
         initLayer[_pos].addTrueFact(fact);
         initLayer[_pos].extendState(fact);
@@ -57,7 +57,7 @@ int Planner::findPlan() {
         initLayer[_pos].addAxiomaticOp(sig);
         initLayer[_pos].addExpansionSize(red.getSubtasks().size());
         // Add preconditions
-        for (Signature fact : red.getPreconditions()) {
+        for (const Signature& fact : red.getPreconditions()) {
             addPrecondition(sig, fact);
         }
         addQConstantTypeConstraints(sig);
@@ -78,7 +78,7 @@ int Planner::findPlan() {
     
     // Extract primitive goals, add to preconds of goal action
     SigSet goalSet = _htn.getGoals();
-    for (Signature fact : goalSet) {
+    for (const Signature& fact : goalSet) {
         assert(initLayer[_pos].containsInState(fact));
         assert(initLayer[_pos].getFacts().count(fact.abs()));
         goalAction.addPrecondition(fact);
@@ -281,7 +281,7 @@ void Planner::createNextFromLeft(const Position& left) {
     }
     for (const Signature& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
-        for (Signature fact : _htn.getAllFactChanges(rSig)) {
+        for (const Signature& fact : _htn.getAllFactChanges(rSig)) {
             addEffect(rSig, fact);
         }
         for (const int& arg : rSig._args) {
@@ -402,7 +402,6 @@ void Planner::propagateActions(int offset) {
             Signature blankSig = _htn._action_blank.getSignature();
             newPos.addAction(blankSig);
             newPos.addExpansion(aSig, blankSig);
-            // Lesezeichen
         }
     }
 }
@@ -430,6 +429,7 @@ void Planner::propagateReductions(int offset) {
                 assert(_instantiator.isFullyGround(subRSig));
                 
                 newPos.addReduction(subRSig);
+                newPos.addExpansion(rSig, subRSig);
                 //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
@@ -446,6 +446,7 @@ void Planner::propagateReductions(int offset) {
                 numAdded++;
                 assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig);
+                newPos.addExpansion(rSig, aSig);
                 // Add preconditions of action
                 const Action& a = _htn._actions_by_sig[aSig];
                 for (const Signature& fact : a.getPreconditions()) {
@@ -456,14 +457,16 @@ void Planner::propagateReductions(int offset) {
         } else {
             // Blank
             numAdded++;
-            newPos.addAction(_htn._action_blank.getSignature());
+            Signature blankSig = _htn._action_blank.getSignature();
+            newPos.addAction(blankSig);
+            newPos.addExpansion(rSig, blankSig);
         }
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
             //log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
             //        Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
-            newPos.addReduction(Position::NONE_SIG);
+            newPos.addExpansion(rSig, Position::NONE_SIG);
         }
     }
 }
@@ -480,7 +483,7 @@ void Planner::addNewFalseFacts() {
                 introduceNewFalseFact(newPos, eff);
             }
 
-            for (Signature decEff : _htn.getDecodedObjects(eff)) {
+            for (const Signature& decEff : _htn.getDecodedObjects(eff)) {
                 if (!newPos.getFacts().count(decEff.abs())) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
@@ -612,7 +615,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     for (int redId : redIds) {
         Reduction r = _htn._reductions[redId];
         std::vector<substitution_t> subs = Substitution::getAll(r.getTaskArguments(), task._args);
-        for (substitution_t s : subs) {
+        for (const substitution_t& s : subs) {
 
             //if (_layer_idx <= 1) log("SUBST %s\n", Names::to_string(s).c_str());
             Reduction rSub = r.substituteRed(s);
@@ -621,7 +624,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
             
             //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
             std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
-            for (Reduction red : reductions) {
+            for (Reduction& red : reductions) {
                 Signature sig = red.getSignature();
 
                 // Check if the created reduction has consistent sorts
@@ -662,7 +665,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
-    for (Action action : actions) {
+    for (Action& action : actions) {
         Signature sig = action.getSignature();
 
         //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;

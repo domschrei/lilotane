@@ -10,10 +10,10 @@
 namespace Names {
     void init(std::unordered_map<int, std::string>& nameBackTable);
     std::string to_string(int nameId);
-    std::string to_string(Signature sig);
-    std::string to_string_nobrackets(Signature sig);
-    std::string to_string(std::unordered_map<int, int> s);
-    std::string to_string(Action a);
+    std::string to_string(const Signature& sig);
+    std::string to_string_nobrackets(const Signature& sig);
+    std::string to_string(const std::unordered_map<int, int>& s);
+    std::string to_string(const Action& a);
 }
 
 #endif

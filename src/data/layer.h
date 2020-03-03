@@ -109,6 +109,8 @@ public:
 
     const SigSet& getActions() const {return _actions;}
     const SigSet& getReductions() const {return _reductions;}
+    const std::unordered_map<Signature, SigSet, SignatureHasher>& getExpansions() const {return _expansions;}
+    const SigSet& getAxiomaticOps() const {return _axiomatic_ops;}
     const std::unordered_map<int, SigSet>& getState() const {return _state;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
 };
