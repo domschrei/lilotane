@@ -41,8 +41,8 @@ clean:
 #	[ ! -e libpandaPIparser.a ] || rm libpandaPIparser.a
 	cd src/parser && make clear
 	[ ! -e treerexx ] || rm treerexx
-	touch NONE && rm NONE $(wildcard src/*.o src/*/*.o)
 	touch NONE && rm NONE $(wildcard lib/${IPASIRSOLVER}/*.a)
+	rm $(wildcard src/*.o src/*/*.o) 2> /dev/null
 
 cleantr:
 	[ ! -e treerexx ] || rm treerexx
