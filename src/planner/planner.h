@@ -46,9 +46,6 @@ private:
 
     void addPrecondition(const Signature& op, const Signature& fact);
     void addEffect(const Signature& op, const Signature& fact);
-    void addHtnOp(const HtnOp& op, const Reason& why);
-    void addAction(const Action& a, const Reason& why);
-    void addReduction(const Reduction& r, const Reason& why);
 
     void addQConstantTypeConstraints(const Signature& op);
     void propagateActions(int offset);

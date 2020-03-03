@@ -10,43 +10,6 @@
 
 typedef std::pair<int, int> IntPair;
 
-struct Reason {
-    bool axiomatic = false;
-    int layer = -1;
-    int pos = -1;
-    Signature sig;
-    Reason(int layer, int pos, const Signature& sig) : layer(layer), pos(pos), sig(sig) {}
-    Reason() : axiomatic(true) {
-        sig = Signature();
-    }
-    IntPair getOriginPos() const {return IntPair(layer, pos);}
-
-    bool operator==(const Reason& b) const {
-        if (axiomatic != b.axiomatic) return false;
-        if (layer != b.layer) return false;
-        if (pos != b.pos) return false;
-        if (sig != b.sig) return false;
-        return true;
-    }
-    bool operator!=(const Reason& b) const {
-        return !(*this == b);
-    }
-};
-
-struct ReasonHasher {
-    std::size_t operator()(const Reason& s) const {
-        size_t hash = 0;
-        hash_combine(hash, s.axiomatic);
-        hash_combine(hash, s.layer);
-        hash_combine(hash, s.pos);
-        SignatureHasher h;
-        hash_combine(hash, h(s.sig));
-        return hash;
-    }
-};
-
-typedef std::unordered_map<Signature, std::unordered_set<Reason, ReasonHasher>, SignatureHasher> CausalSigSet;
-
 struct Position {
 
 public:
@@ -56,8 +19,15 @@ private:
     int _layer_idx;
     int _pos;
 
-    CausalSigSet _facts;
-    CausalSigSet _true_facts;
+    SigSet _actions;
+    SigSet _reductions;
+
+    std::unordered_map<Signature, SigSet, SignatureHasher> _expansions;
+
+    SigSet _axiomatic_ops;
+
+    SigSet _facts;
+    SigSet _true_facts;
     std::unordered_map<Signature, SigSet, SignatureHasher> _fact_supports;
 
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_decodings;
@@ -65,8 +35,6 @@ private:
 
     std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
 
-    CausalSigSet _actions;
-    CausalSigSet _reductions;
     int _max_expansion_size = 1;
 
     // Not being encoded; used for reducing instantiation of the next position.
@@ -79,8 +47,8 @@ public:
     Position() {}
     void setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-    void addFact(const Signature& fact, const Reason& rs = Reason()) {_facts[fact]; _facts[fact].insert(rs);}
-    void addTrueFact(const Signature& fact, const Reason& rs = Reason()) {_true_facts[fact]; _true_facts[fact].insert(rs);}
+    void addFact(const Signature& fact) {_facts.insert(fact);}
+    void addTrueFact(const Signature& fact) {_true_facts.insert(fact);}
     void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
         _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
         _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
@@ -94,16 +62,22 @@ public:
         _q_constants_type_constraints[op].push_back(c);
     }
 
-    void addAction(const Signature& action, const Reason& rs = Reason()) {
-        _actions[action]; 
-        _actions[action].insert(rs);
+    void addAction(const Signature& action) {
+        _actions.insert(action);
     }
-    void addReduction(const Signature& reduction, const Reason& rs = Reason()) {
-        _reductions[reduction]; 
-        _reductions[reduction].insert(rs);
+    void addReduction(const Signature& reduction) {
+        _reductions.insert(reduction);
+    }
+    void addExpansion(const Signature& parent, const Signature& child) {
+        _expansions[parent];
+        _expansions[parent].insert(child);
+    }
+    void addAxiomaticOp(const Signature& op) {
+        _axiomatic_ops.insert(op);
     }
     void addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
-    void setFacts(const CausalSigSet& facts) {
+    
+    void setFacts(const SigSet& facts) {
         _facts = facts;
     }
     void extendState(const Signature& fact) {_state[fact._name_id].insert(fact);}
@@ -124,8 +98,8 @@ public:
 
     IntPair getPos() const {return IntPair(_layer_idx, _pos);}
     
-    const CausalSigSet& getFacts() const {return _facts;}
-    const CausalSigSet& getTrueFacts() const {return _true_facts;}
+    const SigSet& getFacts() const {return _facts;}
+    const SigSet& getTrueFacts() const {return _true_facts;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
@@ -133,8 +107,8 @@ public:
         return _q_constants_type_constraints;
     }
 
-    const CausalSigSet& getActions() const {return _actions;}
-    const CausalSigSet& getReductions() const {return _reductions;}
+    const SigSet& getActions() const {return _actions;}
+    const SigSet& getReductions() const {return _reductions;}
     const std::unordered_map<int, SigSet>& getState() const {return _state;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
 };
