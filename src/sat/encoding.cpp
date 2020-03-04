@@ -383,6 +383,14 @@ void Encoding::encode(int layerIdx, int pos) {
     assume(varPrim);
 
     log("  Encoding done. (%i clauses, total of %i literals)\n", (numClauses-priorCls), (numLits-priorLits));
+
+    if (hasAbove && (oldPos+1 >= _layers->at(layerIdx-1).size() 
+            || _layers->at(layerIdx-1).getSuccessorPos(oldPos+1) == pos+1)) {
+        // free memory from "above" position that will no longer be used
+        // except for decoding a plan
+        log("  Freeing memory of (%i,%i) ...\n", layerIdx-1, oldPos);
+        above.clearUnneeded();
+    }
 }
 
 void Encoding::initSubstitutionVars(int arg, Position& pos) {
@@ -394,7 +402,7 @@ void Encoding::initSubstitutionVars(int arg, Position& pos) {
     _q_constants.insert(arg);
 
     std::vector<int> substitutionVars;
-    for (int c : _htn._domains_of_q_constants[arg]) {
+    for (int c : _htn.getDomainOfQConstant(arg)) {
 
         assert(!_htn._var_ids.count(c));
 
@@ -402,9 +410,6 @@ void Encoding::initSubstitutionVars(int arg, Position& pos) {
         Signature sigSubst = sigSubstitute(arg, c);
         int varSubst = varSubstitution(sigSubst);
         substitutionVars.push_back(varSubst);
-        
-        _q_constants_per_arg[c];
-        _q_constants_per_arg[c].push_back(arg);
     }
     assert(!substitutionVars.empty());
 
@@ -569,6 +574,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     int li = finalLayer.index();
     VariableDomain::lock();
 
+    /*
     State state = finalLayer[0].getState();
     for (const auto& pair : state) {
         for (const Signature& fact : pair.second) {
@@ -576,7 +582,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
             else if (!fact._negated) assert((isEncoded(0, 0, fact) && value(0, 0, fact)) || fail(Names::to_string(fact) + " does not hold initially!\n"));
             else if (fact._negated) assert(!isEncoded(0, 0, fact) || value(0, 0, fact) || fail(Names::to_string(fact) + " does not hold initially!\n"));
         } 
-    }
+    }*/
 
     std::vector<PlanItem> plan;
     //log("(actions at layer %i)\n", li);
@@ -585,7 +591,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
 
         int chosenActions = 0;
-        State newState = state;
+        //State newState = state;
         SigSet effects;
         for (const Signature& aSig : finalLayer[pos].getActions()) {
             
@@ -597,7 +603,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                 int aVar = finalLayer[pos].getVariable(aSig);
 
                 // Check fact consistency
-                checkAndApply(_htn._actions_by_sig[aSig], state, newState, li, pos);
+                //checkAndApply(_htn._actions_by_sig[aSig], state, newState, li, pos);
 
                 //if (aSig == _htn._action_blank.getSignature()) continue;
 
@@ -610,7 +616,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                     Action aDecoded = (Action) opDecoded;
 
                     // Check fact consistency w.r.t. "actual" decoded action
-                    checkAndApply(aDecoded, state, newState, li, pos);
+                    //checkAndApply(aDecoded, state, newState, li, pos);
                 }
 
                 //log("* %s @ %i\n", Names::to_string(aDec).c_str(), pos);
@@ -621,7 +627,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         //for (Signature sig : newState) {
         //    assert(value(li, pos+1, sig));
         //}
-        state = newState;
+        //state = newState;
 
         assert(chosenActions <= 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
         if (chosenActions == 0) {
@@ -715,10 +721,11 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     const Reduction& r = _htn._reductions_by_sig[rSig];
 
                     // Check preconditions
+                    /*
                     for (const Signature& pre : r.getPreconditions()) {
                         assert(value(layerIdx, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of reduction "
                         + Names::to_string(r.getSignature()) + " does not hold at step " + std::to_string(pos) + "!\n"));
-                    }
+                    }*/
 
                     //log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
                     Signature decRSig = getDecodedQOp(layerIdx, pos, rSig);
@@ -774,6 +781,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     int v = _layers->at(layerIdx)[pos].getVariable(aSig);
                     Action a = _htn._actions_by_sig[aSig];
 
+                    /*
                     // Check preconditions, effects
                     for (const Signature& pre : a.getPreconditions()) {
                         assert(value(layerIdx, pos, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
@@ -782,7 +790,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     for (const Signature& eff : a.getEffects()) {
                         assert(value(layerIdx, pos+1, eff) || fail("Effect " + Names::to_string(eff) + " of action "
                         + Names::to_string(aSig) + " does not hold at step " + std::to_string(pos+1) + "!\n"));
-                    }
+                    }*/
 
                     // TODO check this is a valid subtask relationship
 
@@ -856,7 +864,7 @@ Signature Encoding::getDecodedQOp(int layer, int pos, const Signature& origSig) 
             containsQConstants = true;
 
             int numSubstitutions = 0;
-            for (int argSubst : _htn._domains_of_q_constants[arg]) {
+            for (int argSubst : _htn.getDomainOfQConstant(arg)) {
                 Signature sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
                     //log("%i TRUE\n", varSubstitution(sigSubst));

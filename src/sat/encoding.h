@@ -53,7 +53,6 @@ private:
     int _substitute_name_id;
 
     std::unordered_set<int> _q_constants;
-    std::unordered_map<int, std::vector<int>> _q_constants_per_arg;
 
     std::vector<int> _last_assumptions;
 

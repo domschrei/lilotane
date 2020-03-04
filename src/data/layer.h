@@ -113,6 +113,21 @@ public:
     const SigSet& getAxiomaticOps() const {return _axiomatic_ops;}
     const std::unordered_map<int, SigSet>& getState() const {return _state;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
+
+    void clearUnneeded() {
+        _expansions.clear();
+        _axiomatic_ops.clear();
+        _true_facts.clear();
+        _fact_supports.clear();
+        _qfact_decodings.clear();
+        _qfact_abstractions.clear();
+        _q_constants_type_constraints.clear();
+        _state.clear();
+        for (const Signature& fact : _facts) {
+            _variables.erase(fact);
+        }
+        _facts.clear();
+    }
 };
 
 class Layer {

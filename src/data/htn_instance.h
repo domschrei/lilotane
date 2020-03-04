@@ -42,11 +42,11 @@ struct HtnInstance {
     std::unordered_map<int, std::vector<int>> _signature_sorts_table;
 
     // Maps a sort name ID to a list of constant name IDs of that sort.
-    std::unordered_map<int, std::vector<int>> _constants_by_sort;
+    std::unordered_map<int, std::unordered_set<int>> _constants_by_sort;
 
     std::unordered_set<int> _q_constants;
-    std::unordered_map<int, std::vector<int>> _sorts_of_q_constants;
-    std::unordered_map<int, std::unordered_set<int>> _domains_of_q_constants;
+    std::unordered_map<int, int> _primary_sort_of_q_constants;
+    std::unordered_map<int, std::unordered_set<int>> _sorts_of_q_constants;
 
     // Maps an action name ID to its action object.
     std::unordered_map<int, Action> _actions;
@@ -103,8 +103,10 @@ struct HtnInstance {
 
     bool hasQConstants(const Signature& sig);
     std::vector<Signature> getDecodedObjects(const Signature& qFact);
-    std::unordered_set<int> getSortsOfQConstant(int qconst);
-    std::unordered_set<int> getConstantsOfSort(int sort);
+    const std::unordered_set<int>& getSortsOfQConstant(int qconst);
+    const std::unordered_set<int>& getDomainOfQConstant(int qconst);
+
+    const std::unordered_set<int>& getConstantsOfSort(int sort);
 
     bool isRigidPredicate(int predId);
     void removeRigidConditions(HtnOp& op);

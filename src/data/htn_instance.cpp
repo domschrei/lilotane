@@ -293,10 +293,10 @@ void HtnInstance::extractMethodSorts(const method& m) {
 void HtnInstance::extractConstants() {
     for (const auto& sortPair : _p.sorts) {
         int sortId = getNameId(sortPair.first);
-        _constants_by_sort[sortId] = std::vector<int>();
-        std::vector<int>& constants = _constants_by_sort[sortId];
+        _constants_by_sort[sortId];
+        std::unordered_set<int>& constants = _constants_by_sort[sortId];
         for (const std::string& c : sortPair.second) {
-            constants.push_back(getNameId(c));
+            constants.insert(getNameId(c));
             //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
         }
     }
@@ -535,17 +535,9 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     int sort = _signature_sorts_table[sig._name_id][argPos];
     //log("%s\n", Names::to_string(sig).c_str());
 
-    // Compute domain of the q constant
-    std::unordered_set<int> domain;
-    //log("DOMAIN %s : { ", Names::to_string(qConstId).c_str());
-    for (int c : _constants_by_sort[sort]) {
-        // A q constant may *not* be substituted by another q constant
-        if (!_q_constants.count(c)) {
-            domain.insert(c);
-            //log("%s ", Names::to_string(c).c_str());
-        } 
-    }
-    //log("}\n");  
+    // Get domain of the q constant
+    const std::unordered_set<int>& domain = getConstantsOfSort(sort);
+    assert(!domain.empty());
 
     // If there is only a single option for the q constant: 
     // just insert that one option.
@@ -568,6 +560,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     _q_constants.insert(qConstId);
 
     // CALCULATE SORTS OF Q CONSTANT
+    _primary_sort_of_q_constants[qConstId] = sort;
 
     // 1. take single sort of the q-constant to start with: int sort.
     // 2. assume that the q-constant is of ALL (super) sorts
@@ -596,14 +589,12 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     */
     _sorts_of_q_constants[qConstId];
     for (int sort : qConstSorts) {
-        _sorts_of_q_constants[qConstId].push_back(sort);
+        _sorts_of_q_constants[qConstId].insert(sort);
         //_constants_by_sort[sort].push_back(qConstId);
         //log("%s ", Names::to_string(sort).c_str());
     } 
     //log("\n");
 
-    assert(!domain.empty());
-    _domains_of_q_constants[qConstId] = domain;
 }
 
 std::vector<Signature> HtnInstance::getDecodedObjects(const Signature& qSig) {
@@ -615,8 +606,7 @@ std::vector<Signature> HtnInstance::getDecodedObjects(const Signature& qSig) {
         int arg = qSig._args[argPos];
         if (_q_constants.count(arg)) {
             // q constant
-            assert(_domains_of_q_constants.count(arg) && _domains_of_q_constants[arg].size() > 0);
-            for (int c : _domains_of_q_constants[arg]) {
+            for (int c : getDomainOfQConstant(arg)) {
                 eligibleArgs[argPos].push_back(c);
             }
         } else {
@@ -630,16 +620,16 @@ std::vector<Signature> HtnInstance::getDecodedObjects(const Signature& qSig) {
     return i; 
 }
 
-std::unordered_set<int> HtnInstance::getSortsOfQConstant(int qconst) {
-    std::unordered_set<int> sorts;
-    for (int sort : _sorts_of_q_constants[qconst]) sorts.insert(sort);
-    return sorts;
+const std::unordered_set<int>& HtnInstance::getSortsOfQConstant(int qconst) {
+    return _sorts_of_q_constants[qconst];
 }
 
-std::unordered_set<int> HtnInstance::getConstantsOfSort(int sort) {
-    std::unordered_set<int> cs;
-    for (int c : _constants_by_sort[sort]) cs.insert(c);
-    return cs; 
+const std::unordered_set<int>& HtnInstance::getConstantsOfSort(int sort) {
+    return _constants_by_sort[sort]; 
+}
+
+const std::unordered_set<int>& HtnInstance::getDomainOfQConstant(int qconst) {
+    return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
 }
 
 bool HtnInstance::hasQConstants(const Signature& sig) {

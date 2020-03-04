@@ -223,7 +223,7 @@ Instantiator::getOperationSubstitutionsCausingEffect(
                     matches &= effArg == substArg;
                 } else {
                     // If the effect fact has a q const here, the substituted arg must be in the q const's domain
-                    matches &= _htn->_domains_of_q_constants[effArg].count(substArg);
+                    matches &= _htn->getDomainOfQConstant(effArg).count(substArg);
                 }
                 if (!matches) break;
                 if (substArg != effArg) {
@@ -291,7 +291,7 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
         bool valid = false;
         if (_htn->_q_constants.count(arg)) {
             // q constant: TODO check if SOME SUBSTITUTEABLE CONSTANT has the correct sort
-            for (int cnst : _htn->_domains_of_q_constants[arg]) {
+            for (int cnst : _htn->getDomainOfQConstant(arg)) {
                 if (_htn->getConstantsOfSort(sort).count(cnst)) {
                     valid = true;
                     break;
@@ -335,7 +335,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Sign
         std::vector<int> bad;
         std::unordered_set<int> validConstants = _htn->getConstantsOfSort(sigSort);
         // For each value the qconstant can assume:
-        for (int c : _htn->_domains_of_q_constants[arg]) {
+        for (int c : _htn->getDomainOfQConstant(arg)) {
             // Is that constant of correct type?
             if (validConstants.count(c)) good.push_back(c);
             else bad.push_back(c);
