@@ -23,9 +23,11 @@ namespace Substitution {
             if (src[i] != dest[i]) {
 
                 // Iterate over existing substitutions
-                for (substitution_t& s : ss) {
+                int priorSize = ss.size();
+                for (int j = 0; j < priorSize; j++) {
+                    substitution_t& s = ss[j];
                     
-                    // Does the substitution already have this key? 
+                    // Does the substitution already have such a key but with a different value? 
                     if (s.count(src[i]) && s[src[i]] != dest[i]) {
                         // yes -- branch: keep original substitution, add alternative
 

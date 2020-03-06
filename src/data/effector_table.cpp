@@ -20,17 +20,12 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
         origSig = _htn->_actions[nameId].getSignature();
     }
 
-    // Substitution mapping from original signature
-    // to queried signature
-    std::unordered_map<int, int> sFromPlaceholder, sToPlaceholder;
+    // Substitution mapping
     std::vector<int> placeholderArgs;
-    assert(sig._args.size() == origSig._args.size());
     for (int i = 0; i < sig._args.size(); i++) {
         placeholderArgs.push_back(-i-1);
-        sFromPlaceholder[-i-1] = sig._args[i];
-        sToPlaceholder[sig._args[i]] = -i-1;  
     }
-    origSig._args = placeholderArgs;
+    std::unordered_map<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, sig._args);
 
     if (!_fact_changes.count(nameId)) {
         // Compute fact changes for origSig
@@ -38,7 +33,9 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
         std::unordered_set<Signature, SignatureHasher> seenSignatures;
         std::unordered_set<Signature, SignatureHasher> facts;
         std::vector<Signature> frontier;
-        frontier.push_back(origSig);
+
+        // For each possible placeholder substitution
+        frontier.push_back(origSig.substitute(Substitution::get(origSig._args, placeholderArgs)));
 
         // Traverse graph of signatures with sub-reduction relationships
         while (!frontier.empty()) {
@@ -46,8 +43,19 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
             frontier.pop_back();
             //log("%s\n", Names::to_string(nodeSig).c_str());
 
-            // Already saw this very signature?
-            if (seenSignatures.count(nodeSig)) continue;
+            // Normalize node signature arguments to compare to seen signatures
+            substitution_t s;
+            for (int argPos = 0; argPos < nodeSig._args.size(); argPos++) {
+                int arg = nodeSig._args[argPos];
+                if (arg > 0 && _htn->_var_ids.count(arg)) {
+                    // Variable
+                    if (!s.count(arg)) s[arg] = _htn->getNameId(std::string("??_") + std::to_string(argPos));
+                }
+            }
+            Signature normNodeSig = nodeSig.substitute(s);
+
+            // Already saw this signature?
+            if (seenSignatures.count(normNodeSig)) continue;
             
             // If it is an action: add effects
             if (_htn->_actions.count(nodeSig._name_id)) {
@@ -59,11 +67,16 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
             }
 
             // Add to seen signatures
-            seenSignatures.insert(nodeSig);
+            seenSignatures.insert(normNodeSig);
 
             // Expand node, add children to frontier
             for (const Signature& child : getPossibleChildren(nodeSig)) {
-                frontier.push_back(child);
+                // Arguments need to be renamed on recursive domains to generate all possible effects
+                substitution_t s;
+                for (int arg : child._args) {
+                    if (arg > 0) s[arg] = _htn->getNameId(_htn->_name_back_table[arg] + "_");
+                }
+                frontier.push_back(child.substitute(s));
                 //log("-> %s\n", Names::to_string(child).c_str());
             }
         }
@@ -82,12 +95,12 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
     
     //log("   fact changes of %s : ", Names::to_string(sig).c_str());
     for (const Signature& fact : sigs) {
+        //log("%s ", Names::to_string(fact).c_str());
         Signature sigRes = fact.substitute(sFromPlaceholder);
         for (int arg : sigRes._args) assert(arg > 0);
         
         for (const Signature& sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
             out.push_back(sigGround);
-            //log("%s ", Names::to_string(sigGround).c_str());
         }
     }
     //log("\n");
@@ -120,7 +133,7 @@ std::vector<Signature> EffectorTable::getPossibleChildren(const Signature& actio
             // Reduction
             std::vector<int> subredIds = _htn->_task_id_to_reduction_ids[taskNameId];
             for (int subredId : subredIds) {
-                Reduction& subred = _htn->_reductions[subredId];
+                const Reduction& subred = _htn->_reductions[subredId];
                 // Substitute original subred. arguments
                 // with the subtask's arguments
                 const std::vector<int>& origArgs = subred.getTaskArguments();

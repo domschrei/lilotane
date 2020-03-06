@@ -54,30 +54,24 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({factVar});
     }
 
-    // Re-use fact variables where necessary
-    // a) first for normal facts
+    // Re-use fact variables where possible
+
+    // a) first check normal facts
     for (const Signature& factSig : newPos.getFacts()) {
         if (_htn.hasQConstants(factSig)) continue;
 
         // Must have left position
         bool reuse = hasLeft;
         // Fact must be contained to the left
-        reuse &= left.getFacts().count(factSig);
+        if (reuse) reuse = left.getFacts().count(factSig);
         // Fact must not have any support at the left position
-        reuse &= !newPos.getFactSupports().count(factSig) 
+        if (reuse) reuse = !newPos.getFactSupports().count(factSig) 
                 && !newPos.getFactSupports().count(factSig.opposite());
 
         // None of its linked q-facts must have a support
         if (reuse && newPos.getQFactAbstractions().count(factSig)) {
-
-            // The abstractions of this fact may not have changed TODO expensive check!
-            reuse &= left.getQFactAbstractions().count(factSig);
-            if (reuse) reuse = left.getQFactAbstractions().at(factSig) 
-                            == newPos.getQFactAbstractions().at(factSig);
-            
             for (const Signature& qSig : newPos.getQFactAbstractions().at(factSig)) {
-                //reuse &= left.getFacts().count(qSig);
-                reuse &= !newPos.getFactSupports().count(qSig) 
+                if (reuse) reuse = !newPos.getFactSupports().count(qSig) 
                         && !newPos.getFactSupports().count(qSig.opposite());
             }
         }
@@ -90,17 +84,17 @@ void Encoding::encode(int layerIdx, int pos) {
         }
     }
 
-    // b) now for q-facts
+    // b) now check q-facts
     for (const Signature& factSig : newPos.getFacts()) {
         if (!_htn.hasQConstants(factSig)) continue;
         
-        bool reuse = hasLeft;
+        bool reuse = hasLeft && false;
         reuse &= left.getFacts().count(factSig);
 
         // None of the decoded facts may have changed
         if (reuse && newPos.getQFactDecodings().count(factSig)) {
             for (const Signature& decSig : newPos.getQFactDecodings().at(factSig)) {
-                reuse &= left.hasVariable(decSig)
+                if (reuse) reuse &= left.hasVariable(decSig)
                     && newPos.getVariable(decSig) == left.getVariable(decSig);
             }
         }
@@ -458,8 +452,8 @@ void Encoding::encode(int layerIdx, int pos) {
 
 void Encoding::initSubstitutionVars(int arg, Position& pos) {
 
-    if (!_htn._q_constants.count(arg)) return;
     if (_q_constants.count(arg)) return;
+    if (!_htn._q_constants.count(arg)) return;
     // arg is a *new* q-constant: initialize substitution logic
 
     _q_constants.insert(arg);

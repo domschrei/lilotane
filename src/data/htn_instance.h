@@ -77,11 +77,11 @@ struct HtnInstance {
 
     int getNameId(const std::string& name);
 
-    std::vector<int> getArguments(const std::vector<std::pair<string, string>>& vars);
-    std::vector<int> getArguments(const std::vector<std::string>& vars);
+    std::vector<int> getArguments(int predNameId, const std::vector<std::pair<string, string>>& vars);
+    std::vector<int> getArguments(int predNameId, const std::vector<std::string>& vars);
     Signature getSignature(const task& task);
     Signature getSignature(const method& method);
-    Signature getSignature(const literal& literal);
+    Signature getSignature(int parentNameId, const literal& literal);
     Signature getInitTaskSignature(int pos);
     SigSet getInitState();
     SigSet getGoals();
