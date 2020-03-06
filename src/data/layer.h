@@ -57,6 +57,9 @@ public:
         _fact_supports[fact];
         _fact_supports[fact].insert(operation);
     }
+    void touchFactSupport(const Signature& fact) {
+        _fact_supports[fact];
+    }
     void addQConstantTypeConstraint(const Signature& op, const TypeConstraint& c) {
         _q_constants_type_constraints[op];
         _q_constants_type_constraints[op].push_back(c);
@@ -88,13 +91,14 @@ public:
     }
 
     int encode(const Signature& sig);
+    void setVariable(const Signature& sig, int v);
+    bool hasVariable(const Signature& sig);
+    int getVariable(const Signature& sig);
 
     bool hasFact(const Signature& fact) const {return _facts.count(fact);}
     bool hasAction(const Signature& action) const {return _actions.count(action);}
     bool hasReduction(const Signature& red) const {return _reductions.count(red);}
     bool containsInState(const Signature& fact) const {return _state.count(fact._name_id) && _state.at(fact._name_id).count(fact);}
-    bool hasVariable(const Signature& sig);
-    int getVariable(const Signature& sig);
 
     IntPair getPos() const {return IntPair(_layer_idx, _pos);}
     

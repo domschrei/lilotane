@@ -572,6 +572,9 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     // add the fact to the op's support accordingly
     if (_params.isSet("nps") || _htn._actions_by_sig.count(op)) {
         pos.addFactSupport(fact, op);
+    } else {
+        // Remember that there is some (unspecified) support for this fact
+        pos.touchFactSupport(fact);
     }
     
     pos.extendState(fact);

@@ -54,6 +54,65 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause({factVar});
     }
 
+    // Re-use fact variables where necessary
+    // a) first for normal facts
+    for (const Signature& factSig : newPos.getFacts()) {
+        if (_htn.hasQConstants(factSig)) continue;
+
+        // Must have left position
+        bool reuse = hasLeft;
+        // Fact must be contained to the left
+        reuse &= left.getFacts().count(factSig);
+        // Fact must not have any support at the left position
+        reuse &= !newPos.getFactSupports().count(factSig) 
+                && !newPos.getFactSupports().count(factSig.opposite());
+
+        // None of its linked q-facts must have a support
+        if (reuse && newPos.getQFactAbstractions().count(factSig)) {
+
+            // The abstractions of this fact may not have changed TODO expensive check!
+            reuse &= left.getQFactAbstractions().count(factSig);
+            if (reuse) reuse = left.getQFactAbstractions().at(factSig) 
+                            == newPos.getQFactAbstractions().at(factSig);
+            
+            for (const Signature& qSig : newPos.getQFactAbstractions().at(factSig)) {
+                //reuse &= left.getFacts().count(qSig);
+                reuse &= !newPos.getFactSupports().count(qSig) 
+                        && !newPos.getFactSupports().count(qSig.opposite());
+            }
+        }
+
+        if (reuse) {
+            newPos.setVariable(factSig, left.getVariable(factSig));
+            //log("REUSE %s (%i,%i) ~> (%i,%i)\n", Names::to_string(factSig).c_str(), layerIdx, pos-1, layerIdx, pos);
+        } else {
+            newPos.encode(factSig);
+        }
+    }
+
+    // b) now for q-facts
+    for (const Signature& factSig : newPos.getFacts()) {
+        if (!_htn.hasQConstants(factSig)) continue;
+        
+        bool reuse = hasLeft;
+        reuse &= left.getFacts().count(factSig);
+
+        // None of the decoded facts may have changed
+        if (reuse && newPos.getQFactDecodings().count(factSig)) {
+            for (const Signature& decSig : newPos.getQFactDecodings().at(factSig)) {
+                reuse &= left.hasVariable(decSig)
+                    && newPos.getVariable(decSig) == left.getVariable(decSig);
+            }
+        }
+
+        if (reuse) {
+            newPos.setVariable(factSig, left.getVariable(factSig));
+            //log("REUSE %s (%i,%i) ~> (%i,%i)\n", Names::to_string(factSig).c_str(), layerIdx, pos-1, layerIdx, pos);
+        } else {
+            newPos.encode(factSig);
+        }
+    }
+
     // Init substitution vars where necessary
     for (int qconst : _htn._q_constants) {
         initSubstitutionVars(qconst, newPos);
@@ -64,13 +123,16 @@ void Encoding::encode(int layerIdx, int pos) {
         const Signature& qfactSig = pair.first;
         assert(!_htn.isRigidPredicate(qfactSig._name_id));
         assert(!qfactSig._negated);
-        int qfactVar = newPos.encode(qfactSig);
+        int qfactVar = newPos.getVariable(qfactSig);
+
+        // Already encoded earlier?
+        if (left.getFacts().count(qfactSig) && left.getVariable(qfactSig) == qfactVar) continue;
 
         // For each possible fact decoding:
         for (const auto& decFactSig : pair.second) {
             assert(!decFactSig._negated);
             assert(newPos.getFacts().count(decFactSig));
-            int decFactVar = newPos.encode(decFactSig);
+            int decFactVar = newPos.getVariable(decFactSig);
 
             // Get substitution from qfact to its decoded fact
             substitution_t s = Substitution::get(qfactSig._args, decFactSig._args);
@@ -96,7 +158,7 @@ void Encoding::encode(int layerIdx, int pos) {
     for (const Signature& factSig : newPos.getFacts()) {
         if (_htn.isRigidPredicate(factSig._name_id)) continue;
         
-        int factVar = newPos.encode(factSig);
+        int factVar = newPos.getVariable(factSig);
 
         if (hasAbove && offset == 0 && above.getFacts().count(factSig)) {
             // Fact comes from above: propagate meaning
@@ -125,7 +187,8 @@ void Encoding::encode(int layerIdx, int pos) {
             Signature factSig = fact;
             factSig._negated = sign < 0;
             int oldFactVar = left.getVariable(factSig);
-            int factVar = newPos.encode(factSig);
+            int factVar = newPos.getVariable(factSig);
+            if (oldFactVar == factVar) continue;
 
             // Calculate indirect support through qfact abstractions
             std::unordered_set<int> indirectSupport;

@@ -45,6 +45,12 @@ int Position::encode(const Signature& sig) {
     return val;
 }
 
+void Position::setVariable(const Signature& sig, int v) {
+    assert(!_variables.count(sig.abs()));
+    assert(v > 0);
+    _variables[sig.abs()] = v;
+}
+
 int Position::getVariable(const Signature& sig) {
     bool neg = sig._negated;
     Signature sigAbs = neg ? sig.abs() : sig;
