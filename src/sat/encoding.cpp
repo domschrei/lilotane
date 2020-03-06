@@ -55,6 +55,7 @@ void Encoding::encode(int layerIdx, int pos) {
     }
 
     // Re-use fact variables where possible
+    int reused = 0;
 
     // a) first check normal facts
     for (const Signature& factSig : newPos.getFacts()) {
@@ -79,6 +80,7 @@ void Encoding::encode(int layerIdx, int pos) {
         if (reuse) {
             newPos.setVariable(factSig, left.getVariable(factSig));
             //log("REUSE %s (%i,%i) ~> (%i,%i)\n", Names::to_string(factSig).c_str(), layerIdx, pos-1, layerIdx, pos);
+            reused++;
         } else {
             newPos.encode(factSig);
         }
@@ -102,10 +104,12 @@ void Encoding::encode(int layerIdx, int pos) {
         if (reuse) {
             newPos.setVariable(factSig, left.getVariable(factSig));
             //log("REUSE %s (%i,%i) ~> (%i,%i)\n", Names::to_string(factSig).c_str(), layerIdx, pos-1, layerIdx, pos);
+            reused++;
         } else {
             newPos.encode(factSig);
         }
     }
+    log("   %.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
 
     // Init substitution vars where necessary
     for (int qconst : _htn._q_constants) {
