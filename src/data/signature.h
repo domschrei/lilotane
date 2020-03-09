@@ -9,7 +9,6 @@
 
 #include "util/hash.h"
 
-
 struct TypeConstraint {
     int qconstant;
     bool sign;
@@ -41,7 +40,7 @@ struct Signature {
     
     int _name_id;
     std::vector<int> _args;
-    bool _negated = false;
+    mutable bool _negated = false;
 
     Signature() : _name_id(-1), _args() {}
     Signature(int nameId, const std::vector<int>& args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}

@@ -31,31 +31,38 @@ int Layer::getSuccessorPos(int oldPos) const {
 
 int Position::encode(const Signature& sig) {
     bool neg = sig._negated;
-    Signature sigAbs = neg ? sig.abs() : sig;
+    sig._negated = false;
 
-    if (!_variables.count(sigAbs)) {
+    if (!_variables.count(sig)) {
         // introduce a new variable
-        assert(!VariableDomain::isLocked() || fail("Unknown variable " + VariableDomain::varName(_layer_idx, _pos, sigAbs) + " queried!\n"));
-        _variables[sigAbs] = VariableDomain::nextVar();
-        VariableDomain::printVar(_variables[sigAbs], _layer_idx, _pos, sigAbs);
+        assert(!VariableDomain::isLocked() || fail("Unknown variable " + VariableDomain::varName(_layer_idx, _pos, sig) + " queried!\n"));
+        int& v = (_variables[sig] = VariableDomain::nextVar());
+        VariableDomain::printVar(v, _layer_idx, _pos, sig);
     }
 
     //log("%i\n", vars[sig]);
-    int val = (neg ? -1 : 1) * _variables[sigAbs];
+    int val = (neg ? -1 : 1) * _variables[sig];
+    sig._negated = neg;
     return val;
 }
 
 void Position::setVariable(const Signature& sig, int v) {
-    assert(!_variables.count(sig.abs()));
+    
+    bool neg = sig._negated;
+    sig._negated = false;
+    assert(!_variables.count(sig));
     assert(v > 0);
-    _variables[sig.abs()] = v;
+    _variables[sig] = v;
+    sig._negated = neg;
 }
 
 int Position::getVariable(const Signature& sig) {
     bool neg = sig._negated;
-    Signature sigAbs = neg ? sig.abs() : sig;
-    assert(_variables.count(sigAbs));
-    return (neg ? -1 : 1) * _variables[sigAbs];
+    sig._negated = false;
+    assert(_variables.count(sig));
+    int v = (neg ? -1 : 1) * _variables[sig];
+    sig._negated = neg;
+    return v;
 }
 
 bool Position::hasVariable(const Signature& sig) {

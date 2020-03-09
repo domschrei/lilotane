@@ -87,9 +87,8 @@ private:
 
     std::set<std::set<int>> getCnf(const std::vector<std::vector<int>>& dnf);
 
-    void addClause(std::vector<int> lits);
-    void addClause(std::initializer_list<int> lits);
-    void appendClause(std::initializer_list<int> lits);
+    void addClause(const std::initializer_list<int>& lits);
+    void appendClause(const std::initializer_list<int>& lits);
     void endClause();
     void assume(int lit);
 

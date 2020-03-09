@@ -4,6 +4,7 @@
 
 #include <vector>
 #include <unordered_set>
+#include <set>
 
 #include "data/signature.h"
 #include "util/names.h"
@@ -34,6 +35,7 @@ private:
     std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_abstractions;
 
     std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
+    std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> _forbidden_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
@@ -63,6 +65,10 @@ public:
     void addQConstantTypeConstraint(const Signature& op, const TypeConstraint& c) {
         _q_constants_type_constraints[op];
         _q_constants_type_constraints[op].push_back(c);
+    }
+    void addForbiddenSubstitution(const Signature& op, const substitution_t& s) {
+        _forbidden_substitutions_per_op[op];
+        _forbidden_substitutions_per_op[op].insert(s);
     }
 
     void addAction(const Signature& action) {
@@ -109,6 +115,10 @@ public:
     const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
     const std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
         return _q_constants_type_constraints;
+    }
+    const std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher>& 
+    getForbiddenSubstitutions() const {
+        return _forbidden_substitutions_per_op;
     }
 
     const SigSet& getActions() const {return _actions;}

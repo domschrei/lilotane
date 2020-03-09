@@ -100,7 +100,7 @@ int Planner::findPlan() {
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
         _enc.printFailedVars(_layers.back());
 
-        if (_params.isSet("cs")) {
+        if (_params.isSet("cs")) { // check solvability
             log("Unsolvable at layer %i with assumptions\n", _layer_idx);
 
             // Attempt to solve formula again, now without assumptions
@@ -551,6 +551,12 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
+        
+        if (!_instantiator.test(decFact, pos.getState())) {
+            // Fact cannot be true here
+            pos.addForbiddenSubstitution(op, Substitution::get(fact._args, decFact._args));
+            continue;
+        }
 
         if (!pos.getFacts().count(decFact.abs())) {
             // Decoded fact did not occur before.

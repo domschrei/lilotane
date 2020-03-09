@@ -406,6 +406,18 @@ void Encoding::encode(int layerIdx, int pos) {
         }
     }
 
+    // Forbidden substitutions per operator
+    for (const auto& opPair : newPos.getForbiddenSubstitutions()) {
+        const Signature& opSig = opPair.first;
+        for (const substitution_t& s : opPair.second) {
+            appendClause({-newPos.getVariable(opSig)});
+            for (const auto& entry : s) {
+                appendClause({-varSubstitution(sigSubstitute(entry.first, entry.second))});
+            }
+            endClause();
+        }
+    }
+
     // Forbid impossible parent ops
     for (const auto& pair : newPos.getExpansions()) {
         const Signature& parent = pair.first;
@@ -535,7 +547,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<std::vector<int>>& dn
     return cnf;
 }
 
-void Encoding::addClause(std::initializer_list<int> lits) {
+void Encoding::addClause(const std::initializer_list<int>& lits) {
     //log("CNF ");
     for (int lit : lits) {
         ipasir_add(_solver, lit);
@@ -549,7 +561,7 @@ void Encoding::addClause(std::initializer_list<int> lits) {
     numClauses++;
     numLits += lits.size();
 }
-void Encoding::appendClause(std::initializer_list<int> lits) {
+void Encoding::appendClause(const std::initializer_list<int>& lits) {
     if (!beganLine) {
         //log("CNF ");
         beganLine = true;
