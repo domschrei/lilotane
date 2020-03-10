@@ -26,7 +26,7 @@ namespace Substitution {
     struct Hasher {
         std::size_t operator()(const substitution_t& s) const {
             size_t hash = 1337;
-            for (auto pair : s) {
+            for (const auto& pair : s) {
                 hash_combine(hash, pair.first);
                 hash_combine(hash, pair.second);
             }

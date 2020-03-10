@@ -598,27 +598,43 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     //log("\n");
 }
 
-std::vector<Signature> HtnInstance::getDecodedObjects(const Signature& qSig) {
-    if (!hasQConstants(qSig)) return std::vector<Signature>();
+const std::vector<Signature> SIGVEC_EMPTY; 
 
-    assert(_instantiator->isFullyGround(qSig));
-    std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
+const std::vector<Signature>& HtnInstance::getDecodedObjects(const Signature& qSig) {
+    if (!hasQConstants(qSig)) return SIGVEC_EMPTY;
+
+    substitution_t s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
-        if (_q_constants.count(arg)) {
-            // q constant
-            for (int c : getDomainOfQConstant(arg)) {
-                eligibleArgs[argPos].push_back(c);
-            }
-        } else {
-            // normal constant
-            eligibleArgs[argPos].push_back(arg);
+        if (_q_constants.count(arg) && !s.count(arg)) {
+            s[arg] = getNameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
         }
-        assert(eligibleArgs[argPos].size() > 0);
+    }
+    Signature normSig = qSig.substitute(s);
+
+    if (!_fact_decodings.count(normSig)) {
+        // Calculate decoded objects
+
+        assert(_instantiator->isFullyGround(qSig));
+        std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
+        for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
+            int arg = qSig._args[argPos];
+            if (_q_constants.count(arg)) {
+                // q constant
+                for (int c : getDomainOfQConstant(arg)) {
+                    eligibleArgs[argPos].push_back(c);
+                }
+            } else {
+                // normal constant
+                eligibleArgs[argPos].push_back(arg);
+            }
+            assert(eligibleArgs[argPos].size() > 0);
+        }
+
+        _fact_decodings[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
     }
 
-    std::vector<Signature> i = ArgIterator::instantiate(qSig, eligibleArgs);
-    return i; 
+    return _fact_decodings[normSig]; 
 }
 
 const std::unordered_set<int>& HtnInstance::getSortsOfQConstant(int qconst) {

@@ -595,8 +595,6 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
         assert(decFactSigned._negated == fact._negated);
 
         pos.addQFactDecoding(factAbs, decFact);
-        pos.addFact(factAbs); // also add fact as an (indirect) consequence of op
-        
         pos.extendState(decFactSigned);
     }
 }

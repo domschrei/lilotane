@@ -42,8 +42,8 @@ private:
     // Not being encoded; used for reducing instantiation of the next position.
     std::unordered_map<int, SigSet> _state;
 
-    // Prop. variable for each occurring signature.
-    std::unordered_map<Signature, int, SignatureHasher> _variables;
+    // Prop. variable for each occurring signature, together with the position where it was originally encoded.
+    std::unordered_map<Signature, IntPair, SignatureHasher> _variables;
 
 public:
     Position() {}
@@ -97,9 +97,11 @@ public:
     }
 
     int encode(const Signature& sig);
-    void setVariable(const Signature& sig, int v);
-    bool hasVariable(const Signature& sig);
-    int getVariable(const Signature& sig);
+    void setVariable(const Signature& sig, int v, int priorPos);
+    bool hasVariable(const Signature& sig) const;
+    int getVariable(const Signature& sig) const;
+    int getPriorPosOfVariable(const Signature& sig) const;
+    bool isVariableOriginallyEncoded(const Signature& sig) const;
 
     bool hasFact(const Signature& fact) const {return _facts.count(fact);}
     bool hasAction(const Signature& action) const {return _actions.count(action);}

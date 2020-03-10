@@ -48,6 +48,8 @@ struct HtnInstance {
     std::unordered_map<int, int> _primary_sort_of_q_constants;
     std::unordered_map<int, std::unordered_set<int>> _sorts_of_q_constants;
 
+    std::unordered_map<Signature, std::vector<Signature>, SignatureHasher> _fact_decodings; 
+
     // Maps an action name ID to its action object.
     std::unordered_map<int, Action> _actions;
 
@@ -102,7 +104,7 @@ struct HtnInstance {
     void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s);
 
     bool hasQConstants(const Signature& sig);
-    std::vector<Signature> getDecodedObjects(const Signature& qFact);
+    const std::vector<Signature>& getDecodedObjects(const Signature& qFact);
     const std::unordered_set<int>& getSortsOfQConstant(int qconst);
     const std::unordered_set<int>& getDomainOfQConstant(int qconst);
 

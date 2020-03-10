@@ -73,7 +73,6 @@ public:
     ~Encoding();
 
     void encode(int layerIdx, int pos);
-    void encodeInitialTaskNetwork();
     bool solve();
 
     void stage(std::string name);
@@ -88,6 +87,7 @@ public:
 
 private:
 
+    void encodeFactVariables(Position& pos, const Position& left);
     void initSubstitutionVars(int qconst, Position& pos);
 
     Signature sigSubstitute(int qConstId, int trueConstId) {
