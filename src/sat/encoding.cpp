@@ -604,20 +604,29 @@ bool Encoding::isEncoded(int layer, int pos, const Signature& sig) {
     return _layers->at(layer)[pos].hasVariable(sig);
 }
 
-bool Encoding::isEncodedSubstitution(Signature& sig) {
-    return _substitution_variables.count(sig.abs());
+bool Encoding::isEncodedSubstitution(const Signature& sig) {
+    bool neg = sig._negated;
+    sig._negated = false;
+    bool encoded = _substitution_variables.count(sig);
+    sig._negated = neg;
+    return encoded;
 }
 
-int Encoding::varSubstitution(Signature sigSubst) {
+int Encoding::varSubstitution(const Signature& sigSubst) {
     bool neg = sigSubst._negated;
-    Signature sigAbs = neg ? sigSubst.abs() : sigSubst;
+    sigSubst._negated = false;
+
+    int var;
     if (!_substitution_variables.count(sigSubst)) {
         assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
                     + Names::to_string(sigSubst) + " queried!\n"));
-        _substitution_variables[sigAbs] = VariableDomain::nextVar();
-        VariableDomain::printVar(_substitution_variables[sigAbs], -1, -1, sigSubst);
-    }
-    return _substitution_variables[sigAbs];
+        var = VariableDomain::nextVar();
+        _substitution_variables[sigSubst] = var;
+        VariableDomain::printVar(var, -1, -1, sigSubst);
+    } else var = _substitution_variables[sigSubst];
+
+    sigSubst._negated = neg;
+    return (neg ? -1 : 1) * _substitution_variables[sigSubst];
 }
 
 std::string Encoding::varName(int layer, int pos, const Signature& sig) {

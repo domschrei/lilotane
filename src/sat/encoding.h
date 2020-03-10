@@ -93,9 +93,9 @@ private:
     void assume(int lit);
 
     int varPrimitive(int layer, int pos);
-    int varSubstitution(Signature sigSubst);
+    int varSubstitution(const Signature& sigSubst);
     bool isEncoded(int layer, int pos, const Signature& sig);
-    bool isEncodedSubstitution(Signature& sig);
+    bool isEncodedSubstitution(const Signature& sig);
 
     std::string varName(int layer, int pos, const Signature& sig);
     void printVar(int layer, int pos, const Signature& sig);
