@@ -58,6 +58,16 @@ private:
 
     const bool _print_formula;
 
+    int _num_cls;
+    int _num_lits;
+    int _num_asmpts;
+
+    int _prior_num_cls;
+    int _prior_num_lits;
+
+    std::map<std::string, int> _num_cls_per_stage;
+    std::map<std::string, int> _total_num_cls_per_stage;
+
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
     ~Encoding();
@@ -65,6 +75,9 @@ public:
     void encode(int layerIdx, int pos);
     void encodeInitialTaskNetwork();
     bool solve();
+
+    void stage(std::string name);
+    void printStages();
 
     std::pair<std::vector<PlanItem>, std::vector<PlanItem>> extractPlan();
     std::vector<PlanItem> extractClassicalPlan();

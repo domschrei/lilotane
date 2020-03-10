@@ -596,7 +596,6 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
         //log("%s ", Names::to_string(sort).c_str());
     } 
     //log("\n");
-
 }
 
 std::vector<Signature> HtnInstance::getDecodedObjects(const Signature& qSig) {
