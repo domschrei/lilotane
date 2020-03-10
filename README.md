@@ -34,7 +34,7 @@ Execute the planner executable like this:
 ## License
 
 The code of the planner is published under the GNU GPLv3. Consult the LICENSE file for details.  
-The planner uses (slightly adapted) code from the [https://github.com/panda-planner-dev/pandaPIparser](pandaPIparser project) [1] which is also GPLv3 licensed.
+The planner uses (slightly adapted) code from the [pandaPIparser project](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
 
 Note that depending on the SAT solver compiled into the planner, usage and redistribution rights may be subject to their licensing.
 If you want to make sure that everything is Free and Open Source, I suggest to use MIT-licensed lingeling as the solver.
