@@ -6,9 +6,6 @@
 encodePosition ()
 */
 
-int numLits = 0;
-int numClauses = 0;
-int numAssumptions = 0;
 bool beganLine = false;
 
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers) : 
@@ -18,13 +15,16 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& lay
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
     if (_print_formula) _out.open("formula.cnf");
     VariableDomain::init(params);
+    _num_cls = 0;
+    _num_lits = 0;
+    _num_asmpts = 0;
 }
 
 void Encoding::encode(int layerIdx, int pos) {
     
     log("  Encoding ...\n");
-    int priorLits = numLits;
-    int priorCls = numClauses;
+    int priorNumClauses = _num_cls;
+    int priorNumLits = _num_lits;
 
     // Calculate relevant environment of the position
     Position NULL_POS;
@@ -48,11 +48,13 @@ void Encoding::encode(int layerIdx, int pos) {
     int prevVarPrim = hasLeft ? varPrimitive(layerIdx, pos-1) : 0;
     
     // Facts that must hold at this position
+    stage("truefacts");
     for (const Signature& factSig : newPos.getTrueFacts()) {
         if (_htn.isRigidPredicate(factSig._name_id)) continue;
         int factVar = newPos.encode(factSig);
         addClause({factVar});
     }
+    stage("truefacts");
 
     // Re-use fact variables where possible
     int reused = 0;
@@ -112,11 +114,14 @@ void Encoding::encode(int layerIdx, int pos) {
     log("   %.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
 
     // Init substitution vars where necessary
+    stage("initsubstitutions");
     for (int qconst : _htn._q_constants) {
         initSubstitutionVars(qconst, newPos);
     }
+    stage("initsubstitutions");
 
     // Link qfacts to their possible decodings
+    stage("qfactsemantics");
     for (const auto& pair : newPos.getQFactDecodings()) {
         const Signature& qfactSig = pair.first;
         assert(!_htn.isRigidPredicate(qfactSig._name_id));
@@ -151,11 +156,17 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
+    stage("qfactsemantics");
 
     // Propagate fact assignments from above
+    stage("propagatefacts");
     for (const Signature& factSig : newPos.getFacts()) {
         if (_htn.isRigidPredicate(factSig._name_id)) continue;
         
+        // Do not propagate fact if a q-fact 
+        // TODO include this or not?
+        //if (_htn.hasQConstants(factSig)) continue;
+
         int factVar = newPos.getVariable(factSig);
 
         if (hasAbove && offset == 0 && above.getFacts().count(factSig)) {
@@ -165,8 +176,10 @@ void Encoding::encode(int layerIdx, int pos) {
             addClause({oldFactVar, -factVar});
         }
     }
+    stage("propagatefacts");
 
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
+    stage("frameaxioms");
     if (pos > 0)
     for (const Signature& fact : newPos.getFacts()) {
         assert(!fact._negated);
@@ -288,8 +301,10 @@ void Encoding::encode(int layerIdx, int pos) {
             //log("\n");
         }
     }
+    stage("frameaxioms");
 
     // Effects of "old" actions to the left
+    stage("actioneffects");
     for (const Signature& aSig : left.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
         int aVar = left.encode(aSig);
@@ -306,8 +321,10 @@ void Encoding::encode(int layerIdx, int pos) {
             addClause({-aVar, newPos.encode(eff)});
         }
     }
+    stage("actioneffects");
 
     // New actions
+    stage("actionconstraints");
     int numOccurringOps = 0;
     for (const Signature& aSig : newPos.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
@@ -333,8 +350,10 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
+    stage("actionconstraints");
 
     // reductions
+    stage("reductionconstraints");
     for (const Signature& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
 
@@ -373,13 +392,15 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
-
+    stage("reductionconstraints");
+    
     if (numOccurringOps == 0) {
         assert(pos+1 == newLayer.size() 
             || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
     }
 
     // Q-constants type constraints
+    stage("qtypeconstraints");
     const auto& constraints = newPos.getQConstantsTypeConstraints();
     for (const auto& pair : constraints) {
         const Signature& opSig = pair.first;
@@ -405,8 +426,10 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
+    stage("qtypeconstraints");
 
     // Forbidden substitutions per operator
+    stage("forbiddensubstitutions");
     for (const auto& opPair : newPos.getForbiddenSubstitutions()) {
         const Signature& opSig = opPair.first;
         for (const substitution_t& s : opPair.second) {
@@ -417,8 +440,10 @@ void Encoding::encode(int layerIdx, int pos) {
             endClause();
         }
     }
+    stage("forbiddensubstitutions");
 
     // Forbid impossible parent ops
+    stage("forbiddenparents");
     for (const auto& pair : newPos.getExpansions()) {
         const Signature& parent = pair.first;
         for (const Signature& child : pair.second) {
@@ -430,8 +455,10 @@ void Encoding::encode(int layerIdx, int pos) {
             }
         }
     }
+    stage("forbiddenparents");
 
     // expansions
+    stage("expansions");
     for (const auto& pair : newPos.getExpansions()) {
         const Signature& parent = pair.first;
 
@@ -442,8 +469,10 @@ void Encoding::encode(int layerIdx, int pos) {
         }
         endClause();
     }
+    stage("expansions");
 
     // choice of axiomatic ops
+    stage("axiomaticops");
     const SigSet& axiomaticOps = newPos.getAxiomaticOps();
     if (!axiomaticOps.empty()) {
         for (const Signature& op : axiomaticOps) {
@@ -451,11 +480,12 @@ void Encoding::encode(int layerIdx, int pos) {
         }
         endClause();
     }
+    stage("axiomaticops");
 
     // assume primitiveness
     assume(varPrim);
 
-    log("  Encoding done. (%i clauses, total of %i literals)\n", (numClauses-priorCls), (numLits-priorLits));
+    log("  Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
     if (hasAbove && (oldPos+1 >= _layers->at(layerIdx-1).size() 
             || _layers->at(layerIdx-1).getSuccessorPos(oldPos+1) == pos+1)) {
@@ -558,8 +588,8 @@ void Encoding::addClause(const std::initializer_list<int>& lits) {
     if (_print_formula) _out << "0\n";
     //log("0\n");
 
-    numClauses++;
-    numLits += lits.size();
+    _num_cls++;
+    _num_lits += lits.size();
 }
 void Encoding::appendClause(const std::initializer_list<int>& lits) {
     if (!beganLine) {
@@ -572,7 +602,7 @@ void Encoding::appendClause(const std::initializer_list<int>& lits) {
         //log("%i ", lit);
     } 
 
-    numLits += lits.size();
+    _num_lits += lits.size();
 }
 void Encoding::endClause() {
     assert(beganLine);
@@ -581,22 +611,22 @@ void Encoding::endClause() {
     //log("0\n");
     beganLine = false;
 
-    numClauses++;
+    _num_cls++;
 }
 void Encoding::assume(int lit) {
-    if (numAssumptions == 0) _last_assumptions.clear();
+    if (_num_asmpts == 0) _last_assumptions.clear();
     ipasir_assume(_solver, lit);
     //log("CNF !%i\n", lit);
     _last_assumptions.push_back(lit);
-    numAssumptions++;
+    _num_asmpts++;
 }
 
 bool Encoding::solve() {
     log("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
-                numClauses, numLits, numAssumptions);
+                _num_cls, _num_lits, _num_asmpts);
     bool solved = ipasir_solve(_solver) == 10;
-    if (numAssumptions == 0) _last_assumptions.clear();
-    numAssumptions = 0;
+    if (_num_asmpts == 0) _last_assumptions.clear();
+    _num_asmpts = 0;
     return solved;
 }
 
@@ -966,6 +996,24 @@ Signature Encoding::getDecodedQOp(int layer, int pos, const Signature& origSig) 
     return sig;
 }
 
+void Encoding::stage(std::string name) {
+    if (!_num_cls_per_stage.count(name)) {
+        _num_cls_per_stage[name] = _num_cls;
+    } else {
+        if (!_total_num_cls_per_stage.count(name)) _total_num_cls_per_stage[name] = 0;
+        _total_num_cls_per_stage[name] += _num_cls - _num_cls_per_stage[name];
+        _num_cls_per_stage.erase(name);
+    }
+}
+
+void Encoding::printStages() {
+    log("Total amount of clauses encoded: %i\n", _num_cls);
+    for (const auto& entry : _total_num_cls_per_stage) {
+        log(" %s : %i cls\n", entry.first.c_str(), entry.second);
+    }
+    _total_num_cls_per_stage.clear();
+}
+
 Encoding::~Encoding() {
 
     if (_params.isSet("of")) {
@@ -982,7 +1030,7 @@ Encoding::~Encoding() {
         ffile.open("f.cnf");
         
         // Append header to formula file
-        ffile << "p cnf " << VariableDomain::getMaxVar() << " " << (numClauses+_last_assumptions.size()) << "\n";
+        ffile << "p cnf " << VariableDomain::getMaxVar() << " " << (_num_cls+_last_assumptions.size()) << "\n";
 
         // Append main content to formula file (reading from "old" file)
         std::ifstream oldfile;

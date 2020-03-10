@@ -224,7 +224,10 @@ int Planner::findPlan() {
     log("<==\n");
     
     log("End of solution plan.\n");
+
+    _enc.printStages();
     //_enc.printSatisfyingAssignment();
+    
     return 0;
 }
 
