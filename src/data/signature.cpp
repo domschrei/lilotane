@@ -44,4 +44,11 @@ namespace Substitution {
         }
         return ss;
     }
+
+    bool implies(const substitution_t& super, const substitution_t& sub) {
+        for (const auto& e : sub) {
+            if (!super.count(e.first) || super.at(e.first) != e.second) return false;
+        }
+        return true;
+    }
 }

@@ -545,7 +545,8 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     //log("pre %s of %s\n", Names::to_string(fact).c_str(), Names::to_string(op).c_str());
     // Precondition must be valid (or a q fact)
-    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact) || fail(Names::to_string(fact) + " not contained in state!\n"));
+    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact) 
+            || fail(Names::to_string(fact) + " not contained in state!\n"));
 
     // Add additional reason for the fact / add it first if it's a q-constant
     pos.addFact(factAbs);
@@ -573,6 +574,8 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
 void Planner::addEffect(const Signature& op, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
+    assert(_pos > 0);
+    Position& left = _layers[_layer_idx][_pos-1];
     Signature factAbs = fact.abs();
 
     pos.addFact(factAbs);
@@ -590,6 +593,21 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
 
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (const Signature& decFact : _htn.getDecodedObjects(factAbs)) {
+
+        // TODO Make this check much more efficient while maintaining semantics.
+        substitution_t s = Substitution::get(factAbs._args, decFact._args);
+        bool forbidden = false;
+        if (left.getForbiddenSubstitutions().count(op)) {
+            for (const substitution_t& sForbidden : left.getForbiddenSubstitutions().at(op)) {
+                if (Substitution::implies(s, sForbidden)) {
+                    // Not a valid fact decoding (unsat precondition or something)
+                    forbidden = true;
+                    break;
+                }
+            }
+        }
+        if (forbidden) continue;
+
         Signature decFactSigned = fact._negated ? decFact.opposite() : decFact;
         assert(!decFact._negated && !factAbs._negated);
         assert(decFactSigned._negated == fact._negated);
