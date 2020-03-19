@@ -446,9 +446,6 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("axiomaticops");
 
-    // assume primitiveness
-    assume(varPrim);
-
     log("  Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
     if (layerIdx > 1 && pos == 0) {
@@ -459,6 +456,13 @@ void Encoding::encode(int layerIdx, int pos) {
         for (int p = 0; p < layerToClear.size(); p++) {
             layerToClear[p].clearUnneeded();
         }
+    }
+}
+
+void Encoding::addAssumptions(int layerIdx) {
+    Layer& l = _layers->at(layerIdx);
+    for (int pos = 0; pos < l.size(); pos++) {
+        assume(varPrimitive(layerIdx, pos));
     }
 }
 

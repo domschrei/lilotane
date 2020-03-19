@@ -39,12 +39,12 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
-    setParam("aamo"); // All at-most-one constraints
+    setParam("aamo"); // ALL At-most-one constraints, also for reductions
     //setParam("cs"); // check solvability (without assumptions)
-    setParam("d", "0"); // max depth (= num iterations)
+    setParam("d", "0"); // min depth to start SAT solving at
+    setParam("D", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
     //setParam("of"); // output formula to f.cnf
-    //setParam("aamo"); // ALL At-most-one constraints, also for reductions
     //setParam("pvn"); // print variable names
     //setParam("q"); // q-constants
     //setParam("qq"); // no instantiation of preconditions
@@ -61,8 +61,9 @@ void Parameters::printUsage() {
     log(" -aamo       Add ALL At-most-one constraints, also for reductions\n");
     log(" -cs         Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     log("             to see whether the formula has become generally unsatisfiable\n");
-    log(" -d=<depth>  Maximum depth to explore (0 : no limit)\n");
-    log("             default: %i\n", getIntParam("d"));
+    log(" -d=<depth>  Minimum depth to begin SAT solving at\n");
+    log(" -D=<depth>  Maximum depth to explore (0 : no limit)\n");
+    log("             default: %i\n", getIntParam("D"));
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     log(" -of         Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     log(" -pvn        Print variable names\n");

@@ -91,29 +91,39 @@ int Planner::findPlan() {
     /***** LAYER 0 END ******/
 
     initLayer.consolidate();
-    bool solved = _enc.solve();
+
+    // Bounds on depth to solve / explore
+    int firstSatCallIteration = _params.getIntParam("d");
+    int maxIterations = _params.getIntParam("D");
+
+    bool solved = false;
+    if (iteration >= firstSatCallIteration) {
+        _enc.addAssumptions(_layer_idx);
+        solved = _enc.solve();
+    } 
     
     // Next layers
-
-    int maxIterations = _params.getIntParam("d");
-
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
-        _enc.printFailedVars(_layers.back());
 
-        if (_params.isSet("cs")) { // check solvability
-            log("Unsolvable at layer %i with assumptions\n", _layer_idx);
+        if (iteration >= firstSatCallIteration) {
 
-            // Attempt to solve formula again, now without assumptions
-            // (is usually simple; if it fails, we know the entire problem is unsolvable)
-            solved = _enc.solve();
-            if (!solved) {
-                log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
-                break;
+            _enc.printFailedVars(_layers.back());
+
+            if (_params.isSet("cs")) { // check solvability
+                log("Unsolvable at layer %i with assumptions\n", _layer_idx);
+
+                // Attempt to solve formula again, now without assumptions
+                // (is usually simple; if it fails, we know the entire problem is unsolvable)
+                solved = _enc.solve();
+                if (!solved) {
+                    log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
+                    break;
+                } else {
+                    log("Solvable without assumptions - expanding by another layer\n");
+                }
             } else {
-                log("Solvable without assumptions - expanding by another layer\n");
+                log("Unsolvable at layer %i -- expanding.\n", _layer_idx);
             }
-        } else {
-            log("Unsolvable at layer %i -- expanding.\n", _layer_idx);
         }
 
         iteration++;      
@@ -149,17 +159,17 @@ int Planner::findPlan() {
         }
 
         newLayer.consolidate();
-        solved = _enc.solve();
+
+        if (iteration >= firstSatCallIteration) {
+            _enc.addAssumptions(_layer_idx);
+            solved = _enc.solve();
+        } 
     }
 
     if (!solved) {
-        _enc.printFailedVars(_layers.back());
-        //log("Limit exceeded. Solving without assumptions ...\n");
-        //solved = _enc.solve();
-        if (!solved) {
-            log("No success. Exiting.\n");
-            return 1;
-        }
+        if (iteration >= firstSatCallIteration) _enc.printFailedVars(_layers.back());
+        log("No success. Exiting.\n");
+        return 1;
     }
 
     log("Found a solution at layer %i.\n", _layers.size()-1);
@@ -594,6 +604,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (const Signature& decFact : _htn.getDecodedObjects(factAbs)) {
 
+        /*
         // TODO Make this check much more efficient while maintaining semantics.
         substitution_t s = Substitution::get(factAbs._args, decFact._args);
         bool forbidden = false;
@@ -607,7 +618,8 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
             }
         }
         if (forbidden) continue;
-
+        */
+        
         Signature decFactSigned = fact._negated ? decFact.opposite() : decFact;
         assert(!decFact._negated && !factAbs._negated);
         assert(decFactSigned._negated == fact._negated);

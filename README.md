@@ -31,7 +31,22 @@ Execute the planner executable like this:
 ./treerexx path/to/domain.hddl path/to/problem.hddl
 ```
 
+Interesting options:
+
+* `-qq`: Use this option to introduce "q-constants" during instantiation and encoding. 
+Intuitively, if an action or a reduction has free arguments, normally the operator is instantiated with _all possible argument combinations_, which may become huge. For example, a reduction `(transport ?truck pkg ?loc1 x)` would normally ground `truck` and `?loc1`, introducing a new reduction for each truck-location combination. 
+Instead, `-qq` makes treerexx preserve these parameters as free arguments: `?truck` and `?loc1` will be dynamically introduced to the problem as new constants ("question mark constants", or q-constants). Depending on the domain, this technique may dramatically outperform the normal variant because no grounding is required and the encoding can be much smaller. However, some types of clauses of the encoding become much more complicated and some additional overhead is needed, so for some domains it is not worth it.
+* `-aamo`: Add ALL at-most-one constraints: Introduce pairwise at-most-one constraints not only for actions, but also for reductions. When using `-qq`, you should usually also use `-aamo` as there is virtually no overhead due to the very small number of reductions.
+* `-of`: Output the generated formula to `./f.cnf`. As treerexx works incrementally, the formula will consist of all clauses added during program execution. Additionally, when the program exits, the assumptions used in the final SAT call will be added to the formula as well.
+* `-d=<depth>`: The **minimum** depth for which treerexx will attempt to solve the generated formula. 
+* `-D=<depth>`: Limit the **maximum** depth to explore. After the specified amount of layers, if no solution was found treerexx will report unsatisfiability (for this amount of layers) and exit. Useful together with `-of` if you want to generate a CNF file for some specific number of layers.
+* `-cs`: Check solvability. When this option is set and treerexx finds unsatisfiability at layer k, it will re-run the SAT solver, this time without assumptions. If this SAT call returns unsatisfiability, too, then the formula is generally unsatisfiable and it will always remain unsatisfiable no matter the following iterations. In that case, something is wrong either with the internals of treerexx, the provided parameters or the provided planning problem; treerexx exits. If the SAT call returns satisfiability, treerexx proceeds to instantiate the next layer.
+
+From experiments so far, the arguments `-qq -aamo` and nothing else seem to work best for overall good performance. 
+
 ## License
+
+**Until the submission deadline of the [HTN IPC 2020](http://gki.informatik.uni-freiburg.de/competition.html), this repository and this code are private. Do not share.**
 
 The code of the planner is published under the GNU GPLv3. Consult the LICENSE file for details.  
 The planner uses (slightly adapted) code from the [pandaPIparser project](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.

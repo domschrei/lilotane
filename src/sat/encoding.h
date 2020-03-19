@@ -73,6 +73,7 @@ public:
     ~Encoding();
 
     void encode(int layerIdx, int pos);
+    void addAssumptions(int layerIdx);
     bool solve();
 
     void stage(std::string name);
