@@ -32,9 +32,6 @@ private:
     SigSet _true_facts;
     HashMap<Signature, SigSet, SignatureHasher> _fact_supports;
 
-    HashMap<Signature, SigSet, SignatureHasher> _qfact_decodings;
-    HashMap<Signature, SigSet, SignatureHasher> _qfact_abstractions;
-
     HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
     HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> _forbidden_substitutions_per_op;
 
@@ -49,10 +46,7 @@ public:
 
     void addFact(const Signature& fact) {_facts.insert(fact);}
     void addTrueFact(const Signature& fact) {_true_facts.insert(fact);}
-    void addQFactDecoding(const Signature& qfact, const Signature& decoding) {
-        _qfact_decodings[qfact]; _qfact_decodings[qfact].insert(decoding);
-        _qfact_abstractions[decoding]; _qfact_abstractions[decoding].insert(qfact);
-    }
+
     void addFactSupport(const Signature& fact, const Signature& operation) {
         _fact_supports[fact];
         _fact_supports[fact].insert(operation);
@@ -103,8 +97,6 @@ public:
     
     const SigSet& getFacts() const {return _facts;}
     const SigSet& getTrueFacts() const {return _true_facts;}
-    const HashMap<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
-    const HashMap<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
     const HashMap<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
     const HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
         return _q_constants_type_constraints;
@@ -125,8 +117,6 @@ public:
         _axiomatic_ops.clear();
         _true_facts.clear();
         _fact_supports.clear();
-        _qfact_decodings.clear();
-        _qfact_abstractions.clear();
         _q_constants_type_constraints.clear();
         for (const Signature& fact : _facts) {
             _variables.erase(fact);

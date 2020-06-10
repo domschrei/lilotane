@@ -86,7 +86,7 @@ public:
         _fact_occurrences[fact].first = std::min(_fact_occurrences[fact].first, pos);
     }
     void withdraw(int pos, const Signature& fact) {
-        assert(_fact_occurrences.count(fact));
+        if (!_fact_occurrences.count(fact)) return;
         _fact_occurrences[fact].second = pos;
     }
 

@@ -50,6 +50,7 @@ private:
     std::ofstream _out;
 
     Signature _sig_primitive;
+    Signature _sig_substitution;
     int _substitute_name_id;
 
     std::unordered_set<int> _q_constants;
@@ -67,6 +68,8 @@ private:
 
     std::map<std::string, int> _num_cls_per_stage;
     std::map<std::string, int> _total_num_cls_per_stage;
+
+
 
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
@@ -91,18 +94,25 @@ private:
     void encodeFactVariables(Position& pos, const Position& left);
     void initSubstitutionVars(int qconst, Position& pos);
 
-    Signature sigSubstitute(int qConstId, int trueConstId) {
+    const Signature& sigSubstitute(int qConstId, int trueConstId) {
         assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);
-        std::vector<int> args(2);
+        auto& args = _sig_substitution._args;
         args[0] = (qConstId);
         args[1] = (trueConstId);
-        return Signature(_substitute_name_id, args);
+        return _sig_substitution;
     }
 
-    std::set<std::set<int>> getCnf(const std::vector<std::vector<int>>& dnf);
+    std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
+    void addClause(int lit);
+    void addClause(int lit1, int lit2);
+    void addClause(int lit1, int lit2, int lit3);
     void addClause(const std::initializer_list<int>& lits);
+
+    void appendClause(int lit);
+    void appendClause(int lit1, int lit2);
     void appendClause(const std::initializer_list<int>& lits);
+    
     void endClause();
     void assume(int lit);
 

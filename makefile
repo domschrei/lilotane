@@ -15,7 +15,7 @@ LINKERFLAG=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
 
 #COMPILEFLAGS=-O0 -ggdb -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
 #LINKERFLAG=-O0 -ggdb
-INCLUDES=-Isrc -Isrc/parser -Ilib/DySECT
+INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = parser clean
 

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 timeout=10
-domains="entertainment miconic rover satellite smartphone transport umtranslog woodworking zenotravel"
+domains="miconic smartphone satellite umtranslog woodworking zenotravel rover transport entertainment" 
 
-exit_on_verify_fail=false
+exit_on_verify_fail=true
 
 set -e
 set -o pipefail

@@ -311,25 +311,32 @@ void Planner::createNextFromLeft(const Position& left) {
         if (!add) {
             // forget q-facts that have become irrelevant
             //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
+            getLayerState().withdraw(_pos, fact);
             continue;
         }
         newPos.addFact(fact);
     }
+
     // Propagate fact decodings
+    // TODO 
+    /*
     for (const auto& entry : left.getQFactDecodings()) {
         bool add = true;
         for (const int& arg : entry.first._args) {
             if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
         }
         if (!add) {
+
             // forget q-fact decodings that have become irrelevant
             //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
             continue;
         } 
         for (const Signature& dec : entry.second) {
             newPos.addQFactDecoding(entry.first, dec);
+            _htn.addQFactDecoding(entry.first, dec);
         }
     }
+    */
 }
 
 void Planner::propagateInitialState() {
@@ -362,12 +369,6 @@ void Planner::createNextFromAbove(const Position& above) {
         for (const Signature& fact : above.getFacts()) {
             //assert(newPos.getFacts().count(entry.first)); // already added as false fact!
             newPos.addFact(fact);
-        }
-        // Propagate fact decodings
-        for (const auto& entry : above.getQFactDecodings()) {
-            for (const Signature& dec : entry.second) {
-                newPos.addQFactDecoding(entry.first, dec);
-            }
         }
     }
 
@@ -577,7 +578,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
             introduceNewFalseFact(pos, decFact);
         }
 
-        pos.addQFactDecoding(factAbs, decFact.abs());
+        _htn.addQFactDecoding(factAbs, decFact.abs());
         pos.addFact(decFact.abs()); // also add fact as an (indirect) consequence of op
     }
 }
@@ -624,7 +625,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
         assert(!decFact._negated && !factAbs._negated);
         assert(decFactSigned._negated == fact._negated);
 
-        pos.addQFactDecoding(factAbs, decFact);
+        _htn.addQFactDecoding(factAbs, decFact);
         getLayerState().add(_pos, decFactSigned);
     }
 }

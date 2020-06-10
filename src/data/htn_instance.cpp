@@ -612,7 +612,7 @@ const std::vector<Signature>& HtnInstance::getDecodedObjects(const Signature& qS
     }
     Signature normSig = qSig.substitute(s);
 
-    if (!_fact_decodings.count(normSig)) {
+    if (!_fact_sig_decodings.count(normSig)) {
         // Calculate decoded objects
 
         assert(_instantiator->isFullyGround(qSig));
@@ -631,10 +631,10 @@ const std::vector<Signature>& HtnInstance::getDecodedObjects(const Signature& qS
             assert(eligibleArgs[argPos].size() > 0);
         }
 
-        _fact_decodings[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
+        _fact_sig_decodings[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
     }
 
-    return _fact_decodings[normSig]; 
+    return _fact_sig_decodings[normSig]; 
 }
 
 const std::unordered_set<int>& HtnInstance::getSortsOfQConstant(int qconst) {
@@ -649,8 +649,23 @@ const std::unordered_set<int>& HtnInstance::getDomainOfQConstant(int qconst) {
     return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
 }
 
+void HtnInstance::addQFactDecoding(const Signature& qFact, const Signature& decFact) {
+    _qfact_decodings[qFact];
+    _qfact_decodings[qFact].insert(decFact);
+    _qfact_abstractions[decFact];
+    _qfact_abstractions[decFact].insert(qFact);
+}
+
+const SigSet& HtnInstance::getQFactDecodings(const Signature& qFact) {
+    return _qfact_decodings[qFact];
+}
+
+const SigSet& HtnInstance::getQFactAbstractions(const Signature& decFact) {
+    return _qfact_abstractions[decFact];
+}
+
 bool HtnInstance::hasQConstants(const Signature& sig) {
-    for (int arg : sig._args) {
+    for (const int& arg : sig._args) {
         if (_q_constants.count(arg)) return true;
     }
     return false;

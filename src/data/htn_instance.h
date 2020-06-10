@@ -48,7 +48,12 @@ struct HtnInstance {
     HashMap<int, int> _primary_sort_of_q_constants;
     HashMap<int, std::unordered_set<int>> _sorts_of_q_constants;
 
-    HashMap<Signature, std::vector<Signature>, SignatureHasher> _fact_decodings; 
+    // Maps a normalized fact signature to a list of possible decodings
+    // using the normalized arguments.
+    HashMap<Signature, std::vector<Signature>, SignatureHasher> _fact_sig_decodings;
+
+    HashMap<Signature, SigSet, SignatureHasher> _qfact_decodings;
+    HashMap<Signature, SigSet, SignatureHasher> _qfact_abstractions;
 
     // Maps an action name ID to its action object.
     HashMap<int, Action> _actions;
@@ -107,6 +112,10 @@ struct HtnInstance {
     const std::vector<Signature>& getDecodedObjects(const Signature& qFact);
     const std::unordered_set<int>& getSortsOfQConstant(int qconst);
     const std::unordered_set<int>& getDomainOfQConstant(int qconst);
+
+    void addQFactDecoding(const Signature& qFact, const Signature& decFact);
+    const SigSet& getQFactDecodings(const Signature& qfact);
+    const SigSet& getQFactAbstractions(const Signature& decFact);
 
     const std::unordered_set<int>& getConstantsOfSort(int sort);
 
