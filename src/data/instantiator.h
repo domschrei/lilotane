@@ -60,13 +60,13 @@ public:
     }
 
     std::vector<Reduction> getApplicableInstantiations(const Reduction& r,
-            const std::unordered_map<int, SigSet>& facts, int mode = -1);
+            const std::function<bool(const Signature&)>& state, int mode = -1);
     std::vector<Action> getApplicableInstantiations(const Action& a,
-            const std::unordered_map<int, SigSet>& facts, int mode = -1);
+            const std::function<bool(const Signature&)>& state, int mode = -1);
 
-    SigSet instantiate(const HtnOp& op, const std::unordered_map<int, SigSet>& facts);
+    SigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 
-    std::unordered_map<Signature, 
+    HashMap<Signature, 
                        std::unordered_set<substitution_t, Substitution::Hasher>, 
                        SignatureHasher> 
         getOperationSubstitutionsCausingEffect(
@@ -75,14 +75,14 @@ public:
 
     bool isFullyGround(const Signature& sig);
     std::vector<int> getFreeArgPositions(const Signature& sig);
-    bool fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution);
+    bool fits(Signature& sig, Signature& groundSig, HashMap<int, int>* substitution);
     bool hasSomeInstantiation(const Signature& sig);
 
     bool hasConsistentlyTypedArgs(const Signature& sig);
     std::vector<TypeConstraint> getQConstantTypeConstraints(const Signature& sig);
 
-    bool test(const Signature& sig, const std::unordered_map<int, SigSet>& facts);
-    bool hasValidPreconditions(const HtnOp& op, const std::unordered_map<int, SigSet>& facts);
+    bool test(const Signature& sig, const std::function<bool(const Signature&)>& state);
+    bool hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 };
 
 

@@ -4,9 +4,10 @@
 
 #include <vector>
 #include <unordered_set>
-#include <unordered_map>
 #include <assert.h>
+#include <limits>
 
+#include "data/hashmap.h"
 #include "util/hash.h"
 
 struct TypeConstraint {
@@ -17,7 +18,7 @@ struct TypeConstraint {
         qconstant(qconstant), sign(sign), constants(constants) {}
 };
 
-typedef std::unordered_map<int, int> substitution_t;
+typedef HashMap<int, int> substitution_t;
 
 namespace Substitution {
     substitution_t get(const std::vector<int>& src, const std::vector<int>& dest);
@@ -39,12 +40,13 @@ namespace Substitution {
 
 struct Signature {
     
-    int _name_id;
+    int _name_id = -1;
     std::vector<int> _args;
     mutable bool _negated = false;
 
-    Signature() : _name_id(-1), _args() {}
+    Signature() {}
     Signature(int nameId, const std::vector<int>& args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}
+    Signature(const Signature& sig) : _name_id(sig._name_id), _args(sig._args), _negated(sig._negated) {}
 
     void negate() {
         _negated = !_negated;
@@ -59,7 +61,7 @@ struct Signature {
         return out;
     }
 
-    Signature substitute(const std::unordered_map<int, int>& s) const {
+    Signature substitute(const HashMap<int, int>& s) const {
         Signature sig;
         sig._name_id = _name_id;
         assert(sig._name_id != 0);

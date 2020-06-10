@@ -2,10 +2,9 @@
 #ifndef DOMPASCH_TREE_REXX_EFFECTOR_GRAPH_H
 #define DOMPASCH_TREE_REXX_EFFECTOR_GRAPH_H
 
-
-#include <unordered_map>
 #include <functional>
 
+#include <data/hashmap.h>
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
@@ -21,7 +20,7 @@ private:
     // Maps an (action|reduction) name 
     // to the set of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    std::unordered_map<int, std::vector<Signature>> _fact_changes; 
+    HashMap<int, std::vector<Signature>> _fact_changes; 
 
 public:
     EffectorTable(HtnInstance& htn) : _htn(&htn) {}

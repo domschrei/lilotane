@@ -25,7 +25,7 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const Signature& si
     for (int i = 0; i < sig._args.size(); i++) {
         placeholderArgs.push_back(-i-1);
     }
-    std::unordered_map<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, sig._args);
+    HashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, sig._args);
 
     if (!_fact_changes.count(nameId)) {
         // Compute fact changes for origSig

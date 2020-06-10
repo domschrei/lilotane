@@ -65,7 +65,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     // in positive AND negative form: create two new actions in these cases
     if (_params.isSet("q") || _params.isSet("qq")) {
 
-        std::unordered_map<int, Action> newActions;
+        HashMap<int, Action> newActions;
 
         for (const auto& pair : _actions) {
             int aId = pair.first;
@@ -509,18 +509,18 @@ SigSet HtnInstance::getAllFactChanges(const Signature& sig) {
 
 Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos) {
     Signature sig = a.getSignature();
-    std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
+    HashMap<int, int> s = addQConstants(sig, layerIdx, pos);
     HtnOp op = a.substitute(s);
     return Action(op);
 }
 Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos) {
     Signature sig = red.getSignature();
-    std::unordered_map<int, int> s = addQConstants(sig, layerIdx, pos);
+    HashMap<int, int> s = addQConstants(sig, layerIdx, pos);
     return red.substituteRed(s);
 }
 
-std::unordered_map<int, int> HtnInstance::addQConstants(const Signature& sig, int layerIdx, int pos) {
-    std::unordered_map<int, int> s;
+HashMap<int, int> HtnInstance::addQConstants(const Signature& sig, int layerIdx, int pos) {
+    HashMap<int, int> s;
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig);
     for (int argPos : freeArgPositions) {
         addQConstant(layerIdx, pos, sig, argPos, s);
@@ -528,7 +528,7 @@ std::unordered_map<int, int> HtnInstance::addQConstants(const Signature& sig, in
     return s;
 }
 
-void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s) {
+void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, HashMap<int, int>& s) {
 
     int arg = sig._args[argPos];
     assert(_name_back_table[arg][0] == '?');
@@ -544,7 +544,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const Signature& sig, int 
     // If there is only a single option for the q constant: 
     // just insert that one option.
     if (domain.size() == 1) {
-        int c; for (int x : domain) c = x;
+        int c = -1; for (int x : domain) c = x;
         s[arg] = c;
         return;
     }   

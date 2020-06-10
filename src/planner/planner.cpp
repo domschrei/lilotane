@@ -31,12 +31,12 @@ int Planner::findPlan() {
     for (const Signature& fact : initState) {
         initLayer[_pos].addFact(fact.abs());
         initLayer[_pos].addTrueFact(fact);
-        initLayer[_pos].extendState(fact);
+        getLayerState().add(_pos, fact);
     }
 
     // Instantiate all possible init. reductions
     _htn._init_reduction_choices = _instantiator.getApplicableInstantiations(
-            _htn._init_reduction, initLayer[0].getState());
+            _htn._init_reduction, getStateEvaluator());
     std::vector<Reduction> roots = _htn._init_reduction_choices;
     for (const Reduction& r : roots) {
 
@@ -45,7 +45,7 @@ int Planner::findPlan() {
         
         // Check validity
         if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-        if (!_instantiator.hasValidPreconditions(red, initLayer[_pos].getState())) continue;
+        if (!_instantiator.hasValidPreconditions(red, getStateEvaluator())) continue;
         
         // Remove unneeded rigid conditions from the reduction
         _htn.removeRigidConditions(red);
@@ -79,7 +79,7 @@ int Planner::findPlan() {
     // Extract primitive goals, add to preconds of goal action
     SigSet goalSet = _htn.getGoals();
     for (const Signature& fact : goalSet) {
-        assert(initLayer[_pos].containsInState(fact));
+        assert(getLayerState().contains(_pos, fact));
         assert(initLayer[_pos].getFacts().count(fact.abs()));
         goalAction.addPrecondition(fact);
         addPrecondition(goalSig, fact);
@@ -243,10 +243,10 @@ int Planner::findPlan() {
 
 
 
-void introduceNewFalseFact(Position& newPos, const Signature& fact) {
+void Planner::introduceNewFalseFact(Position& newPos, const Signature& fact) {
     newPos.addTrueFact(fact.abs().opposite());
     newPos.addFact(fact.abs());
-    newPos.extendState(fact.abs().opposite());
+    getLayerState(newPos.getPos().first).add(newPos.getPos().second, fact.abs().opposite());
     //log("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
     //        newPos.getPos().first, newPos.getPos().second);
 }
@@ -279,7 +279,7 @@ void Planner::createNextFromLeft(const Position& left) {
     assert(left.getPos() == IntPair(_layer_idx, _pos-1));
 
     // Propagate state
-    newPos.extendState(left.getState());
+    //newPos.extendState(left.getState());
 
     std::unordered_set<int> relevantQConstants;
 
@@ -349,7 +349,7 @@ void Planner::propagateInitialState() {
         newPos.addTrueFact(fact);
     }
     // Propagate state
-    newPos.extendState(above.getState());
+    getLayerState(_layer_idx) = LayerState(getLayerState(_layer_idx-1));
 }
 
 void Planner::createNextFromAbove(const Position& above) {
@@ -387,7 +387,7 @@ void Planner::propagateActions(int offset) {
         // Can the action occur here w.r.t. the current state?
         bool valid = true;
         for (const Signature& fact : a.getPreconditions()) {
-            if (!_htn.hasQConstants(fact) && !newPos.containsInState(fact)) {
+            if (!_htn.hasQConstants(fact) && !getLayerState().contains(_pos, fact)) {
                 // Action cannot occur here!
                 valid = false; break;
             }
@@ -433,7 +433,7 @@ void Planner::propagateReductions(int offset) {
             // Proper expansion
             const Signature& subtask = r.getSubtasks()[offset];
             // reduction(s)?
-            for (const Signature& subRSig : getAllReductionsOfTask(subtask, newPos.getState())) {
+            for (const Signature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
                 numAdded++;
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
@@ -455,7 +455,7 @@ void Planner::propagateReductions(int offset) {
                 //log("\n");
             }
             // action(s)?
-            for (const Signature& aSig : getAllActionsOfTask(subtask, newPos.getState())) {
+            for (const Signature& aSig : getAllActionsOfTask(subtask, getStateEvaluator())) {
                 numAdded++;
                 assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig);
@@ -555,7 +555,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     //log("pre %s of %s\n", Names::to_string(fact).c_str(), Names::to_string(op).c_str());
     // Precondition must be valid (or a q fact)
-    if (!_htn.hasQConstants(fact)) assert(pos.containsInState(fact) 
+    if (!_htn.hasQConstants(fact)) assert(getLayerState().contains(_pos, fact) 
             || fail(Names::to_string(fact) + " not contained in state!\n"));
 
     // Add additional reason for the fact / add it first if it's a q-constant
@@ -566,7 +566,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
     for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
         if (fact._negated) decFact.negate();
         
-        if (!_instantiator.test(decFact, pos.getState())) {
+        if (!_instantiator.test(decFact, getStateEvaluator())) {
             // Fact cannot be true here
             pos.addForbiddenSubstitution(op, Substitution::get(fact._args, decFact._args));
             continue;
@@ -585,7 +585,7 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 void Planner::addEffect(const Signature& op, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
     assert(_pos > 0);
-    Position& left = _layers[_layer_idx][_pos-1];
+    //Position& left = _layers[_layer_idx][_pos-1];
     Signature factAbs = fact.abs();
 
     pos.addFact(factAbs);
@@ -599,7 +599,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
         pos.touchFactSupport(fact);
     }
     
-    pos.extendState(fact);
+    getLayerState().add(_pos, fact);
 
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
     for (const Signature& decFact : _htn.getDecodedObjects(factAbs)) {
@@ -625,7 +625,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
         assert(decFactSigned._negated == fact._negated);
 
         pos.addQFactDecoding(factAbs, decFact);
-        pos.extendState(decFactSigned);
+        getLayerState().add(_pos, decFactSigned);
     }
 }
 
@@ -639,7 +639,7 @@ void Planner::addQConstantTypeConstraints(const Signature& op) {
 }
 
 
-std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, const State& state) {
+std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, std::function<bool(const Signature&)> state) {
     std::vector<Signature> result;
 
     if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
@@ -690,7 +690,7 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, co
     return result;
 }
 
-std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const State& state) {
+std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, std::function<bool(const Signature&)> state) {
     std::vector<Signature> result;
 
     if (!_htn._actions.count(task._name_id)) return result;
@@ -704,7 +704,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     Action act = (Action) op;
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
     
-    std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, _layers[_layer_idx][_pos].getState());
+    std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
     for (Action& action : actions) {
         Signature sig = action.getSignature();
 
@@ -731,3 +731,13 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, const
     return result;
 }
 
+LayerState& Planner::getLayerState(int layer) {
+    if (layer == -1) layer = _layer_idx;
+    return _layers[layer].getState();
+}
+
+std::function<bool(const Signature&)> Planner::getStateEvaluator(int layer, int pos) {
+    if (layer == -1) layer = _layer_idx;
+    if (pos == -1) pos = _pos;
+    return [this,layer,pos](const Signature& sig) {return getLayerState(layer).contains(pos, sig);};
+}

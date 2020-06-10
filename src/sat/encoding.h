@@ -20,7 +20,7 @@ extern "C" {
 
 #define PRINT_TO_FILE true
 
-typedef std::unordered_map<int, SigSet> State;
+typedef HashMap<int, SigSet> State;
 
 struct PlanItem {
     PlanItem() {
@@ -44,7 +44,7 @@ private:
     HtnInstance& _htn;
     std::vector<Layer>* _layers;
     
-    std::unordered_map<Signature, int, SignatureHasher> _substitution_variables;
+    HashMap<Signature, int, SignatureHasher> _substitution_variables;
 
     void* _solver;
     std::ofstream _out;

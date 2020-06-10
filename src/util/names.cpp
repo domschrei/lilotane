@@ -1,15 +1,15 @@
 
-#include <unordered_map>
 #include <iostream>
 
+#include "data/hashmap.h"
 #include "util/names.h"
 #include "util/log.h"
 
-std::unordered_map<int, std::string>* nbt;
+HashMap<int, std::string>* nbt;
 
 namespace Names {
     
-    void init(std::unordered_map<int, std::string>& nameBackTable) {
+    void init(HashMap<int, std::string>& nameBackTable) {
         nbt = &nameBackTable;
     }
 
@@ -40,7 +40,7 @@ namespace Names {
         return out;
     }
 
-    std::string to_string(const std::unordered_map<int, int>& s) {
+    std::string to_string(const HashMap<int, int>& s) {
         std::string out = "";
         for (const auto& pair : s) {
             out += "[" + to_string(pair.first) + "/" + to_string(pair.second) + "]";

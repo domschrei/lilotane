@@ -92,7 +92,7 @@ public:
         _subtasks = newSubtasks;
     }
 
-    Reduction substituteRed(const std::unordered_map<int, int>& s) const {
+    Reduction substituteRed(const HashMap<int, int>& s) const {
         HtnOp op = HtnOp::substitute(s);
         Reduction r(op);
         
@@ -127,6 +127,13 @@ public:
     }
     const std::vector<Signature>& getSubtasks() const {
         return _subtasks;
+    }
+
+    Reduction& operator=(const Reduction& other) {
+        _task_name_id = other._task_name_id;
+        _task_args = other._task_args;
+        _subtasks = other._subtasks;
+        return *this;
     }
 };
 

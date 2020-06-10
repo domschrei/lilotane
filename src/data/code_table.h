@@ -4,11 +4,11 @@
 
 #include <string>
 #include <vector>
-#include <unordered_map>
 
+#include "data/hashmap.h"
 #include "signature.h"
 
-typedef std::unordered_map<Signature, int, SignatureHasher> SigToIntMap;
+typedef HashMap<Signature, int, SignatureHasher> SigToIntMap;
 
 class CodeTable {
 
@@ -31,7 +31,7 @@ public:
 class AssociativeCodeTable {
 
 private:
-    std::unordered_map<int, SigToIntMap> _content_per_predicate;
+    HashMap<int, SigToIntMap> _content_per_predicate;
     int _id = 1;
 
 public:

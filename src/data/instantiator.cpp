@@ -1,6 +1,7 @@
 
 #include <assert.h>
 #include <set>
+#include <algorithm>
 
 #include "data/instantiator.h"
 #include "util/names.h"
@@ -8,14 +9,14 @@
 #include "data/arg_iterator.h"
 
 std::vector<Reduction> Instantiator::getApplicableInstantiations(
-    const Reduction& r, const std::unordered_map<int, SigSet>& facts, int mode) {
+    const Reduction& r, const std::function<bool(const Signature&)>& state, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
 
     std::vector<Reduction> result;
 
-    SigSet inst = instantiate(r, facts);
+    SigSet inst = instantiate(r, state);
     for (const Signature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
         result.push_back(r.substituteRed(Substitution::get(r.getArguments(), sig._args)));
@@ -27,14 +28,14 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 }
 
 std::vector<Action> Instantiator::getApplicableInstantiations(
-    const Action& a, const std::unordered_map<int, SigSet>& facts, int mode) {
+    const Action& a, const std::function<bool(const Signature&)>& state, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
 
     std::vector<Action> result;
 
-    SigSet inst = instantiate(a, facts);
+    SigSet inst = instantiate(a, state);
     for (const Signature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
         assert(isFullyGround(sig));
@@ -80,7 +81,7 @@ struct CompArgs {
     }
 };
 
-SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, SigSet>& facts) {
+SigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
     __op = &op;
 
     //if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
@@ -97,7 +98,7 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
     assert(priorSize == argsByPriority.size());
 
     // Create back transformation of argument positions
-    std::unordered_map<int, int> argPosBackMapping;
+    HashMap<int, int> argPosBackMapping;
     for (int j = 0; j < argsByPriority.size(); j++) {
         for (int i = 0; i < op.getArguments().size(); i++) {
             if (op.getArguments()[i] == argsByPriority[j]) {
@@ -128,7 +129,7 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
     }
     
     if (doneInstSize == 0 || argsByPriority.empty()) {
-        if (hasValidPreconditions(op, facts) 
+        if (hasValidPreconditions(op, state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
         return instantiation;
@@ -159,7 +160,7 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
             HtnOp newOp = op.substitute(s);
 
             // Test validity
-            if (!hasValidPreconditions(newOp, facts)) continue;
+            if (!hasValidPreconditions(newOp, state)) continue;
 
             // All ok -- add to stack
             if (newAssignment.size() == doneInstSize) {
@@ -191,11 +192,11 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::unordered_map<int, 
 // Given a fact (signature) and (a set of ground htn operations containing q constants),
 // compute the possible sets of substitutions that are necessary to let each operation
 // have the specified fact in its support.
-std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> 
+HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> 
 Instantiator::getOperationSubstitutionsCausingEffect(
     const std::unordered_set<Signature, SignatureHasher>& operations, const Signature& fact) {
 
-    std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
+    HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
 
     // For each provided HtnOp:
     for (const Signature& opSig : operations) {
@@ -263,7 +264,7 @@ std::vector<int> Instantiator::getFreeArgPositions(const Signature& sig) {
     return argPositions;
 }
 
-bool Instantiator::fits(Signature& sig, Signature& groundSig, std::unordered_map<int, int>* substitution) {
+bool Instantiator::fits(Signature& sig, Signature& groundSig, HashMap<int, int>* substitution) {
     assert(sig._name_id == groundSig._name_id);
     assert(sig._args.size() == groundSig._args.size());
     assert(isFullyGround(groundSig));
@@ -353,35 +354,30 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Sign
     return constraints;
 }
 
-bool Instantiator::test(const Signature& sig, const std::unordered_map<int, SigSet>& facts) {
+bool Instantiator::test(const Signature& sig, const std::function<bool(const Signature&)>& state) {
     assert(isFullyGround(sig));
     bool positive = !sig._negated;
     
-    if (!facts.count(sig._name_id)) {
-        // Never saw such a predicate: cond. holds iff it is negative
-        return !positive;
-    }
-
     // Q-Fact: assume that it holds
     if (_htn->hasQConstants(sig)) return true;
 
     // fact positive : true iff contained in facts
-    if (positive) return facts.at(sig._name_id).count(sig);
+    if (positive) return state(sig);
     
     // fact negative.
 
     // if contained in facts : return true
     //   (fact occurred negative)
-    if (facts.at(sig._name_id).count(sig)) return true;
+    if (state(sig)) return true;
     
     // else: return true iff fact does NOT occur in positive form
-    return !facts.at(sig._name_id).count(sig.opposite());
+    return !state(sig.opposite());
 }
 
-bool Instantiator::hasValidPreconditions(const HtnOp& op, const std::unordered_map<int, SigSet>& facts) {
+bool Instantiator::hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
 
     for (const Signature& pre : op.getPreconditions()) {
-        if (isFullyGround(pre) && !test(pre, facts)) {
+        if (isFullyGround(pre) && !test(pre, state)) {
             return false;
         }
     }

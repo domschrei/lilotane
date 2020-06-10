@@ -2,7 +2,6 @@
 #ifndef DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 #define DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 
-#include <unordered_map>
 #include <assert.h> 
  
 #include "parser/main.hpp"
@@ -13,6 +12,7 @@
 #include "data/signature.h"
 #include "util/names.h"
 #include "util/params.h"
+#include "data/hashmap.h"
 
 #include "data/instantiator.h"
 #include "data/effector_table.h"
@@ -30,8 +30,8 @@ struct HtnInstance {
     ParsedProblem& _p;
 
     // Maps a string to its name ID within the problem.
-    std::unordered_map<std::string, int> _name_table;
-    std::unordered_map<int, std::string> _name_back_table;
+    HashMap<std::string, int> _name_table;
+    HashMap<int, std::string> _name_back_table;
     // Running ID to assign to new strings of the problem.
     int _name_table_running_id = 1;
 
@@ -39,27 +39,27 @@ struct HtnInstance {
     std::unordered_set<int> _var_ids;
 
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
-    std::unordered_map<int, std::vector<int>> _signature_sorts_table;
+    HashMap<int, std::vector<int>> _signature_sorts_table;
 
     // Maps a sort name ID to a list of constant name IDs of that sort.
-    std::unordered_map<int, std::unordered_set<int>> _constants_by_sort;
+    HashMap<int, std::unordered_set<int>> _constants_by_sort;
 
     std::unordered_set<int> _q_constants;
-    std::unordered_map<int, int> _primary_sort_of_q_constants;
-    std::unordered_map<int, std::unordered_set<int>> _sorts_of_q_constants;
+    HashMap<int, int> _primary_sort_of_q_constants;
+    HashMap<int, std::unordered_set<int>> _sorts_of_q_constants;
 
-    std::unordered_map<Signature, std::vector<Signature>, SignatureHasher> _fact_decodings; 
+    HashMap<Signature, std::vector<Signature>, SignatureHasher> _fact_decodings; 
 
     // Maps an action name ID to its action object.
-    std::unordered_map<int, Action> _actions;
+    HashMap<int, Action> _actions;
 
     // Maps a reduction name ID to its reduction object.
-    std::unordered_map<int, Reduction> _reductions;
+    HashMap<int, Reduction> _reductions;
 
-    std::unordered_map<Signature, Action, SignatureHasher> _actions_by_sig;
-    std::unordered_map<Signature, Reduction, SignatureHasher> _reductions_by_sig;
+    HashMap<Signature, Action, SignatureHasher> _actions_by_sig;
+    HashMap<Signature, Reduction, SignatureHasher> _reductions_by_sig;
 
-    std::unordered_map<int, std::vector<int>> _task_id_to_reduction_ids;
+    HashMap<int, std::vector<int>> _task_id_to_reduction_ids;
 
     std::unordered_set<int> _equality_predicates;
     std::unordered_set<int> _fluent_predicates;
@@ -71,7 +71,7 @@ struct HtnInstance {
     std::vector<Reduction> _init_reduction_choices;
     Action _action_blank;
 
-    std::unordered_map<int, int> _split_action_from_first;
+    HashMap<int, int> _split_action_from_first;
 
     static ParsedProblem& parse(std::string domainFile, std::string problemFile);
 
@@ -100,8 +100,8 @@ struct HtnInstance {
 
     Action replaceQConstants(const Action& a, int layerIdx, int pos);
     Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos);
-    std::unordered_map<int, int> addQConstants(const Signature& sig, int layerIdx, int pos);
-    void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, std::unordered_map<int, int>& s);
+    HashMap<int, int> addQConstants(const Signature& sig, int layerIdx, int pos);
+    void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, HashMap<int, int>& s);
 
     bool hasQConstants(const Signature& sig);
     const std::vector<Signature>& getDecodedObjects(const Signature& qFact);

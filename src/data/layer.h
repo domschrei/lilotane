@@ -7,6 +7,7 @@
 #include <set>
 
 #include "data/signature.h"
+#include "data/layer_state.h"
 #include "util/names.h"
 
 typedef std::pair<int, int> IntPair;
@@ -23,27 +24,24 @@ private:
     SigSet _actions;
     SigSet _reductions;
 
-    std::unordered_map<Signature, SigSet, SignatureHasher> _expansions;
+    HashMap<Signature, SigSet, SignatureHasher> _expansions;
 
     SigSet _axiomatic_ops;
 
     SigSet _facts;
     SigSet _true_facts;
-    std::unordered_map<Signature, SigSet, SignatureHasher> _fact_supports;
+    HashMap<Signature, SigSet, SignatureHasher> _fact_supports;
 
-    std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_decodings;
-    std::unordered_map<Signature, SigSet, SignatureHasher> _qfact_abstractions;
+    HashMap<Signature, SigSet, SignatureHasher> _qfact_decodings;
+    HashMap<Signature, SigSet, SignatureHasher> _qfact_abstractions;
 
-    std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
-    std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> _forbidden_substitutions_per_op;
+    HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
+    HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> _forbidden_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
-    // Not being encoded; used for reducing instantiation of the next position.
-    std::unordered_map<int, SigSet> _state;
-
     // Prop. variable for each occurring signature, together with the position where it was originally encoded.
-    std::unordered_map<Signature, IntPair, SignatureHasher> _variables;
+    HashMap<Signature, IntPair, SignatureHasher> _variables;
 
 public:
     Position() {}
@@ -89,12 +87,6 @@ public:
     void setFacts(const SigSet& facts) {
         _facts = facts;
     }
-    void extendState(const Signature& fact) {_state[fact._name_id].insert(fact);}
-    void extendState(const SigSet& set) {for (Signature sig : set) extendState(sig);}
-    void extendState(const std::unordered_map<int, SigSet>& state) {
-        for (auto entry : state)
-            extendState(entry.second);
-    }
 
     int encode(const Signature& sig);
     void setVariable(const Signature& sig, int v, int priorPos);
@@ -106,28 +98,26 @@ public:
     bool hasFact(const Signature& fact) const {return _facts.count(fact);}
     bool hasAction(const Signature& action) const {return _actions.count(action);}
     bool hasReduction(const Signature& red) const {return _reductions.count(red);}
-    bool containsInState(const Signature& fact) const {return _state.count(fact._name_id) && _state.at(fact._name_id).count(fact);}
 
     IntPair getPos() const {return IntPair(_layer_idx, _pos);}
     
     const SigSet& getFacts() const {return _facts;}
     const SigSet& getTrueFacts() const {return _true_facts;}
-    const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
-    const std::unordered_map<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
-    const std::unordered_map<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
-    const std::unordered_map<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
+    const HashMap<Signature, SigSet, SignatureHasher>& getQFactDecodings() const {return _qfact_decodings;}
+    const HashMap<Signature, SigSet, SignatureHasher>& getQFactAbstractions() const {return _qfact_abstractions;}
+    const HashMap<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
+    const HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
         return _q_constants_type_constraints;
     }
-    const std::unordered_map<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher>& 
+    const HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher>& 
     getForbiddenSubstitutions() const {
         return _forbidden_substitutions_per_op;
     }
 
     const SigSet& getActions() const {return _actions;}
     const SigSet& getReductions() const {return _reductions;}
-    const std::unordered_map<Signature, SigSet, SignatureHasher>& getExpansions() const {return _expansions;}
+    const HashMap<Signature, SigSet, SignatureHasher>& getExpansions() const {return _expansions;}
     const SigSet& getAxiomaticOps() const {return _axiomatic_ops;}
-    const std::unordered_map<int, SigSet>& getState() const {return _state;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
 
     void clearUnneeded() {
@@ -138,7 +128,6 @@ public:
         _qfact_decodings.clear();
         _qfact_abstractions.clear();
         _q_constants_type_constraints.clear();
-        _state.clear();
         for (const Signature& fact : _facts) {
             _variables.erase(fact);
         }
@@ -151,16 +140,21 @@ class Layer {
 private:
     int _index;
     std::vector<Position> _content;
+    LayerState _state;
     std::vector<int> _successor_positions;
 
 public:
     Layer(int index, int size);
+
     int size() const;
     int index() const;
-    Position& operator[](int pos);
-    void consolidate();
     int getNextLayerSize() const;
     int getSuccessorPos(int oldPos) const;
+    LayerState& getState();
+    
+    Position& operator[](int pos);
+    
+    void consolidate();
 };
 
 #endif

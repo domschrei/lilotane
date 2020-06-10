@@ -2,12 +2,12 @@
 #ifndef DOMPASCH_TREE_REXX_PLANNER_H
 #define DOMPASCH_TREE_REXX_PLANNER_H
 
-#include <unordered_map>
 #include <assert.h> 
  
 #include "util/names.h"
 #include "util/params.h"
 
+#include "data/hashmap.h"
 #include "data/layer.h"
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
@@ -52,8 +52,12 @@ private:
     void propagateReductions(int offset);
     void addNewFalseFacts();
 
-    std::vector<Signature> getAllReductionsOfTask(const Signature& task, const State& state);
-    std::vector<Signature> getAllActionsOfTask(const Signature& task, const State& state);
+    LayerState& getLayerState(int layer = -1);
+    std::function<bool(const Signature&)> getStateEvaluator(int layer = -1, int pos = -1);
+    void introduceNewFalseFact(Position& newPos, const Signature& fact);
+
+    std::vector<Signature> getAllReductionsOfTask(const Signature& task, std::function<bool(const Signature&)> state);
+    std::vector<Signature> getAllActionsOfTask(const Signature& task, std::function<bool(const Signature&)> state);
 };
 
 #endif

@@ -13,6 +13,7 @@ Layer::Layer(int index, int size) : _index(index) {
 }
 int Layer::size() const {return _content.size();}
 int Layer::index() const {return _index;}
+LayerState& Layer::getState() {return _state;}
 Position& Layer::operator[](int pos) {assert(pos >= 0 && pos < size()); return _content[pos];}
 void Layer::consolidate() {
     int succ = 0;
@@ -36,7 +37,8 @@ int Position::encode(const Signature& sig) {
     if (!_variables.count(sig)) {
         // introduce a new variable
         assert(!VariableDomain::isLocked() || fail("Unknown variable " + VariableDomain::varName(_layer_idx, _pos, sig) + " queried!\n"));
-        IntPair& pair = (_variables[sig] = IntPair(VariableDomain::nextVar(), _pos));
+        _variables[sig] = IntPair(VariableDomain::nextVar(), _pos);
+        IntPair& pair = _variables[sig];
         VariableDomain::printVar(pair.first, _layer_idx, _pos, sig);
     }
 

@@ -2,9 +2,9 @@
 #ifndef DOMPASCH_TREE_REXX_ARG_ITERATOR_H
 #define DOMPASCH_TREE_REXX_ARG_ITERATOR_H
 
-#include <unordered_map>
 #include <vector>
 
+#include <data/hashmap.h>
 #include "data/signature.h"
 #include "util/log.h"
 
