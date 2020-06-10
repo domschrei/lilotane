@@ -2,8 +2,8 @@
 #ifndef DOMPASCH_TREE_REXX_INSTANTIATOR_H
 #define DOMPASCH_TREE_REXX_INSTANTIATOR_H
 
-
 #include <unordered_set>
+#include <functional>
 
 #include "parser/cwa.hpp"
 #include "data/reduction.h"

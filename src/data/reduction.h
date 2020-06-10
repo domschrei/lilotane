@@ -130,6 +130,10 @@ public:
     }
 
     Reduction& operator=(const Reduction& other) {
+        _id = other._id;
+        _args = other._args;
+        _preconditions = other._preconditions;
+        _effects = other._effects;
         _task_name_id = other._task_name_id;
         _task_args = other._task_args;
         _subtasks = other._subtasks;
