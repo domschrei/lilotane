@@ -3,6 +3,6 @@
 
 #include "parsetree.hpp"
 
-bool verify_plan(istream & plan, bool use_order_information, int verbose_output);
+bool verify_plan(istream & plan, bool use_order_information, bool lenient_mode, int verbose_output);
 
 #endif

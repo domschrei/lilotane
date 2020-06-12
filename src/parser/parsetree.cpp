@@ -1,4 +1,5 @@
 #include "parsetree.hpp"
+#include "cwa.hpp"
 #include <iostream>
 #include <cassert>
 
@@ -41,6 +42,51 @@ bool general_formula::isEmpty(){
 	return true;
 }
 
+set<string> general_formula::occuringUnQuantifiedVariables(){
+	set<string> ret;
+
+	if (this->type == EMPTY) return ret;
+
+	if (this->type == AND || this->type == OR){
+		for (general_formula* sub : this->subformulae){
+			set<string> subres = sub->occuringUnQuantifiedVariables();
+			ret.insert(subres.begin(), subres.end());
+		}
+		return ret;
+	}
+	
+	if (this->type == FORALL || this->type == EXISTS) {
+		set<string> subres = this->subformulae[0]->occuringUnQuantifiedVariables();
+
+		for (auto [var,_] : this->qvariables.vars){
+			subres.erase(var);
+		}
+
+		return subres;
+	}
+
+	if (this->type == ATOM || this->type == NOTATOM){
+		ret.insert(this->arguments.vars.begin(), this->arguments.vars.end());
+		return ret;
+	}
+	
+	if (this->type == EQUAL || this->type == NOTEQUAL || 
+			this->type == OFSORT || this->type == NOTOFSORT){
+		ret.insert(this->arg1);
+		ret.insert(this->arg2);
+		return ret;
+	}
+
+	// things that I don't want to support ...
+	if (this->type == WHEN) assert(false);
+	if (this->type == VALUE) assert(false);
+	if (this->type == COST_CHANGE) assert(false);
+	if (this->type == COST) assert(false);
+	if (this->type == OFSORT) assert(false);
+	if (this->type == NOTOFSORT) assert(false);
+
+	assert(false);
+}
 
 additional_variables general_formula::variables_for_constants(){
 	additional_variables ret;
@@ -79,6 +125,28 @@ general_formula* general_formula::copyReplace(map<string,string> & replace){
 	return ret;
 }
 
+bool general_formula::isDisjunctive(){
+	if (this->type == EMPTY) return false;
+	else if (this->type == EQUAL) return false;
+	else if (this->type == NOTEQUAL) return false;
+	else if (this->type == ATOM) return false;
+	else if (this->type == NOTATOM) return false;
+	else if (this->type == VALUE) return false;
+	else if (this->type == COST_CHANGE) return false;
+	else if (this->type == COST) return false;
+	// or and when are disjunctive	
+	else if (this->type == OR) return true;
+	else if (this->type == WHEN) return true;
+
+	// else AND, FORALL, EXISTS
+	
+	for(auto sub : this->subformulae) if (sub->isDisjunctive()) return true;
+	
+	return false;
+}
+
+int global_exists_variable_counter = 0;
+
 // hard expansion of formulae. This can grow up to exponentially, but is currently the only thing we can do about disjunctions.
 // this will also handle forall and exists quantors by expansion
 // sorts must have been parsed and expanded prior to this call
@@ -98,25 +166,8 @@ vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, 
 	if (this->type == FORALL){
 		general_formula and_formula;
 		and_formula.type = AND;
-		additional_variables avs;
-		vector<map<string,string> > var_replace;
-		map<string,string> empty;
-		var_replace.push_back(empty);
-		int counter = 0;
-		for(pair<string,string> var : this->qvariables.vars) {
-			vector<map<string,string> > old_var_replace = var_replace;
-			var_replace.clear();
+		auto [var_replace,avs] = forallVariableReplacement();
 
-			for(string c : sorts[var.second]){
-				string newSort = sort_for_const(c);
-				string newVar = var.first + "_" + to_string(counter); counter++;
-				avs.insert(make_pair(newVar,newSort));
-				for (map<string,string> old : old_var_replace){
-					old[var.first] = newVar; // add new variable binding
-					var_replace.push_back(old);
-				}
-			}
-		}
 		for (auto r : var_replace)
 			and_formula.subformulae.push_back(this->subformulae[0]->copyReplace(r));
 
@@ -126,6 +177,28 @@ vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, 
 				ret[i].second.insert(avs.begin(), avs.end());
 	}
 
+
+	// add additional variables for every quantified variable. We have to do this for every possible instance of the precondition below	
+	if (this->type == EXISTS){
+		map<string,string> var_replace = existsVariableReplacement();
+		this->subformulae[0] = this->subformulae[0]->copyReplace(var_replace);
+
+		vector<pair<pair<vector<variant<literal,conditional_effect>>, vector<literal> >, additional_variables> > cur = 
+			this->subformulae[0]->expand(compileConditionalEffects);
+		for(pair<string,string> var : this->qvariables.vars){
+			vector<pair<pair<vector<variant<literal,conditional_effect>>, vector<literal> >, additional_variables> > prev = cur;
+			cur.clear();
+			string newName = var.first + "_" + to_string(++global_exists_variable_counter);
+
+			
+			for(auto old : prev){
+				pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >,  additional_variables>	combined = old;
+				combined.second.insert(make_pair(var_replace[var.first],var.second));
+				cur.push_back(combined);
+			}
+		}
+		return cur;
+	}
 
 
 
@@ -152,32 +225,10 @@ vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, 
 		ret = cur;
 	}
 
-	// add additional variables for every quantified variable. We have to do this for every possible instance of the precondition below	
-	if (this->type == EXISTS){
-		vector<pair<pair<vector<variant<literal,conditional_effect>>, vector<literal> >, additional_variables> > cur = subresults[0];	
-		for(pair<string,string> var : this->qvariables.vars){
-			vector<pair<pair<vector<variant<literal,conditional_effect>>, vector<literal> >, additional_variables> > prev = cur;
-			cur.clear();
-			for(auto old : prev){
-				pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >,  additional_variables>	combined = old;
-				combined.second.insert(var);
-				cur.push_back(combined);
-			}
-		}
-		ret = cur;
-		// we cannot generate more possible expansions.
-		assert(ret.size() == subresults[0].size());
-	}
-
 
 	if (this->type == ATOM || this->type == NOTATOM || this->type == COST) {
 		vector<variant<literal,conditional_effect>> ls;
-		literal l;
-		l.positive = this->type == ATOM;
-		l.isConstantCostExpression = false;
-		l.isCostChangeExpression = false;
-		l.predicate = this->predicate;
-		l.arguments = this->arguments.vars;
+		literal l = this->atomLiteral();
 		ls.push_back(l);
 
 		additional_variables vars = this->arguments.newVar;
@@ -215,14 +266,7 @@ vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, 
 	// add dummy literal for equal and not equal constraints
 	if (this->type == EQUAL || this->type == NOTEQUAL || this->type == OFSORT || this->type == NOTOFSORT){
 		vector<variant<literal,conditional_effect>> ls;
-		literal l;
-		l.positive = this->type == EQUAL || this->type == OFSORT;
-		if (this->type == EQUAL || this->type == NOTEQUAL)
-			l.predicate = dummy_equal_literal;
-		else
-			l.predicate = dummy_ofsort_literal; 
-		l.arguments.push_back(this->arg1);
-		l.arguments.push_back(this->arg2);
+		literal l = this->equalsLiteral();
 		ls.push_back(l);
 
 		additional_variables vars; // no new vars. Never
@@ -285,9 +329,112 @@ vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, 
 			}
 		}
 	}
-
 	return ret;
 }
 
+literal general_formula::equalsLiteral(){
+	assert(this->type == EQUAL || this->type == NOTEQUAL || 
+			this->type == OFSORT || this->type == NOTOFSORT);
+	
+	literal l;
+	l.positive = this->type == EQUAL || this->type == OFSORT;
+	if (this->type == EQUAL || this->type == NOTEQUAL)
+		l.predicate = dummy_equal_literal;
+	else
+		l.predicate = dummy_ofsort_literal; 
+	l.arguments.push_back(this->arg1);
+	l.arguments.push_back(this->arg2);
+	return l;
+}
 
+
+literal general_formula::atomLiteral(){
+	assert(this->type == ATOM || this->type == NOTATOM);
+	
+	literal l;
+	l.positive = this->type == ATOM;
+	l.isConstantCostExpression = false;
+	l.isCostChangeExpression = false;
+	l.predicate = this->predicate;
+	l.arguments = this->arguments.vars;
+
+	return l;
+}
+
+
+
+pair<vector<map<string,string> >, additional_variables> general_formula::forallVariableReplacement(){
+	assert(this->type == FORALL);
+
+	additional_variables avs;
+	vector<map<string,string> > var_replace;
+	map<string,string> empty;
+	var_replace.push_back(empty);
+	int counter = 0;
+	for(pair<string,string> var : this->qvariables.vars) {
+		vector<map<string,string> > old_var_replace = var_replace;
+		var_replace.clear();
+
+		for(string c : sorts[var.second]){
+			string newSort = sort_for_const(c);
+			string newVar = var.first + "_" + to_string(counter); counter++;
+			avs.insert(make_pair(newVar,newSort));
+			for (map<string,string> old : old_var_replace){
+				old[var.first] = newVar; // add new variable binding
+				var_replace.push_back(old);
+			}
+		}
+	}
+	
+	return make_pair(var_replace, avs);
+}
+
+map<string,string> general_formula::existsVariableReplacement(){
+	map<string,string> var_replace;
+	for(pair<string,string> var : this->qvariables.vars){
+		string newName = var.first + "_" + to_string(++global_exists_variable_counter);
+		var_replace[var.first] = newName;
+	}
+	return var_replace;
+}
+
+
+void compile_goal_into_action(){
+	if (goal_formula == NULL) return;
+	if (goal_formula->isEmpty()) return;
+	
+	parsed_task t;
+	t.name = "goal_action";
+	t.arguments = new var_declaration();
+	t.prec = goal_formula;
+	t.eff = new general_formula(); t.eff->type = EMPTY;
+	parsed_primitive.push_back(t);
+
+	// add as last task into top method
+	assert(parsed_methods["__top"].size() == 1);
+	parsed_method m = parsed_methods["__top"][0];
+	parsed_methods["__top"].clear();
+	sub_task * g = new sub_task();	
+	g->id = "__goal_id";
+	g->task = t.name;
+	g->arguments = new var_and_const();
+	
+	// ordering
+	for (sub_task* st : m.tn->tasks){
+		pair<string,string>* o = new pair<string,string>();
+		o->first = st->id;
+		o->second = g->id;
+		m.tn->ordering.push_back(o);
+	}
+	
+	m.tn->tasks.push_back(g);
+
+	
+	// add the method back in
+	parsed_methods["__top"].push_back(m);
+
+
+	// clear the goal formula
+	goal_formula = NULL;
+}
 

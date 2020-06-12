@@ -374,8 +374,8 @@ static void yynoreturn yy_fatal_error ( const char* msg  );
 	(yy_hold_char) = *yy_cp; \
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
-#define YY_NUM_RULES 57
-#define YY_END_OF_BUFFER 58
+#define YY_NUM_RULES 55
+#define YY_END_OF_BUFFER 56
 /* This struct is not used in this scanner,
    but its presence is necessary. */
 struct yy_trans_info
@@ -385,35 +385,35 @@ struct yy_trans_info
 	};
 static const flex_int16_t yy_accept[273] =
     {   0,
-        0,    0,   58,   57,   50,    1,    2,    3,   56,   57,
-       57,    5,    4,   57,   54,   54,   54,   54,   54,   54,
-       54,   54,   54,   54,   54,   54,   54,    0,   56,   53,
-       53,   53,   53,   53,   53,   53,   53,   53,   53,   53,
-       53,   53,   53,   53,    0,   51,   51,   52,   54,   54,
-       54,   54,   54,   54,   54,   54,   54,   54,   39,   54,
-       54,   54,   54,   55,   53,   53,   53,   53,   53,   53,
-       53,   53,   53,   53,   53,   53,   53,   53,   53,   53,
-       53,   53,   53,   53,   52,   38,   54,   54,   54,   54,
-       54,   54,   54,   40,   54,   54,   54,   54,   53,   53,
+        0,    0,   56,   55,   48,    1,    2,    3,   54,   55,
+       55,    5,    4,   55,   52,   52,   52,   52,   52,   52,
+       52,   52,   52,   52,   52,   52,   52,    0,   54,   51,
+       51,   51,   51,   51,   51,   51,   51,   51,   51,   51,
+       51,   51,   51,   51,    0,   49,   49,   50,   52,   52,
+       52,   52,   52,   52,   52,   52,   52,   52,   39,   52,
+       52,   52,   52,   53,   51,   51,   51,   51,   51,   51,
+       51,   51,   51,   51,   51,   51,   51,   51,   51,   51,
+       51,   51,   51,   51,   50,   38,   52,   52,   52,   52,
+       52,   52,   52,   40,   52,   52,   52,   52,   51,   51,
 
-       53,   53,   53,   53,   53,   23,   53,   53,   53,   53,
-       53,   53,   53,   53,   53,   53,   53,   54,   54,   54,
-       54,   54,   54,   54,   54,   48,   46,   44,   53,   53,
-       53,   53,   53,   53,   22,   53,   21,   53,   53,   53,
-       53,   53,   53,   53,   53,   53,   15,   53,   53,   54,
-       54,   54,   54,   41,   54,   54,   54,   54,   54,   53,
-       53,   53,   53,   53,   53,   25,   53,   53,   53,   32,
-       53,   53,   53,   53,   53,   28,   24,   11,    6,    7,
-       43,   42,   54,   54,   54,   49,   47,   16,   53,   53,
-       53,    8,   19,   53,   20,   34,   53,   53,   53,   53,
+       51,   51,   51,   51,   51,   23,   51,   51,   51,   51,
+       51,   51,   51,   51,   51,   51,   51,   52,   52,   52,
+       52,   52,   52,   52,   52,   52,   52,   44,   51,   51,
+       51,   51,   51,   51,   22,   51,   21,   51,   51,   51,
+       51,   51,   51,   51,   51,   51,   15,   51,   51,   52,
+       52,   52,   52,   41,   52,   52,   52,   52,   52,   51,
+       51,   51,   51,   51,   51,   25,   51,   51,   51,   32,
+       51,   51,   51,   51,   51,   28,   24,   11,    6,    7,
+       43,   42,   52,   52,   52,   47,   46,   16,   51,   51,
+       51,    8,   19,   51,   20,   34,   51,   51,   51,   51,
 
-       53,   53,   53,   53,   54,   54,    9,   53,   53,   53,
-       53,   53,   26,   53,   53,   53,   53,   53,   53,   53,
-       45,   35,   53,   53,   53,   53,   53,   53,   31,   53,
-       53,   53,   53,   27,   53,   53,   12,   53,   14,   53,
-       53,   53,   53,   53,   53,   53,   53,   53,   53,   53,
-       17,   53,   13,   53,   53,   37,   33,   53,   53,   53,
-       53,   36,   53,   53,   18,   10,   53,   30,   53,   53,
+       51,   51,   51,   51,   52,   52,    9,   51,   51,   51,
+       51,   51,   26,   51,   51,   51,   51,   51,   51,   51,
+       45,   35,   51,   51,   51,   51,   51,   51,   31,   51,
+       51,   51,   51,   27,   51,   51,   12,   51,   14,   51,
+       51,   51,   51,   51,   51,   51,   51,   51,   51,   51,
+       17,   51,   13,   51,   51,   37,   33,   51,   51,   51,
+       51,   36,   51,   51,   18,   10,   51,   30,   51,   51,
        29,    0
     } ;
 
@@ -613,11 +613,11 @@ static const flex_int16_t yy_chk[356] =
     } ;
 
 /* Table of booleans, true if rule could match eol. */
-static const flex_int32_t yy_rule_can_match_eol[58] =
+static const flex_int32_t yy_rule_can_match_eol[56] =
     {   0,
 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,     };
+    0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0,     };
 
 static yy_state_type yy_last_accepting_state;
 static char *yy_last_accepting_cpos;
@@ -1164,58 +1164,48 @@ YY_RULE_SETUP
 {return KEY_TYPEOF;}
 	YY_BREAK
 case 48:
+/* rule 48 can match eol */
 YY_RULE_SETUP
-#line 65 "hddl-token.l"
-{return KEY_TYPEOF;}
-	YY_BREAK
-case 49:
-YY_RULE_SETUP
-#line 66 "hddl-token.l"
-{return KEY_TYPEOF;}
-	YY_BREAK
-case 50:
-/* rule 50 can match eol */
-YY_RULE_SETUP
-#line 69 "hddl-token.l"
+#line 67 "hddl-token.l"
 ; // whitespace
 	YY_BREAK
+case 49:
+/* rule 49 can match eol */
+YY_RULE_SETUP
+#line 68 "hddl-token.l"
+; // comments
+	YY_BREAK
+case 50:
+YY_RULE_SETUP
+#line 69 "hddl-token.l"
+{yylval.sval = strdup(yytext); return VAR_NAME;}
+	YY_BREAK
 case 51:
-/* rule 51 can match eol */
 YY_RULE_SETUP
 #line 70 "hddl-token.l"
-; // comments
+{yylval.sval = strdup(yytext); return REQUIRE_NAME;}
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
 #line 71 "hddl-token.l"
-{yylval.sval = strdup(yytext); return VAR_NAME;}
+{yylval.sval = strdup(yytext); return NAME;}
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
 #line 72 "hddl-token.l"
-{yylval.sval = strdup(yytext); return REQUIRE_NAME;}
+{yylval.fval = atof(yytext); return FLOAT;}
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
 #line 73 "hddl-token.l"
-{yylval.sval = strdup(yytext); return NAME;}
+{yylval.ival = atoi(yytext); return INT;}
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
 #line 74 "hddl-token.l"
-{yylval.fval = atof(yytext); return FLOAT;}
-	YY_BREAK
-case 56:
-YY_RULE_SETUP
-#line 75 "hddl-token.l"
-{yylval.ival = atoi(yytext); return INT;}
-	YY_BREAK
-case 57:
-YY_RULE_SETUP
-#line 76 "hddl-token.l"
 ECHO;
 	YY_BREAK
-#line 1219 "hddl-token.cpp"
+#line 1209 "hddl-token.cpp"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2232,7 +2222,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 76 "hddl-token.l"
+#line 74 "hddl-token.l"
 
 /*
 

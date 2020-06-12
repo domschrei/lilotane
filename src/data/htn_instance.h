@@ -41,6 +41,8 @@ struct HtnInstance {
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
     HashMap<int, std::vector<int>> _signature_sorts_table;
 
+    HashMap<int, int> _original_n_taskvars;
+
     // Maps a sort name ID to a list of constant name IDs of that sort.
     HashMap<int, std::unordered_set<int>> _constants_by_sort;
 
@@ -121,6 +123,8 @@ struct HtnInstance {
 
     bool isRigidPredicate(int predId);
     void removeRigidConditions(HtnOp& op);
+
+    USignature cutNonoriginalTaskArguments(const USignature& sig);
 };
 
 #endif

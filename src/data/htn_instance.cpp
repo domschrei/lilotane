@@ -283,6 +283,7 @@ void HtnInstance::extractTaskSorts(const task& t) {
     int tId = getNameId(t.name);
     assert(!_signature_sorts_table.count(tId));
     _signature_sorts_table[tId] = sorts;
+    _original_n_taskvars[tId] = t.number_of_original_vars;
 }
 
 void HtnInstance::extractMethodSorts(const method& m) {
@@ -690,4 +691,10 @@ void HtnInstance::removeRigidConditions(HtnOp& op) {
         }
     }
     op.setPreconditions(newPres);
+}
+
+USignature HtnInstance::cutNonoriginalTaskArguments(const USignature& sig) {
+    USignature sigCut(sig);
+    sigCut._args.resize(_original_n_taskvars[sig._name_id]);
+    return sigCut;
 }

@@ -203,7 +203,7 @@ int Planner::findPlan() {
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
         if (item.abstractTask._name_id == _htn.getNameId("_GOAL_ACTION_")) continue;
 
-        stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << "\n";
+        stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
     }
     // -- decomposition part
     bool root = true;
@@ -221,7 +221,7 @@ int Planner::findPlan() {
             continue;
         } else if (item.id <= 0 || actionIds.count(item.id)) continue;
         
-        stream << item.id << " " << Names::to_string_nobrackets(item.abstractTask) << " -> " 
+        stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << " -> " 
             << Names::to_string_nobrackets(item.reduction) << subtaskIdStr << "\n";
     }
     stream << "<==\n";

@@ -60,9 +60,7 @@ exists			{return KEY_EXISTS;}
 when			{return KEY_WHEN;}
 increase		{return KEY_INCREASE;}
 
-type			{return KEY_TYPEOF;}
 typeof			{return KEY_TYPEOF;}
-sort			{return KEY_TYPEOF;}
 sortof			{return KEY_TYPEOF;}
 
 

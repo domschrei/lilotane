@@ -2,6 +2,7 @@
 #include <iomanip>
 #include <sstream>
 #include <algorithm>
+#include <cassert>
 #include "parsetree.hpp"
 #include "util.hpp"
 #include "plan.hpp"
@@ -46,6 +47,7 @@ vector<int> parse_list_of_integers(istringstream & ss, int debugMode){
 
 vector<int> parse_list_of_integers(string & line, int debugMode){
 	if (debugMode) cout << "Reading list of integers from \"" << line << "\"" << endl;
+	if (!line.size()) return vector<int>();
 	istringstream ss (line);
 	return parse_list_of_integers(ss,debugMode);
 }
@@ -116,9 +118,14 @@ parsed_plan parse_plan(istream & plan, int debugMode){
 	
 
 	if (debugMode) cout << "Reading plan given as input" << endl;
+	bool planAlreadyEnded = false;
 	while (1){
 		string head; plan >> head;
 		if (head == "root") break;
+		if (head == "<=="){
+			planAlreadyEnded = true;
+			break;
+		}
 		int id = atoi(head.c_str());
 		if (id < 0){
 			cout << color(COLOR_RED,"Negative id: ") << color(COLOR_RED,to_string(id)) << endl;
@@ -143,7 +150,7 @@ parsed_plan parse_plan(istream & plan, int debugMode){
 
 
 	if (debugMode) cout << "Size of primitive plan: " << pplan.primitive_plan.size() << endl;
-	string root_line; getline(plan,root_line);
+	string root_line = ""; if (!planAlreadyEnded) getline(plan,root_line);
 	pplan.root_tasks = parse_list_of_integers(root_line, debugMode);
 	if (debugMode) {
 		cout << "Root tasks (" << pplan.root_tasks .size() << "):";
@@ -153,7 +160,7 @@ parsed_plan parse_plan(istream & plan, int debugMode){
 
 
 	if (debugMode) cout << "Reading plan given as input" << endl;
-	while (1){
+	if (!planAlreadyEnded) while (1){
 		string line;
 		getline(plan,line);
 		if (plan.eof()) {
@@ -261,7 +268,7 @@ parsed_plan expand_compressed_method(parsed_plan plan, int expanded_task){
 	int decomposed_id = stoi(blocks[3]);
 	replace(blocks[4].begin(), blocks[4].end(), ',', ' ');
 	vector<int> subtask_translation = parse_list_of_integers (blocks[4],0);
-	
+	assert(subtask_translation.size() == method_subtasks.size());	
 
 	/*cout << main_method << endl;
 	cout << decomposed_task << endl;
@@ -368,12 +375,17 @@ parsed_plan compress_artificial_method(parsed_plan plan, int expanded_task){
 parsed_plan convert_plan(parsed_plan plan){
 	// look for things that are not ok ..
 
+	// first expand all compressed methods
 	for (auto method : plan.appliedMethod){
 		if (method.second[0] == '<')
 			return convert_plan(expand_compressed_method(plan,method.first));
+	}
+
+	// only then remove compiled entries. This removal my make expansion rules in methods names impossible
+	for (auto method : plan.appliedMethod){
 		if (method.second[0] == '_')
 			return convert_plan(compress_artificial_method(plan,method.first));
-	}	
+	}
 	for (auto task : plan.tasks){
 		if (task.second.name[0] == '_')
 			return convert_plan(compress_artificial_method(plan,task.first));
@@ -423,7 +435,7 @@ void convert_plan(istream & plan, ostream & pout){
 		for (string arg : ps.arguments) pout << " " << arg;
 		
 		pout << " -> " << converted_plan.appliedMethod[task.first];
-		for (int subtask : converted_plan.subtasksForTask[task.first]) pout << " " << subtask;
+		for (int subtask : converted_plan.subtasksForTask[task.first]) if (subtask >= 0) pout << " " << subtask;
 		pout << endl;
 	}
 	

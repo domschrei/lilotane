@@ -63,9 +63,16 @@ class general_formula{
 		// first: effect, second: additional precondition for that effect
 		// if it is an uncompiled conditional effect, the additional prec will be empty
 		vector<pair<pair<vector<variant<literal,conditional_effect>>,vector<literal> >, additional_variables> > expand(bool compileConditionalEffects);
+		bool isDisjunctive();
 		additional_variables variables_for_constants();
+		
+		literal equalsLiteral();
+		literal atomLiteral();
+		pair<vector<map<string,string> >, additional_variables> forallVariableReplacement();
+		map<string,string> existsVariableReplacement();
 
-	private:
+		set<string> occuringUnQuantifiedVariables();
+
 		general_formula* copyReplace(map<string,string>& replace);
 };
 
@@ -112,5 +119,6 @@ extern string metric_target;
 
 
 string sort_for_const(string c);
+void compile_goal_into_action();
 
 #endif

@@ -138,15 +138,17 @@ problem_defs: problem_defs require_def |
 p_object_declaration : '(' KEY_OBJECTS constant_declaration_list')';
 p_init : '(' KEY_INIT init_el ')';
 init_el : init_el literal {
-		assert($2->type == ATOM);
-		map<string,string> access;
-		// for each constant a new sort with a uniq name has been created. We access it here and retrieve its only element, the constant in questions
-		for(auto x : $2->arguments.newVar) access[x.first] = *sorts[x.second].begin();  
-		ground_literal l;
-		l.positive = true;
-		l.predicate = $2->predicate;
-		for(string v : $2->arguments.vars) l.args.push_back(access[v]);
-		init.push_back(l);
+		if ($2->type != NOTATOM){ // just ignore not in the initial state
+			assert($2->type == ATOM);
+			map<string,string> access;
+			// for each constant a new sort with a uniq name has been created. We access it here and retrieve its only element, the constant in questions
+			for(auto x : $2->arguments.newVar) access[x.first] = *sorts[x.second].begin();  
+			ground_literal l;
+			l.positive = true;
+			l.predicate = $2->predicate;
+			for(string v : $2->arguments.vars) l.args.push_back(access[v]);
+			init.push_back(l);
+		}
 	} |
 	init_el '(' '=' literal INT ')' {
 		assert($4->type == ATOM);
