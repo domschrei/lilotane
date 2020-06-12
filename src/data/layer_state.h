@@ -30,7 +30,7 @@ public:
                 return _it->first;
             }
             void operator++() {
-                _it++;
+                ++_it;
                 gotoNext();
             }
             bool operator!=(const Iterable& other) {
@@ -40,7 +40,7 @@ public:
         private:
             void gotoNext() {
                 while (_it != _end && (_it->second.first > _pos || _it->second.second < _pos)) 
-                    _it++;
+                    ++_it;
             }
     };
     class Iterator {

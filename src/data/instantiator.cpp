@@ -192,16 +192,16 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
 // Given a fact (signature) and (a set of ground htn operations containing q constants),
 // compute the possible sets of substitutions that are necessary to let each operation
 // have the specified fact in its support.
-HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> 
+HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> 
 Instantiator::getOperationSubstitutionsCausingEffect(
-    const std::unordered_set<USignature, USignatureHasher>& operations, const USignature& fact, bool negated) {
+    const HashSet<USignature, USignatureHasher>& operations, const USignature& fact, bool negated) {
 
-    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> result;
+    HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> result;
 
     // For each provided HtnOp:
     for (const USignature& opSig : operations) {
         //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
-        std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
+        HashSet<substitution_t, Substitution::Hasher> substitutions;
 
         assert(isFullyGround(opSig));
 
@@ -277,7 +277,7 @@ bool Instantiator::fits(USignature& sig, USignature& groundSig, HashMap<int, int
 
         if (substitution != NULL) {
             assert(!substitution->count(sig._args[i]));
-            substitution->insert(std::pair<int, int>(sig._args[i], groundSig._args[i]));
+            (*substitution)[sig._args[i]] = groundSig._args[i];
         }
     }
     return true;
@@ -334,7 +334,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
         // Type is NOT fine, at least for some substitutions
         std::vector<int> good;
         std::vector<int> bad;
-        std::unordered_set<int> validConstants = _htn->getConstantsOfSort(sigSort);
+        HashSet<int> validConstants = _htn->getConstantsOfSort(sigSort);
         // For each value the qconstant can assume:
         for (int c : _htn->getDomainOfQConstant(arg)) {
             // Is that constant of correct type?

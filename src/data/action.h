@@ -3,8 +3,8 @@
 #define DOMPASCH_TREE_REXX_ACTION_H
 
 #include <vector>
-#include <unordered_set>
 
+#include "data/hashmap.h"
 #include "data/htn_op.h"
 #include "data/signature.h"
 #include "data/bound_condition.h"

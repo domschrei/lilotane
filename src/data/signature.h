@@ -3,7 +3,6 @@
 #define DOMPASCH_TREE_REXX_SIGNATURE_H
 
 #include <vector>
-#include <unordered_set>
 #include <assert.h>
 #include <limits>
 
@@ -124,7 +123,7 @@ struct SignatureHasher {
     }
 };
 
-typedef std::unordered_set<Signature, SignatureHasher> SigSet;
-typedef std::unordered_set<USignature, USignatureHasher> USigSet;
+typedef HashSet<Signature, SignatureHasher> SigSet;
+typedef HashSet<USignature, USignatureHasher> USigSet;
 
 #endif

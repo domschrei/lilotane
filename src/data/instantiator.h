@@ -2,9 +2,9 @@
 #ifndef DOMPASCH_TREE_REXX_INSTANTIATOR_H
 #define DOMPASCH_TREE_REXX_INSTANTIATOR_H
 
-#include <unordered_set>
 #include <functional>
 
+#include "data/hashmap.h"
 #include "parser/cwa.hpp"
 #include "data/reduction.h"
 #include "data/action.h"
@@ -66,9 +66,9 @@ public:
 
     USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 
-    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> 
+    HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> 
         getOperationSubstitutionsCausingEffect(
-            const std::unordered_set<USignature, USignatureHasher>& operations, 
+            const HashSet<USignature, USignatureHasher>& operations, 
             const USignature& fact, bool negated);
 
     bool isFullyGround(const USignature& sig);

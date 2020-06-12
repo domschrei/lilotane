@@ -36,7 +36,7 @@ struct HtnInstance {
     int _name_table_running_id = 1;
 
     // Set of all name IDs that are variables (start with '?').
-    std::unordered_set<int> _var_ids;
+    HashSet<int> _var_ids;
 
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
     HashMap<int, std::vector<int>> _signature_sorts_table;
@@ -44,11 +44,11 @@ struct HtnInstance {
     HashMap<int, int> _original_n_taskvars;
 
     // Maps a sort name ID to a list of constant name IDs of that sort.
-    HashMap<int, std::unordered_set<int>> _constants_by_sort;
+    HashMap<int, HashSet<int>> _constants_by_sort;
 
-    std::unordered_set<int> _q_constants;
+    HashSet<int> _q_constants;
     HashMap<int, int> _primary_sort_of_q_constants;
-    HashMap<int, std::unordered_set<int>> _sorts_of_q_constants;
+    HashMap<int, HashSet<int>> _sorts_of_q_constants;
 
     // Maps a normalized fact signature to a list of possible decodings
     // using the normalized arguments.
@@ -68,8 +68,8 @@ struct HtnInstance {
 
     HashMap<int, std::vector<int>> _task_id_to_reduction_ids;
 
-    std::unordered_set<int> _equality_predicates;
-    std::unordered_set<int> _fluent_predicates;
+    HashSet<int> _equality_predicates;
+    HashSet<int> _fluent_predicates;
 
     Instantiator* _instantiator;
     EffectorTable* _effector_table;
@@ -112,14 +112,14 @@ struct HtnInstance {
 
     bool hasQConstants(const USignature& sig);
     const std::vector<USignature>& getDecodedObjects(const USignature& qFact);
-    const std::unordered_set<int>& getSortsOfQConstant(int qconst);
-    const std::unordered_set<int>& getDomainOfQConstant(int qconst);
+    const HashSet<int>& getSortsOfQConstant(int qconst);
+    const HashSet<int>& getDomainOfQConstant(int qconst);
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
     const USigSet& getQFactAbstractions(const USignature& decFact);
 
-    const std::unordered_set<int>& getConstantsOfSort(int sort);
+    const HashSet<int>& getConstantsOfSort(int sort);
 
     bool isRigidPredicate(int predId);
     void removeRigidConditions(HtnOp& op);

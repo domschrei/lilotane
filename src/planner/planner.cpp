@@ -149,10 +149,11 @@ int Planner::findPlan() {
                 assert(newPos+offset < newLayer.size());
 
                 createNext();
-                log("  Instantiation done. (%i reductions, %i actions, %i facts)\n", 
+                log("  Instantiation done. (r=%i a=%i f=%i qf=%i)\n", 
                         _layers[_layer_idx][_pos].getReductions().size(),
                         _layers[_layer_idx][_pos].getActions().size(),
-                        _layers[_layer_idx][_pos].getFacts().size()
+                        _layers[_layer_idx][_pos].getFacts().size(),
+                        _htn._q_constants.size()
                 );
                 _enc.encode(_layer_idx, _pos++);
              }
@@ -184,8 +185,8 @@ int Planner::findPlan() {
 
     // -- primitive part
     stream << "==>\n";
-    std::unordered_set<int> actionIds;
-    std::unordered_set<int> idsToRemove;
+    HashSet<int> actionIds;
+    HashSet<int> idsToRemove;
     for (PlanItem& item : planPair.first) {
         if (item.id < 0) continue;
         if (_htn._name_back_table[item.abstractTask._name_id].rfind("_SECOND") != std::string::npos) {
@@ -282,7 +283,7 @@ void Planner::createNextFromLeft(const Position& left) {
     // Propagate state
     //newPos.extendState(left.getState());
 
-    std::unordered_set<int> relevantQConstants;
+    HashSet<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
     for (const USignature& aSig : left.getActions()) {

@@ -30,8 +30,8 @@ std::vector<Signature> EffectorTable::getPossibleFactChanges(const USignature& s
     if (!_fact_changes.count(nameId)) {
         // Compute fact changes for origSig
         
-        std::unordered_set<USignature, USignatureHasher> seenSignatures;
-        std::unordered_set<Signature, SignatureHasher> facts;
+        HashSet<USignature, USignatureHasher> seenSignatures;
+        HashSet<Signature, SignatureHasher> facts;
         std::vector<USignature> frontier;
 
         // For each possible placeholder substitution

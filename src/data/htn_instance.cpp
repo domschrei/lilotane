@@ -73,8 +73,8 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             const USignature& aSig = a.getSignature();
 
             // Find all negative effects to move
-            std::unordered_set<int> posEffPreds;
-            std::unordered_set<Signature, SignatureHasher> negEffsToMove;
+            HashSet<int> posEffPreds;
+            HashSet<Signature, SignatureHasher> negEffsToMove;
             // Collect positive effect predicates
             for (const Signature& eff : a.getEffects()) {
                 if (eff._negated) continue;
@@ -301,7 +301,7 @@ void HtnInstance::extractConstants() {
     for (const auto& sortPair : _p.sorts) {
         int sortId = getNameId(sortPair.first);
         _constants_by_sort[sortId];
-        std::unordered_set<int>& constants = _constants_by_sort[sortId];
+        HashSet<int>& constants = _constants_by_sort[sortId];
         for (const std::string& c : sortPair.second) {
             constants.insert(getNameId(c));
             //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
@@ -500,11 +500,11 @@ SigSet HtnInstance::getAllFactChanges(const USignature& sig) {
     if (sig == Position::NONE_SIG) return result;
     //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
     for (const Signature& effect : _effector_table->getPossibleFactChanges(sig)) {
-        std::vector<Signature> instantiation = ArgIterator::getFullInstantiation(effect, *this);
-        for (const Signature& i : instantiation) {
-            assert(_instantiator->isFullyGround(i._usig));
-            if (_params.isSet("rrp")) _fluent_predicates.insert(i._usig._name_id);
-            result.insert(i);
+        std::vector<USignature> instantiation = ArgIterator::getFullInstantiation(effect._usig, *this);
+        for (const USignature& i : instantiation) {
+            assert(_instantiator->isFullyGround(i));
+            if (_params.isSet("rrp")) _fluent_predicates.insert(i._name_id);
+            result.emplace(effect._usig._name_id, i._args, effect._negated);
             //log("%s ", Names::to_string(i).c_str());
         }
     }
@@ -543,7 +543,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
     //log("%s\n", Names::to_string(sig).c_str());
 
     // Get domain of the q constant
-    const std::unordered_set<int>& domain = getConstantsOfSort(sort);
+    const HashSet<int>& domain = getConstantsOfSort(sort);
     assert(!domain.empty());
 
     // If there is only a single option for the q constant: 
@@ -643,15 +643,15 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
     return _fact_sig_decodings[normSig]; 
 }
 
-const std::unordered_set<int>& HtnInstance::getSortsOfQConstant(int qconst) {
+const HashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
     return _sorts_of_q_constants[qconst];
 }
 
-const std::unordered_set<int>& HtnInstance::getConstantsOfSort(int sort) {
+const HashSet<int>& HtnInstance::getConstantsOfSort(int sort) {
     return _constants_by_sort[sort]; 
 }
 
-const std::unordered_set<int>& HtnInstance::getDomainOfQConstant(int qconst) {
+const HashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
     return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
 }
 

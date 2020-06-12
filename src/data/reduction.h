@@ -3,7 +3,6 @@
 #define DOMPASCH_TREE_REXX_REDUCTION_H
 
 #include <vector>
-#include <unordered_set>
 #include <map>
 
 #include "data/htn_op.h"

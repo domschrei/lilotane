@@ -3,9 +3,9 @@
 #define DOMPASCH_TREE_REXX_LAYER_H
 
 #include <vector>
-#include <unordered_set>
 #include <set>
 
+#include "data/hashmap.h"
 #include "data/signature.h"
 #include "data/layer_state.h"
 #include "util/names.h"
@@ -39,7 +39,7 @@ private:
     HashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
 
     HashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
-    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
+    HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
@@ -113,7 +113,7 @@ public:
     const HashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const {
         return _q_constants_type_constraints;
     }
-    const HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher>& 
+    const HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const {
         return _forbidden_substitutions_per_op;
     }

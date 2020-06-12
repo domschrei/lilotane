@@ -140,129 +140,7 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("propagatefacts");
 
-    // Fact supports, frame axioms (only for non-new facts free of q-constants)
-    stage("frameaxioms");
-    std::vector<int> dnfSubs; dnfSubs.reserve(8192);
-    if (pos > 0)
-    for (const USignature& fact : newPos.getFacts()) {
-
-        if (_htn.hasQConstants(fact)) continue;
-        if (_htn.isRigidPredicate(fact._name_id)) continue;
-
-        bool firstOccurrence = !left.getFacts().count(fact);
-        if (firstOccurrence) {
-            // First time the fact occurs must be as a "false fact"
-            assert(newPos.getFalseFacts().count(fact));
-            continue;
-        }
-
-        // Do not re-encode frame axioms if the fact has a reused variable
-        if (newPos.getPriorPosOfVariable(fact) < pos) continue;
-
-        for (int sign = -1; sign <= 1; sign += 2) {
-            //Signature factSig(fact, sign < 0);
-            int oldFactVar = sign*left.getVariable(fact);
-            int factVar = sign*newPos.getVariable(fact);
-            const auto& supports = sign > 0 ? newPos.getPosFactSupports() : newPos.getNegFactSupports();
-
-            // Calculate indirect support through qfact abstractions
-            std::unordered_set<int> indirectSupport;
-            for (const USignature& qsig : _htn.getQFactAbstractions(fact)) {
-                //const Signature qfactSig(sig, sign < 0);
-
-                // For each operation that supports some qfact abstraction of the fact:
-                if (supports.count(qsig))
-                for (const USignature& opSig : supports.at(qsig)) {
-                    int opVar = left.getVariable(opSig);
-                    assert(opVar > 0);
-                    
-                    // Calculate and encode prerequisites for indirect support
-
-                    // Find valid sets of substitutions for this operation causing the desired effect
-                    USigSet opSet; opSet.insert(opSig);
-                    auto subMap = _htn._instantiator->getOperationSubstitutionsCausingEffect(opSet, fact, sign<0);
-                    assert(subMap.count(opSig));
-                    if (subMap[opSig].empty()) {
-                        // No valid instantiations!
-                        continue;
-                    }
-
-                    // Assemble possible substitution options to get the desired fact support
-                    std::set<std::set<int>> substOptions;
-                    bool unconditionalEffect = false;
-                    for (const substitution_t& s : subMap[opSig]) {
-                        if (s.empty()) {
-                            // Empty substitution does the job
-                            unconditionalEffect = true;
-                            break;
-                        }
-                        // An actual substitution is necessary
-                        std::set<int> substOpt;
-                        for (const std::pair<int,int>& entry : s) {
-                            int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
-                            substOpt.insert(substVar);
-                        }
-                        substOptions.insert(substOpt);
-                    }
-
-                    if (!unconditionalEffect) {
-                        // Bring the found substitution sets to CNF and encode them
-                        for (const auto& set : substOptions) {
-                            dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
-                            dnfSubs.push_back(0);
-                        }
-                        std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
-                        dnfSubs.clear();
-                        for (const std::set<int>& subsCls : cnfSubs) {
-                            // IF fact change AND the operation is applied,
-                            if (oldFactVar != 0) appendClause(oldFactVar);
-                            #ifndef NONPRIMITIVE_SUPPORT
-                            appendClause(-prevVarPrim);
-                            #endif
-                            appendClause(-factVar, -opVar);
-                            //log("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
-                            // THEN either of the valid substitution combinations
-                            for (int subVar : subsCls) {
-                                appendClause(subVar);
-                                //log("%i ", subVar);  
-                            } 
-                            endClause();
-                            //log("\n");
-                        }
-                    }
-
-                    // Add operation to indirect support
-                    indirectSupport.insert(opVar); 
-                }
-            }
-
-            // Fact change:
-            //log("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
-            if (oldFactVar != 0) appendClause(oldFactVar);
-            appendClause(-factVar);
-            #ifndef NONPRIMITIVE_SUPPORT
-            // Non-primitiveness wildcard
-            appendClause(-prevVarPrim);
-            #endif
-            // DIRECT support
-            if (supports.count(fact)) {
-                for (const USignature& opSig : supports.at(fact)) {
-                    int opVar = left.getVariable(opSig);
-                    assert(opVar > 0);
-                    appendClause(opVar);
-                    //log("%i ", opVar);
-                }
-            }
-            // INDIRECT support
-            for (int opVar : indirectSupport) {
-                appendClause(opVar);
-                //log("%i ", opVar);
-            }
-            endClause();
-            //log("\n");
-        }
-    }
-    stage("frameaxioms");
+    encodeFrameAxioms(newPos, left);
 
     // Effects of "old" actions to the left
     stage("actioneffects");
@@ -489,8 +367,8 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     LayerState& state = _layers->back().getState();
 
     // a) first check normal facts
-    std::unordered_set<int> newFactVars;
-    std::unordered_set<int> unchangedFactVars;
+    HashSet<int> newFactVars;
+    HashSet<int> unchangedFactVars;
     for (const USignature& factSig : newPos.getFacts()) {
         if (_htn.hasQConstants(factSig)) continue;
         
@@ -502,6 +380,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
                         && !newPos.getNegFactSupports().count(factSig);
 
         // None of its linked q-facts must have a support
+        //log("     %i abstractions\n", _htn.getQFactDecodings(factSig).size());
         if (reuse) for (const USignature& qSig : _htn.getQFactAbstractions(factSig)) {
             if (reuse && newPos.getFacts().count(qSig)) {
                 
@@ -524,7 +403,6 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         }
     }
 
-
     // b) now check q-facts
     for (const USignature& factSig : newPos.getFacts()) {
         if (!_htn.hasQConstants(factSig)) continue;
@@ -537,6 +415,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
                         && !newPos.getNegFactSupports().count(factSig);
         
         // None of the decoded facts may have changed
+        //log("     %i decodings\n", _htn.getQFactDecodings(factSig).size());
         if (reuse) for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
             bool isContained = newPos.getFacts().count(decSig);
             if (!isContained) continue;
@@ -569,6 +448,138 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     }
     stage("factvarreusage");
     log("    %.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
+}
+
+void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
+
+    // Fact supports, frame axioms (only for non-new facts free of q-constants)
+    stage("frameaxioms");
+
+    int layerIdx = newPos.getPos().first;
+    int pos = newPos.getPos().second;
+    int prevVarPrim = pos>0 ? varPrimitive(layerIdx, pos-1) : 0;
+
+    std::vector<int> dnfSubs; dnfSubs.reserve(8192);
+    if (pos > 0)
+    for (const USignature& fact : newPos.getFacts()) {
+
+        if (_htn.hasQConstants(fact)) continue;
+        if (_htn.isRigidPredicate(fact._name_id)) continue;
+
+        bool firstOccurrence = !left.getFacts().count(fact);
+        if (firstOccurrence) {
+            // First time the fact occurs must be as a "false fact"
+            assert(newPos.getFalseFacts().count(fact));
+            continue;
+        }
+
+        // Do not re-encode frame axioms if the fact has a reused variable
+        if (newPos.getPriorPosOfVariable(fact) < pos) continue;
+
+        for (int sign = -1; sign <= 1; sign += 2) {
+            //Signature factSig(fact, sign < 0);
+            int oldFactVar = sign*left.getVariable(fact);
+            int factVar = sign*newPos.getVariable(fact);
+            const auto& supports = sign > 0 ? newPos.getPosFactSupports() : newPos.getNegFactSupports();
+
+            // Calculate indirect support through qfact abstractions
+            HashSet<int> indirectSupport;
+            for (const USignature& qsig : _htn.getQFactAbstractions(fact)) {
+                //const Signature qfactSig(sig, sign < 0);
+
+                // For each operation that supports some qfact abstraction of the fact:
+                if (supports.count(qsig))
+                for (const USignature& opSig : supports.at(qsig)) {
+                    int opVar = left.getVariable(opSig);
+                    assert(opVar > 0);
+                    
+                    // Calculate and encode prerequisites for indirect support
+
+                    // Find valid sets of substitutions for this operation causing the desired effect
+                    USigSet opSet; opSet.insert(opSig);
+                    auto subMap = _htn._instantiator->getOperationSubstitutionsCausingEffect(opSet, fact, sign<0);
+                    //assert(subMap.count(opSig));
+                    if (subMap[opSig].empty()) {
+                        // No valid instantiations!
+                        continue;
+                    }
+
+                    // Assemble possible substitution options to get the desired fact support
+                    std::set<std::set<int>> substOptions;
+                    bool unconditionalEffect = false;
+                    for (const substitution_t& s : subMap[opSig]) {
+                        if (s.empty()) {
+                            // Empty substitution does the job
+                            unconditionalEffect = true;
+                            break;
+                        }
+                        // An actual substitution is necessary
+                        std::set<int> substOpt;
+                        for (const auto& entry : s) {
+                            int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
+                            substOpt.insert(substVar);
+                        }
+                        substOptions.insert(substOpt);
+                    }
+
+                    if (!unconditionalEffect) {
+                        // Bring the found substitution sets to CNF and encode them
+                        for (const auto& set : substOptions) {
+                            dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
+                            dnfSubs.push_back(0);
+                        }
+                        std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
+                        dnfSubs.clear();
+                        for (const std::set<int>& subsCls : cnfSubs) {
+                            // IF fact change AND the operation is applied,
+                            if (oldFactVar != 0) appendClause(oldFactVar);
+                            #ifndef NONPRIMITIVE_SUPPORT
+                            appendClause(-prevVarPrim);
+                            #endif
+                            appendClause(-factVar, -opVar);
+                            //log("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
+                            // THEN either of the valid substitution combinations
+                            for (int subVar : subsCls) {
+                                appendClause(subVar);
+                                //log("%i ", subVar);  
+                            } 
+                            endClause();
+                            //log("\n");
+                        }
+                    }
+
+                    // Add operation to indirect support
+                    indirectSupport.insert(opVar); 
+                }
+            }
+
+            // Fact change:
+            //log("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
+            if (oldFactVar != 0) appendClause(oldFactVar);
+            appendClause(-factVar);
+            #ifndef NONPRIMITIVE_SUPPORT
+            // Non-primitiveness wildcard
+            appendClause(-prevVarPrim);
+            #endif
+            // DIRECT support
+            if (supports.count(fact)) {
+                for (const USignature& opSig : supports.at(fact)) {
+                    int opVar = left.getVariable(opSig);
+                    assert(opVar > 0);
+                    appendClause(opVar);
+                    //log("%i ", opVar);
+                }
+            }
+            // INDIRECT support
+            for (int opVar : indirectSupport) {
+                appendClause(opVar);
+                //log("%i ", opVar);
+            }
+            endClause();
+            //log("\n");
+        }
+    }
+    stage("frameaxioms");
 }
 
 void Encoding::initSubstitutionVars(int arg, Position& pos) {

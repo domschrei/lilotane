@@ -3,8 +3,8 @@
 #define DOMPASCH_TREE_REXX_BOUND_CONDITION_H
 
 #include <vector>
-#include <unordered_set>
 
+#include "data/hashmap.h"
 #include "data/signature.h"
 
 struct BoundSignature {
@@ -59,6 +59,6 @@ struct BoundSignatureHasher {
     }
 };
 
-typedef std::unordered_set<BoundSignature, BoundSignatureHasher> BoundConditionSet;
+typedef HashSet<BoundSignature, BoundSignatureHasher> BoundConditionSet;
 
 #endif
