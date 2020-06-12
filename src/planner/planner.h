@@ -44,20 +44,21 @@ private:
     void createNextFromAbove(const Position& above);
     void createNextFromLeft(const Position& left);
 
-    void addPrecondition(const Signature& op, const Signature& fact);
-    void addEffect(const Signature& op, const Signature& fact);
+    void addPrecondition(const USignature& op, const Signature& fact);
+    void addEffect(const USignature& op, const Signature& fact);
 
-    void addQConstantTypeConstraints(const Signature& op);
+    void addQConstantTypeConstraints(const USignature& op);
     void propagateActions(int offset);
     void propagateReductions(int offset);
     void addNewFalseFacts();
 
     LayerState& getLayerState(int layer = -1);
     std::function<bool(const Signature&)> getStateEvaluator(int layer = -1, int pos = -1);
-    void introduceNewFalseFact(Position& newPos, const Signature& fact);
+    // Introduces "fact" as FALSE at newPos.
+    void introduceNewFalseFact(Position& newPos, const USignature& fact);
 
-    std::vector<Signature> getAllReductionsOfTask(const Signature& task, std::function<bool(const Signature&)> state);
-    std::vector<Signature> getAllActionsOfTask(const Signature& task, std::function<bool(const Signature&)> state);
+    std::vector<USignature> getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
+    std::vector<USignature> getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
 };
 
 #endif

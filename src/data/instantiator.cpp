@@ -16,8 +16,8 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 
     std::vector<Reduction> result;
 
-    SigSet inst = instantiate(r, state);
-    for (const Signature& sig : inst) {
+    USigSet inst = instantiate(r, state);
+    for (const USignature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
         result.push_back(r.substituteRed(Substitution::get(r.getArguments(), sig._args)));
     }
@@ -35,8 +35,8 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
 
     std::vector<Action> result;
 
-    SigSet inst = instantiate(a, state);
-    for (const Signature& sig : inst) {
+    USigSet inst = instantiate(a, state);
+    for (const USignature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
         assert(isFullyGround(sig));
         HtnOp newOp = a.substitute(Substitution::get(a.getArguments(), sig._args));
@@ -48,7 +48,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
     return result;
 }
 
-bool Instantiator::hasSomeInstantiation(const Signature& sig) {
+bool Instantiator::hasSomeInstantiation(const USignature& sig) {
 
     const std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
@@ -68,12 +68,12 @@ struct CompArgs {
     int rating(int arg) const {
         int r = 0;
         for (const Signature& pre : __op->getPreconditions()) {
-            for (int preArg : pre._args) {
+            for (int preArg : pre._usig._args) {
                 if (preArg == arg) r++;
             } 
         }
         for (const Signature& eff : __op->getEffects()) {
-            for (int effArg : eff._args) {
+            for (int effArg : eff._usig._args) {
                 if (effArg == arg) r++;
             } 
         }
@@ -81,7 +81,7 @@ struct CompArgs {
     }
 };
 
-SigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
+USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
     __op = &op;
 
     //if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
@@ -108,7 +108,7 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const
         }   
     }
 
-    SigSet instantiation;
+    USigSet instantiation;
     int doneInstSize = argsByPriority.size(); // ALL
     if (_inst_mode == INSTANTIATE_NOTHING) doneInstSize = 0;
     if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
@@ -192,14 +192,14 @@ SigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const
 // Given a fact (signature) and (a set of ground htn operations containing q constants),
 // compute the possible sets of substitutions that are necessary to let each operation
 // have the specified fact in its support.
-HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> 
+HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> 
 Instantiator::getOperationSubstitutionsCausingEffect(
-    const std::unordered_set<Signature, SignatureHasher>& operations, const Signature& fact) {
+    const std::unordered_set<USignature, USignatureHasher>& operations, const USignature& fact, bool negated) {
 
-    HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> result;
+    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> result;
 
     // For each provided HtnOp:
-    for (const Signature& opSig : operations) {
+    for (const USignature& opSig : operations) {
         //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
         std::unordered_set<substitution_t, Substitution::Hasher> substitutions;
 
@@ -211,13 +211,13 @@ Instantiator::getOperationSubstitutionsCausingEffect(
         // For each such effect: check if it is a valid result
         // of some series of q const substitutions
         for (const Signature& eff : effects) {
-            if (eff._name_id != fact._name_id) continue;
-            if (eff._negated != fact._negated) continue;
+            if (eff._usig._name_id != fact._name_id) continue;
+            if (eff._negated != negated) continue;
             bool matches = true;
             substitution_t s;
             //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
-            for (int argPos = 0; argPos < eff._args.size(); argPos++) {
-                int effArg = eff._args[argPos];
+            for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
+                int effArg = eff._usig._args[argPos];
                 int substArg = fact._args[argPos];
                 if (!_htn->_q_constants.count(effArg)) {
                     // If the effect fact has no q const here, the arg must be left unchanged
@@ -248,27 +248,27 @@ Instantiator::getOperationSubstitutionsCausingEffect(
     return result;
 }
 
-bool Instantiator::isFullyGround(const Signature& sig) {
+bool Instantiator::isFullyGround(const USignature& sig) {
     for (int arg : sig._args) {
         if (_htn->_var_ids.count(arg)) return false;
     }
     return true;
 }
 
-std::vector<int> Instantiator::getFreeArgPositions(const Signature& sig) {
+std::vector<int> Instantiator::getFreeArgPositions(const std::vector<int>& sigArgs) {
     std::vector<int> argPositions;
-    for (int i = 0; i < sig._args.size(); i++) {
-        int arg = sig._args[i];
+    for (int i = 0; i < sigArgs.size(); i++) {
+        int arg = sigArgs[i];
         if (_htn->_var_ids.count(arg)) argPositions.push_back(i);
     }
     return argPositions;
 }
 
-bool Instantiator::fits(Signature& sig, Signature& groundSig, HashMap<int, int>* substitution) {
+bool Instantiator::fits(USignature& sig, USignature& groundSig, HashMap<int, int>* substitution) {
     assert(sig._name_id == groundSig._name_id);
     assert(sig._args.size() == groundSig._args.size());
     assert(isFullyGround(groundSig));
-    if (sig._negated != groundSig._negated) return false;
+    //if (sig._negated != groundSig._negated) return false;
     for (int i = 0; i < sig._args.size(); i++) {
         if (!_htn->_var_ids.count(sig._args[i])) {
             // Constant parameter: must be equal
@@ -283,7 +283,7 @@ bool Instantiator::fits(Signature& sig, Signature& groundSig, HashMap<int, int>*
     return true;
 }
 
-bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
+bool Instantiator::hasConsistentlyTypedArgs(const USignature& sig) {
     const std::vector<int>& taskSorts = _htn->_signature_sorts_table[sig._name_id];
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = taskSorts[argPos];
@@ -312,7 +312,7 @@ bool Instantiator::hasConsistentlyTypedArgs(const Signature& sig) {
     return true;
 }
 
-std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Signature& sig) {
+std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USignature& sig) {
 
     std::vector<TypeConstraint> constraints;
 
@@ -355,11 +355,11 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const Sign
 }
 
 bool Instantiator::test(const Signature& sig, const std::function<bool(const Signature&)>& state) {
-    assert(isFullyGround(sig));
+    assert(isFullyGround(sig._usig));
     bool positive = !sig._negated;
     
     // Q-Fact: assume that it holds
-    if (_htn->hasQConstants(sig)) return true;
+    if (_htn->hasQConstants(sig._usig)) return true;
 
     // fact positive : true iff contained in facts
     if (positive) return state(sig);
@@ -377,7 +377,7 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
 bool Instantiator::hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
 
     for (const Signature& pre : op.getPreconditions()) {
-        if (isFullyGround(pre) && !test(pre, state)) {
+        if (isFullyGround(pre._usig) && !test(pre, state)) {
             return false;
         }
     }

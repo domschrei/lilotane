@@ -15,110 +15,123 @@ typedef std::pair<int, int> IntPair;
 struct Position {
 
 public:
-    const static Signature NONE_SIG;
+    const static USignature NONE_SIG;
 
 private:
     int _layer_idx;
     int _pos;
 
-    SigSet _actions;
-    SigSet _reductions;
+    USigSet _actions;
+    USigSet _reductions;
 
-    HashMap<Signature, SigSet, SignatureHasher> _expansions;
+    HashMap<USignature, USigSet, USignatureHasher> _expansions;
 
-    SigSet _axiomatic_ops;
+    USigSet _axiomatic_ops;
 
-    SigSet _facts;
-    SigSet _true_facts;
-    HashMap<Signature, SigSet, SignatureHasher> _fact_supports;
+    // All facts, actual and virtual, potentially occurring at this position.
+    USigSet _facts;
+    // All facts that are definitely true at this position.
+    USigSet _true_facts;
+    // All facts that are definitely false at this position.
+    USigSet _false_facts;
 
-    HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher> _q_constants_type_constraints;
-    HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher> _forbidden_substitutions_per_op;
+    HashMap<USignature, USigSet, USignatureHasher> _pos_fact_supports;
+    HashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
+
+    HashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
+    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
     // Prop. variable for each occurring signature, together with the position where it was originally encoded.
-    HashMap<Signature, IntPair, SignatureHasher> _variables;
+    HashMap<USignature, IntPair, USignatureHasher> _variables;
 
 public:
     Position() {}
     void setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-    void addFact(const Signature& fact) {_facts.insert(fact);}
-    void addTrueFact(const Signature& fact) {_true_facts.insert(fact);}
+    void addFact(const USignature& fact) {_facts.insert(fact);}
+    void addTrueFact(const USignature& fact) {_true_facts.insert(fact);}
+    void addFalseFact(const USignature& fact) {_false_facts.insert(fact);}
+    void addDefinitiveFact(const Signature& fact) {(fact._negated ? _false_facts : _true_facts).insert(fact._usig);}
 
-    void addFactSupport(const Signature& fact, const Signature& operation) {
-        _fact_supports[fact];
-        _fact_supports[fact].insert(operation);
+    void addFactSupport(const Signature& fact, const USignature& operation) {
+        auto& supports = (fact._negated ? _neg_fact_supports : _pos_fact_supports);
+        supports[fact._usig];
+        supports[fact._usig].insert(operation);
     }
     void touchFactSupport(const Signature& fact) {
-        _fact_supports[fact];
+        auto& supports = (fact._negated ? _neg_fact_supports : _pos_fact_supports);
+        supports[fact._usig];
     }
-    void addQConstantTypeConstraint(const Signature& op, const TypeConstraint& c) {
+    void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
         _q_constants_type_constraints[op];
         _q_constants_type_constraints[op].push_back(c);
     }
-    void addForbiddenSubstitution(const Signature& op, const substitution_t& s) {
+    void addForbiddenSubstitution(const USignature& op, const substitution_t& s) {
         _forbidden_substitutions_per_op[op];
         _forbidden_substitutions_per_op[op].insert(s);
     }
 
-    void addAction(const Signature& action) {
+    void addAction(const USignature& action) {
         _actions.insert(action);
     }
-    void addReduction(const Signature& reduction) {
+    void addReduction(const USignature& reduction) {
         _reductions.insert(reduction);
     }
-    void addExpansion(const Signature& parent, const Signature& child) {
+    void addExpansion(const USignature& parent, const USignature& child) {
         _expansions[parent];
         _expansions[parent].insert(child);
     }
-    void addAxiomaticOp(const Signature& op) {
+    void addAxiomaticOp(const USignature& op) {
         _axiomatic_ops.insert(op);
     }
     void addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
     
-    void setFacts(const SigSet& facts) {
+    void setFacts(const USigSet& facts) {
         _facts = facts;
     }
 
-    int encode(const Signature& sig);
-    void setVariable(const Signature& sig, int v, int priorPos);
-    bool hasVariable(const Signature& sig) const;
-    int getVariable(const Signature& sig) const;
-    int getPriorPosOfVariable(const Signature& sig) const;
-    bool isVariableOriginallyEncoded(const Signature& sig) const;
+    int encode(const USignature& sig);
+    void setVariable(const USignature& sig, int v, int priorPos);
+    bool hasVariable(const USignature& sig) const;
+    int getVariable(const USignature& sig) const;
+    int getPriorPosOfVariable(const USignature& sig) const;
+    bool isVariableOriginallyEncoded(const USignature& sig) const;
 
-    bool hasFact(const Signature& fact) const {return _facts.count(fact);}
-    bool hasAction(const Signature& action) const {return _actions.count(action);}
-    bool hasReduction(const Signature& red) const {return _reductions.count(red);}
+    bool hasFact(const USignature& fact) const {return _facts.count(fact);}
+    bool hasAction(const USignature& action) const {return _actions.count(action);}
+    bool hasReduction(const USignature& red) const {return _reductions.count(red);}
 
     IntPair getPos() const {return IntPair(_layer_idx, _pos);}
     
-    const SigSet& getFacts() const {return _facts;}
-    const SigSet& getTrueFacts() const {return _true_facts;}
-    const HashMap<Signature, SigSet, SignatureHasher>& getFactSupports() const {return _fact_supports;}
-    const HashMap<Signature, std::vector<TypeConstraint>, SignatureHasher>& getQConstantsTypeConstraints() const {
+    const USigSet& getFacts() const {return _facts;}
+    const USigSet& getTrueFacts() const {return _true_facts;}
+    const USigSet& getFalseFacts() const {return _false_facts;}
+    const HashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const {return _pos_fact_supports;}
+    const HashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports() const {return _neg_fact_supports;}
+    const HashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const {
         return _q_constants_type_constraints;
     }
-    const HashMap<Signature, std::unordered_set<substitution_t, Substitution::Hasher>, SignatureHasher>& 
+    const HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const {
         return _forbidden_substitutions_per_op;
     }
 
-    const SigSet& getActions() const {return _actions;}
-    const SigSet& getReductions() const {return _reductions;}
-    const HashMap<Signature, SigSet, SignatureHasher>& getExpansions() const {return _expansions;}
-    const SigSet& getAxiomaticOps() const {return _axiomatic_ops;}
+    const USigSet& getActions() const {return _actions;}
+    const USigSet& getReductions() const {return _reductions;}
+    const HashMap<USignature, USigSet, USignatureHasher>& getExpansions() const {return _expansions;}
+    const USigSet& getAxiomaticOps() const {return _axiomatic_ops;}
     int getMaxExpansionSize() const {return _max_expansion_size;}
 
     void clearUnneeded() {
         _expansions.clear();
         _axiomatic_ops.clear();
         _true_facts.clear();
-        _fact_supports.clear();
+        _pos_fact_supports.clear();
+        _neg_fact_supports.clear();
         _q_constants_type_constraints.clear();
-        for (const Signature& fact : _facts) {
+        for (const USignature& fact : _facts) {
             _variables.erase(fact);
         }
         _facts.clear();

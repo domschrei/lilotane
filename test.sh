@@ -1,7 +1,7 @@
 #!/bin/bash
 
 timeout=10
-domains="miconic smartphone satellite umtranslog woodworking zenotravel rover transport entertainment" 
+domains="miconic smartphone satellite umtranslog woodworking zenotravel rover transport barman entertainment" 
 
 exit_on_verify_fail=true
 

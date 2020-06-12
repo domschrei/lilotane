@@ -38,50 +38,59 @@ namespace Substitution {
     };
 }
 
+struct Signature;
+
+struct USignature {
+
+    int _name_id;
+    std::vector<int> _args;
+
+    USignature();
+    USignature(int nameId, const std::vector<int>& args);
+    USignature(const USignature& sig);
+
+    Signature toSignature(bool negated = false) const;
+    USignature substitute(const HashMap<int, int>& s) const;
+
+    bool operator==(const USignature& b) const;
+    bool operator!=(const USignature& b) const;
+
+    USignature& operator=(const USignature& sig);
+};
+
 struct Signature {
     
-    int _name_id = -1;
-    std::vector<int> _args;
+    USignature _usig;
     mutable bool _negated = false;
 
     Signature() {}
-    Signature(int nameId, const std::vector<int>& args, bool negated = false) : _name_id(nameId), _args(args), _negated(negated) {}
-    Signature(const Signature& sig) : _name_id(sig._name_id), _args(sig._args), _negated(sig._negated) {}
+    Signature(int nameId, const std::vector<int>& args, bool negated = false) : _usig(nameId, args), _negated(negated) {}
+    Signature(const USignature& usig, bool negated = false) : _usig(usig), _negated(negated) {}
+    Signature(const Signature& sig) : _usig(sig._usig), _negated(sig._negated) {}
 
     void negate() {
         _negated = !_negated;
     }
 
-    Signature abs() const {
-        return Signature(_name_id, _args);
+    const USignature& getUnsigned() const {
+        return _usig;
     }
+
     Signature opposite() const {
-        Signature out = Signature(_name_id, _args);
-        if (!_negated) out.negate();
+        Signature out(*this);
+        if (_negated) out.negate();
         return out;
     }
 
     Signature substitute(const HashMap<int, int>& s) const {
-        Signature sig;
-        sig._name_id = _name_id;
-        assert(sig._name_id != 0);
-        sig._args.resize(_args.size());
-        for (int i = 0; i < _args.size(); i++) {
-            if (s.count(_args[i])) sig._args[i] = s.at(_args[i]);
-            else sig._args[i] = _args[i];
-            assert(sig._args[i] != 0);
-        }
+        Signature sig(_usig.substitute(s));
         sig._negated = _negated;
         return sig;
     }
 
     bool operator==(const Signature& b) const {
-        if (_name_id != b._name_id) return false;
         if (_negated != b._negated) return false;
-        if (_args.size() != b._args.size()) return false;
-        for (int i = 0; i < _args.size(); i++) {
-            if (_args[i] != b._args[i]) return false;
-        }
+        if (_usig != b._usig) return false;
         return true;
     }
 
@@ -90,18 +99,15 @@ struct Signature {
     }
 
     Signature& operator=(const Signature& sig) {
-        _name_id = sig._name_id;
-        _args = sig._args;
+        _usig = sig._usig;
         _negated = sig._negated;
         return *this;
     }
 };
 
-struct SignatureHasher {
-    std::size_t operator()(const Signature& s) const {
-
+struct USignatureHasher {
+    std::size_t operator()(const USignature& s) const {
         size_t hash = 1337;
-        hash_combine(hash, s._negated);
         for (auto arg : s._args) {
             hash_combine(hash, arg);
         }
@@ -109,13 +115,16 @@ struct SignatureHasher {
         return hash;
     }
 };
-
-struct SignatureComparator {
-    bool operator()(const Signature& a, const Signature& b) const {
-        return a == b;
+struct SignatureHasher {
+    USignatureHasher _usig_hasher;
+    std::size_t operator()(const Signature& s) const {
+        size_t hash = _usig_hasher(s._usig);
+        hash_combine(hash, s._negated);
+        return hash;
     }
 };
 
 typedef std::unordered_set<Signature, SignatureHasher> SigSet;
+typedef std::unordered_set<USignature, USignatureHasher> USigSet;
 
 #endif

@@ -50,10 +50,10 @@ struct HtnInstance {
 
     // Maps a normalized fact signature to a list of possible decodings
     // using the normalized arguments.
-    HashMap<Signature, std::vector<Signature>, SignatureHasher> _fact_sig_decodings;
+    HashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
 
-    HashMap<Signature, SigSet, SignatureHasher> _qfact_decodings;
-    HashMap<Signature, SigSet, SignatureHasher> _qfact_abstractions;
+    HashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
+    HashMap<USignature, USigSet, USignatureHasher> _qfact_abstractions;
 
     // Maps an action name ID to its action object.
     HashMap<int, Action> _actions;
@@ -61,8 +61,8 @@ struct HtnInstance {
     // Maps a reduction name ID to its reduction object.
     HashMap<int, Reduction> _reductions;
 
-    HashMap<Signature, Action, SignatureHasher> _actions_by_sig;
-    HashMap<Signature, Reduction, SignatureHasher> _reductions_by_sig;
+    HashMap<USignature, Action, USignatureHasher> _actions_by_sig;
+    HashMap<USignature, Reduction, USignatureHasher> _reductions_by_sig;
 
     HashMap<int, std::vector<int>> _task_id_to_reduction_ids;
 
@@ -86,10 +86,10 @@ struct HtnInstance {
 
     std::vector<int> getArguments(int predNameId, const std::vector<std::pair<string, string>>& vars);
     std::vector<int> getArguments(int predNameId, const std::vector<std::string>& vars);
-    Signature getSignature(const task& task);
-    Signature getSignature(const method& method);
+    USignature getSignature(const task& task);
+    USignature getSignature(const method& method);
     Signature getSignature(int parentNameId, const literal& literal);
-    Signature getInitTaskSignature(int pos);
+    USignature getInitTaskSignature(int pos);
     SigSet getInitState();
     SigSet getGoals();
 
@@ -101,21 +101,21 @@ struct HtnInstance {
     Reduction& createReduction(const method& method);
     Action& createAction(const task& task);
 
-    SigSet getAllFactChanges(const Signature& sig);
+    SigSet getAllFactChanges(const USignature& sig);
 
     Action replaceQConstants(const Action& a, int layerIdx, int pos);
     Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos);
-    HashMap<int, int> addQConstants(const Signature& sig, int layerIdx, int pos);
-    void addQConstant(int layerIdx, int pos, const Signature& sig, int argPos, HashMap<int, int>& s);
+    HashMap<int, int> addQConstants(const USignature& sig, int layerIdx, int pos);
+    void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, HashMap<int, int>& s);
 
-    bool hasQConstants(const Signature& sig);
-    const std::vector<Signature>& getDecodedObjects(const Signature& qFact);
+    bool hasQConstants(const USignature& sig);
+    const std::vector<USignature>& getDecodedObjects(const USignature& qFact);
     const std::unordered_set<int>& getSortsOfQConstant(int qconst);
     const std::unordered_set<int>& getDomainOfQConstant(int qconst);
 
-    void addQFactDecoding(const Signature& qFact, const Signature& decFact);
-    const SigSet& getQFactDecodings(const Signature& qfact);
-    const SigSet& getQFactAbstractions(const Signature& decFact);
+    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
+    const USigSet& getQFactDecodings(const USignature& qfact);
+    const USigSet& getQFactAbstractions(const USignature& decFact);
 
     const std::unordered_set<int>& getConstantsOfSort(int sort);
 

@@ -36,13 +36,13 @@ public:
     void removeInconsistentEffects() {
         // Collect all neg. preconds for which the pos. precond is contained, too
         SigSet inconsistentEffs;
-        for (Signature sig : _effects) {
-            if (sig._negated && _effects.count(sig.abs())) {
+        for (const Signature& sig : _effects) {
+            if (sig._negated && _effects.count(Signature(sig._usig))) {
                 inconsistentEffs.insert(sig);
             }
         }
         // Remove each such neg. precond
-        for (Signature sig : inconsistentEffs) {
+        for (const Signature& sig : inconsistentEffs) {
             _effects.erase(sig);
         }
     }
@@ -75,8 +75,8 @@ public:
     const std::vector<int>& getArguments() const {
         return _args;
     }
-    Signature getSignature() const {
-        return Signature(_id, _args);
+    USignature getSignature() const {
+        return USignature(_id, _args);
     }
 
     HtnOp& operator=(const HtnOp& op) {

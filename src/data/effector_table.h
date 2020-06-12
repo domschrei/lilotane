@@ -28,9 +28,9 @@ public:
     // Maps a (action|reduction) signature of any grounding state
     // to the corresponding set of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    std::vector<Signature> getPossibleFactChanges(const Signature& sig);
+    std::vector<Signature> getPossibleFactChanges(const USignature& sig);
 
-    std::vector<Signature> getPossibleChildren(const Signature& actionOrReduction);
+    std::vector<USignature> getPossibleChildren(const USignature& actionOrReduction);
 };
 
 

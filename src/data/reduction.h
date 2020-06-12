@@ -20,7 +20,7 @@ private:
     std::vector<int> _task_args;
 
     // The ordered list of subtasks.
-    std::vector<Signature> _subtasks;
+    std::vector<USignature> _subtasks;
 
 public:
     Reduction() : HtnOp() {}
@@ -29,11 +29,11 @@ public:
         for (auto pre : r.getPreconditions()) addPrecondition(pre);
         for (auto eff : r.getEffects()) addEffect(eff);
     }
-    Reduction(int nameId, std::vector<int> args, Signature task) : 
+    Reduction(int nameId, const std::vector<int>& args, const USignature& task) : 
             HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
     }
 
-    void orderSubtasks(std::map<int, std::vector<int>> orderingNodelist) {
+    void orderSubtasks(const std::map<int, std::vector<int>>& orderingNodelist) {
 
         // Initialize "visited" state for each node
         std::map<int, int> visitedStates;
@@ -75,7 +75,8 @@ public:
                 } else {
                     // Unvisited node: open, visit children
                     visitedStates[n] = 1;
-                    for (int m : orderingNodelist[n]) {
+                    if (!orderingNodelist.count(n)) continue;
+                    for (int m : orderingNodelist.at(n)) {
                         if (visitedStates[m] < 2)
                             nodeStack.push_back(m);
                     }
@@ -84,7 +85,7 @@ public:
         }
 
         // Reorder subtasks
-        std::vector<Signature> newSubtasks;
+        std::vector<USignature> newSubtasks;
         newSubtasks.resize(_subtasks.size());
         for (int i = 0; i < _subtasks.size(); i++) {
             newSubtasks[i] = _subtasks[sortedNodes[i]];
@@ -112,20 +113,20 @@ public:
         return r;
     }
 
-    void addSubtask(Signature subtask) {
+    void addSubtask(USignature subtask) {
         _subtasks.push_back(subtask);
     }
-    void setSubtasks(const std::vector<Signature>& subtasks) {
+    void setSubtasks(const std::vector<USignature>& subtasks) {
         _subtasks = subtasks;
     }
 
-    Signature getTaskSignature() const {
-        return Signature(_task_name_id, _task_args);
+    USignature getTaskSignature() const {
+        return USignature(_task_name_id, _task_args);
     }
     const std::vector<int>& getTaskArguments() const {
         return _task_args;
     }
-    const std::vector<Signature>& getSubtasks() const {
+    const std::vector<USignature>& getSubtasks() const {
         return _subtasks;
     }
 

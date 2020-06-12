@@ -52,3 +52,42 @@ namespace Substitution {
         return true;
     }
 }
+
+USignature::USignature() : _name_id(-1) {}
+USignature::USignature(int nameId, const std::vector<int>& args) : _name_id(nameId), _args(args) {}
+USignature::USignature(const USignature& sig) : _name_id(sig._name_id), _args(sig._args) {}
+
+Signature USignature::toSignature(bool negated) const {
+    return Signature(*this, negated);
+}
+
+USignature USignature::substitute(const HashMap<int, int>& s) const {
+    USignature sig;
+    sig._name_id = _name_id;
+    assert(sig._name_id != 0);
+    sig._args.resize(_args.size());
+    for (int i = 0; i < _args.size(); i++) {
+        if (s.count(_args[i])) sig._args[i] = s.at(_args[i]);
+        else sig._args[i] = _args[i];
+        assert(sig._args[i] != 0);
+    }
+    return sig;
+}
+
+bool USignature::operator==(const USignature& b) const {
+    if (_name_id != b._name_id) return false;
+    if (_args.size() != b._args.size()) return false;
+    for (int i = 0; i < _args.size(); i++) {
+        if (_args[i] != b._args[i]) return false;
+    }
+    return true;
+}
+bool USignature::operator!=(const USignature& b) const {
+    return !(*this == b);
+}
+
+USignature& USignature::operator=(const USignature& sig) {
+    _name_id = sig._name_id;
+    _args = sig._args;
+    return *this;
+}

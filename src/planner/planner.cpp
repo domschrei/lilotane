@@ -29,8 +29,8 @@ int Planner::findPlan() {
     // Initial state
     SigSet initState = _htn.getInitState();
     for (const Signature& fact : initState) {
-        initLayer[_pos].addFact(fact.abs());
-        initLayer[_pos].addTrueFact(fact);
+        initLayer[_pos].addFact(fact._usig);
+        initLayer[_pos].addDefinitiveFact(fact);
         getLayerState().add(_pos, fact);
     }
 
@@ -41,7 +41,7 @@ int Planner::findPlan() {
     for (const Reduction& r : roots) {
 
         Reduction red = _htn.replaceQConstants(r, _layer_idx, _pos);
-        Signature sig = red.getSignature();
+        USignature sig = red.getSignature();
         
         // Check validity
         if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
@@ -71,7 +71,7 @@ int Planner::findPlan() {
 
     // Create virtual goal action
     Action goalAction(_htn.getNameId("_GOAL_ACTION_"), std::vector<int>());
-    Signature goalSig = goalAction.getSignature();
+    USignature goalSig = goalAction.getSignature();
     _htn._actions[goalSig._name_id] = goalAction;
     initLayer[_pos].addAction(goalSig);
     initLayer[_pos].addAxiomaticOp(goalSig);
@@ -80,7 +80,7 @@ int Planner::findPlan() {
     SigSet goalSet = _htn.getGoals();
     for (const Signature& fact : goalSet) {
         assert(getLayerState().contains(_pos, fact));
-        assert(initLayer[_pos].getFacts().count(fact.abs()));
+        assert(initLayer[_pos].getFacts().count(fact.getUnsigned()));
         goalAction.addPrecondition(fact);
         addPrecondition(goalSig, fact);
     }
@@ -243,10 +243,11 @@ int Planner::findPlan() {
 
 
 
-void Planner::introduceNewFalseFact(Position& newPos, const Signature& fact) {
-    newPos.addTrueFact(fact.abs().opposite());
-    newPos.addFact(fact.abs());
-    getLayerState(newPos.getPos().first).add(newPos.getPos().second, fact.abs().opposite());
+void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
+    Signature sig(fact, /*negated=*/true);
+    newPos.addDefinitiveFact(sig);
+    newPos.addFact(fact);
+    getLayerState(newPos.getPos().first).add(newPos.getPos().second, sig);
     //log("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
     //        newPos.getPos().first, newPos.getPos().second);
 }
@@ -284,7 +285,7 @@ void Planner::createNextFromLeft(const Position& left) {
     std::unordered_set<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
-    for (const Signature& aSig : left.getActions()) {
+    for (const USignature& aSig : left.getActions()) {
         for (const Signature& fact : _htn.getAllFactChanges(aSig)) {
             addEffect(aSig, fact);
         }
@@ -292,7 +293,7 @@ void Planner::createNextFromLeft(const Position& left) {
             if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
         }
     }
-    for (const Signature& rSig : left.getReductions()) {
+    for (const USignature& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : _htn.getAllFactChanges(rSig)) {
             addEffect(rSig, fact);
@@ -303,7 +304,7 @@ void Planner::createNextFromLeft(const Position& left) {
     }
 
     // Propagate occurring facts
-    for (const Signature& fact : left.getFacts()) {
+    for (const USignature& fact : left.getFacts()) {
         bool add = true;
         for (const int& arg : fact._args) {
             if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
@@ -316,27 +317,6 @@ void Planner::createNextFromLeft(const Position& left) {
         }
         newPos.addFact(fact);
     }
-
-    // Propagate fact decodings
-    // TODO 
-    /*
-    for (const auto& entry : left.getQFactDecodings()) {
-        bool add = true;
-        for (const int& arg : entry.first._args) {
-            if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
-        }
-        if (!add) {
-
-            // forget q-fact decodings that have become irrelevant
-            //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
-            continue;
-        } 
-        for (const Signature& dec : entry.second) {
-            newPos.addQFactDecoding(entry.first, dec);
-            _htn.addQFactDecoding(entry.first, dec);
-        }
-    }
-    */
 }
 
 void Planner::propagateInitialState() {
@@ -347,14 +327,14 @@ void Planner::propagateInitialState() {
     Position& above = _layers[_layer_idx-1][0];
 
     // Propagate occurring facts
-    for (const Signature& fact : above.getFacts()) {
+    for (const USignature& fact : above.getFacts()) {
         newPos.addFact(fact);
     }
     // Propagate TRUE facts
-    for (const Signature& fact : above.getTrueFacts()) {
-        assert(!_htn.hasQConstants(fact));
+    for (const USignature& fact : above.getTrueFacts())
         newPos.addTrueFact(fact);
-    }
+    for (const USignature& fact : above.getFalseFacts())
+        newPos.addFalseFact(fact);
     // Propagate state
     getLayerState(_layer_idx) = LayerState(getLayerState(_layer_idx-1));
 }
@@ -366,7 +346,7 @@ void Planner::createNextFromAbove(const Position& above) {
     int offset = _pos - _layers[_layer_idx-1].getSuccessorPos(_old_pos);
     if (offset == 0) {
         // Propagate facts
-        for (const Signature& fact : above.getFacts()) {
+        for (const USignature& fact : above.getFacts()) {
             //assert(newPos.getFacts().count(entry.first)); // already added as false fact!
             newPos.addFact(fact);
         }
@@ -381,14 +361,14 @@ void Planner::propagateActions(int offset) {
     Position& above = _layers[_layer_idx-1][_old_pos];
 
     // Propagate actions
-    for (const Signature& aSig : above.getActions()) {
+    for (const USignature& aSig : above.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
         const Action& a = _htn._actions_by_sig[aSig];
 
         // Can the action occur here w.r.t. the current state?
         bool valid = true;
         for (const Signature& fact : a.getPreconditions()) {
-            if (!_htn.hasQConstants(fact) && !getLayerState().contains(_pos, fact)) {
+            if (!_htn.hasQConstants(fact._usig) && !getLayerState().contains(_pos, fact)) {
                 // Action cannot occur here!
                 valid = false; break;
             }
@@ -413,7 +393,7 @@ void Planner::propagateActions(int offset) {
             }
         } else {
             // action expands to "blank" at non-zero offsets
-            Signature blankSig = _htn._action_blank.getSignature();
+            USignature blankSig = _htn._action_blank.getSignature();
             newPos.addAction(blankSig);
             newPos.addExpansion(aSig, blankSig);
         }
@@ -425,16 +405,16 @@ void Planner::propagateReductions(int offset) {
     Position& above = _layers[_layer_idx-1][_old_pos];
 
     // Expand reductions
-    for (const Signature& rSig : above.getReductions()) {
+    for (const USignature& rSig : above.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         const Reduction& r = _htn._reductions_by_sig[rSig];
         
         int numAdded = 0;
         if (offset < r.getSubtasks().size()) {
             // Proper expansion
-            const Signature& subtask = r.getSubtasks()[offset];
+            const USignature& subtask = r.getSubtasks()[offset];
             // reduction(s)?
-            for (const Signature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
+            for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
                 numAdded++;
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
@@ -456,7 +436,7 @@ void Planner::propagateReductions(int offset) {
                 //log("\n");
             }
             // action(s)?
-            for (const Signature& aSig : getAllActionsOfTask(subtask, getStateEvaluator())) {
+            for (const USignature& aSig : getAllActionsOfTask(subtask, getStateEvaluator())) {
                 numAdded++;
                 assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig);
@@ -471,7 +451,7 @@ void Planner::propagateReductions(int offset) {
         } else {
             // Blank
             numAdded++;
-            Signature blankSig = _htn._action_blank.getSignature();
+            USignature blankSig = _htn._action_blank.getSignature();
             newPos.addAction(blankSig);
             newPos.addExpansion(rSig, blankSig);
         }
@@ -489,16 +469,16 @@ void Planner::addNewFalseFacts() {
     Position& newPos = _layers[_layer_idx][_pos];
     
     // For each action effect:
-    for (const Signature& aSig : newPos.getActions()) {
+    for (const USignature& aSig : newPos.getActions()) {
         for (const Signature& eff : _htn.getAllFactChanges(aSig)) {
 
-            if (!_htn.hasQConstants(eff) && !newPos.getFacts().count(eff.abs())) {
+            if (!_htn.hasQConstants(eff._usig) && !newPos.getFacts().count(eff._usig)) {
                 // New fact: set to false before the action may happen
-                introduceNewFalseFact(newPos, eff);
+                introduceNewFalseFact(newPos, eff._usig);
             }
 
-            for (const Signature& decEff : _htn.getDecodedObjects(eff)) {
-                if (!newPos.getFacts().count(decEff.abs())) {
+            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig)) {
+                if (!newPos.getFacts().count(decEff)) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
@@ -507,17 +487,17 @@ void Planner::addNewFalseFacts() {
     }
 
     // For each possible reduction effect: 
-    for (const Signature& rSig : newPos.getReductions()) {
+    for (const USignature& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& eff : _htn.getAllFactChanges(rSig)) {
 
-            if (!_htn.hasQConstants(eff) && !newPos.getFacts().count(eff.abs())) {
+            if (!_htn.hasQConstants(eff._usig) && !newPos.getFacts().count(eff._usig)) {
                 // New fact: set to false before the reduction may happen
-                introduceNewFalseFact(newPos, eff);
+                introduceNewFalseFact(newPos, eff._usig);
             }
 
-            for (const Signature& decEff : _htn.getDecodedObjects(eff)) {
-                if (!newPos.getFacts().count(decEff.abs())) {
+            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig)) {
+                if (!newPos.getFacts().count(decEff)) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
@@ -530,11 +510,11 @@ void Planner::addNewFalseFacts() {
     if (_old_pos+1 < _layers[_layer_idx-1].size() && _layers[_layer_idx-1].getSuccessorPos(_old_pos+1) == _pos+1) {
         Position& newAbove = _layers[_layer_idx-1][_old_pos+1];
 
-        for (const Signature& fact : newAbove.getFacts()) {
+        for (const USignature& fact : newAbove.getFacts()) {
             // If fact was not seen here before
             if (!newPos.getFacts().count(fact)) {
                 // Add fact
-                newPos.addFact(fact.abs());
+                newPos.addFact(fact);
                 if (!_htn.hasQConstants(fact)) {
                     // Introduce as FALSE fact, if not a q-fact
                     introduceNewFalseFact(newPos, fact);
@@ -544,19 +524,19 @@ void Planner::addNewFalseFacts() {
     }
 }
 
-void Planner::addPrecondition(const Signature& op, const Signature& fact) {
+void Planner::addPrecondition(const USignature& op, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
-    Signature factAbs = fact.abs();
+    const USignature& factAbs = fact.getUnsigned();
 
-    if (fact._negated && !_htn.hasQConstants(fact) && !pos.getFacts().count(fact.abs())) {
+    if (fact._negated && !_htn.hasQConstants(factAbs) && !pos.getFacts().count(factAbs)) {
         // Negative precondition not contained in facts: initialize
         //log("NEG_PRE %s\n", Names::to_string(fact).c_str());
-        introduceNewFalseFact(pos, fact);
+        introduceNewFalseFact(pos, factAbs);
     }
-
+    
     //log("pre %s of %s\n", Names::to_string(fact).c_str(), Names::to_string(op).c_str());
     // Precondition must be valid (or a q fact)
-    if (!_htn.hasQConstants(fact)) assert(getLayerState().contains(_pos, fact) 
+    if (!_htn.hasQConstants(factAbs)) assert(getLayerState().contains(_pos, fact) 
             || fail(Names::to_string(fact) + " not contained in state!\n"));
 
     // Add additional reason for the fact / add it first if it's a q-constant
@@ -564,31 +544,30 @@ void Planner::addPrecondition(const Signature& op, const Signature& fact) {
 
     // For each fact decoded from the q-fact:
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
-    for (Signature decFact : _htn.getDecodedObjects(factAbs)) {
-        if (fact._negated) decFact.negate();
+    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs)) {
+        Signature decFact(decFactAbs, fact._negated);
         
         if (!_instantiator.test(decFact, getStateEvaluator())) {
             // Fact cannot be true here
-            pos.addForbiddenSubstitution(op, Substitution::get(fact._args, decFact._args));
+            pos.addForbiddenSubstitution(op, Substitution::get(factAbs._args, decFactAbs._args));
             continue;
         }
 
-        if (!pos.getFacts().count(decFact.abs())) {
+        if (!pos.getFacts().count(decFactAbs)) {
             // Decoded fact did not occur before.
-            introduceNewFalseFact(pos, decFact);
+            introduceNewFalseFact(pos, decFactAbs);
         }
 
-        _htn.addQFactDecoding(factAbs, decFact.abs());
-        pos.addFact(decFact.abs()); // also add fact as an (indirect) consequence of op
+        _htn.addQFactDecoding(factAbs, decFactAbs);
+        pos.addFact(decFactAbs); // also add fact as an (indirect) consequence of op
     }
 }
 
-void Planner::addEffect(const Signature& op, const Signature& fact) {
+void Planner::addEffect(const USignature& op, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
     assert(_pos > 0);
     //Position& left = _layers[_layer_idx][_pos-1];
-    Signature factAbs = fact.abs();
-
+    USignature factAbs = fact.getUnsigned();
     pos.addFact(factAbs);
 
     // Depending on whether fact supports are encoded for primitive ops only,
@@ -603,7 +582,7 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
     getLayerState().add(_pos, fact);
 
     assert(!_htn.hasQConstants(factAbs) || !_htn.getDecodedObjects(factAbs).empty());
-    for (const Signature& decFact : _htn.getDecodedObjects(factAbs)) {
+    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs)) {
 
         /*
         // TODO Make this check much more efficient while maintaining semantics.
@@ -621,16 +600,13 @@ void Planner::addEffect(const Signature& op, const Signature& fact) {
         if (forbidden) continue;
         */
         
-        Signature decFactSigned = fact._negated ? decFact.opposite() : decFact;
-        assert(!decFact._negated && !factAbs._negated);
-        assert(decFactSigned._negated == fact._negated);
-
-        _htn.addQFactDecoding(factAbs, decFact);
-        getLayerState().add(_pos, decFactSigned);
+        Signature decFact(decFactAbs, fact._negated);
+        _htn.addQFactDecoding(factAbs, decFactAbs);
+        getLayerState().add(_pos, decFact);
     }
 }
 
-void Planner::addQConstantTypeConstraints(const Signature& op) {
+void Planner::addQConstantTypeConstraints(const USignature& op) {
     // Add type constraints for q constants
     std::vector<TypeConstraint> cs = _instantiator.getQConstantTypeConstraints(op);
     // Add to this position's data structure
@@ -640,8 +616,8 @@ void Planner::addQConstantTypeConstraints(const Signature& op) {
 }
 
 
-std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, std::function<bool(const Signature&)> state) {
-    std::vector<Signature> result;
+std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
+    std::vector<USignature> result;
 
     if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
 
@@ -660,13 +636,13 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, st
 
             //if (_layer_idx <= 1) log("SUBST %s\n", Names::to_string(s).c_str());
             Reduction rSub = r.substituteRed(s);
-            Signature origSig = rSub.getSignature();
+            USignature origSig = rSub.getSignature();
             if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
             
             //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
             std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
             for (Reduction& red : reductions) {
-                Signature sig = red.getSignature();
+                USignature sig = red.getSignature();
 
                 // Check if the created reduction has consistent sorts
                 //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
@@ -691,8 +667,8 @@ std::vector<Signature> Planner::getAllReductionsOfTask(const Signature& task, st
     return result;
 }
 
-std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, std::function<bool(const Signature&)> state) {
-    std::vector<Signature> result;
+std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
+    std::vector<USignature> result;
 
     if (!_htn._actions.count(task._name_id)) return result;
 
@@ -707,7 +683,7 @@ std::vector<Signature> Planner::getAllActionsOfTask(const Signature& task, std::
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
     for (Action& action : actions) {
-        Signature sig = action.getSignature();
+        USignature sig = action.getSignature();
 
         //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
 

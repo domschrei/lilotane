@@ -2,11 +2,21 @@
 #include "data/arg_iterator.h"
 #include "data/htn_instance.h"
 
+// TODO expensive copying
 std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, HtnInstance& _htn) {
+    std::vector<USignature> inst = getFullInstantiation(sig._usig, _htn);
+    std::vector<Signature> result;
+    for (const auto& s : inst) {
+        result.push_back(s.toSignature(sig._negated));
+    }
+    return result;
+}
+
+std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance& _htn) {
 
     // "Empty" signature?    
     if (sig._args.empty()) {
-        return std::vector<Signature>(1, sig);
+        return std::vector<USignature>(1, sig);
     }
 
     // enumerate all arg combinations for variable args
@@ -40,7 +50,7 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
 
             // Empty instantiation if there is not a single eligible constant at some pos
             //log("OF_SORT %s : %i constants\n", _htn._name_back_table[sort].c_str(), eligibleConstants.size());
-            if (eligibleConstants.empty()) return std::vector<Signature>();
+            if (eligibleConstants.empty()) return std::vector<USignature>();
 
             constantsPerArg.push_back(eligibleConstants);
         } else {
@@ -49,14 +59,14 @@ std::vector<Signature> ArgIterator::getFullInstantiation(const Signature& sig, H
         }
     }
 
-    std::vector<Signature> instantiation = instantiate(sig, constantsPerArg);
+    std::vector<USignature> instantiation = instantiate(sig, constantsPerArg);
     
     return instantiation;
 }
 
-std::vector<Signature> ArgIterator::instantiate(const Signature& sig, const std::vector<std::vector<int>>& constantsPerArg) {
+std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const std::vector<std::vector<int>>& constantsPerArg) {
 
-    std::vector<Signature> instantiation;
+    std::vector<USignature> instantiation;
 
     // Check validity
     assert(constantsPerArg.size() > 0);

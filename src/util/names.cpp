@@ -19,9 +19,8 @@ namespace Names {
         return nbt->at(nameId);
     }
 
-    std::string to_string(const Signature& sig) {
+    std::string to_string(const USignature& sig) {
         std::string out = "";
-        if (sig._negated) out += "!";
         out += "(" + to_string(sig._name_id);
         for (int arg : sig._args) {
             out += " " + to_string(arg);
@@ -30,9 +29,19 @@ namespace Names {
         return out;
     }
 
-    std::string to_string_nobrackets(const Signature& sig) {
+    std::string to_string(const Signature& sig) {
         std::string out = "";
         if (sig._negated) out += "!";
+        out += "(" + to_string(sig._usig._name_id);
+        for (int arg : sig._usig._args) {
+            out += " " + to_string(arg);
+        }
+        out += ")";
+        return out;
+    }
+
+    std::string to_string_nobrackets(const USignature& sig) {
+        std::string out = "";
         out += to_string(sig._name_id);
         for (int arg : sig._args) {
             out += " " + to_string(arg);

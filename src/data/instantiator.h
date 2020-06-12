@@ -24,12 +24,12 @@ struct ArgComparator {
     int rating(int arg) const {
         int r = 0;
         for (const Signature& pre : op.getPreconditions()) {
-            for (int preArg : pre._args) {
+            for (int preArg : pre._usig._args) {
                 if (preArg == arg) r++;
             } 
         }
         for (const Signature& eff : op.getEffects()) {
-            for (int effArg : eff._args) {
+            for (int effArg : eff._usig._args) {
                 if (effArg == arg) r++;
             } 
         }
@@ -64,22 +64,20 @@ public:
     std::vector<Action> getApplicableInstantiations(const Action& a,
             const std::function<bool(const Signature&)>& state, int mode = -1);
 
-    SigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
+    USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 
-    HashMap<Signature, 
-                       std::unordered_set<substitution_t, Substitution::Hasher>, 
-                       SignatureHasher> 
+    HashMap<USignature, std::unordered_set<substitution_t, Substitution::Hasher>, USignatureHasher> 
         getOperationSubstitutionsCausingEffect(
-            const std::unordered_set<Signature, SignatureHasher>& operations, 
-            const Signature& fact);
+            const std::unordered_set<USignature, USignatureHasher>& operations, 
+            const USignature& fact, bool negated);
 
-    bool isFullyGround(const Signature& sig);
-    std::vector<int> getFreeArgPositions(const Signature& sig);
-    bool fits(Signature& sig, Signature& groundSig, HashMap<int, int>* substitution);
-    bool hasSomeInstantiation(const Signature& sig);
+    bool isFullyGround(const USignature& sig);
+    std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
+    bool fits(USignature& sig, USignature& groundSig, HashMap<int, int>* substitution);
+    bool hasSomeInstantiation(const USignature& sig);
 
-    bool hasConsistentlyTypedArgs(const Signature& sig);
-    std::vector<TypeConstraint> getQConstantTypeConstraints(const Signature& sig);
+    bool hasConsistentlyTypedArgs(const USignature& sig);
+    std::vector<TypeConstraint> getQConstantTypeConstraints(const USignature& sig);
 
     bool test(const Signature& sig, const std::function<bool(const Signature&)>& state);
     bool hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state);

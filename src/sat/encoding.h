@@ -29,11 +29,11 @@ struct PlanItem {
         reduction = Position::NONE_SIG;
         subtaskIds = std::vector<int>(0);
     }
-    PlanItem(int id, const Signature& abstractTask, const Signature& reduction, const std::vector<int> subtaskIds) :
+    PlanItem(int id, const USignature& abstractTask, const USignature& reduction, const std::vector<int> subtaskIds) :
         id(id), abstractTask(abstractTask), reduction(reduction), subtaskIds(subtaskIds) {}
     int id = -1;
-    Signature abstractTask;
-    Signature reduction;
+    USignature abstractTask;
+    USignature reduction;
     std::vector<int> subtaskIds;
 };
 
@@ -44,13 +44,13 @@ private:
     HtnInstance& _htn;
     std::vector<Layer>* _layers;
     
-    HashMap<Signature, int, SignatureHasher> _substitution_variables;
+    HashMap<USignature, int, USignatureHasher> _substitution_variables;
 
     void* _solver;
     std::ofstream _out;
 
-    Signature _sig_primitive;
-    Signature _sig_substitution;
+    USignature _sig_primitive;
+    USignature _sig_substitution;
     int _substitute_name_id;
 
     std::unordered_set<int> _q_constants;
@@ -94,7 +94,7 @@ private:
     void encodeFactVariables(Position& pos, const Position& left);
     void initSubstitutionVars(int qconst, Position& pos);
 
-    const Signature& sigSubstitute(int qConstId, int trueConstId) {
+    const USignature& sigSubstitute(int qConstId, int trueConstId) {
         assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);
         auto& args = _sig_substitution._args;
         args[0] = (qConstId);
@@ -117,15 +117,15 @@ private:
     void assume(int lit);
 
     int varPrimitive(int layer, int pos);
-    int varSubstitution(const Signature& sigSubst);
-    bool isEncoded(int layer, int pos, const Signature& sig);
-    bool isEncodedSubstitution(const Signature& sig);
+    int varSubstitution(const USignature& sigSubst);
+    bool isEncoded(int layer, int pos, const USignature& sig);
+    bool isEncodedSubstitution(const USignature& sig);
 
-    std::string varName(int layer, int pos, const Signature& sig);
+    std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const Signature& sig);
 
-    bool value(int layer, int pos, const Signature& sig);
-    Signature getDecodedQOp(int layer, int pos, const Signature& sig);
+    bool value(int layer, int pos, const USignature& sig);
+    USignature getDecodedQOp(int layer, int pos, const USignature& sig);
     void checkAndApply(const Action& a, State& state, State& newState, int layer, int pos);
 
 };
