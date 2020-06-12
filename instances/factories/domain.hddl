@@ -1,0 +1,278 @@
+
+; Factories domain by Malte Sönnichsen 2020
+; Designed for "Automated Planning and Scheduling" course at KIT
+; Submitted to HTN IPC 2020 with contributions from Gregor Behnke
+; and Dominik Schreiber
+
+(define (domain factories)
+    (:requirements :typing :hierachie)
+    (:types
+        factory - object
+        resource - object
+        location - object
+        truck - object
+    )
+    (:predicates
+        (fuses ?r ?r1 ?r2 - resource)
+        (demands ?f - factory ?r - resource)
+        (factory-without-demands ?f - factory)
+        (produces ?f - factory ?r - resource)
+        (resource-at ?r - resource ?l - location)
+        (factory-at ?f - factory ?l - location)
+        (factory-constructed ?f - factory)
+        (location-free ?l - location)
+
+        (empty ?t - truck)
+        (resource-in-truck ?r - resource ?t - truck)
+        (truck-at ?t - truck ?l - location)
+        (connected ?l1 ?l2 - location)
+    )
+
+    (:task construct_factory
+        :parameters (?f - factory ?l - location)
+        :precondition ()
+        :effect ()
+    )
+
+    (:task get_resource
+        :parameters (?r - resource ?l - location)
+        :precondition ()
+        :effect ()
+    )
+
+    (:task produce_resource
+        :parameters (?f - factory ?r - resource)
+        :precondition ()
+        :effect ()
+    )
+
+    (:task deliver_resource
+        :parameters (?r - resource ?ls ?le - location)
+        :precondition ()
+        :effect ()
+    )
+
+    (:task goto
+        :parameters (?t - truck ?l - location)
+        :precondition ()
+        :effect ()
+    )
+
+
+    (:method m_factory_already_constructed
+        :parameters (?f - factory ?l - location)
+        :task (construct_factory ?f ?l)
+        :precondition (factory-at ?f ?l)
+        :subtasks ()
+    )
+
+    (:method m_construct_factory
+        :parameters (?f - factory ?r - resource ?l - location)
+        :task (construct_factory ?f ?l)
+        :precondition (and
+            (demands ?f ?r)
+            (location-free ?l)
+            (not (factory-constructed ?f))
+        )
+        :ordered-subtasks (and
+            (get_resource ?r ?l)
+            (construct ?f ?r ?l)
+        )
+    )
+
+
+    (:method m_resource_there
+        :parameters (?r - resource ?l - location)
+        :task (get_resource ?r ?l)
+        :precondition (resource-at ?r ?l)
+        :subtasks ()
+    )
+
+    (:method m_get_resources_and_fuse
+        :parameters (?r ?r1 ?r2 - resource ?l - location)
+        :task (get_resource ?r ?l)
+        :precondition (and
+            (fuses ?r ?r1 ?r2)
+        )
+        :ordered-subtasks (and
+            (get_resource ?r1 ?l)
+            (get_resource ?r2 ?l)
+            (fuse ?r ?r1 ?r2 ?l)
+        )
+    )
+
+    (:method m_get_resource
+        :parameters (?r - resource ?f - factory ?ls ?le - location)
+        :task (get_resource ?r ?le)
+        :precondition (and
+            (produces ?f ?r)
+        )
+        :ordered-subtasks (and
+            (construct_factory ?f ?ls)
+            (produce_resource ?f ?r)
+            (deliver_resource ?r ?ls ?le)
+        )
+    )
+
+
+    (:method m_produce_resource
+        :parameters (?r - resource ?f - factory ?l - location)
+        :task (produce_resource ?f ?r)
+        :precondition (and
+            (produces ?f ?r)
+            (factory-at ?f ?l)
+            (factory-without-demands ?f)
+        )
+        :ordered-subtasks (produce-without-demands ?r ?f ?l)
+    )
+
+
+    (:method m_get_and_produce_resource
+        :parameters (?r ?rd - resource ?f - factory ?l - location)
+        :task (produce_resource ?f ?r)
+        :precondition (and
+            (produces ?f ?r)
+            (demands ?f ?rd)
+            (factory-at ?f ?l)
+        )
+        :ordered-subtasks (and
+            (get_resource ?rd ?l)
+            (produce ?r ?rd ?f ?l)
+        )
+    )
+
+
+    (:method m_deliver_resource
+        :parameters (?r - resource ?ls ?le - location ?t - truck)
+        :task (deliver_resource ?r ?ls ?le)
+        :precondition (and
+            (resource-at ?r ?ls)
+        )
+        :ordered-subtasks (and
+            (goto ?t ?ls)
+            (pickup ?t ?r ?ls)
+            (goto ?t ?le)
+            (drop ?t ?r ?le)
+        )
+    )
+
+
+    (:method m_goto
+        :parameters (?t - truck ?l1 ?l2 ?le - location)
+        :task (goto ?t ?le)
+        :precondition (and
+            (truck-at ?t ?l1)
+            (connected ?l1 ?l2)
+        )
+        :ordered-subtasks (and
+            (move ?t ?l1 ?l2)
+            (goto ?t ?le)
+        )
+    )
+
+    (:method m_already_there
+        :parameters (?t - truck ?l - location)
+        :task (goto ?t ?l)
+        :precondition (truck-at ?t ?l)
+        :subtasks ()
+    )
+
+
+
+    (:action construct
+        :parameters (?f - factory ?r - resource ?l - location)
+        :precondition (and
+            (location-free ?l)
+            (demands ?f ?r)
+            (resource-at ?r ?l)
+        )
+        :effect (and
+            (not (resource-at ?r ?l))
+            (not (location-free ?l))
+            (factory-at ?f ?l)
+            (factory-constructed ?f)
+        )
+    )
+
+
+    (:action fuse
+        :parameters (?r ?r1 ?r2 - resource ?l - location)
+        :precondition (and
+            (fuses ?r ?r1 ?r2)
+            (resource-at ?r1 ?l)
+            (resource-at ?r2 ?l)
+        )
+        :effect (and
+            (not (resource-at ?r1 ?l))
+            (not (resource-at ?r2 ?l))
+            (resource-at ?r ?l)
+        )
+    )
+
+
+    (:action produce-without-demands
+        :parameters (?r - resource ?f - factory ?l - location)
+        :precondition (and
+            (produces ?f ?r)
+            (factory-without-demands ?f)
+            (factory-at ?f ?l)
+        )
+        :effect (resource-at ?r ?l)
+    )
+
+    (:action produce
+        :parameters (?r ?rd - resource ?f - factory ?l - location)
+        :precondition (and
+            (produces ?f ?r)
+            (demands ?f ?rd)
+            (factory-at ?f ?l)
+            (resource-at ?rd ?l)
+        )
+        :effect (and
+            (not (resource-at ?rd ?l))
+            (resource-at ?r ?l)
+        )
+    )
+
+
+    (:action pickup
+        :parameters (?t - truck ?r - resource ?l - location)
+        :precondition (and
+            (resource-at ?r ?l)
+            (truck-at ?t ?l)
+            (empty ?t)
+        )
+        :effect (and
+            (not (empty ?t))
+            (not (resource-at ?r ?l))
+            (resource-in-truck ?r ?t)
+        )
+    )
+
+    (:action drop
+        :parameters (?t - truck ?r - resource ?l - location)
+        :precondition (and
+            (truck-at ?t ?l)
+            (resource-in-truck ?r ?t)
+            (not (empty ?t))
+        )
+        :effect (and
+            (empty ?t)
+            (not (resource-in-truck ?r ?t))
+            (resource-at ?r ?l)
+        )
+    )
+
+
+    (:action move
+        :parameters (?t - truck ?l1 ?l2 - location)
+        :precondition (and
+            (truck-at ?t ?l1)
+            (connected ?l1 ?l2)
+        )
+        :effect (and
+            (not (truck-at ?t ?l1))
+            (truck-at ?t ?l2)
+        )
+    )
+)

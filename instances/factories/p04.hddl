@@ -1,0 +1,96 @@
+
+; Factories domain by Malte Sönnichsen 2020
+; Automatically generated instance with 3 factories, 2 dependencies, and 1 trucks
+
+(define
+    (problem generated)
+    (:domain factories)
+    (:objects
+        last_factory - factory
+        factory_0 - factory
+        resource_0 - resource
+        location_0 - location
+        location_1 - location
+        location_2 - location
+        location_3 - location
+        location_4 - location
+        location_5 - location
+        location_6 - location
+        location_7 - location
+        location_8 - location
+        factory_1 - factory
+        resource_1 - resource
+        resource_f_1_0 - resource
+        factory_2 - factory
+        resource_2 - resource
+        resource_f_2_0 - resource
+        resource_f_2_1 - resource
+        factory_3 - factory
+        resource_3 - resource
+        resource_f_3_0 - resource
+        resource_f_3_1 - resource
+        truck_1 - truck
+    )
+    (:htn
+        :tasks (construct_factory last_factory location_8)
+        :ordering ()
+        :constraints ()
+    )
+    (:init
+        (factory-at factory_0 location_0)
+        (factory-constructed factory_0)
+        (factory-without-demands factory_0)
+        (produces factory_0 resource_0)
+        (demands last_factory resource_3)
+        (location-free location_1)
+        (location-free location_2)
+        (location-free location_3)
+        (location-free location_4)
+        (location-free location_5)
+        (location-free location_6)
+        (location-free location_7)
+        (location-free location_8)
+        (connected location_0 location_1)
+        (connected location_1 location_0)
+        (connected location_1 location_2)
+        (connected location_2 location_1)
+        (connected location_2 location_3)
+        (connected location_3 location_2)
+        (connected location_3 location_4)
+        (connected location_4 location_3)
+        (connected location_4 location_5)
+        (connected location_5 location_4)
+        (connected location_5 location_6)
+        (connected location_6 location_5)
+        (connected location_6 location_7)
+        (connected location_7 location_6)
+        (connected location_7 location_8)
+        (connected location_8 location_7)
+        (connected location_0 location_8)
+        (connected location_8 location_0)
+        (connected location_1 location_4)
+        (connected location_4 location_1)
+        (connected location_0 location_6)
+        (connected location_6 location_0)
+        (connected location_3 location_7)
+        (connected location_7 location_3)
+        (connected location_5 location_8)
+        (connected location_8 location_5)
+        (connected location_0 location_3)
+        (connected location_3 location_0)
+        (produces factory_1 resource_1)
+        (demands factory_1 resource_0)
+        (fuses resource_f_1_0 resource_0 resource_0)
+        (produces factory_2 resource_2)
+        (demands factory_2 resource_f_2_1)
+        (fuses resource_f_2_0 resource_0 resource_1)
+        (fuses resource_f_2_1 resource_f_2_0 resource_0)
+        (produces factory_3 resource_3)
+        (demands factory_3 resource_f_3_1)
+        (fuses resource_f_3_0 resource_0 resource_1)
+        (fuses resource_f_3_1 resource_f_3_0 resource_2)
+        (truck-at truck_1 location_0)
+        (empty truck_1)
+    )
+)
+    
