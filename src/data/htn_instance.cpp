@@ -658,16 +658,10 @@ const HashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
 void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
     _qfact_decodings[qFact];
     _qfact_decodings[qFact].insert(decFact);
-    _qfact_abstractions[decFact];
-    _qfact_abstractions[decFact].insert(qFact);
 }
 
 const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
     return _qfact_decodings[qFact];
-}
-
-const USigSet& HtnInstance::getQFactAbstractions(const USignature& decFact) {
-    return _qfact_abstractions[decFact];
 }
 
 bool HtnInstance::hasQConstants(const USignature& sig) {
@@ -675,6 +669,27 @@ bool HtnInstance::hasQConstants(const USignature& sig) {
         if (_q_constants.count(arg)) return true;
     }
     return false;
+}
+
+bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& abstraction) {
+    
+    // Different predicates?
+    if (concrete._name_id != abstraction._name_id) return false;
+    if (concrete._args.size() != abstraction._args.size()) return false;
+    
+    for (int i = 0; i < concrete._args.size(); i++) {
+        const int& qarg = abstraction._args[i];
+        const int& carg = concrete._args[i];
+        bool qconst = _q_constants.count(qarg);
+        // Different non-q-constant args at this position?
+        if (!qconst && qarg != carg) return false;
+        // A q-constant that does not fit the concrete argument?
+        if (qconst && !getDomainOfQConstant(qarg).count(concrete._args[i])) {
+            return false;
+        }
+    }
+    // A-OK
+    return true;
 }
 
 bool HtnInstance::isRigidPredicate(int predId) {

@@ -55,7 +55,6 @@ struct HtnInstance {
     HashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
 
     HashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
-    HashMap<USignature, USigSet, USignatureHasher> _qfact_abstractions;
 
     // Maps an action name ID to its action object.
     HashMap<int, Action> _actions;
@@ -111,13 +110,13 @@ struct HtnInstance {
     void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, HashMap<int, int>& s);
 
     bool hasQConstants(const USignature& sig);
+    bool isAbstraction(const USignature& concrete, const USignature& abstraction);
     const std::vector<USignature>& getDecodedObjects(const USignature& qFact);
     const HashSet<int>& getSortsOfQConstant(int qconst);
     const HashSet<int>& getDomainOfQConstant(int qconst);
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
-    const USigSet& getQFactAbstractions(const USignature& decFact);
 
     const HashSet<int>& getConstantsOfSort(int sort);
 

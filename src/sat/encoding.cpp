@@ -381,9 +381,10 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
 
         // None of its linked q-facts must have a support
         //log("     %i abstractions\n", _htn.getQFactDecodings(factSig).size());
-        if (reuse) for (const USignature& qSig : _htn.getQFactAbstractions(factSig)) {
-            if (reuse && newPos.getFacts().count(qSig)) {
-                
+        for (const USignature& qSig : newPos.getFacts()) {
+            if (!reuse || !_htn.isAbstraction(factSig, qSig)) continue;
+            
+            if (newPos.getFacts().count(qSig)) {    
                 reuse &= !newPos.getPosFactSupports().count(qSig)
                         && !newPos.getNegFactSupports().count(qSig);
             }
@@ -484,7 +485,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             // Calculate indirect support through qfact abstractions
             HashSet<int> indirectSupport;
-            for (const USignature& qsig : _htn.getQFactAbstractions(fact)) {
+            for (const USignature& qsig : newPos.getFacts()) {
+                if (!_htn.isAbstraction(fact, qsig)) continue;
                 //const Signature qfactSig(sig, sign < 0);
 
                 // For each operation that supports some qfact abstraction of the fact:
