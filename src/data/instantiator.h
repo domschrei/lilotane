@@ -66,10 +66,8 @@ public:
 
     USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 
-    HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> 
-        getOperationSubstitutionsCausingEffect(
-            const HashSet<USignature, USignatureHasher>& operations, 
-            const USignature& fact, bool negated);
+    HashSet<substitution_t, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
+            const SigSet& factChanges, const USignature& fact, bool negated);
 
     bool isFullyGround(const USignature& sig);
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
@@ -80,7 +78,7 @@ public:
     std::vector<TypeConstraint> getQConstantTypeConstraints(const USignature& sig);
 
     bool test(const Signature& sig, const std::function<bool(const Signature&)>& state);
-    bool hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state);
+    bool hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state);
 };
 
 

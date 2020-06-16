@@ -62,9 +62,8 @@ void Encoding::encode(int layerIdx, int pos) {
     // Link qfacts to their possible decodings
     stage("qfactsemantics");
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
-    for (const auto& qfactSig : newPos.getFacts()) {
-        if (!_htn.hasQConstants(qfactSig)) continue;
-        
+    for (const auto& entry : newPos.getQFacts()) for (const auto& qfactSig : entry.second) {
+        assert(_htn.hasQConstants(qfactSig));
         assert(!_htn.isRigidPredicate(qfactSig._name_id));
 
         // Already encoded earlier?
@@ -75,7 +74,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (!newPos.getFacts().count(decFactSig)) continue;
+            if (!newPos.hasFact(decFactSig)) continue;
 
             // Already encoded earlier?
             //if (qVarReused && newPos.getPriorPosOfVariable(decFactSig) < pos) continue;
@@ -104,40 +103,10 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Propagate fact assignments from above
     stage("propagatefacts");
-    for (const USignature& factSig : newPos.getFacts()) {
-        if (_htn.isRigidPredicate(factSig._name_id)) continue;
-        
-        // Do not propagate fact if a q-fact 
-        // TODO include this or not?
-        //if (_htn.hasQConstants(factSig)) continue;
-
-        int factVar = newPos.getVariable(factSig);
-
-        if (hasAbove && offset == 0 && above.hasVariable(factSig)) {
-            int oldFactVar = above.getVariable(factSig);
-
-            // Find out whether the variables already occurred in an earlier propagation
-            if (oldPos > 0) {
-                int oldPriorPos = oldPos-1;
-                int newPriorPos = _layers->at(layerIdx-1).getSuccessorPos(oldPos-1);
-                
-                bool oldReused = above.getPriorPosOfVariable(factSig) <= oldPriorPos;
-                bool reused = newPos.getPriorPosOfVariable(factSig) <= newPriorPos;
-
-                // Do not re-encode the propagation if both variables have already been reused
-                //if (reused) log("NEW_REUSED\n");
-                //if (oldReused) log("OLD_REUSED\n");
-                if (reused && oldReused) {
-                    //log("AVOID_REENCODE\n");
-                    continue;
-                } 
-            }
-
-            // Fact comes from above: propagate meaning
-            addClause(-oldFactVar, factVar);
-            addClause(oldFactVar, -factVar);
-        }
-    }
+    for (const USignature& factSig : newPos.getFacts())
+        propagateFact(newPos, above, oldPos, offset, factSig);
+    //for (const auto& entry : newPos.getQFacts()) for (const auto& factSig : entry.second)
+    //    propagateFact(newPos, above, oldPos, offset, factSig);
     stage("propagatefacts");
 
     encodeFrameAxioms(newPos, left);
@@ -218,13 +187,13 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // Preconditions
         for (const Signature& pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
-            assert(newPos.getFacts().count(pre._usig));
+            //assert(newPos.hasFact(pre._usig));
             assert(!_htn.isRigidPredicate(pre._usig._name_id));
             addClause(-rVar, (pre._negated?-1:1)*newPos.encode(pre._usig));
         }
 
         // At-most-one reduction
-        if (!_params.isSet("aamo")) continue;
+        if (newPos.getReductions().size() > _params.getIntParam("amor")) continue;
         for (const USignature& otherSig : newPos.getReductions()) {
             if (otherSig == Position::NONE_SIG) continue;
             int otherVar = newPos.encode(otherSig);
@@ -325,6 +294,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     log("  Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
+    left.clearFactChanges();
     if (layerIdx > 1 && pos == 0) {
         // delete data from "above above" layer
         // except for necessary structures for decoding a plan
@@ -334,6 +304,40 @@ void Encoding::encode(int layerIdx, int pos) {
             layerToClear[p].clearUnneeded();
         }
     }
+}
+
+void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int offset, const USignature& factSig) {
+    
+    if (_htn.isRigidPredicate(factSig._name_id)) return;
+        
+    // Do not propagate fact if a q-fact 
+    // TODO include this or not?
+    //if (_htn.hasQConstants(factSig)) continue;
+
+    int factVar = newPos.getVariable(factSig);
+    if (offset > 0 || !above.hasVariable(factSig)) return;
+    int oldFactVar = above.getVariable(factSig);
+
+    // Find out whether the variables already occurred in an earlier propagation
+    if (oldPos > 0) {
+        int oldPriorPos = oldPos-1;
+        int newPriorPos = _layers->at(above.getPos().first).getSuccessorPos(oldPos-1);
+        
+        bool oldReused = above.getPriorPosOfVariable(factSig) <= oldPriorPos;
+        bool reused = newPos.getPriorPosOfVariable(factSig) <= newPriorPos;
+
+        // Do not re-encode the propagation if both variables have already been reused
+        //if (reused) log("NEW_REUSED\n");
+        //if (oldReused) log("OLD_REUSED\n");
+        if (reused && oldReused) {
+            //log("AVOID_REENCODE\n");
+            return;
+        } 
+    }
+
+    // Fact comes from above: propagate meaning
+    addClause(-oldFactVar, factVar);
+    addClause(oldFactVar, -factVar);
 }
 
 void Encoding::addAssumptions(int layerIdx) {
@@ -370,7 +374,6 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     HashSet<int> newFactVars;
     HashSet<int> unchangedFactVars;
     for (const USignature& factSig : newPos.getFacts()) {
-        if (_htn.hasQConstants(factSig)) continue;
         
         // Fact must be contained to the left
         bool reuse = left.getFacts().count(factSig);
@@ -381,13 +384,10 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
 
         // None of its linked q-facts must have a support
         //log("     %i abstractions\n", _htn.getQFactDecodings(factSig).size());
-        for (const USignature& qSig : newPos.getFacts()) {
-            if (!reuse || !_htn.isAbstraction(factSig, qSig)) continue;
-            
-            if (newPos.getFacts().count(qSig)) {    
-                reuse &= !newPos.getPosFactSupports().count(qSig)
-                        && !newPos.getNegFactSupports().count(qSig);
-            }
+        for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
+            if (!reuse || !_htn.isAbstraction(factSig, qSig)) continue;  
+            reuse &= !newPos.getPosFactSupports().count(qSig)
+                    && !newPos.getNegFactSupports().count(qSig);
         }
         
         if (reuse) {
@@ -405,8 +405,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     }
 
     // b) now check q-facts
-    for (const USignature& factSig : newPos.getFacts()) {
-        if (!_htn.hasQConstants(factSig)) continue;
+    for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
         
         // Fact must be contained to the left
         bool reuse = left.getFacts().count(factSig);
@@ -463,11 +462,9 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
     if (pos > 0)
     for (const USignature& fact : newPos.getFacts()) {
-
-        if (_htn.hasQConstants(fact)) continue;
         if (_htn.isRigidPredicate(fact._name_id)) continue;
 
-        bool firstOccurrence = !left.getFacts().count(fact);
+        bool firstOccurrence = !left.hasFact(fact);
         if (firstOccurrence) {
             // First time the fact occurs must be as a "false fact"
             assert(newPos.getFalseFacts().count(fact));
@@ -485,7 +482,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             // Calculate indirect support through qfact abstractions
             HashSet<int> indirectSupport;
-            for (const USignature& qsig : newPos.getFacts()) {
+            for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
                 if (!_htn.isAbstraction(fact, qsig)) continue;
                 //const Signature qfactSig(sig, sign < 0);
 
@@ -498,10 +495,10 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     // Calculate and encode prerequisites for indirect support
 
                     // Find valid sets of substitutions for this operation causing the desired effect
-                    USigSet opSet; opSet.insert(opSig);
-                    auto subMap = _htn._instantiator->getOperationSubstitutionsCausingEffect(opSet, fact, sign<0);
+                    auto subs = _htn._instantiator->getOperationSubstitutionsCausingEffect(
+                        left.getFactChanges(opSig), fact, sign<0);
                     //assert(subMap.count(opSig));
-                    if (subMap[opSig].empty()) {
+                    if (subs.empty()) {
                         // No valid instantiations!
                         continue;
                     }
@@ -509,7 +506,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     // Assemble possible substitution options to get the desired fact support
                     std::set<std::set<int>> substOptions;
                     bool unconditionalEffect = false;
-                    for (const substitution_t& s : subMap[opSig]) {
+                    for (const substitution_t& s : subs) {
                         if (s.empty()) {
                             // Empty substitution does the job
                             unconditionalEffect = true;

@@ -512,49 +512,93 @@ SigSet HtnInstance::getAllFactChanges(const USignature& sig) {
     return result;
 }
 
-Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos) {
+Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = a.getSignature();
-    HashMap<int, int> s = addQConstants(sig, layerIdx, pos);
+    HashMap<int, int> s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
     HtnOp op = a.substitute(s);
     return Action(op);
 }
-Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos) {
+Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = red.getSignature();
-    HashMap<int, int> s = addQConstants(sig, layerIdx, pos);
+    HashMap<int, int> s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
     return red.substituteRed(s);
 }
 
-HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos) {
+HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
+            const SigSet& conditions, const std::function<bool(const Signature&)>& state) {
+    
     HashMap<int, int> s;
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig._args);
+    // Sort freeArgPositions ascendingly by their arg's importance / impact 
+    std::sort(freeArgPositions.begin(), freeArgPositions.end(), [&](int left, int right) {
+        int sortLeft = _signature_sorts_table[sig._name_id][left];
+        int sortRight = _signature_sorts_table[sig._name_id][right];
+        return getConstantsOfSort(sortLeft).size() < getConstantsOfSort(sortRight).size();
+    });
     for (int argPos : freeArgPositions) {
-        addQConstant(layerIdx, pos, sig, argPos, s);
+        size_t domainHash = 0;
+        HashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, domainHash);
+        if (domain.empty()) {
+            // No valid value for this argument at this position: return failure
+            //log("%s : %s has no valid domain!\n", Names::to_string(sig).c_str(), Names::to_string(sig._args[argPos]).c_str());
+            s.clear();
+            break;
+        } else {
+            addQConstant(layerIdx, pos, sig, argPos, domain, domainHash, s);
+        }
     }
     return s;
 }
 
-void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, HashMap<int, int>& s) {
-
+HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
+            const SigSet& conditions, const std::function<bool(const Signature&)>& state, size_t& domainHash) {
+    
     int arg = sig._args[argPos];
+
     assert(_name_back_table[arg][0] == '?');
     assert(_signature_sorts_table.count(sig._name_id));
     assert(argPos < _signature_sorts_table[sig._name_id].size());
-    int sort = _signature_sorts_table[sig._name_id][argPos];
+    
     //log("%s\n", Names::to_string(sig).c_str());
 
     // Get domain of the q constant
+    int sort = _signature_sorts_table[sig._name_id][argPos];
     const HashSet<int>& domain = getConstantsOfSort(sort);
     assert(!domain.empty());
 
+    // Reduce the q-constant's domain according to the associated facts and the current state.
+    substitution_t sub;
+    HashSet<int> actualDomain;
+    size_t sum = 0;
+    for (const int& c : domain) {
+        sub[arg] = c;
+        SigSet substConditions;
+        for (const auto& cond : conditions) substConditions.insert(cond.substitute(sub));
+        if (_instantiator->hasValidPreconditions(substConditions, state)) {
+            actualDomain.insert(c);
+            sum += 7*c;
+        } 
+    }
+    domainHash = std::hash<int>{}(sum);
+    //log("%.2f%% of q-const domain eliminated\n", 100 - 100.f * actualDomain.size()/domain.size());
+    return actualDomain;
+}
+
+void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
+                const HashSet<int>& domain, size_t domainHash, HashMap<int, int>& s) {
+
+    int arg = sig._args[argPos];
+    int sort = _signature_sorts_table[sig._name_id][argPos];
+
     // If there is only a single option for the q constant: 
-    // just insert that one option.
+    // just insert that one option, do not create/retrieve a q constant.
     if (domain.size() == 1) {
         int c = -1; for (int x : domain) c = x;
         s[arg] = c;
         return;
-    }   
+    }
     
-    // TODO creating a hasher instance for each method call
+    // Create / retrieve an ID for the q constant
     std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
         + std::to_string(pos) + "_" + std::to_string(USignatureHasher()(sig))
         + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
@@ -562,22 +606,34 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
 
     // Add q const to substitution
     s[arg] = qConstId;
-    
-    // check if q const of that name already exists!
+
+    // Check if q const of that name already exists
     if (_q_constants.count(qConstId)) return;
+
+    // -- q constant is NEW
+    
+    // Insert q constant into set of q constants
     _q_constants.insert(qConstId);
 
-    // CALCULATE SORTS OF Q CONSTANT
-    _primary_sort_of_q_constants[qConstId] = sort;
+    // Create or retrieve the exact sort (= domain of constants) for this q-constant
+    std::string qSortName = "qsort_" + std::to_string(sort) + "_"; 
+        //+ std::to_string(domain.size()) + "_h";
+    for (const auto& d : domain) qSortName += std::to_string(d) + "_";
+    int newSortId = getNameId(qSortName);
+    if (!_constants_by_sort.count(newSortId)) {
+        _constants_by_sort[newSortId] = domain;
+    }
+    _primary_sort_of_q_constants[qConstId] = newSortId; //sort;
 
-    // 1. take single sort of the q-constant to start with: int sort.
-    // 2. assume that the q-constant is of ALL (super) sorts
+    // CALCULATE ADDITIONAL SORTS OF Q CONSTANT
+
+    // 1. assume that the q-constant is of ALL (super) sorts
     std::set<int> qConstSorts;
     for (const auto& sortPair : _p.sorts) qConstSorts.insert(getNameId(sortPair.first));
 
-    // 3. for each constant of the single sort:
+    // 2. for each constant of the primary sort:
     //      remove all q-constant sorts NOT containing that constant
-    for (int c : _constants_by_sort[sort]) {
+    for (int c : _constants_by_sort[newSortId]) {
         std::vector<int> sortsToRemove;
         for (int qsort : qConstSorts) {
             if (std::find(_constants_by_sort[qsort].begin(), _constants_by_sort[qsort].end(), c) 

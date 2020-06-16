@@ -47,6 +47,7 @@ struct USignature {
     USignature();
     USignature(int nameId, const std::vector<int>& args);
     USignature(const USignature& sig);
+    USignature(USignature&& sig);
 
     Signature toSignature(bool negated = false) const;
     USignature substitute(const HashMap<int, int>& s) const;
@@ -55,6 +56,7 @@ struct USignature {
     bool operator!=(const USignature& b) const;
 
     USignature& operator=(const USignature& sig);
+    USignature& operator=(USignature&& sig);
 };
 
 struct Signature {
@@ -66,6 +68,7 @@ struct Signature {
     Signature(int nameId, const std::vector<int>& args, bool negated = false) : _usig(nameId, args), _negated(negated) {}
     Signature(const USignature& usig, bool negated = false) : _usig(usig), _negated(negated) {}
     Signature(const Signature& sig) : _usig(sig._usig), _negated(sig._negated) {}
+    Signature(Signature&& sig);
 
     void negate() {
         _negated = !_negated;
@@ -99,6 +102,12 @@ struct Signature {
 
     Signature& operator=(const Signature& sig) {
         _usig = sig._usig;
+        _negated = sig._negated;
+        return *this;
+    }
+
+    Signature& operator=(Signature&& sig) {
+        _usig = std::move(sig._usig);
         _negated = sig._negated;
         return *this;
     }

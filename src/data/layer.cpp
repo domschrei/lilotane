@@ -6,6 +6,8 @@
 #include "util/log.h"
 
 const USignature Position::NONE_SIG = USignature(-1, std::vector<int>());
+const USigSet Position::EMPTY_USIG_SET;
+const SigSet Position::EMPTY_SIG_SET;
 
 Layer::Layer(int index, int size) : _index(index) {
     assert(size > 0);

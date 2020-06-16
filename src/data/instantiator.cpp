@@ -129,7 +129,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     }
     
     if (doneInstSize == 0 || argsByPriority.empty()) {
-        if (hasValidPreconditions(op, state) 
+        if (hasValidPreconditions(op.getPreconditions(), state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
         return instantiation;
@@ -160,7 +160,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
             HtnOp newOp = op.substitute(s);
 
             // Test validity
-            if (!hasValidPreconditions(newOp, state)) continue;
+            if (!hasValidPreconditions(newOp.getPreconditions(), state)) continue;
 
             // All ok -- add to stack
             if (newAssignment.size() == doneInstSize) {
@@ -192,60 +192,48 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
 // Given a fact (signature) and (a set of ground htn operations containing q constants),
 // compute the possible sets of substitutions that are necessary to let each operation
 // have the specified fact in its support.
-HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> 
-Instantiator::getOperationSubstitutionsCausingEffect(
-    const HashSet<USignature, USignatureHasher>& operations, const USignature& fact, bool negated) {
+HashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
+            const SigSet& effects, const USignature& fact, bool negated) {
 
-    HashMap<USignature, HashSet<substitution_t, Substitution::Hasher>, USignatureHasher> result;
+    //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
+    HashSet<substitution_t, Substitution::Hasher> substitutions;
 
-    // For each provided HtnOp:
-    for (const USignature& opSig : operations) {
-        //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
-        HashSet<substitution_t, Substitution::Hasher> substitutions;
-
-        assert(isFullyGround(opSig));
-
-        // Collect its (possible) effects
-        SigSet effects = _htn->getAllFactChanges(opSig);
-
-        // For each such effect: check if it is a valid result
-        // of some series of q const substitutions
-        for (const Signature& eff : effects) {
-            if (eff._usig._name_id != fact._name_id) continue;
-            if (eff._negated != negated) continue;
-            bool matches = true;
-            substitution_t s;
-            //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
-            for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
-                int effArg = eff._usig._args[argPos];
-                int substArg = fact._args[argPos];
-                if (!_htn->_q_constants.count(effArg)) {
-                    // If the effect fact has no q const here, the arg must be left unchanged
-                    matches &= effArg == substArg;
-                } else {
-                    // If the effect fact has a q const here, the substituted arg must be in the q const's domain
-                    matches &= _htn->getDomainOfQConstant(effArg).count(substArg);
-                }
-                if (!matches) break;
-                if (substArg != effArg) {
-                    // No two different substitution values for one arg!
-                    matches &= (!s.count(effArg) || s[effArg] == substArg);
-                    if (!matches) break;
-                    s[effArg] = substArg;
-                }
-            }
-            if (matches) {
-                // Valid, matching substitution found (possibly empty)
-                if (!substitutions.count(s)) substitutions.insert(s);
-                //log(" -- yes\n");
+    // For each such effect: check if it is a valid result
+    // of some series of q const substitutions
+    for (const Signature& eff : effects) {
+        if (eff._usig._name_id != fact._name_id) continue;
+        if (eff._negated != negated) continue;
+        bool matches = true;
+        substitution_t s;
+        //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
+        for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
+            int effArg = eff._usig._args[argPos];
+            int substArg = fact._args[argPos];
+            if (!_htn->_q_constants.count(effArg)) {
+                // If the effect fact has no q const here, the arg must be left unchanged
+                matches &= effArg == substArg;
             } else {
-                //log(" -- no\n");
+                // If the effect fact has a q const here, the substituted arg must be in the q const's domain
+                matches &= _htn->getDomainOfQConstant(effArg).count(substArg);
+            }
+            if (!matches) break;
+            if (substArg != effArg) {
+                // No two different substitution values for one arg!
+                matches &= (!s.count(effArg) || s[effArg] == substArg);
+                if (!matches) break;
+                s[effArg] = substArg;
             }
         }
-
-        result[opSig] = substitutions;
+        if (matches) {
+            // Valid, matching substitution found (possibly empty)
+            if (!substitutions.count(s)) substitutions.insert(s);
+            //log(" -- yes\n");
+        } else {
+            //log(" -- no\n");
+        }
     }
-    return result;
+
+    return substitutions;
 }
 
 bool Instantiator::isFullyGround(const USignature& sig) {
@@ -359,7 +347,12 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
     bool positive = !sig._negated;
     
     // Q-Fact: assume that it holds
-    if (_htn->hasQConstants(sig._usig)) return true;
+    if (_htn->hasQConstants(sig._usig)) {
+        for (const auto& decSig : _htn->getDecodedObjects(sig._usig)) {
+            if (test(Signature(decSig, sig._negated), state)) return true;
+        }
+        return false;
+    }
 
     // fact positive : true iff contained in facts
     if (positive) return state(sig);
@@ -374,9 +367,9 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
     return !state(sig.opposite());
 }
 
-bool Instantiator::hasValidPreconditions(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
+bool Instantiator::hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state) {
 
-    for (const Signature& pre : op.getPreconditions()) {
+    for (const Signature& pre : preconds) {
         if (isFullyGround(pre._usig) && !test(pre, state)) {
             return false;
         }

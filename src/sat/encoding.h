@@ -95,6 +95,8 @@ private:
     void encodeFrameAxioms(Position& pos, const Position& left);
     void initSubstitutionVars(int qconst, Position& pos);
 
+    void propagateFact(Position& pos, Position& above, int oldPos, int offset, const USignature& fact);
+
     const USignature& sigSubstitute(int qConstId, int trueConstId) {
         //assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);
         auto& args = _sig_substitution._args;

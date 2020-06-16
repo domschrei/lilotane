@@ -39,7 +39,7 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
-    setParam("aamo"); // ALL At-most-one constraints, also for reductions
+    setParam("amor", "20"); // Max. num reductions such that At-most-one constraints are added for reductions
     //setParam("cs"); // check solvability (without assumptions)
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
@@ -58,7 +58,8 @@ void Parameters::printUsage() {
     log("  <problemfile> Path to problem file in HDDL format.\n");
     log("\n");
     log("Option syntax: -OPTION or -OPTION=VALUE .\n");
-    log(" -aamo       Add ALL At-most-one constraints, also for reductions\n");
+    log(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> \
+reductions at the current position (0 : no AMO constraints for reductions)\n");
     log(" -cs         Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     log("             to see whether the formula has become generally unsatisfiable\n");
     log(" -d=<depth>  Minimum depth to begin SAT solving at\n");

@@ -16,6 +16,8 @@ struct Position {
 
 public:
     const static USignature NONE_SIG;
+    const static SigSet EMPTY_SIG_SET;
+    const static USigSet EMPTY_USIG_SET;
 
 private:
     int _layer_idx;
@@ -25,11 +27,17 @@ private:
     USigSet _reductions;
 
     HashMap<USignature, USigSet, USignatureHasher> _expansions;
+    HashMap<USignature, SigSet, USignatureHasher> _fact_changes;
 
     USigSet _axiomatic_ops;
 
-    // All facts, actual and virtual, potentially occurring at this position.
+    // All ACTUAL facts potentially occurring at this position.
     USigSet _facts;
+
+    // All VIRTUAL facts potentially occurring at this position,
+    // partitioned by their predicate name ID.
+    HashMap<int, USigSet> _qfacts;
+
     // All facts that are definitely true at this position.
     USigSet _true_facts;
     // All facts that are definitely false at this position.
@@ -51,6 +59,10 @@ public:
     void setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
     void addFact(const USignature& fact) {_facts.insert(fact);}
+    void addQFact(const USignature& qfact) {
+        _qfacts[qfact._name_id];
+        _qfacts[qfact._name_id].insert(qfact);
+    }
     void addTrueFact(const USignature& fact) {_true_facts.insert(fact);}
     void addFalseFact(const USignature& fact) {_false_facts.insert(fact);}
     void addDefinitiveFact(const Signature& fact) {(fact._negated ? _false_facts : _true_facts).insert(fact._usig);}
@@ -87,9 +99,14 @@ public:
         _axiomatic_ops.insert(op);
     }
     void addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
-    
-    void setFacts(const USigSet& facts) {
-        _facts = facts;
+    void setFactChanges(const USignature& op, const SigSet& factChanges) {
+        _fact_changes[op] = factChanges;
+    }
+    const SigSet& getFactChanges(const USignature& op) const {
+        return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
+    }
+    void clearFactChanges() {
+        _fact_changes.clear();
     }
 
     int encode(const USignature& sig);
@@ -100,12 +117,20 @@ public:
     bool isVariableOriginallyEncoded(const USignature& sig) const;
 
     bool hasFact(const USignature& fact) const {return _facts.count(fact);}
+    bool hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
     bool hasAction(const USignature& action) const {return _actions.count(action);}
     bool hasReduction(const USignature& red) const {return _reductions.count(red);}
 
     IntPair getPos() const {return IntPair(_layer_idx, _pos);}
     
     const USigSet& getFacts() const {return _facts;}
+    const HashMap<int, USigSet>& getQFacts() const {return _qfacts;}
+    const USigSet& getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
+    int getNumQFacts() const {
+        int sum = 0;
+        for (const auto& entry : _qfacts) sum += entry.second.size();
+        return sum;
+    };
     const USigSet& getTrueFacts() const {return _true_facts;}
     const USigSet& getFalseFacts() const {return _false_facts;}
     const HashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const {return _pos_fact_supports;}

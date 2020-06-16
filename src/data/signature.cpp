@@ -53,9 +53,14 @@ namespace Substitution {
     }
 }
 
+
 USignature::USignature() : _name_id(-1) {}
 USignature::USignature(int nameId, const std::vector<int>& args) : _name_id(nameId), _args(args) {}
 USignature::USignature(const USignature& sig) : _name_id(sig._name_id), _args(sig._args) {}
+USignature::USignature(USignature&& sig) {
+    _name_id = sig._name_id;
+    _args = std::move(sig._args);
+}
 
 Signature USignature::toSignature(bool negated) const {
     return Signature(*this, negated);
@@ -90,4 +95,15 @@ USignature& USignature::operator=(const USignature& sig) {
     _name_id = sig._name_id;
     _args = sig._args;
     return *this;
+}
+USignature& USignature::operator=(USignature&& sig) {
+    _name_id = sig._name_id;
+    _args = std::move(sig._args);
+    return *this;
+}
+
+
+Signature::Signature(Signature&& sig) {
+    _usig = std::move(sig._usig);
+    _negated = sig._negated;
 }
