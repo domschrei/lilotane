@@ -375,13 +375,7 @@ void Planner::propagateActions(int offset) {
         const Action& a = _htn._actions_by_sig[aSig];
 
         // Can the action occur here w.r.t. the current state?
-        bool valid = true;
-        for (const Signature& fact : a.getPreconditions()) {
-            if (!_htn.hasQConstants(fact._usig) && !getLayerState().contains(_pos, fact)) {
-                // Action cannot occur here!
-                valid = false; break;
-            }
-        }
+        bool valid = _instantiator.hasValidPreconditions(a.getPreconditions(), getStateEvaluator());
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {

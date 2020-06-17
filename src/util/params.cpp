@@ -46,6 +46,8 @@ void Parameters::setDefaults() {
     //setParam("nps"); // non-primitive fact supports
     //setParam("of"); // output formula to f.cnf
     //setParam("pvn"); // print variable names
+    setParam("qit", "0"); // q-constant instantiation threshold
+    setParam("qrf", "0"); // q-constant rating factor
     //setParam("q"); // q-constants
     //setParam("qq"); // no instantiation of preconditions
     //setParam("rrp"); // remove rigid predicates
@@ -68,6 +70,8 @@ reductions at the current position (0 : no AMO constraints for reductions)\n");
     log(" -nps        Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     log(" -of         Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     log(" -pvn        Print variable names\n");
+    log(" -qrf=<limit>      If -q or -qq, do NOT introduce q-constant if an operation has at most <limit> instantiations\n");
+    log(" -qrf=<factor>     If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
     log(" -q          For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
     log("             after fully instantiating all preconditions\n");
     log(" -qq         For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");

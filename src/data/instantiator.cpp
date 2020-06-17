@@ -84,18 +84,85 @@ struct CompArgs {
 USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
     __op = &op;
 
-    //if (!hasConsistentlyTypedArgs(op.getSignature())) return SigSet();
-
-    // Create structure for arguments ordered by priority
-    std::vector<int> argsByPriority;
-    for (int arg : op.getArguments()) {
-        if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
+    if (_q_const_instantiation_limit > 0) {
+        // First try to naively ground the operation up to some limit
+        std::vector<int> argsByPriority;
+        for (const int& arg : op.getArguments()) {
+            if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
+        }
+        std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
+        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit);
+        if (!inst.empty()) return inst;
     }
 
-    int priorSize = argsByPriority.size();
-    CompArgs comp;
-    std::sort(argsByPriority.begin(), argsByPriority.end(), comp);
-    assert(priorSize == argsByPriority.size());
+    // Collect all arguments which should be instantiated
+    HashSet<int> argsToInstantiate;
+
+    // a) All variable args according to the q-constant policy
+    for (int i = 0; i < op.getArguments().size(); i++) {
+        const int& arg = op.getArguments().at(i);
+        if (!_htn->_var_ids.count(arg)) continue;
+
+        if (_inst_mode == INSTANTIATE_FULL) {
+
+            argsToInstantiate.insert(arg);
+
+        } else if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
+    
+            bool found = false;
+            for (const auto& pre : op.getPreconditions()) {
+                for (const int& preArg : pre._usig._args) {
+                    if (arg == preArg) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) break;
+            }
+
+            if (found) argsToInstantiate.insert(arg);
+        }
+    }
+
+    // b) All variable args whose domain is below the specified q constant threshold
+    if (_q_const_rating_factor > 0) {
+        const auto& ratings = getPreconditionRatings(op.getSignature());
+        /*for (const auto& entry : ratings) {
+            log("%s -- %s : rating %.3f\n", Names::to_string(op.getSignature()).c_str(), Names::to_string(entry.first).c_str(), entry.second);
+        }*/
+        if (_inst_mode != INSTANTIATE_FULL)
+        for (int argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
+            int arg = op.getArguments().at(argIdx);
+            if (!_htn->_var_ids.count(arg)) continue;
+
+            int sort = _htn->_signature_sorts_table[op.getSignature()._name_id][argIdx];
+            int domainSize = _htn->getConstantsOfSort(sort).size();
+            float r = ratings.at(arg);
+            if (_q_const_rating_factor*r > domainSize) {
+                argsToInstantiate.insert(arg);
+            }
+        }
+    }
+
+    // Sort args to instantiate by their priority descendingly
+    std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
+    std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
+
+    return instantiateLimited(op, state, argsByPriority, 0);
+}
+
+USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
+            const std::vector<int>& argsByPriority, int limit) {
+
+    USigSet instantiation;
+    int doneInstSize = argsByPriority.size();
+    
+    if (doneInstSize == 0) {
+        if (hasValidPreconditions(op.getPreconditions(), state) 
+            && hasSomeInstantiation(op.getSignature())) 
+            instantiation.insert(op.getSignature());
+        return instantiation;
+    }
 
     // Create back transformation of argument positions
     HashMap<int, int> argPosBackMapping;
@@ -106,33 +173,6 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
                 break;
             }
         }   
-    }
-
-    USigSet instantiation;
-    int doneInstSize = argsByPriority.size(); // ALL
-    if (_inst_mode == INSTANTIATE_NOTHING) doneInstSize = 0;
-    if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
-        // Search the position where the rating becomes zero
-        // (meaning that the args occur in no conditions)
-        int lastRating = 999999;
-        for (int i = 0; i < argsByPriority.size(); i++) {
-            int rating = comp.rating(argsByPriority[i]);
-            assert(lastRating >= rating);
-            lastRating = rating;
-
-            if (rating == 0) {
-                doneInstSize = i;
-                break;
-            }
-        }
-        //log("Instantiate until arg %i/%i\n", doneInstSize, argsByPriority.size());
-    }
-    
-    if (doneInstSize == 0 || argsByPriority.empty()) {
-        if (hasValidPreconditions(op.getPreconditions(), state) 
-            && hasSomeInstantiation(op.getSignature())) 
-            instantiation.insert(op.getSignature());
-        return instantiation;
     }
 
     std::vector<std::vector<int>> assignmentsStack;
@@ -171,6 +211,12 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
                 // This instantiation is finished:
                 // Assemble instantiated signature
                 instantiation.insert(newOp.getSignature());
+
+                if (limit > 0 && instantiation.size() > limit) {
+                    // Limit exceeded -- failure
+                    return USigSet();
+                }
+
             } else {
                 // Unfinished instantiation
                 assignmentsStack.push_back(newAssignment);
@@ -183,7 +229,62 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     return instantiation;
 }
 
+const HashMap<int, float>& Instantiator::getPreconditionRatings(const USignature& opSig) {
 
+    int nameId = opSig._name_id;
+    
+    // Substitution mapping
+    std::vector<int> placeholderArgs;
+    USignature normSig = _htn->getNormalizedLifted(opSig, placeholderArgs);
+    HashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, opSig._args);
+
+    if (!_precond_ratings.count(nameId)) {
+        // Compute
+        HashMap<int, std::vector<float>> ratings;
+        HashMap<int, std::vector<int>> numRatings;
+        
+        NetworkTraversal(*_htn).traverse(normSig, [&](const USignature& nodeSig, int depth) {
+
+            HtnOp& op = (_htn->_actions.count(nodeSig._name_id) ? (HtnOp&)_htn->_actions.at(nodeSig._name_id) : (HtnOp&)_htn->_reductions.at(nodeSig._name_id));
+            HtnOp opSub = op.substitute(Substitution::get(op.getArguments(), nodeSig._args));
+            int numPrecondArgs = 0;
+            int occs = 0;
+            for (int i = 0; i < normSig._args.size(); i++) {
+                int opArg = opSig._args[i];
+                int normArg = normSig._args[i];
+                if (!_htn->_var_ids.count(opArg)) continue;
+                
+                ratings[opArg];
+                numRatings[opArg];
+                while (depth >= ratings[opArg].size()) {
+                    ratings[opArg].push_back(0);
+                    numRatings[opArg].push_back(0);
+                }
+
+                for (const Signature& pre : opSub.getPreconditions()) for (const int& preArg : pre._usig._args) {
+                    if (normArg == preArg) occs++;
+                    numPrecondArgs++;
+                }
+
+                ratings[opArg][depth] += (numPrecondArgs > 0) ? (float)occs / numPrecondArgs : 0;
+                numRatings[opArg][depth]++;
+            }
+        });
+
+        _precond_ratings[nameId];
+        for (const auto& entry : ratings) {
+            const int& arg = entry.first;
+            _precond_ratings[nameId][arg] = 0;
+            for (int depth = 0; depth < entry.second.size(); depth++) {
+                const float& r = entry.second[depth];
+                const int& numR = numRatings[arg][depth];
+                if (numR > 0) _precond_ratings[nameId][arg] += 1.0f/(1 << depth) * r/numR;
+            }
+        }
+    }
+
+    return _precond_ratings.at(nameId);
+}
 
 
 

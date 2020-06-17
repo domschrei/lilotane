@@ -47,6 +47,10 @@ private:
     Parameters& _params;
     HtnInstance* _htn;
     int _inst_mode;
+    float _q_const_rating_factor;
+    int _q_const_instantiation_limit;
+
+    HashMap<int, HashMap<int, float>> _precond_ratings;
 
 public:
     Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn) {
@@ -57,6 +61,8 @@ public:
         } else {
             _inst_mode = INSTANTIATE_FULL;
         }
+        _q_const_rating_factor = _params.getFloatParam("qrf");
+        _q_const_instantiation_limit = _params.getIntParam("qit");
     }
 
     std::vector<Reduction> getApplicableInstantiations(const Reduction& r,
@@ -65,6 +71,9 @@ public:
             const std::function<bool(const Signature&)>& state, int mode = -1);
 
     USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
+    USigSet instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, const std::vector<int>& argsByPriority, int limit);
+
+    const HashMap<int, float>& getPreconditionRatings(const USignature& opSig);
 
     HashSet<substitution_t, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
             const SigSet& factChanges, const USignature& fact, bool negated);

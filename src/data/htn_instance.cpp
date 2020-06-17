@@ -527,7 +527,6 @@ Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int
 HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
             const SigSet& conditions, const std::function<bool(const Signature&)>& state) {
     
-    HashMap<int, int> s;
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig._args);
     // Sort freeArgPositions ascendingly by their arg's importance / impact 
     std::sort(freeArgPositions.begin(), freeArgPositions.end(), [&](int left, int right) {
@@ -535,9 +534,11 @@ HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx
         int sortRight = _signature_sorts_table[sig._name_id][right];
         return getConstantsOfSort(sortLeft).size() < getConstantsOfSort(sortRight).size();
     });
+
+    HashMap<int, int> s;
     for (int argPos : freeArgPositions) {
         size_t domainHash = 0;
-        HashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, domainHash);
+        HashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
         if (domain.empty()) {
             // No valid value for this argument at this position: return failure
             //log("%s : %s has no valid domain!\n", Names::to_string(sig).c_str(), Names::to_string(sig._args[argPos]).c_str());
@@ -551,7 +552,7 @@ HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx
 }
 
 HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
-            const SigSet& conditions, const std::function<bool(const Signature&)>& state, size_t& domainHash) {
+            const SigSet& conditions, const std::function<bool(const Signature&)>& state, HashMap<int, int>& substitution, size_t& domainHash) {
     
     int arg = sig._args[argPos];
 
@@ -565,22 +566,23 @@ HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int arg
     int sort = _signature_sorts_table[sig._name_id][argPos];
     const HashSet<int>& domain = getConstantsOfSort(sort);
     assert(!domain.empty());
+    assert(!substitution.count(arg));
 
     // Reduce the q-constant's domain according to the associated facts and the current state.
-    substitution_t sub;
     HashSet<int> actualDomain;
     size_t sum = 0;
     for (const int& c : domain) {
-        sub[arg] = c;
-        SigSet substConditions;
-        for (const auto& cond : conditions) substConditions.insert(cond.substitute(sub));
-        if (_instantiator->hasValidPreconditions(substConditions, state)) {
+        //substitution[arg] = c;
+        //SigSet substConditions;
+        //for (const auto& cond : conditions) substConditions.insert(cond.substitute(substitution));
+        //if (_instantiator->hasValidPreconditions(substConditions, state)) {
             actualDomain.insert(c);
             sum += 7*c;
-        } 
+        //} 
     }
     domainHash = std::hash<int>{}(sum);
     //log("%.2f%% of q-const domain eliminated\n", 100 - 100.f * actualDomain.size()/domain.size());
+    substitution.erase(arg);
     return actualDomain;
 }
 
@@ -768,4 +770,25 @@ USignature HtnInstance::cutNonoriginalTaskArguments(const USignature& sig) {
     USignature sigCut(sig);
     sigCut._args.resize(_original_n_taskvars[sig._name_id]);
     return sigCut;
+}
+
+USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs) {
+    int nameId = opSig._name_id;
+    
+    // Get original signature of this operator (fully lifted)
+    USignature origSig;
+    if (_reductions.count(nameId)) {
+        // Reduction
+        origSig = _reductions[nameId].getSignature();
+    } else {
+        // Action
+        origSig = _actions[nameId].getSignature();
+    }
+
+    // Substitution mapping
+    for (int i = 0; i < opSig._args.size(); i++) {
+        placeholderArgs.push_back(-i-1);
+    }
+
+    return origSig.substitute(Substitution::get(origSig._args, placeholderArgs)); 
 }

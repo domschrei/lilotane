@@ -108,7 +108,7 @@ struct HtnInstance {
     Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
     HashMap<int, int> addQConstants(const USignature& sig, int layerIdx, int pos, const SigSet& conditions, const std::function<bool(const Signature&)>& state);
     HashSet<int> computeDomainOfArgument(const USignature& sig, int argPos, const SigSet& conditions, 
-                const std::function<bool(const Signature&)>& state, size_t& domainHash);
+                const std::function<bool(const Signature&)>& state, HashMap<int, int>& substitution, size_t& domainHash);
     void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const HashSet<int>& domain, size_t domainHash, HashMap<int, int>& s);
 
     bool hasQConstants(const USignature& sig);
@@ -124,6 +124,8 @@ struct HtnInstance {
 
     bool isRigidPredicate(int predId);
     void removeRigidConditions(HtnOp& op);
+
+    USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
 
     USignature cutNonoriginalTaskArguments(const USignature& sig);
 };
