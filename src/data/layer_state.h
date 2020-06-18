@@ -84,16 +84,22 @@ public:
     }
 
     void add(int pos, const Signature& fact) {
-        auto& occ = fact._negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-        if (!occ.count(fact._usig)) {
-            occ[fact._usig] = std::pair<int, int>(pos, INT32_MAX);
+        add(pos, fact._usig, fact._negated);
+    }
+    void add(int pos, const USignature& fact, bool negated) {
+        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
+        if (!occ.count(fact)) {
+            occ[fact] = std::pair<int, int>(pos, INT32_MAX);
         }
-        occ[fact._usig].first = std::min(occ[fact._usig].first, pos);
+        occ[fact].first = std::min(occ[fact].first, pos);
     }
     void withdraw(int pos, const Signature& fact) {
-        auto& occ = fact._negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-        if (!occ.count(fact._usig)) return;
-        occ[fact._usig].second = pos;
+        withdraw(pos, fact._usig, fact._negated);
+    }
+    void withdraw(int pos, const USignature& fact, bool negated) {
+        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
+        if (!occ.count(fact)) return;
+        occ[fact].second = pos;
     }
 
     bool contains(int pos, const USignature& fact, bool negated) const {

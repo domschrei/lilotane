@@ -19,7 +19,10 @@ function rating() {
 }
 
 function end() {
-    echo "$solved/$all solved within $timeout seconds. Score w.r.t. ${rating_timeout}s as actual timeout: ${green}$score${reset}."
+    echo "$solved/$all solved within ${timeout}s per instance."
+    echo -ne "Total score for T=${rating_timeout}s: ${green}"
+    LC_ALL=C printf "%.4f" $score
+    echo "${reset}."
     exit $1
 }
 
@@ -60,7 +63,7 @@ for domain in $domains ; do
         verifile="$logdir/VERIFY"
         
         set +e
-        echo -ne "[$((solved+unsolved))/$all] Running treerexx on ${blue}$pfile${reset} ... "
+        echo -ne "[$((solved+unsolved+1))/$all] ${blue}$pfile${reset} ... "
 
         start=$(date +%s.%N)
         /usr/bin/timeout $timeout ./treerexx $dfile $pfile $@ > "$outfile" & wait -n

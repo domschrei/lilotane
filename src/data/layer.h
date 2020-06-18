@@ -55,7 +55,7 @@ private:
     HashMap<USignature, IntPair, USignatureHasher> _variables;
 
 public:
-    Position() {}
+    Position() : _layer_idx(-1), _pos(-1) {}
     void setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
     void addFact(const USignature& fact) {_facts.insert(fact);}
@@ -104,9 +104,6 @@ public:
     }
     const SigSet& getFactChanges(const USignature& op) const {
         return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
-    }
-    void clearFactChanges() {
-        _fact_changes.clear();
     }
 
     int encode(const USignature& sig);
@@ -160,6 +157,9 @@ public:
             _variables.erase(fact);
         }
         _facts.clear();
+    }
+    void clearFactChanges() {
+        _fact_changes.clear();
     }
 };
 

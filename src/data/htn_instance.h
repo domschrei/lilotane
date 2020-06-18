@@ -101,6 +101,7 @@ struct HtnInstance {
 
     Reduction& createReduction(const method& method);
     Action& createAction(const task& task);
+    HtnOp& getOp(const USignature& opSig);
 
     SigSet getAllFactChanges(const USignature& sig);
 

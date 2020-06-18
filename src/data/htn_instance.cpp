@@ -495,6 +495,11 @@ Action& HtnInstance::createAction(const task& task) {
     return _actions[id];
 }
 
+HtnOp& HtnInstance::getOp(const USignature& opSig) {
+    if (_actions.count(opSig._name_id)) return (HtnOp&)_actions.at(opSig._name_id);
+    else return (HtnOp&)_reductions.at(opSig._name_id);
+}
+
 SigSet HtnInstance::getAllFactChanges(const USignature& sig) {    
     SigSet result;
     if (sig == Position::NONE_SIG) return result;

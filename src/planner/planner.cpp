@@ -129,7 +129,7 @@ int Planner::findPlan() {
         iteration++;      
         log("ITERATION %i\n", iteration);
         
-        _layers.push_back(Layer(iteration, _layers.back().getNextLayerSize()));
+        _layers.emplace_back(iteration, _layers.back().getNextLayerSize());
         Layer& newLayer = _layers.back();
         log(" NEW_LAYER_SIZE %i\n", newLayer.size());
         Layer& oldLayer = _layers[_layer_idx];
@@ -341,8 +341,30 @@ void Planner::propagateInitialState() {
         newPos.addTrueFact(fact);
     for (const USignature& fact : above.getFalseFacts())
         newPos.addFalseFact(fact);
-    // Propagate state
-    getLayerState(_layer_idx) = LayerState(getLayerState(_layer_idx-1));
+
+    // Propagate state: initial position and all q-facts
+    getLayerState(_layer_idx) = //LayerState(getLayerState(_layer_idx-1), _layers[_layer_idx-1].getOffsets());
+    LayerState();
+    const auto& oldState = getLayerState(_layer_idx-1);
+    auto& newState = getLayerState(_layer_idx);
+    for (bool neg : {true, false}) {
+        for (const auto& entry : neg ? oldState.getNegFactOccurrences() : oldState.getPosFactOccurrences()) {
+            const USignature& fact = entry.first;
+            //log("  ~~~> %s\n", Names::to_string(fact).c_str());
+            const auto& range = entry.second;
+            if (range.first == 0 || _htn.hasQConstants(fact)) {
+                int newRangeFirst = _layers[_layer_idx-1].getSuccessorPos(range.first);
+                newState.add(newRangeFirst, fact, neg);
+                if (range.second != INT32_MAX) {
+                    int newRangeSecond = _layers[_layer_idx-1].getSuccessorPos(range.second);    
+                    newState.withdraw(newRangeSecond, fact);
+                }
+            }
+        }
+    }
+    log("%i neg, %i pos ~~~> %i neg, %i pos\n", oldState.getNegFactOccurrences().size(), oldState.getPosFactOccurrences().size(), 
+                                                newState.getNegFactOccurrences().size(), newState.getPosFactOccurrences().size());
+    
 }
 
 void Planner::createNextFromAbove(const Position& above) {
@@ -576,9 +598,10 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
     }
 }
 
-void Planner::addEffect(const USignature& op, const Signature& fact) {
+void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     Position& pos = _layers[_layer_idx][_pos];
     assert(_pos > 0);
+    Position& left = _layers[_layer_idx][_pos-1];
     //Position& left = _layers[_layer_idx][_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
@@ -587,8 +610,8 @@ void Planner::addEffect(const USignature& op, const Signature& fact) {
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
-    if (_params.isSet("nps") || _htn._actions_by_sig.count(op)) {
-        pos.addFactSupport(fact, op);
+    if (_params.isSet("nps") || _htn._actions_by_sig.count(opSig)) {
+        pos.addFactSupport(fact, opSig);
     } else {
         // Remember that there is some (unspecified) support for this fact
         pos.touchFactSupport(fact);
@@ -596,12 +619,47 @@ void Planner::addEffect(const USignature& op, const Signature& fact) {
     
     getLayerState().add(_pos, fact);
 
-    assert(!isQFact || !_htn.getDecodedObjects(factAbs).empty());
+    if (!isQFact) return;
+
+    //log("Calc decoded effects for %s:%s\n", Names::to_string(opSig).c_str(), Names::to_string(fact).c_str());
+
+    HtnOp& op = _htn.getOp(opSig);
+    assert(!_htn.getDecodedObjects(factAbs).empty());
+    int numValid = 0;
     for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs)) {
+        
+        /*
+        // Check if the preconditions of op subject to such a fact encoding can hold
+        const auto& subs = _instantiator.getOperationSubstitutionsCausingEffect(left.getFactChanges(opSig), decFactAbs, fact._negated);
+        bool valid = false;
+        // For each possible substitution leading to the fact:
+        for (const auto& sub : subs) {
+            HtnOp opSub = op.substitute(sub);
+
+            // Try to get a single valid (w.r.t. preconds) instantiation of the operator
+            std::vector<int> varArgs;
+            for (const int& arg : opSub.getArguments()) {
+                if (_htn._var_ids.count(arg)) varArgs.push_back(arg);
+            }
+            USigSet inst = _instantiator.instantiateLimited(opSub, getStateEvaluator(_layer_idx, _pos-1), varArgs, 1, true);
+
+            if (!inst.empty()) {
+                // Success -- the effect may actually happen
+                valid = true;
+                break;
+            }
+        }
+        if (!valid) continue;
+        */
         
         Signature decFact(decFactAbs, fact._negated);
         _htn.addQFactDecoding(factAbs, decFactAbs);
         getLayerState().add(_pos, decFact);
+        numValid++;
+    }
+
+    if (numValid == 0) {
+        //log("No valid decoded effects for %s!\n", Names::to_string(opSig).c_str());
     }
 }
 

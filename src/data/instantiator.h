@@ -71,7 +71,8 @@ public:
             const std::function<bool(const Signature&)>& state, int mode = -1);
 
     USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
-    USigSet instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, const std::vector<int>& argsByPriority, int limit);
+    USigSet instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
+            const std::vector<int>& argsByPriority, int limit, bool returnUnfinished);
 
     const HashMap<int, float>& getPreconditionRatings(const USignature& opSig);
 

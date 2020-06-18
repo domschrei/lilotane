@@ -91,7 +91,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
             if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
         }
         std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
-        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit);
+        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, false);
         if (!inst.empty()) return inst;
     }
 
@@ -148,11 +148,11 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
 
-    return instantiateLimited(op, state, argsByPriority, 0);
+    return instantiateLimited(op, state, argsByPriority, 0, false);
 }
 
 USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
-            const std::vector<int>& argsByPriority, int limit) {
+            const std::vector<int>& argsByPriority, int limit, bool returnUnfinished) {
 
     USigSet instantiation;
     int doneInstSize = argsByPriority.size();
@@ -212,9 +212,15 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
                 // Assemble instantiated signature
                 instantiation.insert(newOp.getSignature());
 
-                if (limit > 0 && instantiation.size() > limit) {
-                    // Limit exceeded -- failure
-                    return USigSet();
+                if (limit > 0) {
+                    if (returnUnfinished && instantiation.size() == limit) {
+                        // Limit exceeded -- return unfinished instantiation
+                        return instantiation;
+                    }
+                    if (!returnUnfinished && instantiation.size() > limit) {
+                        // Limit exceeded -- return failure
+                        return USigSet();
+                    }
                 }
 
             } else {
@@ -290,8 +296,8 @@ const HashMap<int, float>& Instantiator::getPreconditionRatings(const USignature
 
 
 
-// Given a fact (signature) and (a set of ground htn operations containing q constants),
-// compute the possible sets of substitutions that are necessary to let each operation
+// Given an unsigned ground fact signature and (a set of operations effects containing q constants),
+// compute the possible sets of substitutions that are necessary to let the operation
 // have the specified fact in its support.
 HashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
             const SigSet& effects, const USignature& fact, bool negated) {
@@ -444,7 +450,9 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
 }
 
 bool Instantiator::test(const Signature& sig, const std::function<bool(const Signature&)>& state) {
-    assert(isFullyGround(sig._usig));
+    
+    if (!isFullyGround(sig._usig)) return true;
+
     bool positive = !sig._negated;
     
     // Q-Fact: assume that it holds
@@ -471,7 +479,7 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
 bool Instantiator::hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state) {
 
     for (const Signature& pre : preconds) {
-        if (isFullyGround(pre._usig) && !test(pre, state)) {
+        if (!test(pre, state)) {
             return false;
         }
     }

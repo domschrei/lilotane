@@ -205,8 +205,8 @@ void Encoding::encode(int layerIdx, int pos) {
     stage("reductionconstraints");
     
     if (numOccurringOps == 0) {
-        assert(pos+1 == newLayer.size() 
-            || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
+        //addClause(varPrim);
+        assert(pos+1 == newLayer.size() || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
     }
 
     // Q-constants type constraints
@@ -295,6 +295,22 @@ void Encoding::encode(int layerIdx, int pos) {
     log("  Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
     left.clearFactChanges();
+
+    if (layerIdx == 0 || offset != 0) return;
+    
+    Position& positionToClear = NULL_POS;
+    if (oldPos == 0) {
+        // Clear rightmost position of "above above" layer
+        if (layerIdx > 1) positionToClear = _layers->at(layerIdx-2)[_layers->at(layerIdx-2).size()-1];
+    } else {
+        // Clear previous parent position of "above" layer
+        positionToClear = _layers->at(layerIdx-1)[oldPos-1];
+    }
+    if (positionToClear.getPos().first >= 0) {
+        log("  Freeing memory of (%i,%i) ...\n", positionToClear.getPos().first, positionToClear.getPos().second);
+        positionToClear.clearUnneeded();
+    }
+    /*
     if (layerIdx > 1 && pos == 0) {
         // delete data from "above above" layer
         // except for necessary structures for decoding a plan
@@ -303,7 +319,7 @@ void Encoding::encode(int layerIdx, int pos) {
         for (int p = 0; p < layerToClear.size(); p++) {
             layerToClear[p].clearUnneeded();
         }
-    }
+    }*/
 }
 
 void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int offset, const USignature& factSig) {
