@@ -10,6 +10,7 @@
 #include "data/action.h"
 #include "data/code_table.h"
 #include "data/signature.h"
+#include "data/network_traversal.h"
 #include "util/params.h"
 
 class HtnInstance; // incomplete forward def
@@ -46,14 +47,21 @@ class Instantiator {
 private:
     Parameters& _params;
     HtnInstance* _htn;
+    NetworkTraversal _traversal;
+    
     int _inst_mode;
     float _q_const_rating_factor;
     int _q_const_instantiation_limit;
 
-    HashMap<int, HashMap<int, float>> _precond_ratings;
+    NodeHashMap<int, FlatHashMap<int, float>> _precond_ratings;
+
+    // Maps an (action|reduction) name 
+    // to the set of (partially lifted) fact signatures
+    // that might be added to the state due to this operator. 
+    NodeHashMap<int, std::vector<Signature>> _fact_changes;
 
 public:
-    Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn) {
+    Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn), _traversal(htn) {
         if (_params.isSet("qq")) {
             _inst_mode = INSTANTIATE_NOTHING;
         } else if (_params.isSet("q")) {
@@ -74,14 +82,22 @@ public:
     USigSet instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
             const std::vector<int>& argsByPriority, int limit, bool returnUnfinished);
 
-    const HashMap<int, float>& getPreconditionRatings(const USignature& opSig);
+    const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);
 
-    HashSet<substitution_t, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
+    NodeHashSet<substitution_t, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
             const SigSet& factChanges, const USignature& fact, bool negated);
+
+    SigSet getAllFactChanges(const USignature& sig);
+
+    // Maps a (action|reduction) signature of any grounding state
+    // to a corresponding list of (partially lifted) fact signatures
+    // that might be added to the state due to this operator. 
+    std::vector<Signature> getPossibleFactChanges(const USignature& sig);
+
 
     bool isFullyGround(const USignature& sig);
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
-    bool fits(USignature& sig, USignature& groundSig, HashMap<int, int>* substitution);
+    bool fits(USignature& sig, USignature& groundSig, FlatHashMap<int, int>* substitution);
     bool hasSomeInstantiation(const USignature& sig);
 
     bool hasConsistentlyTypedArgs(const USignature& sig);

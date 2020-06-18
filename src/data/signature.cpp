@@ -1,59 +1,6 @@
 
 #include "data/signature.h"
 
-namespace Substitution {
-
-    substitution_t get(const std::vector<int>& src, const std::vector<int>& dest) {
-        substitution_t s;
-        assert(src.size() == dest.size());
-        for (int i = 0; i < src.size(); i++) {
-            if (src[i] != dest[i]) {
-                assert(!s.count(src[i]) || s[src[i]] == dest[i]);
-                s[src[i]] = dest[i];
-            }
-        }
-        return s;
-    }
-
-    std::vector<substitution_t> getAll(const std::vector<int>& src, const std::vector<int>& dest) {
-        std::vector<substitution_t> ss;
-        ss.push_back(substitution_t()); // start with empty substitution
-        assert(src.size() == dest.size());
-        for (int i = 0; i < src.size(); i++) {
-            if (src[i] != dest[i]) {
-
-                // Iterate over existing substitutions
-                int priorSize = ss.size();
-                for (int j = 0; j < priorSize; j++) {
-                    substitution_t& s = ss[j];
-                    
-                    // Does the substitution already have such a key but with a different value? 
-                    if (s.count(src[i]) && s[src[i]] != dest[i]) {
-                        // yes -- branch: keep original substitution, add alternative
-
-                        substitution_t s1 = s;
-                        s1[src[i]] = dest[i];
-                        ss.push_back(s1); // overwritten substitution
-
-                    } else {
-                        // Just add to substitution
-                        s[src[i]] = dest[i];
-                    }
-                }
-            }
-        }
-        return ss;
-    }
-
-    bool implies(const substitution_t& super, const substitution_t& sub) {
-        for (const auto& e : sub) {
-            if (!super.count(e.first) || super.at(e.first) != e.second) return false;
-        }
-        return true;
-    }
-}
-
-
 USignature::USignature() : _name_id(-1) {}
 USignature::USignature(int nameId, const std::vector<int>& args) : _name_id(nameId), _args(args) {}
 USignature::USignature(const USignature& sig) : _name_id(sig._name_id), _args(sig._args) {}
@@ -66,15 +13,19 @@ Signature USignature::toSignature(bool negated) const {
     return Signature(*this, negated);
 }
 
-USignature USignature::substitute(const HashMap<int, int>& s) const {
+USignature USignature::substitute(const FlatHashMap<int, int>& s) const {
     USignature sig;
     sig._name_id = _name_id;
     assert(sig._name_id != 0);
     sig._args.resize(_args.size());
     for (int i = 0; i < _args.size(); i++) {
-        if (s.count(_args[i])) sig._args[i] = s.at(_args[i]);
-        else sig._args[i] = _args[i];
-        assert(sig._args[i] != 0);
+        if (s.count(_args[i])) {
+            sig._args[i] = s.at(_args[i]);
+            assert(sig._args[i] != 0);
+        } else {
+            sig._args[i] = _args[i];
+            assert(sig._args[i] != 0);
+        }
     }
     return sig;
 }
@@ -102,8 +53,66 @@ USignature& USignature::operator=(USignature&& sig) {
     return *this;
 }
 
+std::size_t USignatureHasher::operator()(const USignature& s) const {
+    size_t hash = 1337;
+    for (auto arg : s._args) {
+        hash_combine(hash, arg);
+    }
+    hash_combine(hash, s._name_id);
+    return hash;
+}
 
+Signature::Signature() {}
+Signature::Signature(int nameId, const std::vector<int>& args, bool negated) : _usig(nameId, args), _negated(negated) {}
+Signature::Signature(const USignature& usig, bool negated) : _usig(usig), _negated(negated) {}
+Signature::Signature(const Signature& sig) : _usig(sig._usig), _negated(sig._negated) {}
 Signature::Signature(Signature&& sig) {
     _usig = std::move(sig._usig);
     _negated = sig._negated;
+}
+
+void Signature::negate() {
+    _negated = !_negated;
+}
+
+const USignature& Signature::getUnsigned() const {
+    return _usig;
+}
+
+Signature Signature::Signature::opposite() const {
+    Signature out(*this);
+    if (_negated) out.negate();
+    return out;
+}
+
+Signature Signature::substitute(const FlatHashMap<int, int>& s) const {
+    return Signature(_usig.substitute(s), _negated);
+}
+
+bool Signature::operator==(const Signature& b) const {
+    if (_negated != b._negated) return false;
+    if (_usig != b._usig) return false;
+    return true;
+}
+
+bool Signature::operator!=(const Signature& b) const {
+    return !(*this == b);
+}
+
+Signature& Signature::operator=(const Signature& sig) {
+    _usig = sig._usig;
+    _negated = sig._negated;
+    return *this;
+}
+
+Signature& Signature::operator=(Signature&& sig) {
+    _usig = std::move(sig._usig);
+    _negated = sig._negated;
+    return *this;
+}
+
+std::size_t SignatureHasher::operator()(const Signature& s) const {
+    size_t hash = _usig_hasher(s._usig);
+    hash_combine(hash, s._negated);
+    return hash;
 }

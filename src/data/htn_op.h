@@ -17,75 +17,24 @@ protected:
     SigSet _effects;
 
 public:
-    HtnOp() {}
-    HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
-    HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
+    HtnOp();
+    HtnOp(int id, std::vector<int> args);
+    HtnOp(const HtnOp& op);
 
-    void setPreconditions(const SigSet& set) {
-        _preconditions = set;
-    }
-    void addPrecondition(const Signature& sig) {
-        _preconditions.insert(sig);
-    }
-    void addEffect(const Signature& sig) {
-        _effects.insert(sig);
-    }
-    void addArgument(int arg) {
-        _args.push_back(arg);
-    }
-    void removeInconsistentEffects() {
-        // Collect all neg. preconds for which the pos. precond is contained, too
-        SigSet inconsistentEffs;
-        for (const Signature& sig : _effects) {
-            if (sig._negated && _effects.count(Signature(sig._usig))) {
-                inconsistentEffs.insert(sig);
-            }
-        }
-        // Remove each such neg. precond
-        for (const Signature& sig : inconsistentEffs) {
-            _effects.erase(sig);
-        }
-    }
+    void setPreconditions(const SigSet& set);
+    void addPrecondition(const Signature& sig);
+    void addEffect(const Signature& sig);
+    void addArgument(int arg);
+    void removeInconsistentEffects();
 
-    virtual HtnOp substitute(const HashMap<int, int>& s) const {
-        HtnOp op;
-        op._id = _id;
-        op._args.resize(_args.size());
-        for (int i = 0; i < _args.size(); i++) {
-            if (s.count(_args[i])) op._args[i] = s.at(_args[i]);
-            else op._args[i] = _args[i];
-        }
-        for (Signature sig : _preconditions) {
-            Signature sigSubst = sig.substitute(s);
-            op.addPrecondition(sigSubst);
-        }
-        for (Signature sig : _effects) {
-            Signature sigSubst = sig.substitute(s);
-            op.addEffect(sigSubst);
-        }
-        return op;
-    }
+    virtual HtnOp substitute(const FlatHashMap<int, int>& s) const;
 
-    const SigSet& getPreconditions() const {
-        return _preconditions;
-    }
-    const SigSet& getEffects() const {
-        return _effects;
-    }
-    const std::vector<int>& getArguments() const {
-        return _args;
-    }
-    USignature getSignature() const {
-        return USignature(_id, _args);
-    }
+    const SigSet& getPreconditions() const;
+    const SigSet& getEffects() const;
+    const std::vector<int>& getArguments() const;
+    USignature getSignature() const;
 
-    HtnOp& operator=(const HtnOp& op) {
-        _id = op._id;
-        _args = op._args;
-        _preconditions = op._preconditions;
-        _effects = op._effects;
-        return *this;
-    }
+    HtnOp& operator=(const HtnOp& op);
 };
 
 

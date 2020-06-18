@@ -19,8 +19,8 @@ public:
     static int nextVar();
     static int getMaxVar();
 
-    static void printVar(int var, int layerIdx, int pos, const Signature& sig);
-    static std::string varName(int layerIdx, int pos, const Signature& sig);
+    static void printVar(int var, int layerIdx, int pos, const USignature& sig);
+    static std::string varName(int layerIdx, int pos, const USignature& sig);
     
     static bool isLocked();
     static void lock();

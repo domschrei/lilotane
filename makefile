@@ -7,20 +7,24 @@ TREEREXX_VERSION:=dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
 SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
 CC=g++
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
-CERROR=
 
-COMPILEFLAGS=-O3 -g -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\" #-DNDEBUG
-LINKERFLAG=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
+# -Q -ftime-report
+COMPILEFLAGS=-O3 -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\"
+LINKERFLAGS=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
 
-#COMPILEFLAGS=-O0 -ggdb -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR)
-#LINKERFLAG=-O0 -ggdb
 INCLUDES=-Isrc -Isrc/parser
 
-.PHONY = parser clean
+.PHONY = clean
+
+debug: COMPILEFLAGS += -DDEBUG -g -rdynamic
+debug: treerexx
+
+release: COMPILEFLAGS += -DNDEBUG
+release: treerexx
 
 treerexx: src/parser/hddl.o src/parser/hddl-token.o $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
 	cd lib/${IPASIRSOLVER} && bash fetch_and_build.sh
-	${CC} ${INCLUDES} $^ -o treerexx ${LINKERFLAG}
+	${CC} ${INCLUDES} $^ -o treerexx ${LINKERFLAGS}
 
 src/parser/hddl.o:
 	cd src/parser && make

@@ -5,11 +5,11 @@
 #include "util/names.h"
 #include "util/log.h"
 
-HashMap<int, std::string>* nbt;
+NodeHashMap<int, std::string>* nbt;
 
 namespace Names {
     
-    void init(HashMap<int, std::string>& nameBackTable) {
+    void init(NodeHashMap<int, std::string>& nameBackTable) {
         nbt = &nameBackTable;
     }
 
@@ -49,7 +49,7 @@ namespace Names {
         return out;
     }
 
-    std::string to_string(const HashMap<int, int>& s) {
+    std::string to_string(const FlatHashMap<int, int>& s) {
         std::string out = "";
         for (const auto& pair : s) {
             out += "[" + to_string(pair.first) + "/" + to_string(pair.second) + "]";

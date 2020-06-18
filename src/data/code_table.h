@@ -8,7 +8,7 @@
 #include "data/hashmap.h"
 #include "signature.h"
 
-typedef HashMap<USignature, int, USignatureHasher> SigToIntMap;
+typedef FlatHashMap<USignature, int, USignatureHasher> SigToIntMap;
 
 class CodeTable {
 
@@ -31,7 +31,7 @@ public:
 class AssociativeCodeTable {
 
 private:
-    HashMap<int, SigToIntMap> _content_per_predicate;
+    NodeHashMap<int, SigToIntMap> _content_per_predicate;
     int _id = 1;
 
 public:

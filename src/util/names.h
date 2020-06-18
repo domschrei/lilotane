@@ -8,12 +8,12 @@
 #include "data/action.h"
 
 namespace Names {
-    void init(HashMap<int, std::string>& nameBackTable);
+    void init(NodeHashMap<int, std::string>& nameBackTable);
     std::string to_string(int nameId);
     std::string to_string(const USignature& sig);
     std::string to_string(const Signature& sig);
     std::string to_string_nobrackets(const USignature& sig);
-    std::string to_string(const HashMap<int, int>& s);
+    std::string to_string(const FlatHashMap<int, int>& s);
     std::string to_string(const Action& a);
 }
 

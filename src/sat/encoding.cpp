@@ -387,8 +387,8 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     LayerState& state = _layers->back().getState();
 
     // a) first check normal facts
-    HashSet<int> newFactVars;
-    HashSet<int> unchangedFactVars;
+    FlatHashSet<int> newFactVars;
+    FlatHashSet<int> unchangedFactVars;
     for (const USignature& factSig : newPos.getFacts()) {
         
         // Fact must be contained to the left
@@ -497,7 +497,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             const auto& supports = sign > 0 ? newPos.getPosFactSupports() : newPos.getNegFactSupports();
 
             // Calculate indirect support through qfact abstractions
-            HashSet<int> indirectSupport;
+            FlatHashSet<int> indirectSupport;
             for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
                 if (!_htn.isAbstraction(fact, qsig)) continue;
                 //const Signature qfactSig(sig, sign < 0);
@@ -788,7 +788,7 @@ std::string Encoding::varName(int layer, int pos, const USignature& sig) {
     return VariableDomain::varName(layer, pos, sig);
 }
 
-void Encoding::printVar(int layer, int pos, const Signature& sig) {
+void Encoding::printVar(int layer, int pos, const USignature& sig) {
     log("%s\n", VariableDomain::varName(layer, pos, sig).c_str());
 }
 

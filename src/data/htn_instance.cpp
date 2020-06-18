@@ -24,7 +24,6 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
 
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
-    _effector_table = new EffectorTable(*this);
 
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
@@ -65,16 +64,17 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     // in positive AND negative form: create two new actions in these cases
     if (_params.isSet("q") || _params.isSet("qq")) {
 
-        HashMap<int, Action> newActions;
+        NodeHashMap<int, Action> newActions;
 
         for (const auto& pair : _actions) {
             int aId = pair.first;
+            std::vector<int> aSorts = _signature_sorts_table[aId];
             const Action& a = pair.second;
             const USignature& aSig = a.getSignature();
 
             // Find all negative effects to move
-            HashSet<int> posEffPreds;
-            HashSet<Signature, SignatureHasher> negEffsToMove;
+            FlatHashSet<int> posEffPreds;
+            FlatHashSet<Signature, SignatureHasher> negEffsToMove;
             // Collect positive effect predicates
             for (const Signature& eff : a.getEffects()) {
                 if (eff._negated) continue;
@@ -103,7 +103,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             Action aFirst = Action(idFirst, aSig._args);
             aFirst.setPreconditions(a.getPreconditions());
             for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
-            _signature_sorts_table[aFirst.getSignature()._name_id] = _signature_sorts_table[aId];
+            _signature_sorts_table[aFirst.getSignature()._name_id] = aSorts;
             newActions[idFirst] = aFirst;
 
             // Second action: no preconditions, all other effects
@@ -112,7 +112,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             for (const Signature& eff : a.getEffects()) {
                 if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
             }
-            _signature_sorts_table[aSecond.getSignature()._name_id] = _signature_sorts_table[aId];
+            _signature_sorts_table[aSecond.getSignature()._name_id] = aSorts;
             newActions[idSecond] = aSecond;
 
             // Replace all occurrences of the action with BOTH new actions in correct order
@@ -301,7 +301,7 @@ void HtnInstance::extractConstants() {
     for (const auto& sortPair : _p.sorts) {
         int sortId = getNameId(sortPair.first);
         _constants_by_sort[sortId];
-        HashSet<int>& constants = _constants_by_sort[sortId];
+        FlatHashSet<int>& constants = _constants_by_sort[sortId];
         for (const std::string& c : sortPair.second) {
             constants.insert(getNameId(c));
             //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
@@ -500,36 +500,19 @@ HtnOp& HtnInstance::getOp(const USignature& opSig) {
     else return (HtnOp&)_reductions.at(opSig._name_id);
 }
 
-SigSet HtnInstance::getAllFactChanges(const USignature& sig) {    
-    SigSet result;
-    if (sig == Position::NONE_SIG) return result;
-    //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
-    for (const Signature& effect : _effector_table->getPossibleFactChanges(sig)) {
-        std::vector<USignature> instantiation = ArgIterator::getFullInstantiation(effect._usig, *this);
-        for (const USignature& i : instantiation) {
-            assert(_instantiator->isFullyGround(i));
-            if (_params.isSet("rrp")) _fluent_predicates.insert(i._name_id);
-            result.emplace(effect._usig._name_id, i._args, effect._negated);
-            //log("%s ", Names::to_string(i).c_str());
-        }
-    }
-    //log("\n");
-    return result;
-}
-
 Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = a.getSignature();
-    HashMap<int, int> s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
+    FlatHashMap<int, int> s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
     HtnOp op = a.substitute(s);
     return Action(op);
 }
 Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = red.getSignature();
-    HashMap<int, int> s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
+    FlatHashMap<int, int> s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
     return red.substituteRed(s);
 }
 
-HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
+FlatHashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
             const SigSet& conditions, const std::function<bool(const Signature&)>& state) {
     
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig._args);
@@ -540,10 +523,10 @@ HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx
         return getConstantsOfSort(sortLeft).size() < getConstantsOfSort(sortRight).size();
     });
 
-    HashMap<int, int> s;
+    FlatHashMap<int, int> s;
     for (int argPos : freeArgPositions) {
         size_t domainHash = 0;
-        HashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
+        FlatHashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
         if (domain.empty()) {
             // No valid value for this argument at this position: return failure
             //log("%s : %s has no valid domain!\n", Names::to_string(sig).c_str(), Names::to_string(sig._args[argPos]).c_str());
@@ -556,8 +539,8 @@ HashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx
     return s;
 }
 
-HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
-            const SigSet& conditions, const std::function<bool(const Signature&)>& state, HashMap<int, int>& substitution, size_t& domainHash) {
+FlatHashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
+            const SigSet& conditions, const std::function<bool(const Signature&)>& state, FlatHashMap<int, int>& substitution, size_t& domainHash) {
     
     int arg = sig._args[argPos];
 
@@ -569,12 +552,12 @@ HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int arg
 
     // Get domain of the q constant
     int sort = _signature_sorts_table[sig._name_id][argPos];
-    const HashSet<int>& domain = getConstantsOfSort(sort);
+    const FlatHashSet<int>& domain = getConstantsOfSort(sort);
     assert(!domain.empty());
     assert(!substitution.count(arg));
 
     // Reduce the q-constant's domain according to the associated facts and the current state.
-    HashSet<int> actualDomain;
+    FlatHashSet<int> actualDomain;
     size_t sum = 0;
     for (const int& c : domain) {
         //substitution[arg] = c;
@@ -592,7 +575,7 @@ HashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int arg
 }
 
 void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
-                const HashSet<int>& domain, size_t domainHash, HashMap<int, int>& s) {
+                const FlatHashSet<int>& domain, size_t domainHash, FlatHashMap<int, int>& s) {
 
     int arg = sig._args[argPos];
     int sort = _signature_sorts_table[sig._name_id][argPos];
@@ -706,15 +689,15 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
     return _fact_sig_decodings[normSig]; 
 }
 
-const HashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
+const FlatHashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
     return _sorts_of_q_constants[qconst];
 }
 
-const HashSet<int>& HtnInstance::getConstantsOfSort(int sort) {
+const FlatHashSet<int>& HtnInstance::getConstantsOfSort(int sort) {
     return _constants_by_sort[sort]; 
 }
 
-const HashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
+const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
     return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
 }
 

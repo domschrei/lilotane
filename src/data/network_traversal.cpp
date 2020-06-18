@@ -4,7 +4,7 @@
 
 void NetworkTraversal::traverse(const USignature& opSig, std::function<void(const USignature&, int)> onVisit) {
    
-    HashSet<USignature, USignatureHasher> seenSignatures;
+    FlatHashSet<USignature, USignatureHasher> seenSignatures;
     std::vector<USignature> frontier;
     std::vector<int> depths;
 

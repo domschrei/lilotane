@@ -51,6 +51,8 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
 bool Instantiator::hasSomeInstantiation(const USignature& sig) {
 
     const std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
+    //log("%s , %i\n", Names::to_string(sig).c_str(), types.size());
+    assert(types.size() == sig._args.size());
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = types[argPos];
         if (_htn->_constants_by_sort[sort].empty()) {
@@ -96,7 +98,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     }
 
     // Collect all arguments which should be instantiated
-    HashSet<int> argsToInstantiate;
+    FlatHashSet<int> argsToInstantiate;
 
     // a) All variable args according to the q-constant policy
     for (int i = 0; i < op.getArguments().size(); i++) {
@@ -165,7 +167,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
     }
 
     // Create back transformation of argument positions
-    HashMap<int, int> argPosBackMapping;
+    FlatHashMap<int, int> argPosBackMapping;
     for (int j = 0; j < argsByPriority.size(); j++) {
         for (int i = 0; i < op.getArguments().size(); i++) {
             if (op.getArguments()[i] == argsByPriority[j]) {
@@ -235,19 +237,19 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
     return instantiation;
 }
 
-const HashMap<int, float>& Instantiator::getPreconditionRatings(const USignature& opSig) {
+const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USignature& opSig) {
 
     int nameId = opSig._name_id;
     
     // Substitution mapping
     std::vector<int> placeholderArgs;
     USignature normSig = _htn->getNormalizedLifted(opSig, placeholderArgs);
-    HashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, opSig._args);
+    FlatHashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, opSig._args);
 
     if (!_precond_ratings.count(nameId)) {
         // Compute
-        HashMap<int, std::vector<float>> ratings;
-        HashMap<int, std::vector<int>> numRatings;
+        NodeHashMap<int, std::vector<float>> ratings;
+        NodeHashMap<int, std::vector<int>> numRatings;
         
         NetworkTraversal(*_htn).traverse(normSig, [&](const USignature& nodeSig, int depth) {
 
@@ -299,11 +301,11 @@ const HashMap<int, float>& Instantiator::getPreconditionRatings(const USignature
 // Given an unsigned ground fact signature and (a set of operations effects containing q constants),
 // compute the possible sets of substitutions that are necessary to let the operation
 // have the specified fact in its support.
-HashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
+NodeHashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
             const SigSet& effects, const USignature& fact, bool negated) {
 
     //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
-    HashSet<substitution_t, Substitution::Hasher> substitutions;
+    NodeHashSet<substitution_t, Substitution::Hasher> substitutions;
 
     // For each such effect: check if it is a valid result
     // of some series of q const substitutions
@@ -343,6 +345,75 @@ HashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitu
     return substitutions;
 }
 
+SigSet Instantiator::getAllFactChanges(const USignature& sig) {    
+    SigSet result;
+    if (sig == Position::NONE_SIG) return result;
+    //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
+    for (const Signature& effect : getPossibleFactChanges(sig)) {
+        std::vector<USignature> instantiation = ArgIterator::getFullInstantiation(effect._usig, *_htn);
+        for (const USignature& i : instantiation) {
+            assert(isFullyGround(i));
+            if (_params.isSet("rrp")) _htn->_fluent_predicates.insert(i._name_id);
+            result.emplace(effect._usig._name_id, i._args, effect._negated);
+            //log("%s ", Names::to_string(i).c_str());
+        }
+    }
+    //log("\n");
+    return result;
+}
+
+std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& sig) {
+
+    int nameId = sig._name_id;
+    
+    // Substitution mapping
+    std::vector<int> placeholderArgs;
+    USignature normSig = _htn->getNormalizedLifted(sig, placeholderArgs);
+    FlatHashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, sig._args);
+
+    if (!_fact_changes.count(nameId)) {
+        // Compute fact changes for origSig
+        
+        FlatHashSet<Signature, SignatureHasher> facts;
+
+        _traversal.traverse(normSig.substitute(Substitution::get(normSig._args, placeholderArgs)), 
+        [&](const USignature& nodeSig, int depth) {
+            // If visited node is an action: add effects
+            if (_htn->_actions.count(nodeSig._name_id)) {
+                Action a = _htn->_actions[nodeSig._name_id];
+                HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
+                for (const Signature& eff : op.getEffects()) {
+                    facts.insert(eff);
+                }
+            }
+        });
+
+        // Convert result to vector
+        std::vector<Signature>& result = _fact_changes[nameId];
+        result.reserve(facts.size());
+        for (const Signature& sig : facts) {
+            result.push_back(sig);
+        }
+    }
+
+    // Get fact changes, substitute arguments
+    const std::vector<Signature>& sigs = _fact_changes[nameId];
+    std::vector<Signature> out;
+    
+    //log("   fact changes of %s : ", Names::to_string(sig).c_str());
+    for (const Signature& fact : sigs) {
+        //log("%s ", Names::to_string(fact).c_str());
+        Signature sigRes = fact.substitute(sFromPlaceholder);
+        for (int arg : sigRes._usig._args) assert(arg > 0);
+        
+        for (const Signature& sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
+            out.push_back(sigGround);
+        }
+    }
+    //log("\n");
+    return out;
+}
+
 bool Instantiator::isFullyGround(const USignature& sig) {
     for (int arg : sig._args) {
         if (_htn->_var_ids.count(arg)) return false;
@@ -359,7 +430,7 @@ std::vector<int> Instantiator::getFreeArgPositions(const std::vector<int>& sigAr
     return argPositions;
 }
 
-bool Instantiator::fits(USignature& sig, USignature& groundSig, HashMap<int, int>* substitution) {
+bool Instantiator::fits(USignature& sig, USignature& groundSig, FlatHashMap<int, int>* substitution) {
     assert(sig._name_id == groundSig._name_id);
     assert(sig._args.size() == groundSig._args.size());
     assert(isFullyGround(groundSig));
@@ -429,7 +500,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
         // Type is NOT fine, at least for some substitutions
         std::vector<int> good;
         std::vector<int> bad;
-        HashSet<int> validConstants = _htn->getConstantsOfSort(sigSort);
+        FlatHashSet<int> validConstants = _htn->getConstantsOfSort(sigSort);
         // For each value the qconstant can assume:
         for (int c : _htn->getDomainOfQConstant(arg)) {
             // Is that constant of correct type?

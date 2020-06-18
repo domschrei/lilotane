@@ -19,12 +19,12 @@ int VariableDomain::getMaxVar() {
     return _running_var_id-1;
 }
 
-void VariableDomain::printVar(int var, int layerIdx, int pos, const Signature& sig) {
+void VariableDomain::printVar(int var, int layerIdx, int pos, const USignature& sig) {
     if (_print_variables) {
         log("VARMAP %i %s\n", var, varName(layerIdx, pos, sig).c_str());
     }
 }
-std::string VariableDomain::varName(int layerIdx, int pos, const Signature& sig) {
+std::string VariableDomain::varName(int layerIdx, int pos, const USignature& sig) {
     std::string out = Names::to_string(sig) + "@(" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")";
     return out;
 }

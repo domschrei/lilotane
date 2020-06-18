@@ -11,7 +11,7 @@
 class LayerState {
 
 public:
-    typedef HashMap<USignature, std::pair<int, int>, USignatureHasher> RangedSigMap;
+    typedef FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> RangedSigMap;
     class Iterable {
         private:
             RangedSigMap::iterator _begin;
@@ -21,27 +21,13 @@ public:
             int _pos;
 
         public:
-            Iterable(RangedSigMap::iterator begin, RangedSigMap::iterator end, int pos) : 
-                    _begin(begin), _end(end), _pos(pos) {
-                _it = _begin;
-                gotoNext();
-            }
-            Signature operator*() {
-                return _it->first;
-            }
-            void operator++() {
-                ++_it;
-                gotoNext();
-            }
-            bool operator!=(const Iterable& other) {
-                return other._it != _it;
-            }
+            Iterable(RangedSigMap::iterator begin, RangedSigMap::iterator end, int pos);
+            USignature operator*();
+            void operator++();
+            bool operator!=(const Iterable& other);
 
         private:
-            void gotoNext() {
-                while (_it != _end && (_it->second.first > _pos || _it->second.second < _pos)) 
-                    ++_it;
-            }
+            void gotoNext();
     };
     class Iterator {
         private:
@@ -50,84 +36,33 @@ public:
             RangedSigMap::iterator _it;
 
         public:
-            Iterator(RangedSigMap& map, int pos) : 
-                    _map(map), _pos(pos) {
-                _it = _map.begin();
-            }
-
-            Iterable begin() {
-                return Iterable(_map.begin(), _map.end(), _pos);
-            }
-            Iterable end() const {
-                return Iterable(_map.end(), _map.end(), _pos);
-            }
+            Iterator(RangedSigMap& map, int pos);
+            Iterable begin();
+            Iterable end() const;
     };
 
 private:
-    HashMap<USignature, std::pair<int, int>, USignatureHasher> _pos_fact_occurrences;
-    HashMap<USignature, std::pair<int, int>, USignatureHasher> _neg_fact_occurrences;
+    FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> _pos_fact_occurrences;
+    FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> _neg_fact_occurrences;
 
 public:
-    LayerState() {}
-    LayerState(const LayerState& other) : _pos_fact_occurrences(other._pos_fact_occurrences), _neg_fact_occurrences(other._neg_fact_occurrences) {}
-    LayerState(const LayerState& other, std::vector<int> offsets) {
-        for (const auto& entry : other._pos_fact_occurrences) {
-            const USignature& sig = entry.first;
-            const auto& range = entry.second;
-            _pos_fact_occurrences[sig] = std::pair<int, int>(offsets[range.first], offsets[range.second]);
-        }
-        for (const auto& entry : other._neg_fact_occurrences) {
-            const USignature& sig = entry.first;
-            const auto& range = entry.second;
-            _neg_fact_occurrences[sig] = std::pair<int, int>(offsets[range.first], offsets[range.second]);
-        }
-    }
+    LayerState();
+    LayerState(const LayerState& other);
+    LayerState(const LayerState& other, std::vector<int> offsets);
 
-    void add(int pos, const Signature& fact) {
-        add(pos, fact._usig, fact._negated);
-    }
-    void add(int pos, const USignature& fact, bool negated) {
-        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-        if (!occ.count(fact)) {
-            occ[fact] = std::pair<int, int>(pos, INT32_MAX);
-        }
-        occ[fact].first = std::min(occ[fact].first, pos);
-    }
-    void withdraw(int pos, const Signature& fact) {
-        withdraw(pos, fact._usig, fact._negated);
-    }
-    void withdraw(int pos, const USignature& fact, bool negated) {
-        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-        if (!occ.count(fact)) return;
-        occ[fact].second = pos;
-    }
+    void add(int pos, const Signature& fact);
+    void add(int pos, const USignature& fact, bool negated);
+    void withdraw(int pos, const Signature& fact);
+    void withdraw(int pos, const USignature& fact, bool negated);
 
-    bool contains(int pos, const USignature& fact, bool negated) const {
-        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-        if (!occ.count(fact)) return false;
-        const auto& pair = occ.at(fact);
-        return pos >= pair.first && pos < pair.second;
-    }
-    bool contains(int pos, const Signature& fact) const {
-        return contains(pos, fact._usig, fact._negated);  
-    }
+    bool contains(int pos, const USignature& fact, bool negated) const;
+    bool contains(int pos, const Signature& fact) const;
 
-    const RangedSigMap& getPosFactOccurrences() const {
-        return _pos_fact_occurrences;
-    }
-    const RangedSigMap& getNegFactOccurrences() const {
-        return _neg_fact_occurrences;
-    }
+    const RangedSigMap& getPosFactOccurrences() const;
+    const RangedSigMap& getNegFactOccurrences() const;
 
-    Iterator at(int pos, bool negated) {
-        return Iterator(negated ? _neg_fact_occurrences : _pos_fact_occurrences, pos);
-    }
-
-    LayerState& operator=(const LayerState& other) {
-        _pos_fact_occurrences = other._pos_fact_occurrences;
-        _neg_fact_occurrences = other._neg_fact_occurrences;
-        return *this;
-    }
+    Iterator at(int pos, bool negated);
+    LayerState& operator=(const LayerState& other);
 };
 
 #endif

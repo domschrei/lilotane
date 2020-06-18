@@ -20,7 +20,7 @@ extern "C" {
 
 #define PRINT_TO_FILE true
 
-typedef HashMap<int, SigSet> State;
+typedef NodeHashMap<int, SigSet> State;
 
 struct PlanItem {
     PlanItem() {
@@ -44,7 +44,7 @@ private:
     HtnInstance& _htn;
     std::vector<Layer>* _layers;
     
-    HashMap<USignature, int, USignatureHasher> _substitution_variables;
+    FlatHashMap<USignature, int, USignatureHasher> _substitution_variables;
 
     void* _solver;
     std::ofstream _out;
@@ -53,7 +53,7 @@ private:
     USignature _sig_substitution;
     int _substitute_name_id;
 
-    HashSet<int> _q_constants;
+    FlatHashSet<int> _q_constants;
 
     std::vector<int> _last_assumptions;
 
@@ -125,7 +125,7 @@ private:
     bool isEncodedSubstitution(const USignature& sig);
 
     std::string varName(int layer, int pos, const USignature& sig);
-    void printVar(int layer, int pos, const Signature& sig);
+    void printVar(int layer, int pos, const USignature& sig);
 
     bool value(int layer, int pos, const USignature& sig);
     USignature getDecodedQOp(int layer, int pos, const USignature& sig);

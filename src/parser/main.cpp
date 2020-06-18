@@ -10,6 +10,21 @@
 
 #include "main.hpp"
 
+#include "cwa.hpp"
+#include "domain.hpp"
+#include "hddl.hpp"
+#include "hddlWriter.hpp"
+#include "hpdlWriter.hpp"
+#include "output.hpp"
+#include "parametersplitting.hpp"
+#include "plan.hpp"
+#include "shopWriter.hpp"
+#include "sortexpansion.hpp"
+#include "typeof.hpp"
+#include "util.hpp"
+#include "verify.hpp"
+#include "properties.hpp"
+
 using namespace std;
 
 // declare parser function manually

@@ -11,7 +11,6 @@
 #include "data/layer.h"
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
-#include "data/effector_table.h"
 #include "data/arg_iterator.h"
 
 #include "sat/encoding.h"
@@ -24,7 +23,6 @@ private:
 
     std::vector<Layer> _layers;
     Instantiator& _instantiator;
-    EffectorTable& _effector_table;
     Encoding _enc;
 
     int _layer_idx;
@@ -33,32 +31,36 @@ private:
 
 public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
-            _instantiator(*(_htn._instantiator)), _effector_table(*(_htn._effector_table)), 
-            _enc(_params, _htn, _layers) {}
+            _instantiator(*(_htn._instantiator)), _enc(_params, _htn, _layers) {}
     int findPlan();
 
 private:
 
-    void createNext();
-    void propagateInitialState();
-    void createNextFromAbove(const Position& above);
-    void createNextFromLeft(const Position& left);
+    void outputPlan();
+
+    void createFirstLayer();
+    void createNextLayer();
+    
+    void createNextPosition();
+    void createNextPositionFromAbove(const Position& above);
+    void createNextPositionFromLeft(const Position& left);
 
     void addPrecondition(const USignature& op, const Signature& fact);
     void addEffect(const USignature& op, const Signature& fact);
 
-    void addQConstantTypeConstraints(const USignature& op);
+    void propagateInitialState();
     void propagateActions(int offset);
     void propagateReductions(int offset);
+    std::vector<USignature> getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
+    std::vector<USignature> getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
     void addNewFalseFacts();
+    void introduceNewFalseFact(Position& newPos, const USignature& fact);
+    void addQConstantTypeConstraints(const USignature& op);
 
     LayerState& getLayerState(int layer = -1);
     std::function<bool(const Signature&)> getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.
-    void introduceNewFalseFact(Position& newPos, const USignature& fact);
 
-    std::vector<USignature> getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
-    std::vector<USignature> getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
 };
 
 #endif
