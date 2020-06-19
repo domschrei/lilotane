@@ -71,7 +71,7 @@ void Reduction::orderSubtasks(const std::map<int, std::vector<int>>& orderingNod
     _subtasks = newSubtasks;
 }
 
-Reduction Reduction::substituteRed(const FlatHashMap<int, int>& s) const {
+Reduction Reduction::substituteRed(const Substitution& s) const {
     HtnOp op = HtnOp::substitute(s);
     Reduction r(op);
     

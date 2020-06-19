@@ -19,7 +19,7 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
     USigSet inst = instantiate(r, state);
     for (const USignature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
-        result.push_back(r.substituteRed(Substitution::get(r.getArguments(), sig._args)));
+        result.push_back(r.substituteRed(Substitution(r.getArguments(), sig._args)));
     }
 
     _inst_mode = oldMode;
@@ -39,7 +39,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
     for (const USignature& sig : inst) {
         //log("%s\n", Names::to_string(sig).c_str());
         assert(isFullyGround(sig));
-        HtnOp newOp = a.substitute(Substitution::get(a.getArguments(), sig._args));
+        HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
         result.push_back((Action) newOp);
     }
 
@@ -194,7 +194,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
             newAssignment.push_back(c);
 
             // Create corresponding op
-            substitution_t s;
+            Substitution s;
             for (int i = 0; i < newAssignment.size(); i++) {
                 assert(i < argsByPriority.size());
                 s[argsByPriority[i]] = newAssignment[i];
@@ -244,7 +244,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
     // Substitution mapping
     std::vector<int> placeholderArgs;
     USignature normSig = _htn->getNormalizedLifted(opSig, placeholderArgs);
-    FlatHashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, opSig._args);
+    Substitution sFromPlaceholder(placeholderArgs, opSig._args);
 
     if (!_precond_ratings.count(nameId)) {
         // Compute
@@ -254,7 +254,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
         NetworkTraversal(*_htn).traverse(normSig, [&](const USignature& nodeSig, int depth) {
 
             HtnOp& op = (_htn->_actions.count(nodeSig._name_id) ? (HtnOp&)_htn->_actions.at(nodeSig._name_id) : (HtnOp&)_htn->_reductions.at(nodeSig._name_id));
-            HtnOp opSub = op.substitute(Substitution::get(op.getArguments(), nodeSig._args));
+            HtnOp opSub = op.substitute(Substitution(op.getArguments(), nodeSig._args));
             int numPrecondArgs = 0;
             int occs = 0;
             for (int i = 0; i < normSig._args.size(); i++) {
@@ -301,11 +301,11 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
 // Given an unsigned ground fact signature and (a set of operations effects containing q constants),
 // compute the possible sets of substitutions that are necessary to let the operation
 // have the specified fact in its support.
-NodeHashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
+NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
             const SigSet& effects, const USignature& fact, bool negated) {
 
     //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
-    NodeHashSet<substitution_t, Substitution::Hasher> substitutions;
+    NodeHashSet<Substitution, Substitution::Hasher> substitutions;
 
     // For each such effect: check if it is a valid result
     // of some series of q const substitutions
@@ -313,7 +313,7 @@ NodeHashSet<substitution_t, Substitution::Hasher> Instantiator::getOperationSubs
         if (eff._usig._name_id != fact._name_id) continue;
         if (eff._negated != negated) continue;
         bool matches = true;
-        substitution_t s;
+        Substitution s;
         //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
         for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
@@ -369,19 +369,19 @@ std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& si
     // Substitution mapping
     std::vector<int> placeholderArgs;
     USignature normSig = _htn->getNormalizedLifted(sig, placeholderArgs);
-    FlatHashMap<int, int> sFromPlaceholder = Substitution::get(placeholderArgs, sig._args);
+    Substitution sFromPlaceholder(placeholderArgs, sig._args);
 
     if (!_fact_changes.count(nameId)) {
         // Compute fact changes for origSig
         
         FlatHashSet<Signature, SignatureHasher> facts;
 
-        _traversal.traverse(normSig.substitute(Substitution::get(normSig._args, placeholderArgs)), 
+        _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
         [&](const USignature& nodeSig, int depth) {
             // If visited node is an action: add effects
             if (_htn->_actions.count(nodeSig._name_id)) {
                 Action a = _htn->_actions[nodeSig._name_id];
-                HtnOp op = a.substitute(Substitution::get(a.getArguments(), nodeSig._args));
+                HtnOp op = a.substitute(Substitution(a.getArguments(), nodeSig._args));
                 for (const Signature& eff : op.getEffects()) {
                     facts.insert(eff);
                 }

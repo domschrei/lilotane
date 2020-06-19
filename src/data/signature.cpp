@@ -13,7 +13,7 @@ Signature USignature::toSignature(bool negated) const {
     return Signature(*this, negated);
 }
 
-USignature USignature::substitute(const FlatHashMap<int, int>& s) const {
+USignature USignature::substitute(const Substitution& s) const {
     USignature sig;
     sig._name_id = _name_id;
     assert(sig._name_id != 0);
@@ -54,8 +54,8 @@ USignature& USignature::operator=(USignature&& sig) {
 }
 
 std::size_t USignatureHasher::operator()(const USignature& s) const {
-    size_t hash = 1337;
-    for (auto arg : s._args) {
+    size_t hash = s._args.size();
+    for (const int& arg : s._args) {
         hash_combine(hash, arg);
     }
     hash_combine(hash, s._name_id);
@@ -85,7 +85,7 @@ Signature Signature::Signature::opposite() const {
     return out;
 }
 
-Signature Signature::substitute(const FlatHashMap<int, int>& s) const {
+Signature Signature::substitute(const Substitution& s) const {
     return Signature(_usig.substitute(s), _negated);
 }
 

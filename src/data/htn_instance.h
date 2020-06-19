@@ -77,6 +77,11 @@ struct HtnInstance {
 
     FlatHashMap<int, int> _split_action_from_first;
 
+    bool _remove_rigid_predicates;
+
+
+
+
     static ParsedProblem& parse(std::string domainFile, std::string problemFile);
 
     HtnInstance(Parameters& params, ParsedProblem& p);
@@ -103,10 +108,10 @@ struct HtnInstance {
 
     Action replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
     Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    FlatHashMap<int, int> addQConstants(const USignature& sig, int layerIdx, int pos, const SigSet& conditions, const std::function<bool(const Signature&)>& state);
+    Substitution addQConstants(const USignature& sig, int layerIdx, int pos, const SigSet& conditions, const std::function<bool(const Signature&)>& state);
     FlatHashSet<int> computeDomainOfArgument(const USignature& sig, int argPos, const SigSet& conditions, 
-                const std::function<bool(const Signature&)>& state, FlatHashMap<int, int>& substitution, size_t& domainHash);
-    void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain, size_t domainHash, FlatHashMap<int, int>& s);
+                const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash);
+    void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain, size_t domainHash, Substitution& s);
 
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);

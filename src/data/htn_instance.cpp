@@ -25,6 +25,8 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
 
+    _remove_rigid_predicates = _params.isSet("rrp");
+
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
     for (const task& t : primitive_tasks)
@@ -125,7 +127,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
                     if (subtask._name_id == aId) {
                         // Replace
                         change = true;
-                        substitution_t s = Substitution::get(aSig._args, subtask._args);
+                        Substitution s(aSig._args, subtask._args);
                         newSubtasks.push_back(aFirst.getSignature().substitute(s));
                         newSubtasks.push_back(aSecond.getSignature().substitute(s));
                     } else {
@@ -217,7 +219,7 @@ USignature HtnInstance::getInitTaskSignature(int pos) {
         }
     }
     assert(newArgs.size() == subtask._args.size());
-    subtask = subtask.substitute(Substitution::get(subtask._args, newArgs));
+    subtask = subtask.substitute(Substitution(subtask._args, newArgs));
     return subtask;
 }
 
@@ -502,17 +504,17 @@ HtnOp& HtnInstance::getOp(const USignature& opSig) {
 
 Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = a.getSignature();
-    FlatHashMap<int, int> s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
+    Substitution s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
     HtnOp op = a.substitute(s);
     return Action(op);
 }
 Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
     USignature sig = red.getSignature();
-    FlatHashMap<int, int> s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
+    Substitution s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
     return red.substituteRed(s);
 }
 
-FlatHashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
+Substitution HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
             const SigSet& conditions, const std::function<bool(const Signature&)>& state) {
     
     std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig._args);
@@ -523,7 +525,7 @@ FlatHashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int laye
         return getConstantsOfSort(sortLeft).size() < getConstantsOfSort(sortRight).size();
     });
 
-    FlatHashMap<int, int> s;
+    Substitution s;
     for (int argPos : freeArgPositions) {
         size_t domainHash = 0;
         FlatHashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
@@ -540,7 +542,7 @@ FlatHashMap<int, int> HtnInstance::addQConstants(const USignature& sig, int laye
 }
 
 FlatHashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
-            const SigSet& conditions, const std::function<bool(const Signature&)>& state, FlatHashMap<int, int>& substitution, size_t& domainHash) {
+            const SigSet& conditions, const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash) {
     
     int arg = sig._args[argPos];
 
@@ -570,12 +572,12 @@ FlatHashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int
     }
     domainHash = std::hash<int>{}(sum);
     //log("%.2f%% of q-const domain eliminated\n", 100 - 100.f * actualDomain.size()/domain.size());
-    substitution.erase(arg);
+    //substitution.erase(arg);
     return actualDomain;
 }
 
 void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
-                const FlatHashSet<int>& domain, size_t domainHash, FlatHashMap<int, int>& s) {
+                const FlatHashSet<int>& domain, size_t domainHash, Substitution& s) {
 
     int arg = sig._args[argPos];
     int sort = _signature_sorts_table[sig._name_id][argPos];
@@ -655,7 +657,7 @@ const std::vector<USignature> SIGVEC_EMPTY;
 const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig) {
     if (!hasQConstants(qSig)) return SIGVEC_EMPTY;
 
-    substitution_t s;
+    Substitution s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
         if (_q_constants.count(arg) && !s.count(arg)) {
@@ -726,20 +728,19 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
     for (int i = 0; i < concrete._args.size(); i++) {
         const int& qarg = abstraction._args[i];
         const int& carg = concrete._args[i];
-        bool qconst = _q_constants.count(qarg);
-        // Different non-q-constant args at this position?
-        if (!qconst && qarg != carg) return false;
+        // Same argument?
+        if (qarg == carg) continue;
+        // Different args, no q-constant arg?
+        if (!_q_constants.count(qarg)) return false;
         // A q-constant that does not fit the concrete argument?
-        if (qconst && !getDomainOfQConstant(qarg).count(concrete._args[i])) {
-            return false;
-        }
+        if (!getDomainOfQConstant(qarg).count(carg)) return false;
     }
     // A-OK
     return true;
 }
 
 bool HtnInstance::isRigidPredicate(int predId) {
-    if (!_params.isSet("rrp")) return false;
+    if (!_remove_rigid_predicates) return false;
     return !_fluent_predicates.count(predId);
 }
 
@@ -778,5 +779,5 @@ USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector
         placeholderArgs.push_back(-i-1);
     }
 
-    return origSig.substitute(Substitution::get(origSig._args, placeholderArgs)); 
+    return origSig.substitute(Substitution(origSig._args, placeholderArgs)); 
 }

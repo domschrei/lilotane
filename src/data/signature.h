@@ -16,6 +16,10 @@ struct TypeConstraint {
     std::vector<int> constants;
     TypeConstraint(int qconstant, bool sign, const std::vector<int>& constants) : 
         qconstant(qconstant), sign(sign), constants(constants) {}
+    TypeConstraint(const TypeConstraint& other) : qconstant(other.qconstant), 
+            sign(other.sign), constants(other.constants) {}
+    TypeConstraint(TypeConstraint&& other) : qconstant(other.qconstant), 
+            sign(other.sign), constants(std::move(other.constants)) {}
 };
 
 struct Signature;
@@ -31,7 +35,7 @@ struct USignature {
     USignature(USignature&& sig);
 
     Signature toSignature(bool negated = false) const;
-    USignature substitute(const FlatHashMap<int, int>& s) const;
+    USignature substitute(const Substitution& s) const;
 
     bool operator==(const USignature& b) const;
     bool operator!=(const USignature& b) const;
@@ -54,7 +58,7 @@ struct Signature {
     void negate();
     const USignature& getUnsigned() const;
     Signature opposite() const;
-    Signature substitute(const FlatHashMap<int, int>& s) const;
+    Signature substitute(const Substitution& s) const;
 
     bool operator==(const Signature& b) const;
     bool operator!=(const Signature& b) const;

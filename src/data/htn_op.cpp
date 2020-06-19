@@ -31,7 +31,7 @@ void HtnOp::removeInconsistentEffects() {
     }
 }
 
-HtnOp HtnOp::substitute(const FlatHashMap<int, int>& s) const {
+HtnOp HtnOp::substitute(const Substitution& s) const {
     HtnOp op;
     op._id = _id;
     op._args.resize(_args.size());

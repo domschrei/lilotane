@@ -29,9 +29,9 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
     _q_constants_type_constraints[op];
     _q_constants_type_constraints[op].push_back(c);
 }
-void Position::addForbiddenSubstitution(const USignature& op, const substitution_t& s) {
+void Position::addForbiddenSubstitution(const USignature& op, const std::vector<int>& src, const std::vector<int>& dest) {
     _forbidden_substitutions_per_op[op];
-    _forbidden_substitutions_per_op[op].insert(s);
+    _forbidden_substitutions_per_op[op].emplace(src, dest);
 }
 
 void Position::addAction(const USignature& action) {
@@ -117,7 +117,7 @@ const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSu
 const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Position::getQConstantsTypeConstraints() const {
     return _q_constants_type_constraints;
 }
-const NodeHashMap<USignature, NodeHashSet<substitution_t, Substitution::Hasher>, USignatureHasher>& 
+const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
 Position::getForbiddenSubstitutions() const {
     return _forbidden_substitutions_per_op;
 }
@@ -129,17 +129,23 @@ const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
 void Position::clearUnneeded() {
+    _facts.clear();
+
+    FlatHashMap<USignature, IntPair, USignatureHasher> cleanedVars;
+    for (const USignature& r : _reductions) cleanedVars[r] = _variables[r];
+    for (const USignature& a : _actions) cleanedVars[a] = _variables[a];
+    _variables = std::move(cleanedVars);
+}
+
+void Position::clearFactChanges() {
+    _qfacts.clear();
+    _true_facts.clear();
+    _false_facts.clear();
     _expansions.clear();
     _axiomatic_ops.clear();
-    _true_facts.clear();
     _pos_fact_supports.clear();
     _neg_fact_supports.clear();
     _q_constants_type_constraints.clear();
-    for (const USignature& fact : _facts) {
-        _variables.erase(fact);
-    }
-    _facts.clear();
-}
-void Position::clearFactChanges() {
+    _forbidden_substitutions_per_op.clear();
     _fact_changes.clear();
 }

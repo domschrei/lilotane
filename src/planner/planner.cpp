@@ -373,7 +373,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
         
         if (!_instantiator.test(decFact, getStateEvaluator())) {
             // Fact cannot be true here
-            pos.addForbiddenSubstitution(op, Substitution::get(factAbs._args, decFactAbs._args));
+            pos.addForbiddenSubstitution(op, factAbs._args, decFactAbs._args);
             continue;
         }
 
@@ -610,7 +610,7 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
 
     const Action& a = _htn._actions[task._name_id];
 
-    HtnOp op = a.substitute(Substitution::get(a.getArguments(), task._args));
+    HtnOp op = a.substitute(Substitution(a.getArguments(), task._args));
     Action act = (Action) op;
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
     
@@ -658,8 +658,8 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     for (int redId : redIds) {
         Reduction r = _htn._reductions[redId];
         log("%s %s\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(r.getSignature()).c_str());
-        std::vector<substitution_t> subs = Substitution::getAll(r.getTaskArguments(), task._args);
-        for (const substitution_t& s : subs) {
+        std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
+        for (const Substitution& s : subs) {
             for (const auto& entry : s) assert(entry.second != 0);
 
             //if (_layer_idx <= 1) log("SUBST %s\n", Names::to_string(s).c_str());

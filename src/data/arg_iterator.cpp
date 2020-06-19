@@ -91,7 +91,7 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
             newArgs[argPos] = constantsPerArg[argPos][counter[argPos]];
         }
         // There may be multiple possible substitutions
-        for (const substitution_t& s : Substitution::getAll(sig._args, newArgs)) {
+        for (const Substitution& s : Substitution::getAll(sig._args, newArgs)) {
             instantiation.push_back(sig.substitute(s));            
         }
 

@@ -27,7 +27,7 @@ public:
     void addArgument(int arg);
     void removeInconsistentEffects();
 
-    virtual HtnOp substitute(const FlatHashMap<int, int>& s) const;
+    virtual HtnOp substitute(const Substitution& s) const;
 
     const SigSet& getPreconditions() const;
     const SigSet& getEffects() const;

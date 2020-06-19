@@ -28,7 +28,7 @@ public:
 
     void orderSubtasks(const std::map<int, std::vector<int>>& orderingNodelist);
 
-    Reduction substituteRed(const FlatHashMap<int, int>& s) const;
+    Reduction substituteRed(const Substitution& s) const;
 
     void addSubtask(USignature subtask);
     void setSubtasks(const std::vector<USignature>& subtasks);

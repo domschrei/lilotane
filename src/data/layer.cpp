@@ -9,9 +9,8 @@ const USignature Position::NONE_SIG = USignature(-1, std::vector<int>());
 const USigSet Position::EMPTY_USIG_SET;
 const SigSet Position::EMPTY_SIG_SET;
 
-Layer::Layer(int index, int size) : _index(index) {
+Layer::Layer(int index, int size) : _index(index), _content(size) {
     assert(size > 0);
-    _content.resize(size);
 }
 int Layer::size() const {return _content.size();}
 int Layer::index() const {return _index;}

@@ -84,7 +84,7 @@ public:
 
     const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);
 
-    NodeHashSet<substitution_t, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
+    NodeHashSet<Substitution, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
             const SigSet& factChanges, const USignature& fact, bool negated);
 
     SigSet getAllFactChanges(const USignature& sig);
