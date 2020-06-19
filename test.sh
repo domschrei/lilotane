@@ -65,8 +65,10 @@ for domain in $domains ; do
         set +e
         echo -ne "[$((solved+unsolved+1))/$all] ${blue}$pfile${reset} ... "
 
+        command="./treerexx $dfile $pfile $@"
+
         start=$(date +%s.%N)
-        /usr/bin/timeout $timeout ./treerexx $dfile $pfile $@ > "$outfile" & wait -n
+        /usr/bin/timeout $timeout $command > "$outfile" & wait -n
         retval="$?"
         end=$(date +%s.%N)    
         runtime=$(python -c "print(${end} - ${start})")
@@ -76,8 +78,10 @@ for domain in $domains ; do
             score=$(echo $score + $(rating "$runtime")|bc -l)
         else
             echo -ne "${yellow}exit code $retval.${reset} "
-            if [ "$retval" == "134" -o "$retval" == "139" ]; then
+            if [ "$retval" == "134" -o "$retval" == "139" -o "$retval" == "6" -o "$retval" == "11" ]; then
                 if $exit_on_error ; then
+                    echo "Try:"
+                    echo "valgrind $command" 
                     echo "${red}Exiting.${reset}"
                     end 1
                 fi

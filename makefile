@@ -16,11 +16,11 @@ INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = clean
 
+release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable
+release: treerexx
+
 debug: COMPILEFLAGS += -DDEBUG -g -rdynamic
 debug: treerexx
-
-release: COMPILEFLAGS += -DNDEBUG
-release: treerexx
 
 treerexx: src/parser/hddl.o src/parser/hddl-token.o $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o
 	cd lib/${IPASIRSOLVER} && bash fetch_and_build.sh
@@ -50,4 +50,4 @@ clean:
 
 cleantr:
 	[ ! -e treerexx ] || rm treerexx
-	touch NONE && rm NONE $(wildcard src/*.o src/data/*.o src/planner/*.o src/sat/*.o src/util/*.o)
+	touch NONE && rm NONE $(wildcard src/*.o src/data/*.o src/planner/*.o src/sat/*.o src/util/*.o) 2> /dev/null
