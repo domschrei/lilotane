@@ -59,9 +59,7 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
         }
     }
 
-    std::vector<USignature> instantiation = instantiate(sig, constantsPerArg);
-    
-    return instantiation;
+    return instantiate(sig, constantsPerArg);
 }
 
 std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const std::vector<std::vector<int>>& constantsPerArg) {
@@ -82,7 +80,7 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
     int numInstantiations = 0;
     std::vector<int> newArgs(counter.size());
     while (true) {
-        // Assemble the assignment
+        // Assemble the next assignment
         for (int argPos = 0; argPos < counter.size(); argPos++) {
 
             assert(argPos < constantsPerArg.size());

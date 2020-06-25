@@ -127,8 +127,16 @@ void Encoding::encode(int layerIdx, int pos) {
             
             // Check that the action is contained in the effect's support
             const auto& supports = eff._negated ? newPos.getNegFactSupports() : newPos.getPosFactSupports();
+
             assert(supports.count(eff._usig));
             assert(supports.at(eff._usig).count(aSig));
+
+            // If the action is not contained, it is invalid -- forbid and skip
+            if (!supports.count(eff._usig) || !supports.at(eff._usig).count(aSig)) {
+                addClause(-aVar);
+                break;
+            }
+            
             // Predicate must not be rigid
             assert(!_htn.isRigidPredicate(eff._usig._name_id));
 
@@ -212,7 +220,7 @@ void Encoding::encode(int layerIdx, int pos) {
     
     if (numOccurringOps == 0) {
         //addClause(varPrim);
-        assert(pos+1 == newLayer.size() || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
+        //assert(pos+1 == newLayer.size() || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
     }
 
     // Q-constants type constraints
@@ -1109,7 +1117,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                     numSubstitutions++;
                     Substitution sub;
                     sub[arg] = argSubst;
-                    sig = sig.substitute(sub);
+                    sig.apply(sub);
                     //log("%s\n", Names::to_string(sig).c_str());
                 } else {
                     //log("%i FALSE\n", varSubstitution(sigSubst));

@@ -16,6 +16,7 @@
 
 #include "data/instantiator.h"
 #include "data/arg_iterator.h"
+#include "data/q_constant_condition.h"
 
 // External functions
 int run_pandaPIparser(int argc, char** argv);
@@ -48,10 +49,12 @@ struct HtnInstance {
     FlatHashSet<int> _q_constants;
     FlatHashMap<int, int> _primary_sort_of_q_constants;
     NodeHashMap<int, FlatHashSet<int>> _sorts_of_q_constants;
+    QConstantDatabase _q_db;
 
     // Maps a normalized fact signature to a list of possible decodings
     // using the normalized arguments.
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
 
@@ -112,10 +115,11 @@ struct HtnInstance {
     FlatHashSet<int> computeDomainOfArgument(const USignature& sig, int argPos, const SigSet& conditions, 
                 const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash);
     void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain, size_t domainHash, Substitution& s);
+    void addQConstantConditions(const HtnOp& op, const std::function<bool(const Signature&)>& state);
 
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);
-    const std::vector<USignature>& getDecodedObjects(const USignature& qFact);
+    const std::vector<USignature>& getDecodedObjects(const USignature& qFact, bool checkQConstConds);
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
 

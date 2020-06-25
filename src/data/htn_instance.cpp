@@ -654,27 +654,32 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
-const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig) {
+const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig, bool checkQConstConds) {
     if (!hasQConstants(qSig)) return SIGVEC_EMPTY;
 
     Substitution s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
-        if (_q_constants.count(arg) && !s.count(arg)) {
+        if (!checkQConstConds && _q_constants.count(arg) && !s.count(arg)) {
             s[arg] = getNameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
         }
     }
     USignature normSig = qSig.substitute(s);
+    auto& set = checkQConstConds ? _fact_sig_decodings : _fact_sig_decodings_unchecked;
 
-    if (!_fact_sig_decodings.count(normSig)) {
+    if (!set.count(normSig)) {
         // Calculate decoded objects
+        //OBJ_CALC %s\n", TOSTR(normSig));
 
         assert(_instantiator->isFullyGround(qSig));
         std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
+        std::vector<int> qconsts, qconstIndices;
         for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
             int arg = qSig._args[argPos];
             if (_q_constants.count(arg)) {
                 // q constant
+                qconsts.push_back(arg);
+                qconstIndices.push_back(argPos);
                 for (int c : getDomainOfQConstant(arg)) {
                     eligibleArgs[argPos].push_back(c);
                 }
@@ -685,10 +690,21 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
             assert(eligibleArgs[argPos].size() > 0);
         }
 
-        _fact_sig_decodings[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
+        if (checkQConstConds) {
+            set[normSig];
+            //log("DECOBJ %s\n", Names::to_string(qSig).c_str());
+            //for (const auto& e : eligibleArgs) log("DECOBJ -- %s\n", Names::to_string(e).c_str());
+            for (const USignature& sig : ArgIterator::instantiate(qSig, eligibleArgs)) {
+                std::vector<int> vals;
+                for (const int& i : qconstIndices) vals.push_back(sig._args[i]);
+                if (_q_db.test(qconsts, vals)) set[normSig].push_back(sig);
+            }
+        } else {
+            set[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
+        }
     }
 
-    return _fact_sig_decodings[normSig]; 
+    return set[normSig]; 
 }
 
 const FlatHashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
@@ -737,6 +753,51 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
     }
     // A-OK
     return true;
+}
+
+void HtnInstance::addQConstantConditions(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
+
+    //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
+
+    for (const auto& pre : op.getPreconditions()) {
+        
+        std::vector<int> ref;
+        std::vector<int> qConstIndices;
+        bool anyNew = false;
+        for (int i = 0; i < pre._usig._args.size(); i++) {
+            const int& arg = pre._usig._args[i];
+            if (_q_constants.count(arg)) {
+                ref.push_back(arg);
+                qConstIndices.push_back(i);
+                if (!_q_db.isRegistered(arg)) anyNew = true;
+            }
+        }
+        if (ref.empty() || !anyNew || ref.size() > 2) continue;
+
+        ValueSet good;
+        ValueSet bad;
+        //log("QQ %s\n", Names::to_string(pre._usig).c_str());
+        for (const auto& decPre : getDecodedObjects(pre._usig, true)) {
+            bool holds = _instantiator->test(Signature(decPre, pre._negated), state);
+            //log("QQ -- %s : %i\n", Names::to_string(decPre).c_str(), holds);
+            auto& set = holds ? good : bad;
+            std::vector<int> toAdd;
+            for (const int& i : qConstIndices) toAdd.push_back(decPre._args[i]);
+            set.insert(toAdd);
+        }
+
+        if (bad.empty() || std::min(good.size(), bad.size()) > 16) continue;
+
+        if (good.size() <= bad.size()) {
+            _q_db.add(ref, QConstantCondition::CONJUNCTION_OR, good);
+        } else {
+            _q_db.add(ref, QConstantCondition::CONJUNCTION_NOR, bad);
+        }
+    }
+
+    for (int arg : op.getArguments()) {
+        if (_q_constants.count(arg)) _q_db.registerQConstant(arg);
+    }
 }
 
 bool HtnInstance::isRigidPredicate(int predId) {

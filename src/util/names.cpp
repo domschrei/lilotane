@@ -19,6 +19,16 @@ namespace Names {
         return nbt->at(nameId);
     }
 
+    std::string to_string(const std::vector<int>& nameIds) {
+        std::string out = "(";
+        bool first = true;
+        for (const int& id : nameIds) {
+            out += (first ? "" : " ") + Names::to_string(id);
+            first = false;
+        }
+        return out + ")";
+    }
+
     std::string to_string(const USignature& sig) {
         std::string out = "";
         out += "(" + to_string(sig._name_id);

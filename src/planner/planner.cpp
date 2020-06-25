@@ -166,29 +166,21 @@ void Planner::createFirstLayer() {
     _htn._init_reduction_choices = _instantiator.getApplicableInstantiations(
             _htn._init_reduction, getStateEvaluator());
     std::vector<Reduction> roots = _htn._init_reduction_choices;
-    for (const Reduction& r : roots) {
+    for (Reduction& r : roots) {
 
-        Reduction red = _htn.replaceQConstants(r, _layer_idx, _pos, getStateEvaluator());
-        USignature sig = red.getSignature();
-        
-        // Check validity
-        if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-        if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) continue;
-        
-        // Remove unneeded rigid conditions from the reduction
-        _htn.removeRigidConditions(red);
+        if (addReduction(r, USignature())) {
 
-        _htn._reductions_by_sig[sig] = red;
-
-        assert(_instantiator.isFullyGround(sig));
-        initLayer[_pos].addReduction(sig);
-        initLayer[_pos].addAxiomaticOp(sig);
-        initLayer[_pos].addExpansionSize(red.getSubtasks().size());
-        // Add preconditions
-        for (const Signature& fact : red.getPreconditions()) {
-            addPrecondition(sig, fact);
+            USignature sig = r.getSignature();
+            
+            initLayer[_pos].addReduction(sig);
+            initLayer[_pos].addAxiomaticOp(sig);
+            initLayer[_pos].addExpansionSize(r.getSubtasks().size());
+            // Add preconditions
+            for (const Signature& fact : r.getPreconditions()) {
+                addPrecondition(sig, fact);
+            }
+            addQConstantTypeConstraints(sig);
         }
-        addQConstantTypeConstraints(sig);
     }
     addNewFalseFacts();
     _enc.encode(_layer_idx, _pos++);
@@ -367,8 +359,8 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
     else pos.addFact(factAbs);
 
     // For each fact decoded from the q-fact:
-    assert(!isQFact || !_htn.getDecodedObjects(factAbs).empty());
-    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs)) {
+    assert(!isQFact || !_htn.getDecodedObjects(factAbs, false).empty());
+    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, false)) {
         Signature decFact(decFactAbs, fact._negated);
         
         if (!_instantiator.test(decFact, getStateEvaluator())) {
@@ -413,9 +405,20 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     //log("Calc decoded effects for %s:%s\n", Names::to_string(opSig).c_str(), Names::to_string(fact).c_str());
 
     HtnOp& op = _htn.getOp(opSig);
-    assert(!_htn.getDecodedObjects(factAbs).empty());
+    //assert(!_htn.getDecodedObjects(factAbs, true).empty());
     int numValid = 0;
-    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs)) {
+
+    /*
+    // Assemble reference list of contained q-constants for decodings validity check
+    std::vector<int> qconsts, qconstIndices;
+    for (int i = 0; i < fact._usig._args.size(); i++) {
+        if (_htn._q_constants.count(fact._usig._args[i])) {
+            qconsts.push_back(fact._usig._args[i]);
+            qconstIndices.push_back(i);
+        }
+    }*/
+
+    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, true)) {
         
         /*
         // Check if the preconditions of op subject to such a fact encoding can hold
@@ -440,7 +443,14 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
         }
         if (!valid) continue;
         */
-        
+
+        /*
+        // Test if this q constant substitution is valid
+        std::vector<int> vals;
+        for (const int& i : qconstIndices) vals.push_back(decFactAbs._args[i]);
+        if (!_htn._q_db.test(qconsts, vals)) continue;
+        */
+
         Signature decFact(decFactAbs, fact._negated);
         _htn.addQFactDecoding(factAbs, decFactAbs);
         getLayerState().add(_pos, decFact);
@@ -593,8 +603,8 @@ void Planner::propagateReductions(int offset) {
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
-            //log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
-            //        Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
+            log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
+                    Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
             newPos.addExpansion(rSig, Position::NONE_SIG);
         }
     }
@@ -615,31 +625,44 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
     //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
+    //log("ADDACTION %s : %i potential actions\n", Names::to_string(act.getSignature()).c_str(), actions.size());
     for (Action& action : actions) {
-        USignature sig = action.getSignature();
-
-        //if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-
-        // Rename any remaining variables in each action as unique q-constants,
-        action = _htn.replaceQConstants(action, _layer_idx, _pos, getStateEvaluator());
-
-        // Remove any inconsistent effects that were just created
-        action.removeInconsistentEffects();
-
-        // Check validity
-        if (action.getSignature() != task) continue;
-        if (!_instantiator.isFullyGround(action.getSignature())) continue;
-        if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-        if (!_instantiator.hasValidPreconditions(action.getPreconditions(), state)) continue;
-        
-        // Remove unneeded rigid conditions from the reduction
-        _htn.removeRigidConditions(action);
-
-        sig = action.getSignature();
-        _htn._actions_by_sig[sig] = action;
-        result.push_back(sig);
+        if (addAction(action, task)) result.push_back(action.getSignature());
     }
     return result;
+}
+
+bool Planner::addAction(Action& action, const USignature& task) {
+
+    USignature sig = action.getSignature();
+
+    //log("ADDACTION %s\n", Names::to_string(sig).c_str());
+
+    // Rename any remaining variables in each action as unique q-constants,
+    action = _htn.replaceQConstants(action, _layer_idx, _pos, getStateEvaluator());
+
+    // Remove any inconsistent effects that were just created
+    action.removeInconsistentEffects();
+
+    // Check validity
+    if (task._name_id >= 0 && action.getSignature() != task) return false;
+    if (!_instantiator.isFullyGround(action.getSignature())) return false;
+    if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
+    if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
+    
+    // Remove unneeded rigid conditions from the reduction
+    _htn.removeRigidConditions(action);
+
+    sig = action.getSignature();
+    _htn._actions_by_sig[sig] = action;
+
+    _htn.addQConstantConditions((HtnOp&)action, getStateEvaluator());
+
+    // Compute fact changes
+    _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+
+    log("ADDACTION -- added\n");
+    return true;
 }
 
 std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
@@ -651,13 +674,13 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
 
     const std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-    log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
+    //log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
 
     // Filter and minimally instantiate methods
     // applicable in current (super)state
     for (int redId : redIds) {
         Reduction r = _htn._reductions[redId];
-        log("%s %s\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(r.getSignature()).c_str());
+        //log("%s %s\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(r.getSignature()).c_str());
         std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
         for (const Substitution& s : subs) {
             for (const auto& entry : s) assert(entry.second != 0);
@@ -670,27 +693,37 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
             //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
             std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
             for (Reduction& red : reductions) {
-                USignature sig = red.getSignature();
-
-                // Rename any remaining variables in each action as new, unique q-constants 
-                red = _htn.replaceQConstants(red, _layer_idx, _pos, getStateEvaluator());
-                
-                // Check validity
-                if (red.getTaskSignature() != task) continue;
-                if (!_instantiator.isFullyGround(red.getSignature())) continue;
-                if (!_instantiator.hasConsistentlyTypedArgs(sig)) continue;
-                if (!_instantiator.hasValidPreconditions(red.getPreconditions(), state)) continue;
-                
-                // Remove unneeded rigid conditions from the reduction
-                _htn.removeRigidConditions(red);
-                
-                sig = red.getSignature();
-                _htn._reductions_by_sig[sig] = red;
-                result.push_back(sig);
+                if (addReduction(red, task)) result.push_back(red.getSignature());
             }
         }
     }
     return result;
+}
+
+bool Planner::addReduction(Reduction& red, const USignature& task) {
+    USignature sig = red.getSignature();
+
+    // Rename any remaining variables in each action as new, unique q-constants 
+    red = _htn.replaceQConstants(red, _layer_idx, _pos, getStateEvaluator());
+    
+    // Check validity
+    if (task._name_id >= 0 && red.getTaskSignature() != task) return false;
+    if (!_instantiator.isFullyGround(red.getSignature())) return false;
+    if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
+    if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
+    
+    // Remove unneeded rigid conditions from the reduction
+    _htn.removeRigidConditions(red);
+    
+    sig = red.getSignature();
+    _htn._reductions_by_sig[sig] = red;
+
+    _htn.addQConstantConditions((HtnOp&)red, getStateEvaluator());
+
+    // Compute fact changes
+    _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+
+    return true;
 }
 
 void Planner::addNewFalseFacts() {
@@ -698,8 +731,9 @@ void Planner::addNewFalseFacts() {
     
     // For each action:
     for (const USignature& aSig : newPos.getActions()) {
-        newPos.setFactChanges(aSig, _instantiator.getAllFactChanges(aSig));
         
+        newPos.setFactChanges(aSig, _instantiator.getAllFactChanges(aSig));
+
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig) && !newPos.hasFact(eff._usig)) {
@@ -707,7 +741,7 @@ void Planner::addNewFalseFacts() {
                 introduceNewFalseFact(newPos, eff._usig);
             }
 
-            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig)) {
+            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
                 if (!newPos.hasFact(decEff)) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
@@ -719,6 +753,7 @@ void Planner::addNewFalseFacts() {
     // For each possible reduction effect: 
     for (const USignature& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
+
         newPos.setFactChanges(rSig, _instantiator.getAllFactChanges(rSig));
 
         for (const Signature& eff : newPos.getFactChanges(rSig)) {
@@ -728,7 +763,7 @@ void Planner::addNewFalseFacts() {
                 introduceNewFalseFact(newPos, eff._usig);
             }
 
-            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig)) {
+            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
                 if (!newPos.hasFact(decEff)) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
@@ -787,6 +822,8 @@ std::function<bool(const Signature&)> Planner::getStateEvaluator(int layer, int 
     if (layer == -1) layer = _layer_idx;
     if (pos == -1) pos = _pos;
     return [this,layer,pos](const Signature& sig) {
-        return getLayerState(layer).contains(pos, sig);
+        bool holds = getLayerState(layer).contains(pos, sig);
+        //log("STATEEVAL@(%i,%i) %s : %i\n", layer, pos, Names::to_string(sig).c_str(), holds);
+        return holds;
     };
 }

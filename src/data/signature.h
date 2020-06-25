@@ -36,6 +36,7 @@ struct USignature {
 
     Signature toSignature(bool negated = false) const;
     USignature substitute(const Substitution& s) const;
+    void apply(const Substitution& s);
 
     bool operator==(const USignature& b) const;
     bool operator!=(const USignature& b) const;

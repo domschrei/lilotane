@@ -86,13 +86,21 @@ struct CompArgs {
 USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
     __op = &op;
 
+    // First try to naively ground the operation up to some limit
+    std::vector<int> argsByPriority;
+    for (const int& arg : op.getArguments()) {
+        if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
+    }
+    std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
+    
+    // a) Try to naively ground _one single_ instantiation
+    // -- if this fails, there is no valid instantiation at all
+    USigSet inst = instantiateLimited(op, state, argsByPriority, 1, true);
+    if (inst.empty()) return inst;
+
+    // b) Try if the number of valid instantiations is below the user-defined threshold
+    //    -- in that case, return that full instantiation
     if (_q_const_instantiation_limit > 0) {
-        // First try to naively ground the operation up to some limit
-        std::vector<int> argsByPriority;
-        for (const int& arg : op.getArguments()) {
-            if (_htn->_var_ids.count(arg)) argsByPriority.push_back(arg);
-        }
-        std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
         USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, false);
         if (!inst.empty()) return inst;
     }
@@ -147,7 +155,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     }
 
     // Sort args to instantiate by their priority descendingly
-    std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
+    argsByPriority = std::vector<int>(argsToInstantiate.begin(), argsToInstantiate.end());
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
 
     return instantiateLimited(op, state, argsByPriority, 0, false);
@@ -163,6 +171,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
         if (hasValidPreconditions(op.getPreconditions(), state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
+        //log("INST %s : %i instantiations X\n", Names::to_string(op.getSignature()).c_str(), instantiation.size());
         return instantiation;
     }
 
@@ -177,14 +186,33 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
         }   
     }
 
+    /*
+    TODO
+    For each assignment level, remember all of op's preconditions which *are to become ground* at that level.
+    If this set is not empty at level x, then, instead of iterating over all valid constants to the current
+    assignment, iterate over the according true facts in the state and use their corresponding constants.
+
+    Prerequisite: Capability of state to iterate over all true facts of given predicate and polarity.
+    */
+
+    /*
+    std::vector<int> qconstants, qconstIndices;
+    for (int i = 0; i < argsByPriority; i++) {
+        const int& arg = op.getArguments()[i];
+        if (_htn->_q_constants.count(arg)) {
+            qconstants.push_back(arg);
+            qconstIndices.push_back(i);
+        }
+    }*/
+
     std::vector<std::vector<int>> assignmentsStack;
-    assignmentsStack.push_back(std::vector<int>());
+    assignmentsStack.push_back(std::vector<int>()); // begin with empty assignment
     while (!assignmentsStack.empty()) {
         const std::vector<int> assignment = assignmentsStack.back();
         assignmentsStack.pop_back();
         //for (int a : assignment) log("%i ", a); log("\n");
 
-        // Pick constant for next argument position
+        // Loop over possible choices for the next argument position
         int argPos = argPosBackMapping[assignment.size()];
         int sort = _htn->_signature_sorts_table[op.getSignature()._name_id][argPos];
         for (int c : _htn->_constants_by_sort[sort]) {
@@ -234,6 +262,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
 
     __op = NULL;
 
+    //log("INST %s : %i instantiations\n", Names::to_string(op.getSignature()).c_str(), instantiation.size());
     return instantiation;
 }
 
@@ -526,10 +555,13 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
 
     bool positive = !sig._negated;
     
-    // Q-Fact: assume that it holds
+    // Q-Fact:
     if (_htn->hasQConstants(sig._usig)) {
-        for (const auto& decSig : _htn->getDecodedObjects(sig._usig)) {
-            if (test(Signature(decSig, sig._negated), state)) return true;
+        //log("QTEST %s\n", Names::to_string(sig).c_str());
+        for (const auto& decSig : _htn->getDecodedObjects(sig._usig, true)) {
+            bool result = test(Signature(decSig, sig._negated), state);
+            //log("QTEST -- %s : %s\n", Names::to_string(decSig).c_str(), result ? "TRUE" : "FALSE");    
+            if (result) return true;
         }
         return false;
     }

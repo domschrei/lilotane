@@ -14,20 +14,16 @@ Signature USignature::toSignature(bool negated) const {
 }
 
 USignature USignature::substitute(const Substitution& s) const {
-    USignature sig;
-    sig._name_id = _name_id;
-    assert(sig._name_id != 0);
-    sig._args.resize(_args.size());
-    for (int i = 0; i < _args.size(); i++) {
-        if (s.count(_args[i])) {
-            sig._args[i] = s.at(_args[i]);
-            assert(sig._args[i] != 0);
-        } else {
-            sig._args[i] = _args[i];
-            assert(sig._args[i] != 0);
-        }
-    }
+    USignature sig(*this);
+    sig.apply(s);
     return sig;
+}
+
+void USignature::apply(const Substitution& s) {
+    for (int i = 0; i < _args.size(); i++) {
+        if (s.count(_args[i])) _args[i] = s.at(_args[i]);
+        assert(_args[i] != 0);
+    }
 }
 
 bool USignature::operator==(const USignature& b) const {

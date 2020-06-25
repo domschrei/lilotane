@@ -20,6 +20,7 @@ release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable
 release: treerexx
 
 debug: COMPILEFLAGS += -DDEBUG -g -rdynamic
+debug: LINKERFLAGS += -g -rdynamic
 debug: treerexx
 
 treerexx: src/parser/hddl.o src/parser/hddl-token.o $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o

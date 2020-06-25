@@ -47,6 +47,8 @@ private:
 
     void addPrecondition(const USignature& op, const Signature& fact);
     void addEffect(const USignature& op, const Signature& fact);
+    bool addAction(Action& a, const USignature& task);
+    bool addReduction(Reduction& r, const USignature& task);
 
     void propagateInitialState();
     void propagateActions(int offset);
