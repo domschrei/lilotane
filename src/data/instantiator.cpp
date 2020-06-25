@@ -18,7 +18,7 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 
     USigSet inst = instantiate(r, state);
     for (const USignature& sig : inst) {
-        //log("%s\n", Names::to_string(sig).c_str());
+        //log("%s\n", TOSTR(sig));
         result.push_back(r.substituteRed(Substitution(r.getArguments(), sig._args)));
     }
 
@@ -37,7 +37,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
 
     USigSet inst = instantiate(a, state);
     for (const USignature& sig : inst) {
-        //log("%s\n", Names::to_string(sig).c_str());
+        //log("%s\n", TOSTR(sig));
         assert(isFullyGround(sig));
         HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
         result.push_back((Action) newOp);
@@ -51,7 +51,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
 bool Instantiator::hasSomeInstantiation(const USignature& sig) {
 
     const std::vector<int>& types = _htn->_signature_sorts_table[sig._name_id];
-    //log("%s , %i\n", Names::to_string(sig).c_str(), types.size());
+    //log("%s , %i\n", TOSTR(sig), types.size());
     assert(types.size() == sig._args.size());
     for (int argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = types[argPos];
@@ -138,7 +138,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     if (_q_const_rating_factor > 0) {
         const auto& ratings = getPreconditionRatings(op.getSignature());
         /*for (const auto& entry : ratings) {
-            log("%s -- %s : rating %.3f\n", Names::to_string(op.getSignature()).c_str(), Names::to_string(entry.first).c_str(), entry.second);
+            log("%s -- %s : rating %.3f\n", TOSTR(op.getSignature()), TOSTR(entry.first), entry.second);
         }*/
         if (_inst_mode != INSTANTIATE_FULL)
         for (int argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
@@ -171,7 +171,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
         if (hasValidPreconditions(op.getPreconditions(), state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
-        //log("INST %s : %i instantiations X\n", Names::to_string(op.getSignature()).c_str(), instantiation.size());
+        //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
         return instantiation;
     }
 
@@ -262,7 +262,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
 
     __op = NULL;
 
-    //log("INST %s : %i instantiations\n", Names::to_string(op.getSignature()).c_str(), instantiation.size());
+    //log("INST %s : %i instantiations\n", TOSTR(op.getSignature()), instantiation.size());
     return instantiation;
 }
 
@@ -333,7 +333,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
 NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
             const SigSet& effects, const USignature& fact, bool negated) {
 
-    //log("?= can %s be produced by %s ?\n", Names::to_string(fact).c_str(), Names::to_string(opSig).c_str());
+    //log("?= can %s be produced by %s ?\n", TOSTR(fact), TOSTR(opSig));
     NodeHashSet<Substitution, Substitution::Hasher> substitutions;
 
     // For each such effect: check if it is a valid result
@@ -343,7 +343,7 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
         if (eff._negated != negated) continue;
         bool matches = true;
         Substitution s;
-        //log("  %s ?= %s ", Names::to_string(eff).c_str(), Names::to_string(fact).c_str());
+        //log("  %s ?= %s ", TOSTR(eff), TOSTR(fact));
         for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
             int substArg = fact._args[argPos];
@@ -377,14 +377,14 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
 SigSet Instantiator::getAllFactChanges(const USignature& sig) {    
     SigSet result;
     if (sig == Position::NONE_SIG) return result;
-    //log("FACT_CHANGES %s : ", Names::to_string(sig).c_str());
+    //log("FACT_CHANGES %s : ", TOSTR(sig));
     for (const Signature& effect : getPossibleFactChanges(sig)) {
         std::vector<USignature> instantiation = ArgIterator::getFullInstantiation(effect._usig, *_htn);
         for (const USignature& i : instantiation) {
             assert(isFullyGround(i));
             if (_params.isSet("rrp")) _htn->_fluent_predicates.insert(i._name_id);
             result.emplace(effect._usig._name_id, i._args, effect._negated);
-            //log("%s ", Names::to_string(i).c_str());
+            //log("%s ", TOSTR(i));
         }
     }
     //log("\n");
@@ -429,9 +429,9 @@ std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& si
     const std::vector<Signature>& sigs = _fact_changes[nameId];
     std::vector<Signature> out;
     
-    //log("   fact changes of %s : ", Names::to_string(sig).c_str());
+    //log("   fact changes of %s : ", TOSTR(sig));
     for (const Signature& fact : sigs) {
-        //log("%s ", Names::to_string(fact).c_str());
+        //log("%s ", TOSTR(fact));
         Signature sigRes = fact.substitute(sFromPlaceholder);
         for (int arg : sigRes._usig._args) assert(arg > 0);
         
@@ -500,7 +500,7 @@ bool Instantiator::hasConsistentlyTypedArgs(const USignature& sig) {
             }
         }
         if (!valid) {
-            //log("arg %s not of sort %s => %s invalid\n", Names::to_string(arg).c_str(), Names::to_string(sort).c_str(), Names::to_string(sig).c_str());
+            //log("arg %s not of sort %s => %s invalid\n", TOSTR(arg), TOSTR(sort), TOSTR(sig));
             return false;
         } 
     }
@@ -557,10 +557,10 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
     
     // Q-Fact:
     if (_htn->hasQConstants(sig._usig)) {
-        //log("QTEST %s\n", Names::to_string(sig).c_str());
+        //log("QTEST %s\n", TOSTR(sig));
         for (const auto& decSig : _htn->getDecodedObjects(sig._usig, true)) {
             bool result = test(Signature(decSig, sig._negated), state);
-            //log("QTEST -- %s : %s\n", Names::to_string(decSig).c_str(), result ? "TRUE" : "FALSE");    
+            //log("QTEST -- %s : %s\n", TOSTR(decSig), result ? "TRUE" : "FALSE");    
             if (result) return true;
         }
         return false;

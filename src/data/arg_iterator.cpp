@@ -26,8 +26,8 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
     assert(sorts.size() == sig._args.size() || fail("Sorts table of predicate " 
             + Names::to_string(sig) + " has an invalid size\n"));
     
-    //log("SORTS %s ", Names::to_string(sig._name_id).c_str());
-    //for (int s : sorts) log("%s ", Names::to_string(s).c_str());
+    //log("SORTS %s ", TOSTR(sig._name_id));
+    //for (int s : sorts) log("%s ", TOSTR(s));
     //log("\n");
     
     std::vector<std::vector<int>> constantsPerArg;

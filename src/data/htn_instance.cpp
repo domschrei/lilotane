@@ -140,9 +140,9 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             }
 
             /*
-            log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", Names::to_string(a).c_str(), 
-                    Names::to_string(aFirst).c_str(), 
-                    Names::to_string(aSecond).c_str());
+            log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", TOSTR(a), 
+                    TOSTR(aFirst), 
+                    TOSTR(aSecond));
             */
             // Remember original action name ID
             _split_action_from_first[idFirst] = aId;
@@ -248,7 +248,7 @@ SigSet HtnInstance::getInitState() {
                 args.push_back(c1); args.push_back(c2);
                 Signature sig(eqPredId, args);
                 result.insert(sig);
-                log("EQUALITY %s\n", Names::to_string(sig).c_str());
+                log("EQUALITY %s\n", TOSTR(sig));
             }
         }
     }
@@ -329,7 +329,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Extract (in)equality constraints, put into preconditions to process later
     if (!method.constraints.empty()) {
         for (const literal& lit : method.constraints) {            
-            //log("%s\n", Names::to_string(getSignature(lit)).c_str());
+            //log("%s\n", TOSTR(getSignature(lit)));
             assert(lit.predicate == "__equal" || fail("Unknown constraint predicate \"" + lit.predicate + "\"!\n"));
             condLiterals.push_back(lit);
         }
@@ -467,12 +467,12 @@ Reduction& HtnInstance::createReduction(const method& method) {
         _reductions[id].orderSubtasks(orderingNodelist);
     }
 
-    log(" %s : %i preconditions, %i subtasks\n", Names::to_string(_reductions[id].getSignature()).c_str(), 
+    log(" %s : %i preconditions, %i subtasks\n", TOSTR(_reductions[id].getSignature()), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());
     log("  PRE ");
     for (const Signature& sig : r.getPreconditions()) {
-        log("%s ", Names::to_string(sig).c_str());
+        log("%s ", TOSTR(sig));
     }
     log("\n");
 
@@ -531,7 +531,7 @@ Substitution HtnInstance::addQConstants(const USignature& sig, int layerIdx, int
         FlatHashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
         if (domain.empty()) {
             // No valid value for this argument at this position: return failure
-            //log("%s : %s has no valid domain!\n", Names::to_string(sig).c_str(), Names::to_string(sig._args[argPos]).c_str());
+            //log("%s : %s has no valid domain!\n", TOSTR(sig), TOSTR(sig._args[argPos]));
             s.clear();
             break;
         } else {
@@ -550,7 +550,7 @@ FlatHashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int
     assert(_signature_sorts_table.count(sig._name_id));
     assert(argPos < _signature_sorts_table[sig._name_id].size());
     
-    //log("%s\n", Names::to_string(sig).c_str());
+    //log("%s\n", TOSTR(sig));
 
     // Get domain of the q constant
     int sort = _signature_sorts_table[sig._name_id][argPos];
@@ -641,13 +641,13 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
     /*
     log("  q-constant for arg %s @ pos %i of %s : %s\n   sorts ", 
             _name_back_table[arg].c_str(), argPos, 
-            Names::to_string(sig).c_str(), Names::to_string(qConstId).c_str());
+            TOSTR(sig), TOSTR(qConstId));
     */
     _sorts_of_q_constants[qConstId];
     for (int sort : qConstSorts) {
         _sorts_of_q_constants[qConstId].insert(sort);
         //_constants_by_sort[sort].push_back(qConstId);
-        //log("%s ", Names::to_string(sort).c_str());
+        //log("%s ", TOSTR(sort));
     } 
     //log("\n");
 }
@@ -692,8 +692,8 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
 
         if (checkQConstConds) {
             set[normSig];
-            //log("DECOBJ %s\n", Names::to_string(qSig).c_str());
-            //for (const auto& e : eligibleArgs) log("DECOBJ -- %s\n", Names::to_string(e).c_str());
+            //log("DECOBJ %s\n", TOSTR(qSig));
+            //for (const auto& e : eligibleArgs) log("DECOBJ -- %s\n", TOSTR(e));
             for (const USignature& sig : ArgIterator::instantiate(qSig, eligibleArgs)) {
                 std::vector<int> vals;
                 for (const int& i : qconstIndices) vals.push_back(sig._args[i]);
@@ -776,10 +776,10 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const std::function<bo
 
         ValueSet good;
         ValueSet bad;
-        //log("QQ %s\n", Names::to_string(pre._usig).c_str());
+        //log("QQ %s\n", TOSTR(pre._usig));
         for (const auto& decPre : getDecodedObjects(pre._usig, true)) {
             bool holds = _instantiator->test(Signature(decPre, pre._negated), state);
-            //log("QQ -- %s : %i\n", Names::to_string(decPre).c_str(), holds);
+            //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
             auto& set = holds ? good : bad;
             std::vector<int> toAdd;
             for (const int& i : qConstIndices) toAdd.push_back(decPre._args[i]);

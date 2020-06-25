@@ -16,7 +16,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
     while (!frontier.empty()) {
         USignature nodeSig = frontier.back(); frontier.pop_back();
         int depth = depths.back(); depths.pop_back();
-        //log("%s\n", Names::to_string(nodeSig).c_str());
+        //log("%s\n", TOSTR(nodeSig));
 
         // Normalize node signature arguments to compare to seen signatures
         Substitution s;
@@ -47,7 +47,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
             }
             frontier.push_back(child.substitute(s));
             depths.push_back(depth+1);
-            //log("-> %s\n", Names::to_string(child).c_str());
+            //log("-> %s\n", TOSTR(child));
         }
     }
 }

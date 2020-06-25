@@ -328,7 +328,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
         }
         if (!add) {
             // forget q-facts that have become irrelevant
-            //log("  FORGET %s\n", Names::to_string(entry.first).c_str());
+            //log("  FORGET %s\n", TOSTR(entry.first));
             getLayerState().withdraw(_pos, fact, true);
             getLayerState().withdraw(_pos, fact, false);
             continue;
@@ -345,11 +345,11 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 
     if (fact._negated && !isQFact && !pos.hasFact(factAbs)) {
         // Negative precondition not contained in facts: initialize
-        //log("NEG_PRE %s\n", Names::to_string(fact).c_str());
+        //log("NEG_PRE %s\n", TOSTR(fact));
         introduceNewFalseFact(pos, factAbs);
     }
     
-    //log("pre %s of %s\n", Names::to_string(fact).c_str(), Names::to_string(op).c_str());
+    //log("pre %s of %s\n", TOSTR(fact), TOSTR(op));
     // Precondition must be valid (or a q fact)
     if (!isQFact) assert(getLayerState().contains(_pos, fact) 
             || fail(Names::to_string(fact) + " not contained in state!\n"));
@@ -402,7 +402,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     if (!isQFact) return;
 
-    //log("Calc decoded effects for %s:%s\n", Names::to_string(opSig).c_str(), Names::to_string(fact).c_str());
+    //log("Calc decoded effects for %s:%s\n", TOSTR(opSig), TOSTR(fact));
 
     HtnOp& op = _htn.getOp(opSig);
     //assert(!_htn.getDecodedObjects(factAbs, true).empty());
@@ -458,7 +458,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     }
 
     if (numValid == 0) {
-        //log("No valid decoded effects for %s!\n", Names::to_string(opSig).c_str());
+        //log("No valid decoded effects for %s!\n", TOSTR(opSig));
     }
 }
 
@@ -490,7 +490,7 @@ void Planner::propagateInitialState() {
     for (bool neg : {true, false}) {
         for (const auto& entry : neg ? oldState.getNegFactOccurrences() : oldState.getPosFactOccurrences()) {
             const USignature& fact = entry.first;
-            //log("  ~~~> %s\n", Names::to_string(fact).c_str());
+            //log("  ~~~> %s\n", TOSTR(fact));
             const auto& range = entry.second;
             if (range.first == 0 || _htn.hasQConstants(fact)) {
                 int newRangeFirst = _layers[_layer_idx-1].getSuccessorPos(range.first);
@@ -522,7 +522,7 @@ void Planner::propagateActions(int offset) {
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
             //log("FORBIDDING action %s@(%i,%i): no children at offset %i\n", 
-            //        Names::to_string(aSig).c_str(), _layer_idx-1, _old_pos, offset);
+            //        TOSTR(aSig), _layer_idx-1, _old_pos, offset);
             newPos.addExpansion(aSig, Position::NONE_SIG);
             continue;
         }
@@ -569,13 +569,13 @@ void Planner::propagateReductions(int offset) {
                 
                 newPos.addReduction(subRSig);
                 newPos.addExpansion(rSig, subRSig);
-                //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", Names::to_string(subR.getTaskSignature()).c_str(), Names::to_string(subRSig).c_str(), _layer_idx, _pos);
+                //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
-                //log("PRECONDS %s ", Names::to_string(subRSig).c_str());
+                //log("PRECONDS %s ", TOSTR(subRSig));
                 for (const Signature& fact : subR.getPreconditions()) {
                     addPrecondition(subRSig, fact);
-                    //log("%s ", Names::to_string(fact).c_str());
+                    //log("%s ", TOSTR(fact));
                 }
                 addQConstantTypeConstraints(subRSig);
                 //log("\n");
@@ -604,7 +604,7 @@ void Planner::propagateReductions(int offset) {
         if (numAdded == 0) {
             // Explicitly forbid the parent!
             log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
-                    Names::to_string(rSig).c_str(), _layer_idx-1, _old_pos, offset);
+                    TOSTR(rSig), _layer_idx-1, _old_pos, offset);
             newPos.addExpansion(rSig, Position::NONE_SIG);
         }
     }
@@ -622,10 +622,10 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
 
     HtnOp op = a.substitute(Substitution(a.getArguments(), task._args));
     Action act = (Action) op;
-    //log("  task %s : action found: %s\n", Names::to_string(task).c_str(), Names::to_string(act).c_str());
+    //log("  task %s : action found: %s\n", TOSTR(task), TOSTR(act));
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
-    //log("ADDACTION %s : %i potential actions\n", Names::to_string(act.getSignature()).c_str(), actions.size());
+    //log("ADDACTION %s : %i potential actions\n", TOSTR(act.getSignature()), actions.size());
     for (Action& action : actions) {
         if (addAction(action, task)) result.push_back(action.getSignature());
     }
@@ -636,7 +636,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
 
     USignature sig = action.getSignature();
 
-    //log("ADDACTION %s\n", Names::to_string(sig).c_str());
+    //log("ADDACTION %s\n", TOSTR(sig));
 
     // Rename any remaining variables in each action as unique q-constants,
     action = _htn.replaceQConstants(action, _layer_idx, _pos, getStateEvaluator());
@@ -674,23 +674,23 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
 
     const std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-    //log("  task %s : %i reductions found\n", Names::to_string(task).c_str(), redIds.size());
+    //log("  task %s : %i reductions found\n", TOSTR(task), redIds.size());
 
     // Filter and minimally instantiate methods
     // applicable in current (super)state
     for (int redId : redIds) {
         Reduction r = _htn._reductions[redId];
-        //log("%s %s\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(r.getSignature()).c_str());
+        //log("%s %s\n", TOSTR(r.getTaskSignature()), TOSTR(r.getSignature()));
         std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
         for (const Substitution& s : subs) {
             for (const auto& entry : s) assert(entry.second != 0);
 
-            //if (_layer_idx <= 1) log("SUBST %s\n", Names::to_string(s).c_str());
+            //if (_layer_idx <= 1) log("SUBST %s\n", TOSTR(s));
             Reduction rSub = r.substituteRed(s);
             USignature origSig = rSub.getSignature();
             if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
             
-            //log("   reduction %s ~> %i instantiations\n", Names::to_string(origSig).c_str(), reductions.size());
+            //log("   reduction %s ~> %i instantiations\n", TOSTR(origSig), reductions.size());
             std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
             for (Reduction& red : reductions) {
                 if (addReduction(red, task)) result.push_back(red.getSignature());
@@ -800,7 +800,7 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     newPos.addDefinitiveFact(sig);
     newPos.addFact(fact);
     getLayerState(newPos.getPos().first).add(newPos.getPos().second, sig);
-    //log("FALSE_FACT %s @(%i,%i)\n", Names::to_string(fact.abs().opposite()).c_str(), 
+    //log("FALSE_FACT %s @(%i,%i)\n", TOSTR(fact.abs().opposite()), 
     //        newPos.getPos().first, newPos.getPos().second);
 }
 
@@ -823,7 +823,7 @@ std::function<bool(const Signature&)> Planner::getStateEvaluator(int layer, int 
     if (pos == -1) pos = _pos;
     return [this,layer,pos](const Signature& sig) {
         bool holds = getLayerState(layer).contains(pos, sig);
-        //log("STATEEVAL@(%i,%i) %s : %i\n", layer, pos, Names::to_string(sig).c_str(), holds);
+        //log("STATEEVAL@(%i,%i) %s : %i\n", layer, pos, TOSTR(sig), holds);
         return holds;
     };
 }

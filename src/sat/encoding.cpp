@@ -423,7 +423,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         if (reuse) {
             int var = left.getVariable(factSig);
             newPos.setVariable(factSig, var, left.getPriorPosOfVariable(factSig));
-            //log("REUSE %s (%i,%i) ~> (%i,%i)\n", Names::to_string(factSig).c_str(), layerIdx, pos-1, layerIdx, pos);
+            //log("REUSE %s (%i,%i) ~> (%i,%i)\n", TOSTR(factSig), layerIdx, pos-1, layerIdx, pos);
             reused++;
 
             //if (state.contains(leftPos, factSig, true) == state.contains(thisPos, factSig, true) 
@@ -463,10 +463,10 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
 
         if (reuse) {
             newPos.setVariable(factSig, left.getVariable(factSig), left.getPriorPosOfVariable(factSig));
-            //log("  REUSE %s\n", Names::to_string(factSig).c_str());
+            //log("  REUSE %s\n", TOSTR(factSig));
             reused++;
         } else {
-            //log("  NO_REUSE %s\n", Names::to_string(factSig).c_str());
+            //log("  NO_REUSE %s\n", TOSTR(factSig));
             newPos.encode(factSig);
         }
     }
@@ -841,7 +841,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         for (const USignature& aSig : finalLayer[pos].getActions()) {
             
             if (!isEncoded(li, pos, aSig)) continue;
-            //log("  %s ?\n", Names::to_string(aSig).c_str());
+            //log("  %s ?\n", TOSTR(aSig));
 
             if (value(li, pos, aSig)) {
                 chosenActions++;
@@ -864,7 +864,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                     //checkAndApply(aDecoded, state, newState, li, pos);
                 }
 
-                //log("* %s @ %i\n", Names::to_string(aDec).c_str(), pos);
+                //log("* %s @ %i\n", TOSTR(aDec), pos);
                 plan.push_back({aVar, aDec, aDec, std::vector<int>()});
             }
         }
@@ -894,7 +894,7 @@ bool holds(State& state, const Signature& fact) {
 }
 
 void Encoding::checkAndApply(const Action& a, State& state, State& newState, int layer, int pos) {
-    //log("%s\n", Names::to_string(a).c_str());
+    //log("%s\n", TOSTR(a));
     for (const Signature& pre : a.getPreconditions()) {
 
         // Check assignment
@@ -907,7 +907,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         assert(_htn.hasQConstants(pre._usig) || holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
             + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
         
-        //log("Pre %s of action %s holds @(%i,%i)\n", Names::to_string(pre).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //log("Pre %s of action %s holds @(%i,%i)\n", TOSTR(pre), TOSTR(a.getSignature()), 
         //        layer, pos);
     }
 
@@ -921,7 +921,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         newState[eff._usig._name_id];
         newState[eff._usig._name_id].insert(eff);
 
-        //log("Eff %s of action %s holds @(%i,%i)\n", Names::to_string(eff).c_str(), Names::to_string(a.getSignature()).c_str(), 
+        //log("Eff %s of action %s holds @(%i,%i)\n", TOSTR(eff), TOSTR(a.getSignature()), 
         //        layer, pos);
     }
 }
@@ -958,7 +958,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             for (const USignature& rSig : l[pos].getReductions()) {
                 if (!isEncoded(layerIdx, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
-                //log("? %s @ (%i,%i)\n", Names::to_string(rSig).c_str(), i, pos);
+                //log("? %s @ (%i,%i)\n", TOSTR(rSig), i, pos);
 
                 if (value(layerIdx, pos, rSig)) {
 
@@ -972,10 +972,10 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                         + Names::to_string(r.getSignature()) + " does not hold at step " + std::to_string(pos) + "!\n"));
                     }*/
 
-                    //log("%s:%s @ (%i,%i)\n", Names::to_string(r.getTaskSignature()).c_str(), Names::to_string(rSig).c_str(), layerIdx, pos);
+                    //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                     USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
-                    log("[%i] %s:%s @ (%i,%i)\n", v, Names::to_string(rDecoded.getTaskSignature()).c_str(), Names::to_string(decRSig).c_str(), layerIdx, pos);
+                    log("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
 
                     if (layerIdx == 0) {
                         // Initial reduction
@@ -1010,7 +1010,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
                         reductionsThisPos++;
                     } else {
-                        log(" -- invalid : %s != %s\n", Names::to_string(parentRed.getSubtasks()[offset]).c_str(), Names::to_string(rDecoded.getTaskSignature()).c_str());
+                        log(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
                     } 
                 }
             }
@@ -1039,7 +1039,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // TODO check this is a valid subtask relationship
 
-                    log("[%i] %s @ (%i,%i)\n", v, Names::to_string(aSig).c_str(), layerIdx, pos);                    
+                    log("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
 
                     // Find the actual action variable at the final layer, not at this (inner) layer
                     int l = layerIdx;
@@ -1112,13 +1112,13 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 const USignature& sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
                     //log("%i TRUE\n", varSubstitution(sigSubst));
-                    //log("%s/%s => %s ~~> ", Names::to_string(arg).c_str(), 
-                    //        Names::to_string(argSubst).c_str(), Names::to_string(sig).c_str());
+                    //log("%s/%s => %s ~~> ", TOSTR(arg), 
+                    //        TOSTR(argSubst), TOSTR(sig));
                     numSubstitutions++;
                     Substitution sub;
                     sub[arg] = argSubst;
                     sig.apply(sub);
-                    //log("%s\n", Names::to_string(sig).c_str());
+                    //log("%s\n", TOSTR(sig));
                 } else {
                     //log("%i FALSE\n", varSubstitution(sigSubst));
                 }
@@ -1132,7 +1132,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
 
     /*
     if (origSig != sig)
-        log("%s ~~> %s\n", Names::to_string(origSig).c_str(), Names::to_string(sig).c_str());
+        log("%s ~~> %s\n", TOSTR(origSig), TOSTR(sig));
     */
     return sig;
 }
