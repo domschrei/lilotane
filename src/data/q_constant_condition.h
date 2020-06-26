@@ -76,7 +76,8 @@ bool test(const std::vector<int>& ref, const std::vector<int>& vals) const {
 }
 
 bool referencesSubsetOf(const std::vector<int>& otherReference) const {
-    if (otherReference.size() <= reference.size()) return false;
+    if (otherReference.size() < reference.size()) return false;
+    // Each q-constant from THIS reference must be contained in OTHER reference
     for (const auto& q : reference) {
         if (std::find(otherReference.begin(), otherReference.end(), q) == otherReference.end()) {
             // Not contained in alleged superset

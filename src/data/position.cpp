@@ -36,9 +36,11 @@ void Position::addForbiddenSubstitution(const USignature& op, const std::vector<
 
 void Position::addAction(const USignature& action) {
     _actions.insert(action);
+    log("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
 void Position::addReduction(const USignature& reduction) {
     _reductions.insert(reduction);
+    log("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
 }
 void Position::addExpansion(const USignature& parent, const USignature& child) {
     _expansions[parent];

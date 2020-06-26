@@ -11,23 +11,10 @@ void QConstantDatabase::registerQConstant(int qconst) {
 }
 
 void QConstantDatabase::add(const std::vector<int>& reference, char conjunction, const ValueSet& values) {
-
-    /*
-    std::string out = "QCONSTCOND_CREATE ";
-    for (int arg : reference) out += Names::to_string(arg) + ",";
-    out += " : ";
-    out += conjunction == QConstantCondition::CONJUNCTION_OR ? "OR " : "NOR ";
-    for (const auto& tuple : values) {
-        out += "(";
-        for (int arg : tuple) out += Names::to_string(arg) + ",";
-        out += ") ";
-    }
-    out += "\n";
-    log(out.c_str());
-    */
     
     QConstantCondition* cond = new QConstantCondition(reference, conjunction, values);
-    std::vector<QConstantCondition*> subconds;
+    
+    // Check if this very condition is already contained
     bool contained = false;
     for (const int& q : reference) {
         if (_conditions_per_qconst.count(q)) {
@@ -35,17 +22,43 @@ void QConstantDatabase::add(const std::vector<int>& reference, char conjunction,
                 contained = true;
                 break;
             }
-            
-            /*
-            for (const auto& other : _conditions_per_qconst[q]) {
-
-            }*/
         }
     }
     if (contained) {
         delete cond;
         return;
     }
+
+    // Simplify condition w.r.t. present conditions
+    forEachFitCondition(reference, [&](QConstantCondition* subcond) {
+        if (subcond->referencesSubsetOf(cond->reference)) {
+
+            // Find and remove all tuples which evaluate to FALSE in that subset condition
+            std::vector<std::vector<int>> tuplesToRemove;
+            for (const auto& tuple : cond->values) {
+                //log("QCONSTCOND_SIMP is %s:%s simplified by %s ?\n", TOSTR(cond->reference), TOSTR(tuple), TOSTR(subcond->reference));
+                if (!subcond->test(cond->reference, tuple)) {
+                    //log("QCONSTCOND_SIMP remove %s from %s\n", TOSTR(tuple), TOSTR(cond->reference));
+                    tuplesToRemove.push_back(tuple);
+                }
+            }
+            for (const auto& tuple : tuplesToRemove) cond->values.erase(tuple);
+
+        }
+        return true;
+    });
+
+    std::string out = "QCONSTCOND_CREATE ";
+    for (int arg : reference) out += Names::to_string(arg) + ",";
+    out += " : ";
+    out += conjunction == QConstantCondition::CONJUNCTION_OR ? "OR " : "NOR ";
+    for (const auto& tuple : cond->values) {
+        out += "(";
+        for (int arg : tuple) out += Names::to_string(arg) + ",";
+        out += ") ";
+    }
+    out += "\n";
+    log(out.c_str());
 
     _conditions.push_back(cond);
     for (const auto& c : reference) {

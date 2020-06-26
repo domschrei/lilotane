@@ -11,12 +11,13 @@ ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFil
     const char* domainStr = domainFile.c_str();
     const char* problemStr = problemFile.c_str();
 
-    char* args[3];
+    char* args[4];
     args[0] = (char*)firstArg;
     args[1] = (char*)domainStr;
     args[2] = (char*)problemStr;
-    
-    run_pandaPIparser(3, args);
+    args[3] = "-s";
+
+    run_pandaPIparser(3 /*change to 4 to enable -s !*/, args);
     return get_parsed_problem();
 }
 
@@ -771,6 +772,10 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const std::function<bo
                 qConstIndices.push_back(i);
                 if (!_q_db.isRegistered(arg)) anyNew = true;
             }
+        }
+        if (!anyNew && ref.size() == 1) {
+            // Unary condition referencing a parent's q-constant
+            log("QQ child %s implies restriction %s on qconst %s\n", TOSTR(op.getSignature()), TOSTR(pre), TOSTR(ref));
         }
         if (ref.empty() || !anyNew || ref.size() > 2) continue;
 
