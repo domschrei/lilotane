@@ -115,7 +115,9 @@ struct HtnInstance {
     FlatHashSet<int> computeDomainOfArgument(const USignature& sig, int argPos, const SigSet& conditions, 
                 const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash);
     void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain, size_t domainHash, Substitution& s);
-    void addQConstantConditions(const HtnOp& op, const std::function<bool(const Signature&)>& state);
+
+    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
+            int offset, const std::function<bool(const Signature&)>& state);
 
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);

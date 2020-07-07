@@ -9,18 +9,19 @@ CC=g++
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 
 # -Q -ftime-report
-COMPILEFLAGS=-O3 -pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\"
-LINKERFLAGS=-O3 -lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
+COMPILEFLAGS=-pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\"
+LINKERFLAGS=-lm -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz
 
 INCLUDES=-Isrc -Isrc/parser
 
 .PHONY = clean
 
-release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable
+release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable -O3
+release: LINKERFLAGS += -O3
 release: treerexx
 
-debug: COMPILEFLAGS += -DDEBUG -g -rdynamic
-debug: LINKERFLAGS += -g -rdynamic
+debug: COMPILEFLAGS += -O3 -DDEBUG -g -rdynamic
+debug: LINKERFLAGS += -O3 -g -rdynamic
 debug: treerexx
 
 treerexx: src/parser/hddl.o src/parser/hddl-token.o $(patsubst %.cpp,%.o,$(wildcard src/parser/*.cpp src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) src/main.o

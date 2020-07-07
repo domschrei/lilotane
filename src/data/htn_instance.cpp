@@ -21,7 +21,8 @@ ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFil
     return get_parsed_problem();
 }
 
-HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p) {
+HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
+            _q_db([this](int arg) {return _q_constants.count(arg);}) {
 
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
@@ -756,28 +757,28 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
     return true;
 }
 
-void HtnInstance::addQConstantConditions(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
+void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
+            int offset, const std::function<bool(const Signature&)>& state) {
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
+
+    if (!_params.isSet("cqm")) return;
+    if (!hasQConstants(psig.usig)) return;
+    
+    int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
 
     for (const auto& pre : op.getPreconditions()) {
         
         std::vector<int> ref;
         std::vector<int> qConstIndices;
-        bool anyNew = false;
         for (int i = 0; i < pre._usig._args.size(); i++) {
             const int& arg = pre._usig._args[i];
             if (_q_constants.count(arg)) {
                 ref.push_back(arg);
                 qConstIndices.push_back(i);
-                if (!_q_db.isRegistered(arg)) anyNew = true;
             }
         }
-        if (!anyNew && ref.size() == 1) {
-            // Unary condition referencing a parent's q-constant
-            log("QQ child %s implies restriction %s on qconst %s\n", TOSTR(op.getSignature()), TOSTR(pre), TOSTR(ref));
-        }
-        if (ref.empty() || !anyNew || ref.size() > 2) continue;
+        if (ref.empty() || ref.size() > 2) continue;
 
         ValueSet good;
         ValueSet bad;
@@ -794,14 +795,10 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const std::function<bo
         if (bad.empty() || std::min(good.size(), bad.size()) > 16) continue;
 
         if (good.size() <= bad.size()) {
-            _q_db.add(ref, QConstantCondition::CONJUNCTION_OR, good);
+            _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);
         } else {
-            _q_db.add(ref, QConstantCondition::CONJUNCTION_NOR, bad);
+            _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_NOR, bad);
         }
-    }
-
-    for (int arg : op.getArguments()) {
-        if (_q_constants.count(arg)) _q_db.registerQConstant(arg);
     }
 }
 

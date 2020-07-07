@@ -180,9 +180,12 @@ void Planner::createFirstLayer() {
                 addPrecondition(sig, fact);
             }
             addQConstantTypeConstraints(sig);
+            const PositionedUSig psig{_layer_idx,_pos,sig};
+            _htn.addQConstantConditions(r, psig, QConstantDatabase::PSIG_ROOT, 0, getStateEvaluator());
         }
     }
     addNewFalseFacts();
+    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
     _enc.encode(_layer_idx, _pos++);
 
     /***** LAYER 0, POSITION 1 ******/
@@ -268,6 +271,9 @@ void Planner::createNextPosition() {
     // add all effects of the actions and reductions occurring HERE
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
+
+    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
+    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
 }
 
 void Planner::createNextPositionFromAbove(const Position& above) {
@@ -553,6 +559,7 @@ void Planner::propagateReductions(int offset) {
     for (const USignature& rSig : above.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         const Reduction r = _htn._reductions_by_sig[rSig];
+        const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
         
         int numAdded = 0;
         if (offset < r.getSubtasks().size()) {
@@ -578,6 +585,8 @@ void Planner::propagateReductions(int offset) {
                     //log("%s ", TOSTR(fact));
                 }
                 addQConstantTypeConstraints(subRSig);
+                _htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
+                                        parentPSig, offset, getStateEvaluator());
                 //log("\n");
             }
             // action(s)?
@@ -592,6 +601,8 @@ void Planner::propagateReductions(int offset) {
                     addPrecondition(aSig, fact);
                 }
                 addQConstantTypeConstraints(aSig);
+                _htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
+                                        parentPSig, offset, getStateEvaluator());
             }
         } else {
             // Blank
@@ -656,8 +667,6 @@ bool Planner::addAction(Action& action, const USignature& task) {
     sig = action.getSignature();
     _htn._actions_by_sig[sig] = action;
 
-    _htn.addQConstantConditions((HtnOp&)action, getStateEvaluator());
-
     // Compute fact changes
     _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
 
@@ -717,8 +726,6 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     
     sig = red.getSignature();
     _htn._reductions_by_sig[sig] = red;
-
-    _htn.addQConstantConditions((HtnOp&)red, getStateEvaluator());
 
     // Compute fact changes
     _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));

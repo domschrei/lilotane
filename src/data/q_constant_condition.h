@@ -9,6 +9,8 @@
 #include "hashmap.h"
 #include "util/hash.h"
 #include "util/log.h"
+#include "data/htn_op.h"
+#include "util/names.h"
 
 struct ValuesHasher {
 std::size_t operator()(const std::vector<int>& v) const {
@@ -27,15 +29,17 @@ struct QConstantCondition {
 static const char CONJUNCTION_OR = 1;
 static const char CONJUNCTION_NOR = 2;
 
+int originOp;
 std::vector<int> reference;
 char conjunction;
 ValueSet values;
 
-QConstantCondition(const std::vector<int>& reference, char conjunction) 
-            : reference(reference), conjunction(conjunction) {}
-QConstantCondition(const std::vector<int>& reference, char conjunction, const ValueSet& values) 
-            : reference(reference), conjunction(conjunction), values(values) {}
-QConstantCondition(const QConstantCondition& other) : reference(other.reference), conjunction(other.conjunction), values(other.values) {}
+QConstantCondition(int originOp, const std::vector<int>& reference, char conjunction) 
+            : originOp(originOp), reference(reference), conjunction(conjunction) {}
+QConstantCondition(int originOp, const std::vector<int>& reference, char conjunction, const ValueSet& values) 
+            : originOp(originOp), reference(reference), conjunction(conjunction), values(values) {}
+QConstantCondition(const QConstantCondition& other) 
+            : originOp(other.originOp), reference(other.reference), conjunction(other.conjunction), values(other.values) {}
 
 void add(const std::vector<int>& tuple) {
     values.insert(tuple);
@@ -100,33 +104,36 @@ ValueSet getIntersection(const ValueSet& vals) const {
     return result;
 }
 
-QConstantCondition simplify(const std::vector<int>& ref, const std::vector<int>& vals) {
-    assert(ref.size() < reference.size());
-    std::vector<int> newRef;
-    for (int i = 0; i < ref.size(); i++) {
-        const auto& it = std::find(reference.begin(), reference.end(), ref[i]);
-        assert(it != reference.end());
-        newRef.push_back(*it);
-    }
-    QConstantCondition newCond(newRef, conjunction);
-    for (const auto& tuple : values) {
-
-    }
-}
-
 bool operator==(const QConstantCondition& other) const {
-    return conjunction == other.conjunction && reference == other.reference && values == other.values;
+    return originOp == other.originOp 
+        && conjunction == other.conjunction 
+        && reference == other.reference 
+        && values == other.values;
 }
 
 bool operator!=(const QConstantCondition& other) const {
     return !(*this == other);
 }
 
+std::string toStr() const {
+    std::string out = "QCC{";
+    for (int arg : reference) out += Names::to_string(arg) + ",";
+    out += " : ";
+    out += conjunction == QConstantCondition::CONJUNCTION_OR ? "OR " : "NOR ";
+    for (const auto& tuple : values) {
+        out += "(";
+        for (int arg : tuple) out += Names::to_string(arg) + ",";
+        out += ") ";
+    }
+    out += "}";
+    return out;
+}
 };
 
 struct QConstCondHasher {
 std::size_t operator()(const QConstantCondition* q) const {
     size_t hash = q->conjunction;
+    hash_combine(hash, q->originOp);
     hash_combine(hash, q->reference.size());
     for (const auto& ref : q->reference) {
         hash_combine(hash, ref);
@@ -146,23 +153,56 @@ bool operator()(const QConstantCondition* left, const QConstantCondition* right)
     return *left == *right;
 }
 };
+struct QConstCondEqualsNoOpCheck {
+bool operator()(const QConstantCondition* left, const QConstantCondition* right) const {
+    return left->conjunction == right->conjunction 
+            && left->reference == right->reference 
+            && left->values == right->values;
+}
+};
+
+struct PositionedUSig {
+    int layer; int pos; USignature usig;
+    PositionedUSig(int layer, int pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
+    bool operator==(const PositionedUSig& other) const {
+        return layer == other.layer && pos == other.pos && usig == other.usig;
+    }
+};
+struct PositionedUSigHasher {
+    USignatureHasher usigHasher;
+    std::size_t operator()(const PositionedUSig& x) const {
+        size_t hash = x.layer;
+        hash_combine(hash, x.pos);
+        hash_combine(hash, usigHasher(x.usig));
+        return hash;
+    }
+};
 
 class QConstantDatabase {
 
 private:
-    FlatHashSet<int> _registered_q_constants;
-    std::vector<QConstantCondition*> _conditions;
-    NodeHashMap<int, NodeHashSet<QConstantCondition*, QConstCondHasher, QConstCondEquals>> _conditions_per_qconst;
+    std::function<bool(int)> _is_q_constant;
+
+    std::vector<std::vector<QConstantCondition*>> _conditions_per_op;
+    NodeHashMap<int, std::pair<int, NodeHashSet<QConstantCondition*, QConstCondHasher, QConstCondEquals>>> _q_const_map;
+
+    FlatHashMap<PositionedUSig, int, PositionedUSigHasher> _op_ids;
+    std::vector<PositionedUSig> _op_sigs;
+    std::vector<std::vector<int>> _op_possible_parents;
+    // 1st dim: operation IDs. 2nd dim: offset. 3rd dim: enumeration of children. 
+    std::vector<std::vector<std::vector<int>>> _op_children_at_offset;
 
 public:
+    static const PositionedUSig PSIG_ROOT;
 
-    bool isRegistered(int qconst);
-    void registerQConstant(int qconst);
+    QConstantDatabase(const std::function<bool(int)>& isQConstant);
+
+    int addOp(const HtnOp& op, int layer, int pos, const PositionedUSig& parent, int offset);
 
     /*
     Adds a new q-constant condition to the database (except if it already exists).
     */
-    void add(const std::vector<int>& reference, char conjunction, const ValueSet& values);
+    QConstantCondition* addCondition(int op, const std::vector<int>& reference, char conjunction, const ValueSet& values);
 
     /*
     For a given set of q-constants with corresponding substituted values,
@@ -170,9 +210,19 @@ public:
     */
     bool test(const std::vector<int>& refQConsts, const std::vector<int>& vals);
 
+    int getRootOp(int qconst);
+    const NodeHashSet<QConstantCondition*, QConstCondHasher, QConstCondEquals>& getConditions(int qconst);
+
+    bool isUniversal(QConstantCondition* cond);
+    bool isParentAndChild(int parent, int child);
+
+    void backpropagateConditions(int layer, int pos, const USigSet& leafOps);
+
     ~QConstantDatabase() {
-        for (const auto& cond : _conditions) {
-            delete cond;
+        for (const auto& entry : _conditions_per_op) {
+            for (const auto& qcc : entry) {
+                delete qcc;
+            }
         }
     }
 

@@ -41,6 +41,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     setParam("amor", "20"); // Max. num reductions such that At-most-one constraints are added for reductions
     //setParam("cs"); // check solvability (without assumptions)
+    //setParam("cqm"); // collect q-constant mutexes
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
@@ -64,6 +65,7 @@ void Parameters::printUsage() {
 reductions at the current position (0 : no AMO constraints for reductions)\n");
     log(" -cs         Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     log("             to see whether the formula has become generally unsatisfiable\n");
+    log(" -cqm        Collect q-constant mutexes\n");
     log(" -d=<depth>  Minimum depth to begin SAT solving at\n");
     log(" -D=<depth>  Maximum depth to explore (0 : no limit)\n");
     log("             default: %i\n", getIntParam("D"));

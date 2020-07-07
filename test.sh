@@ -2,7 +2,7 @@
 
 timeout=10
 rating_timeout=1800
-domains="miconic smartphone satellite umtranslog woodworking zenotravel childsnack rover barman transport blocksworld factories entertainment" 
+domains="ipc2020-feature-test-forall miconic smartphone satellite umtranslog woodworking zenotravel childsnack rover barman transport blocksworld factories entertainment" 
 
 function rating() {
     time="$1"
