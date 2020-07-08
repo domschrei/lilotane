@@ -1,21 +1,31 @@
 #!/bin/bash
 
+set -e
+
+# Fetch a clean state of pandaPIparser
 if [ ! -d pandaPIparser ]; then
+    echo "Fetching pandaPIparser ..."
     git clone git@github.com:panda-planner-dev/pandaPIparser.git
+    cd pandaPIparser
+else
+    cd pandaPIparser
+    git clean -f
 fi
 
-cp panda_makefile pandaPIparser/makefile
-cp libpanda.hpp pandaPIparser/src/
-cd pandaPIparser
+# Checkout correct commit (can be updated but must be manually checked to build cleanly)
+git config --global advice.detachedHead false
+git checkout 6725597e2a664747882f0a67d974d0a596238718
 
+# Patch pandaPIparser with adapted makefile and "library" header
+cp ../panda_makefile makefile
+cp ../libpanda.hpp src/
+
+# Build library (internally does a patch of pandaPIparser's main.cpp)
 make library
 cp build/libpandaPIparser.a ../../lib/
+echo "Copied libpandaPIparser.a into lib/ directory."
 
+# Build standalone executable for debugging purposes
 make executable
 cp pandaPIparser ../../
-
-#sed 's/^int main(int argc, char\*\* argv)/int run_pandaPIparser(int argc, char\*\* argv, ParsedProblem\& pp)/' src/main.cpp \
-#	| sed -z 's/#include/#include "libpanda.hpp"\n#include/' \
-#	| sed 's/^}/\tCOPY_INTO_PARSED_PROBLEM(pp)\n}/' > MAIN
-#mv MAIN src/main.cpp
-
+echo "Copied pandaPIparser executable into treerexx root directory."
