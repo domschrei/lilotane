@@ -4,7 +4,7 @@
 #include <regex>
 #include <string>
 
-#include "parser/plan.hpp"
+#include "plan.hpp"
 
 #include "planner.h"
 #include "util/log.h"

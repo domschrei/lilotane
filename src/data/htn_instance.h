@@ -4,7 +4,8 @@
 
 #include <assert.h> 
  
-#include "parser/main.hpp"
+#include "libpanda.hpp"
+
 #include "data/code_table.h"
 #include "data/layer.h"
 #include "data/action.h"
@@ -17,10 +18,6 @@
 #include "data/instantiator.h"
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
-
-// External functions
-int run_pandaPIparser(int argc, char** argv);
-ParsedProblem& get_parsed_problem();
 
 struct HtnInstance {
 
@@ -85,7 +82,7 @@ struct HtnInstance {
 
 
 
-    static ParsedProblem& parse(std::string domainFile, std::string problemFile);
+    static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
 
     HtnInstance(Parameters& params, ParsedProblem& p);
 

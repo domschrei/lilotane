@@ -40,7 +40,8 @@ void handleAbort(int sig) {
 
 int run(Parameters& params) {
 
-    ParsedProblem& p = HtnInstance::parse(params.getDomainFilename(), params.getProblemFilename());
+    ParsedProblem p;
+    HtnInstance::parse(params.getDomainFilename(), params.getProblemFilename(), p);
 
     log("%i methods, %i abstract tasks, %i primitive tasks\n", 
         p.methods.size(), p.abstract_tasks.size(), p.primitive_tasks.size());

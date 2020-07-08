@@ -1,24 +1,24 @@
 
 #include <regex>
 #include <algorithm>
+#include <getopt.h>
 
 #include "data/htn_instance.h"
 
  
-ParsedProblem& HtnInstance::parse(std::string domainFile, std::string problemFile) {
+void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedProblem& pp) {
 
     const char* firstArg = "pandaPIparser";
     const char* domainStr = domainFile.c_str();
     const char* problemStr = problemFile.c_str();
 
-    char* args[4];
+    char* args[3];
     args[0] = (char*)firstArg;
     args[1] = (char*)domainStr;
     args[2] = (char*)problemStr;
-    args[3] = "-s";
 
-    run_pandaPIparser(3 /*change to 4 to enable -s !*/, args);
-    return get_parsed_problem();
+    optind = 1;
+    run_pandaPIparser(3, args, pp);
 }
 
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
@@ -227,7 +227,7 @@ USignature HtnInstance::getInitTaskSignature(int pos) {
 
 SigSet HtnInstance::getInitState() {
     SigSet result;
-    for (const ground_literal& lit : init) {
+    for (const ground_literal& lit : _p.init) {
         Signature sig(getNameId(lit.predicate), getArguments(getNameId(lit.predicate), lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
@@ -260,7 +260,7 @@ SigSet HtnInstance::getInitState() {
 
 SigSet HtnInstance::getGoals() {
     SigSet result;
-    for (const ground_literal& lit : goal) {
+    for (const ground_literal& lit : _p.goal) {
         Signature sig(getNameId(lit.predicate), getArguments(getNameId(lit.predicate), lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);

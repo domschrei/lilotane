@@ -5,7 +5,6 @@
 #include <functional>
 
 #include "data/hashmap.h"
-#include "parser/cwa.hpp"
 #include "data/reduction.h"
 #include "data/action.h"
 #include "data/code_table.h"
