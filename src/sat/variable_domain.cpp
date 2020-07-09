@@ -21,7 +21,7 @@ int VariableDomain::getMaxVar() {
 
 void VariableDomain::printVar(int var, int layerIdx, int pos, const USignature& sig) {
     if (_print_variables) {
-        log("VARMAP %i %s\n", var, varName(layerIdx, pos, sig).c_str());
+        Log::d("VARMAP %i %s\n", var, varName(layerIdx, pos, sig).c_str());
     }
 }
 std::string VariableDomain::varName(int layerIdx, int pos, const USignature& sig) {

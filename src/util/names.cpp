@@ -15,7 +15,7 @@ namespace Names {
 
     std::string to_string(int nameId) {
         if (nameId <= 0) return std::to_string(nameId);
-        assert(nbt->count(nameId) || fail("No name known with ID " + std::to_string(nameId) + "!\n"));
+        assert(nbt->count(nameId) || Log::e("No name known with ID %i!\n", nameId));
         return nbt->at(nameId);
     }
 

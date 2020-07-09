@@ -114,7 +114,7 @@ QConstantCondition* QConstantDatabase::addCondition(int op, const std::vector<in
     // Check if already present
     for (const auto& q : reference) {
         if (_q_const_map.count(q) && getConditions(q).count(cond)) {
-            log("QCONSTCOND_DUPLICATE %s@%i,%i %s\n", TOSTR(_op_sigs[cond->originOp].usig), 
+            Log::d("QCONSTCOND_DUPLICATE %s@%i,%i %s\n", TOSTR(_op_sigs[cond->originOp].usig), 
                     _op_sigs[cond->originOp].layer, _op_sigs[cond->originOp].pos, cond->toStr().c_str());
             delete cond;
             return nullptr;
@@ -131,7 +131,7 @@ QConstantCondition* QConstantDatabase::addCondition(int op, const std::vector<in
         std::get<1>(_q_const_map[q]).insert(cond);
     }
 
-    log("QCONSTCOND_CREATE %s@%i,%i %s (universal: %s)\n", TOSTR(_op_sigs[op].usig), _op_sigs[op].layer, _op_sigs[op].pos, cond->toStr().c_str(), isUniversal(cond) ? "true" : "false");
+    Log::d("QCONSTCOND_CREATE %s@%i,%i %s (universal: %s)\n", TOSTR(_op_sigs[op].usig), _op_sigs[op].layer, _op_sigs[op].pos, cond->toStr().c_str(), isUniversal(cond) ? "true" : "false");
 
     return cond;
 }
@@ -194,7 +194,7 @@ void QConstantDatabase::backpropagateConditions(int layer, int pos, const USigSe
     while (!parentOpStack.empty()) {
         int parentOp = parentOpStack.back(); parentOpStack.pop_back();
         if (parentOp == 0) continue;
-        log("??%s\n", TOSTR(_op_sigs[parentOp].usig));
+        Log::d("??%s\n", TOSTR(_op_sigs[parentOp].usig));
         const auto& children = _op_children_at_offset[parentOp];
         for (int offset = 0; offset < children.size(); offset++) {
 
@@ -203,7 +203,7 @@ void QConstantDatabase::backpropagateConditions(int layer, int pos, const USigSe
 
             // Calculate intersection of these child ops' conds
             for (const int& childOp : children[offset]) {
-                log(" -- ??%s\n", TOSTR(_op_sigs[childOp].usig));
+                Log::d(" -- ??%s\n", TOSTR(_op_sigs[childOp].usig));
                 if (first) {
                     // Initial set of locally relevant conditions
                     for (const auto& cond : _conditions_per_op[childOp]) {
@@ -232,7 +232,7 @@ void QConstantDatabase::backpropagateConditions(int layer, int pos, const USigSe
                 for (const auto& cond : isect) {
                     auto newCond = addCondition(parentOp, cond->reference, cond->conjunction, cond->values);
                     if (newCond == nullptr) continue;
-                    log("QQ PROPAGATE %s to %s (now universal: %s)\n", cond->toStr().c_str(), TOSTR(_op_sigs[parentOp].usig), isUniversal(newCond) ? "true" : "false");
+                    Log::d("QQ PROPAGATE %s to %s (now universal: %s)\n", cond->toStr().c_str(), TOSTR(_op_sigs[parentOp].usig), isUniversal(newCond) ? "true" : "false");
                     if (!parentOps.count(parentOp)) {
                         parentOpStack.push_back(parentOp);
                         parentOps.insert(parentOp);

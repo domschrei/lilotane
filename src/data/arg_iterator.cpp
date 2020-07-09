@@ -23,8 +23,7 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
     // Get all constants of the respective type(s)
     assert(_htn._signature_sorts_table.count(sig._name_id));
     std::vector<int> sorts = _htn._signature_sorts_table[sig._name_id];
-    assert(sorts.size() == sig._args.size() || fail("Sorts table of predicate " 
-            + Names::to_string(sig) + " has an invalid size\n"));
+    assert(sorts.size() == sig._args.size() || Log::e("Sorts table of predicate %s has an invalid size\n", TOSTR(sig)));
     
     //log("SORTS %s ", TOSTR(sig._name_id));
     //for (int s : sorts) log("%s ", TOSTR(s));
@@ -114,7 +113,7 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
     }
 
     assert(numChoices <= numInstantiations || 
-        fail(std::to_string(numChoices) + " > " + std::to_string(numInstantiations)) + "\n");
+        Log::e("Erroneous instantiation: %s > %s\n", numChoices, numInstantiations));
     
     return instantiation;
 }

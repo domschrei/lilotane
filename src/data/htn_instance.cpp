@@ -40,13 +40,13 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     
     extractConstants();
 
-    log("Sorts extracted.\n");
+    Log::i("Sorts extracted.\n");
     for (const auto& sort_pair : _p.sorts) {
-        log(" %s : ", sort_pair.first.c_str());
+        Log::d(" %s : ", sort_pair.first.c_str());
         for (const std::string& c : sort_pair.second) {
-            log("%s ", c.c_str());
+            Log::d("%s ", c.c_str());
         }
-        log("\n");
+        Log::d("\n");
     }
 
     // Create actions
@@ -162,7 +162,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         }
     }
     
-    log("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+    Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
 
 int HtnInstance::getNameId(const std::string& name) {
@@ -216,7 +216,7 @@ USignature HtnInstance::getInitTaskSignature(int pos) {
             newArgs.push_back(getNameId(name));
         } else {
             // Parameter inside initial task
-            log("%s was not matched by initial task argname substitution!\n", name.c_str());
+            Log::w("%s was not matched by initial task argname substitution!\n", name.c_str());
             newArgs.push_back(arg);
         }
     }
@@ -250,7 +250,7 @@ SigSet HtnInstance::getInitState() {
                 args.push_back(c1); args.push_back(c2);
                 Signature sig(eqPredId, args);
                 result.insert(sig);
-                log("EQUALITY %s\n", TOSTR(sig));
+                Log::d("EQUALITY %s\n", TOSTR(sig));
             }
         }
     }
@@ -332,7 +332,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
     if (!method.constraints.empty()) {
         for (const literal& lit : method.constraints) {            
             //log("%s\n", TOSTR(getSignature(lit)));
-            assert(lit.predicate == "__equal" || fail("Unknown constraint predicate \"" + lit.predicate + "\"!\n"));
+            assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"\"!\n", lit.predicate.c_str()));
             condLiterals.push_back(lit);
         }
     }
@@ -347,7 +347,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
         while (std::regex_match(subtaskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
             subtaskName = matches.str(1);
         }
-        log("%s\n", subtaskName.c_str());
+        Log::d("%s\n", subtaskName.c_str());
 
         if (subtaskName.rfind(method_precondition_action_name) != std::string::npos) {
             // This "subtask" is a method precondition which was compiled out
@@ -377,7 +377,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
                 }
             }
             assert(numFound >= 1);
-            log("Using %i preconds of prim. task %s as preconds of method %s\n", 
+            Log::d("- Using %i preconds of prim. task %s as preconds of method %s\n", 
                     precTask.prec.size(), precTask.name.c_str(), st.task.c_str());
 
             // Add its preconditions to the method's preconditions
@@ -469,14 +469,14 @@ Reduction& HtnInstance::createReduction(const method& method) {
         _reductions[id].orderSubtasks(orderingNodelist);
     }
 
-    log(" %s : %i preconditions, %i subtasks\n", TOSTR(_reductions[id].getSignature()), 
+    Log::d(" %s : %i preconditions, %i subtasks\n", TOSTR(_reductions[id].getSignature()), 
                 _reductions[id].getPreconditions().size(), 
                 _reductions[id].getSubtasks().size());
-    log("  PRE ");
+    Log::d("  PRE ");
     for (const Signature& sig : r.getPreconditions()) {
-        log("%s ", TOSTR(sig));
+        Log::d("%s ", TOSTR(sig));
     }
-    log("\n");
+    Log::d("\n");
 
     return _reductions[id];
 }

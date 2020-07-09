@@ -12,7 +12,7 @@
 int Planner::findPlan() {
     
     int iteration = 0;
-    log("ITERATION %i\n", iteration);
+    Log::i("Iteration %i.\n", iteration);
 
     createFirstLayer();
 
@@ -34,24 +34,24 @@ int Planner::findPlan() {
             _enc.printFailedVars(_layers.back());
 
             if (_params.isSet("cs")) { // check solvability
-                log("Unsolvable at layer %i with assumptions\n", _layer_idx);
+                Log::i("Unsolvable at layer %i with assumptions\n", _layer_idx);
 
                 // Attempt to solve formula again, now without assumptions
                 // (is usually simple; if it fails, we know the entire problem is unsolvable)
                 solved = _enc.solve();
                 if (!solved) {
-                    log("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
+                    Log::w("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
                     break;
                 } else {
-                    log("Solvable without assumptions - expanding by another layer\n");
+                    Log::i("Solvable without assumptions - expanding by another layer\n");
                 }
             } else {
-                log("Unsolvable at layer %i -- expanding.\n", _layer_idx);
+                Log::i("Unsolvable at layer %i -- expanding.\n", _layer_idx);
             }
         }
 
         iteration++;      
-        log("ITERATION %i\n", iteration);
+        Log::i("Iteration %i.\n", iteration);
         
         createNextLayer();
 
@@ -63,16 +63,14 @@ int Planner::findPlan() {
 
     if (!solved) {
         if (iteration >= firstSatCallIteration) _enc.printFailedVars(_layers.back());
-        log("No success. Exiting.\n");
+        Log::w("No success. Exiting.\n");
         return 1;
     }
 
-    log("Found a solution at layer %i.\n", _layers.size()-1);
+    Log::i("Found a solution at layer %i.\n", _layers.size()-1);
 
     outputPlan();
-
     _enc.printStages();
-    //_enc.printSatisfyingAssignment();
     
     return 0;
 }
@@ -135,17 +133,17 @@ void Planner::outputPlan() {
     // (w.r.t. previous compilations the parser did) and output it
     std::ostringstream outstream;
     convert_plan(stream, outstream);
-    log(outstream.str().c_str());
-    log("<==\n");
+    Log::log_notime(Log::V0_ESSENTIAL, outstream.str().c_str());
+    Log::log_notime(Log::V0_ESSENTIAL, "<==\n");
     
-    log("End of solution plan.\n");
+    Log::i("End of solution plan.\n");
 }
 
 void Planner::createFirstLayer() {
 
     // Initial layer of size 2 (top level reduction + goal action)
     int initSize = 2;
-    log("Creating initial layer of size %i\n", initSize);
+    Log::i("Creating initial layer of size %i\n", initSize);
     _layer_idx = 0;
     _pos = 0;
     _layers.push_back(Layer(0, initSize));
@@ -220,7 +218,7 @@ void Planner::createNextLayer() {
 
     _layers.emplace_back(_layers.size(), _layers.back().getNextLayerSize());
     Layer& newLayer = _layers.back();
-    log(" NEW_LAYER_SIZE %i\n", newLayer.size());
+    Log::i("New layer size: %i\n", newLayer.size());
     Layer& oldLayer = _layers[_layer_idx];
     _layer_idx++;
     _pos = 0;
@@ -231,14 +229,14 @@ void Planner::createNextLayer() {
 
         for (int offset = 0; offset < maxOffset; offset++) {
             assert(_pos == newPos + offset);
-            log(" Position (%i,%i)\n", _layer_idx, _pos);
-            log("  Instantiating ...\n");
+            Log::i(" Position (%i,%i)\n", _layer_idx, _pos);
+            Log::v("  Instantiating ...\n");
 
             //log("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            log("  Instantiation done. (r=%i a=%i f=%i qf=%i)\n", 
+            Log::v("  Instantiation done. (r=%i a=%i f=%i qf=%i)\n", 
                     _layers[_layer_idx][_pos].getReductions().size(),
                     _layers[_layer_idx][_pos].getActions().size(),
                     _layers[_layer_idx][_pos].getFacts().size(),
@@ -358,7 +356,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
     //log("pre %s of %s\n", TOSTR(fact), TOSTR(op));
     // Precondition must be valid (or a q fact)
     if (!isQFact) assert(getLayerState().contains(_pos, fact) 
-            || fail(Names::to_string(fact) + " not contained in state!\n"));
+            || Log::e("%s not contained in state!\n", TOSTR(fact)));
 
     // Add additional reason for the fact / add it first if it's a q-constant
     if (isQFact) pos.addQFact(factAbs);
@@ -508,7 +506,7 @@ void Planner::propagateInitialState() {
             }
         }
     }
-    log("%i neg, %i pos ~~~> %i neg, %i pos\n", oldState.getNegFactOccurrences().size(), oldState.getPosFactOccurrences().size(), 
+    Log::d("%i neg, %i pos ~~~> %i neg, %i pos\n", oldState.getNegFactOccurrences().size(), oldState.getPosFactOccurrences().size(), 
                                                 newState.getNegFactOccurrences().size(), newState.getPosFactOccurrences().size());
     
 }
@@ -614,7 +612,7 @@ void Planner::propagateReductions(int offset) {
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
-            log("FORBIDDING reduction %s@(%i,%i): no children at offset %i\n", 
+            Log::i("Forbidding reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
             newPos.addExpansion(rSig, Position::NONE_SIG);
         }
@@ -670,7 +668,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     // Compute fact changes
     _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
 
-    log("ADDACTION -- added\n");
+    Log::d("ADDACTION -- added\n");
     return true;
 }
 

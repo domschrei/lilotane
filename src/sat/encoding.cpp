@@ -23,7 +23,7 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& lay
 
 void Encoding::encode(int layerIdx, int pos) {
     
-    log("  Encoding ...\n");
+    Log::v("  Encoding ...\n");
     int priorNumClauses = _num_cls;
     int priorNumLits = _num_lits;
 
@@ -306,7 +306,7 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("axiomaticops");
 
-    log("  Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
+    Log::i("Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
     left.clearFactChanges();
 
@@ -321,7 +321,7 @@ void Encoding::encode(int layerIdx, int pos) {
         positionToClear = &_layers->at(layerIdx-1)[oldPos-1];
     }
     if (positionToClear != nullptr) {
-        log("  Freeing memory of (%i,%i) ...\n", positionToClear->getPos().first, positionToClear->getPos().second);
+        Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getPos().first, positionToClear->getPos().second);
         positionToClear->clearUnneeded();
     }
     /*
@@ -471,7 +471,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         }
     }
     stage("factvarreusage");
-    log("    %.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
+    Log::d("%.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
 }
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
@@ -686,7 +686,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
 
-    if (cnf.size() > 1000) log("CNF of size %i generated\n", cnf.size());
+    if (cnf.size() > 1000) Log::w("CNF of size %i generated\n", cnf.size());
 
     return cnf;
 }
@@ -763,7 +763,7 @@ void Encoding::assume(int lit) {
 }
 
 bool Encoding::solve() {
-    log("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
+    Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _num_cls, _num_lits, _num_asmpts);
     bool solved = ipasir_solve(_solver) == 10;
     if (_num_asmpts == 0) _last_assumptions.clear();
@@ -782,8 +782,7 @@ bool Encoding::isEncodedSubstitution(const USignature& sig) {
 int Encoding::varSubstitution(const USignature& sigSubst) {
 
     if (!_substitution_variables.count(sigSubst)) {
-        assert(!VariableDomain::isLocked() || fail("Unknown substitution variable " 
-                    + Names::to_string(sigSubst) + " queried!\n"));
+        assert(!VariableDomain::isLocked() || Log::e("Unknown substitution variable %s queried!\n", TOSTR(sigSubst)));
         int var = VariableDomain::nextVar();
         _substitution_variables[sigSubst] = var;
         VariableDomain::printVar(var, -1, -1, sigSubst);
@@ -797,7 +796,7 @@ std::string Encoding::varName(int layer, int pos, const USignature& sig) {
 }
 
 void Encoding::printVar(int layer, int pos, const USignature& sig) {
-    log("%s\n", VariableDomain::varName(layer, pos, sig).c_str());
+    Log::d("%s\n", VariableDomain::varName(layer, pos, sig).c_str());
 }
 
 int Encoding::varPrimitive(int layer, int pos) {
@@ -805,12 +804,12 @@ int Encoding::varPrimitive(int layer, int pos) {
 }
 
 void Encoding::printFailedVars(Layer& layer) {
-    log("FAILED ");
+    Log::d("FAILED ");
     for (int pos = 0; pos < layer.size(); pos++) {
         int v = varPrimitive(layer.index(), pos);
-        if (ipasir_failed(_solver, v)) log("%i ", v);
+        if (ipasir_failed(_solver, v)) Log::d("%i ", v);
     }
-    log("\n");
+    Log::d("\n");
 }
 
 std::vector<PlanItem> Encoding::extractClassicalPlan() {
@@ -833,7 +832,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     //log("(actions at layer %i)\n", li);
     for (int pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
-        assert(value(li, pos, _sig_primitive) || fail("Position " + std::to_string(pos) + " is not primitive!\n"));
+        assert(value(li, pos, _sig_primitive) || Log::e("Plan error: Position %i is not primitive!\n", pos));
 
         int chosenActions = 0;
         //State newState = state;
@@ -874,7 +873,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         //}
         //state = newState;
 
-        assert(chosenActions <= 1 || fail("Added " + std::to_string(chosenActions) + " actions at step " + std::to_string(pos) + "!\n"));
+        assert(chosenActions <= 1 || Log::e("Plan error: Added %i actions at step %i!\n", chosenActions, pos));
         if (chosenActions == 0) {
             plan.emplace_back(-1, USignature(), USignature(), std::vector<int>());
         }
@@ -900,12 +899,11 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
         // Check assignment
         if (!_htn.isRigidPredicate(pre._usig._name_id))
             assert((isEncoded(layer, pos, pre._usig) && value(layer, pos, pre._usig) == !pre._negated) 
-            || fail("Precondition " + Names::to_string(pre) + " of action "
-        + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos) + "!\n"));
+            || Log::e("Plan error: Precondition %s of action %s does not hold in assignment at step %i!\n", TOSTR(pre), TOSTR(a), pos));
 
         // Check state
-        assert(_htn.hasQConstants(pre._usig) || holds(state, pre) || fail("Precondition " + Names::to_string(pre) + " of action "
-            + Names::to_string(a) + " does not hold in inferred state at step " + std::to_string(pos) + "!\n"));
+        assert(_htn.hasQConstants(pre._usig) || holds(state, pre) 
+            || Log::e("Plan error: Precondition %s of action %s does not hold in inferred state at step %i!\n", TOSTR(pre), TOSTR(a), pos));
         
         //log("Pre %s of action %s holds @(%i,%i)\n", TOSTR(pre), TOSTR(a.getSignature()), 
         //        layer, pos);
@@ -913,8 +911,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
 
     for (const Signature& eff : a.getEffects()) {
         assert((isEncoded(layer, pos+1, eff._usig) && value(layer, pos+1, eff._usig) == !eff._negated) 
-            || fail("Effect " + Names::to_string(eff) + " of action "
-        + Names::to_string(a) + " does not hold in assignment at step " + std::to_string(pos+1) + "!\n"));
+            || Log::e("Plan error: Effect %s of action %s does not hold in assignment at step %i!\n", TOSTR(eff), TOSTR(a), pos+1));
 
         // Apply effect
         if (holds(state, eff.opposite())) newState[eff._usig._name_id].erase(eff.opposite());
@@ -975,7 +972,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                     USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
                     Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
-                    log("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
+                    Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
 
                     if (layerIdx == 0) {
                         // Initial reduction
@@ -991,9 +988,9 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     Reduction parentRed;
                     int offset = pos - _layers->at(layerIdx-1).getSuccessorPos(predPos);
                     PlanItem& parent = itemsOldLayer[predPos];
-                    assert(parent.id >= 0 || fail("No parent at " + std::to_string(layerIdx-1) + "," + std::to_string(predPos) + "!\n"));
+                    assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
                     assert(_htn._reductions.count(parent.reduction._name_id) || 
-                        fail("Invalid reduction id=" + std::to_string(parent.reduction._name_id) + " at " + std::to_string(layerIdx-1) + "," + std::to_string(predPos) + "\n"));
+                        Log::e("Plan error: Invalid reduction id=%i at %i,%i!\n", parent.reduction._name_id, layerIdx-1, predPos));
 
                     parentRed = _htn._reductions[parent.reduction._name_id];
                     parentRed = parentRed.substituteRed(Substitution(parentRed.getArguments(), parent.reduction._args));
@@ -1003,14 +1000,14 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     if (parentRed.getSubtasks()[offset] == rDecoded.getTaskSignature()) {
                         if (itemsOldLayer[predPos].subtaskIds.size() > offset) {
                             // This subtask has already been written!
-                            log(" -- is a redundant child -> dismiss\n");
+                            Log::d(" -- is a redundant child -> dismiss\n");
                             continue;
                         }
                         itemsNewLayer[pos] = PlanItem(v, rDecoded.getTaskSignature(), decRSig, std::vector<int>());
                         itemsOldLayer[predPos].subtaskIds.push_back(v);
                         reductionsThisPos++;
                     } else {
-                        log(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
+                        Log::d(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
                     } 
                 }
             }
@@ -1039,7 +1036,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // TODO check this is a valid subtask relationship
 
-                    log("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
+                    Log::d("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
 
                     // Find the actual action variable at the final layer, not at this (inner) layer
                     int l = layerIdx;
@@ -1060,17 +1057,14 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
             // At least an item per position 
             assert( (actionsThisPos+reductionsThisPos >= 1)
-            || fail(std::to_string(actionsThisPos+reductionsThisPos) 
-                + " ops at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
+            || Log::e("Plan error: %i ops at (%i,%i)!\n", actionsThisPos+reductionsThisPos, layerIdx, pos));
             
             // At most one action per position
-            assert(actionsThisPos <= 1 || fail(std::to_string(actionsThisPos) 
-                + " actions at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
+            assert(actionsThisPos <= 1 || Log::e("Plan error: %i actions at (%i,%i)!\n", actionsThisPos, layerIdx, pos));
 
             // Either actions OR reductions per position (not both)
-            assert(actionsThisPos == 0 || reductionsThisPos == 0 || fail(std::to_string(actionsThisPos) 
-                + " actions and " + std::to_string(reductionsThisPos) + " reductions at (" 
-                + std::to_string(layerIdx) + "," + std::to_string(pos) + ") !\n"));
+            assert(actionsThisPos == 0 || reductionsThisPos == 0 
+            || Log::e("Plan error: %i actions and %i reductions at (%i,%i)!\n", actionsThisPos, reductionsThisPos, layerIdx, pos));
         }
 
         plan.insert(plan.end(), itemsOldLayer.begin(), itemsOldLayer.end());
@@ -1089,11 +1083,11 @@ bool Encoding::value(int layer, int pos, const USignature& sig) {
 }
 
 void Encoding::printSatisfyingAssignment() {
-    log("SOLUTION_VALS ");
+    Log::d("SOLUTION_VALS ");
     for (int v = 1; v <= VariableDomain::getMaxVar(); v++) {
-        log("%i ", ipasir_val(_solver, v));
+        Log::d("%i ", ipasir_val(_solver, v));
     }
-    log("\n");
+    Log::d("\n");
 }
 
 USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig) {
@@ -1149,9 +1143,9 @@ void Encoding::stage(std::string name) {
 }
 
 void Encoding::printStages() {
-    log("Total amount of clauses encoded: %i\n", _num_cls);
+    Log::i("Total amount of clauses encoded: %i\n", _num_cls);
     for (const auto& entry : _total_num_cls_per_stage) {
-        log(" %s : %i cls\n", entry.first.c_str(), entry.second);
+        Log::i(" %s : %i cls\n", entry.first.c_str(), entry.second);
     }
     _total_num_cls_per_stage.clear();
 }

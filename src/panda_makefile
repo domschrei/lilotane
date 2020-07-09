@@ -48,6 +48,7 @@ build/hddl.cpp: src/hddl.y
 build/libmain.cpp:
 	sed 's/^int main(int argc, char\*\* argv)/int run_pandaPIparser(int argc, char\*\* argv, ParsedProblem\& pp)/' src/main.cpp \
 	| sed -z 's/^/\n#include "libpanda.hpp"\n\n/' \
+	| sed 's,simple_hddl_output(,//simple_hddl_output(,g' \
 	| sed 's/^}/\tCOPY_INTO_PARSED_PROBLEM(pp)\n\treturn 0;\n}/' > build/libmain.cpp
 
 build/hddl.hpp: build/hddl.cpp

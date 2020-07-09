@@ -36,11 +36,11 @@ void Position::addForbiddenSubstitution(const USignature& op, const std::vector<
 
 void Position::addAction(const USignature& action) {
     _actions.insert(action);
-    log("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
+    Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
 void Position::addReduction(const USignature& reduction) {
     _reductions.insert(reduction);
-    log("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
+    Log::d("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
 }
 void Position::addExpansion(const USignature& parent, const USignature& child) {
     _expansions[parent];
@@ -61,7 +61,7 @@ int Position::encode(const USignature& sig) {
     
     if (!_variables.count(sig)) {
         // introduce a new variable
-        assert(!VariableDomain::isLocked() || fail("Unknown variable " + VariableDomain::varName(_layer_idx, _pos, sig) + " queried!\n"));
+        assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
         _variables[sig] = IntPair(VariableDomain::nextVar(), _pos);
         IntPair& pair = _variables[sig];
         VariableDomain::printVar(pair.first, _layer_idx, _pos, sig);
