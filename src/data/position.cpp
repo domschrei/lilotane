@@ -35,11 +35,13 @@ void Position::addForbiddenSubstitution(const USignature& op, const std::vector<
 }
 
 void Position::addAction(const USignature& action) {
-    _actions.insert(action);
+    _actions[action];
+    _actions[action]++;
     Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
 void Position::addReduction(const USignature& reduction) {
-    _reductions.insert(reduction);
+    _reductions[reduction];
+    _reductions[reduction]++;
     Log::d("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
 }
 void Position::addExpansion(const USignature& parent, const USignature& child) {
@@ -55,6 +57,21 @@ void Position::setFactChanges(const USignature& op, const SigSet& factChanges) {
 }
 const SigSet& Position::getFactChanges(const USignature& op) const {
     return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
+}
+
+void Position::removeActionOccurrence(const USignature& action) {
+    assert(_actions.count(action));
+    _actions[action]--;
+    if (_actions[action] == 0) {
+        _actions.erase(action);
+    }
+}
+void Position::removeReductionOccurrence(const USignature& reduction) {
+    assert(_reductions.count(reduction));
+    _reductions[reduction]--;
+    if (_reductions[reduction] == 0) {
+        _reductions.erase(reduction);
+    }
 }
 
 int Position::encode(const USignature& sig) {
@@ -124,8 +141,8 @@ Position::getForbiddenSubstitutions() const {
     return _forbidden_substitutions_per_op;
 }
 
-const USigSet& Position::getActions() const {return _actions;}
-const USigSet& Position::getReductions() const {return _reductions;}
+const NodeHashMap<USignature, int, USignatureHasher>& Position::getActions() const {return _actions;}
+const NodeHashMap<USignature, int, USignatureHasher>& Position::getReductions() const {return _reductions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
@@ -134,8 +151,8 @@ void Position::clearUnneeded() {
     _facts.clear();
 
     FlatHashMap<USignature, IntPair, USignatureHasher> cleanedVars;
-    for (const USignature& r : _reductions) cleanedVars[r] = _variables[r];
-    for (const USignature& a : _actions) cleanedVars[a] = _variables[a];
+    for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
+    for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
     _variables = std::move(cleanedVars);
 }
 

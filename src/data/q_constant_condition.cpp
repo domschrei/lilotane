@@ -51,6 +51,9 @@ int QConstantDatabase::addOp(const HtnOp& op, int layer, int pos, const Position
         int id = _op_ids[opPSig];
         if (parentId != _op_ids[PSIG_ROOT]) {
             _op_possible_parents[id].push_back(parentId);
+            while (offset >= _op_children_at_offset[parentId].size()) {
+                _op_children_at_offset[parentId].emplace_back();
+            } 
             _op_children_at_offset[parentId][offset].push_back(id);
         }
         return id;
@@ -178,13 +181,13 @@ bool QConstantDatabase::test(const std::vector<int>& refQConsts, const std::vect
     return holds;
 }
 
-void QConstantDatabase::backpropagateConditions(int layer, int pos, const USigSet& leafOps) {
+void QConstantDatabase::backpropagateConditions(int layer, int pos, const NodeHashMap<USignature, int, USignatureHasher>& leafOps) {
 
     return;
 
     FlatHashSet<int> parentOps;
     for (const auto& leafOp : leafOps) {
-        PositionedUSig psig(layer, pos, leafOp);
+        PositionedUSig psig(layer, pos, leafOp.first);
         if (!_op_ids.count(psig)) continue;
         for (int id : _op_possible_parents[_op_ids[psig]]) parentOps.insert(id);
     }

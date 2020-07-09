@@ -119,7 +119,8 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Effects of "old" actions to the left
     stage("actioneffects");
-    for (const USignature& aSig : left.getActions()) {
+    for (const auto& entry : left.getActions()) {
+        const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
         int aVar = left.encode(aSig);
 
@@ -148,7 +149,8 @@ void Encoding::encode(int layerIdx, int pos) {
     // New actions
     stage("actionconstraints");
     int numOccurringOps = 0;
-    for (const USignature& aSig : newPos.getActions()) {
+    for (const auto& entry : newPos.getActions()) {
+        const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
 
         numOccurringOps++;
@@ -165,7 +167,8 @@ void Encoding::encode(int layerIdx, int pos) {
         }
 
         // At-most-one action
-        for (const USignature& otherSig : newPos.getActions()) {
+        for (const auto& otherEntry : newPos.getActions()) {
+            const USignature& otherSig = otherEntry.first;
             int otherVar = newPos.encode(otherSig);
             if (aVar < otherVar) {
                 addClause(-aVar, -otherVar);
@@ -176,7 +179,8 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // reductions
     stage("reductionconstraints");
-    for (const USignature& rSig : newPos.getReductions()) {
+    for (const auto& entry : newPos.getReductions()) {
+        const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
 
         numOccurringOps++;
@@ -190,8 +194,8 @@ void Encoding::encode(int layerIdx, int pos) {
             // TODO At-most-one constraints to other trivial reductions?
 
             // Add At-most-one constraints to "proper" actions
-            for (const USignature& otherSig : newPos.getActions()) {
-                int otherVar = newPos.encode(otherSig);
+            for (const auto& otherEntry : newPos.getActions()) {
+                int otherVar = newPos.encode(otherEntry.first);
                 addClause(-rVar, -otherVar);
             }
         } else {
@@ -208,7 +212,8 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // At-most-one reduction
         if (newPos.getReductions().size() > _params.getIntParam("amor")) continue;
-        for (const USignature& otherSig : newPos.getReductions()) {
+        for (const auto& otherEntry : newPos.getReductions()) {
+            const USignature& otherSig = otherEntry.first;
             if (otherSig == Position::NONE_SIG) continue;
             int otherVar = newPos.encode(otherSig);
             if (rVar < otherVar) {
@@ -837,8 +842,9 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
         int chosenActions = 0;
         //State newState = state;
         SigSet effects;
-        for (const USignature& aSig : finalLayer[pos].getActions()) {
-            
+        for (const auto& entry : finalLayer[pos].getActions()) {
+            const USignature& aSig = entry.first;
+
             if (!isEncoded(li, pos, aSig)) continue;
             //log("  %s ?\n", TOSTR(aSig));
 
@@ -952,7 +958,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             int actionsThisPos = 0;
             int reductionsThisPos = 0;
 
-            for (const USignature& rSig : l[pos].getReductions()) {
+            for (const auto& entry : l[pos].getReductions()) {
+                const USignature& rSig = entry.first;
                 if (!isEncoded(layerIdx, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
                 //log("? %s @ (%i,%i)\n", TOSTR(rSig), i, pos);
@@ -1012,7 +1019,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                 }
             }
 
-            for (const USignature& aSig : l[pos].getActions()) {
+            for (const auto& entry : l[pos].getActions()) {
+                const USignature& aSig = entry.first;
                 if (!isEncoded(layerIdx, pos, aSig)) continue;
 
                 if (value(layerIdx, pos, aSig)) {

@@ -305,7 +305,8 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     FlatHashSet<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
-    for (const USignature& aSig : left.getActions()) {
+    for (const auto& entry : left.getActions()) {
+        const USignature& aSig = entry.first;
         for (const Signature& fact : left.getFactChanges(aSig)) {
             addEffect(aSig, fact);
         }
@@ -313,7 +314,8 @@ void Planner::createNextPositionFromLeft(const Position& left) {
             if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
         }
     }
-    for (const USignature& rSig : left.getReductions()) {
+    for (const auto& entry : left.getReductions()) {
+        const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : left.getFactChanges(rSig)) {
             addEffect(rSig, fact);
@@ -516,7 +518,8 @@ void Planner::propagateActions(int offset) {
     Position& above = _layers[_layer_idx-1][_old_pos];
 
     // Propagate actions
-    for (const USignature& aSig : above.getActions()) {
+    for (const auto& entry : above.getActions()) {
+        const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
         const Action& a = _htn._actions_by_sig[aSig];
 
@@ -554,7 +557,8 @@ void Planner::propagateReductions(int offset) {
     Position& above = _layers[_layer_idx-1][_old_pos];
 
     // Expand reductions
-    for (const USignature& rSig : above.getReductions()) {
+    for (const auto& entry : above.getReductions()) {
+        const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
         const Reduction r = _htn._reductions_by_sig[rSig];
         const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
@@ -735,8 +739,9 @@ void Planner::addNewFalseFacts() {
     Position& newPos = _layers[_layer_idx][_pos];
     
     // For each action:
-    for (const USignature& aSig : newPos.getActions()) {
-        
+    for (const auto& entry : newPos.getActions()) {
+        const USignature& aSig = entry.first;
+
         newPos.setFactChanges(aSig, _instantiator.getAllFactChanges(aSig));
 
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
@@ -756,7 +761,8 @@ void Planner::addNewFalseFacts() {
     }
 
     // For each possible reduction effect: 
-    for (const USignature& rSig : newPos.getReductions()) {
+    for (const auto& entry : newPos.getReductions()) {
+        const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
 
         newPos.setFactChanges(rSig, _instantiator.getAllFactChanges(rSig));

@@ -22,8 +22,8 @@ private:
     int _layer_idx;
     int _pos;
 
-    USigSet _actions;
-    USigSet _reductions;
+    NodeHashMap<USignature, int, USignatureHasher> _actions;
+    NodeHashMap<USignature, int, USignatureHasher> _reductions;
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes;
@@ -77,6 +77,9 @@ public:
     void setFactChanges(const USignature& op, const SigSet& factChanges);
     const SigSet& getFactChanges(const USignature& op) const;
 
+    void removeActionOccurrence(const USignature& action);
+    void removeReductionOccurrence(const USignature& reduction);
+
     int encode(const USignature& sig);
     void setVariable(const USignature& sig, int v, int priorPos);
     bool hasVariable(const USignature& sig) const;
@@ -103,8 +106,8 @@ public:
     const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const;
 
-    const USigSet& getActions() const;
-    const USigSet& getReductions() const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getActions() const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getReductions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
     const USigSet& getAxiomaticOps() const;
     int getMaxExpansionSize() const;
