@@ -123,6 +123,7 @@ struct HtnInstance {
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
+    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
 
     const FlatHashSet<int>& getConstantsOfSort(int sort);

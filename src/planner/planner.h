@@ -59,6 +59,8 @@ private:
     void introduceNewFalseFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
 
+    void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);
+
     LayerState& getLayerState(int layer = -1);
     std::function<bool(const Signature&)> getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.

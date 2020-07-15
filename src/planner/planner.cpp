@@ -270,8 +270,26 @@ void Planner::createNextPosition() {
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
 
-    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
-    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
+    // Use new q-constant conditions from this position to infer conditions 
+    // of the respective parent ops at the layer above. 
+    auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
+    auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
+    updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
+
+    pruneRetroactively(updatedOps);
+
+    // Remove all q fact decodings which have become invalid
+    for (const auto& entry : _layers[_layer_idx][_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+        USigSet decodingsToRemove;
+        for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
+            if (!_htn.isAbstraction(decFactSig, qfactSig)) {
+                decodingsToRemove.insert(decFactSig);
+                Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
+            }
+        }
+        // Remove all invalid q fact decodings
+        for (const auto& decFactSig : decodingsToRemove) _htn.removeQFactDecoding(qfactSig, decFactSig);
+    }
 }
 
 void Planner::createNextPositionFromAbove(const Position& above) {
@@ -823,6 +841,40 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
         _layers[_layer_idx][_pos].addQConstantTypeConstraint(op, c);
     }
 }
+
+void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps) {
+
+    // TODO Retroactive pruning.
+    // If they or some of their (recursive) children become impossible,
+    // remove these ops, all of their children and recursively their parent
+    // if the parent has no valid children at that position any more.
+
+    if (!updatedOps.empty()) Log::d("%i ops to update\n", updatedOps.size());
+
+    // For all ops which have become more restricted
+    for (const auto& pusig : updatedOps) {
+        
+        const auto& sig = pusig.usig;
+        int layerIdx = pusig.layer;
+        int pos = pusig.pos;
+        HtnOp& op = _htn.getOp(sig);
+
+        // TODO What if op did not become completely impossible, but just more restricted?
+        // => Iterate over possible children, add these to the "stack" of ops to be updated.
+
+        if (!_instantiator.hasValidPreconditions(op.getPreconditions(), getStateEvaluator(layerIdx, pos))) {
+            // Operation has become impossible to apply
+            Log::d("Op %s became impossible!\n", TOSTR(sig));
+
+            // COMPLETELY remove this op, disregarding witness counters.
+
+            bool isReduction = _htn._reductions.count(sig._name_id);
+            if (isReduction) _layers[layerIdx][pos].removeReductionOccurrence(sig);
+            else _layers[layerIdx][pos].removeActionOccurrence(sig);
+        }
+    }
+}
+
 
 LayerState& Planner::getLayerState(int layer) {
     if (layer == -1) layer = _layer_idx;

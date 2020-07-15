@@ -726,6 +726,10 @@ void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& de
     _qfact_decodings[qFact].insert(decFact);
 }
 
+void HtnInstance::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
+    _qfact_decodings[qFact].erase(decFact);
+}
+
 const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
     return _qfact_decodings[qFact];
 }
@@ -743,16 +747,27 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
     if (concrete._name_id != abstraction._name_id) return false;
     if (concrete._args.size() != abstraction._args.size()) return false;
     
+    // Check syntactical fit
+    std::vector<int> qArgs, decArgs;
     for (int i = 0; i < concrete._args.size(); i++) {
         const int& qarg = abstraction._args[i];
         const int& carg = concrete._args[i];
+        
         // Same argument?
         if (qarg == carg) continue;
         // Different args, no q-constant arg?
         if (!_q_constants.count(qarg)) return false;
+        
+        qArgs.push_back(qarg);
+        decArgs.push_back(carg);
+
         // A q-constant that does not fit the concrete argument?
         if (!getDomainOfQConstant(qarg).count(carg)) return false;
     }
+
+    // Check that q-constant assignment is valid
+    if (!_q_db.test(qArgs, decArgs)) return false;
+
     // A-OK
     return true;
 }
@@ -762,7 +777,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
-    if (!_params.isSet("cqm")) return;
+    if (!_params.isSet("qcm")) return;
     if (!hasQConstants(psig.usig)) return;
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
@@ -792,7 +807,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
             set.insert(toAdd);
         }
 
-        if (bad.empty() || std::min(good.size(), bad.size()) > 16) continue;
+        if (bad.empty() || std::min(good.size(), bad.size()) > 1024) continue;
 
         if (good.size() <= bad.size()) {
             _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);

@@ -343,11 +343,13 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
         if (eff._negated != negated) continue;
         bool matches = true;
         Substitution s;
+        std::vector<int> qargs, decargs;
         //log("  %s ?= %s ", TOSTR(eff), TOSTR(fact));
         for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
             int substArg = fact._args[argPos];
-            if (!_htn->_q_constants.count(effArg)) {
+            bool effIsQ = _htn->_q_constants.count(effArg);
+            if (!effIsQ) {
                 // If the effect fact has no q const here, the arg must be left unchanged
                 matches &= effArg == substArg;
             } else {
@@ -360,10 +362,17 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
                 matches &= (!s.count(effArg) || s[effArg] == substArg);
                 if (!matches) break;
                 s[effArg] = substArg;
+                if (effIsQ) {
+                    qargs.push_back(effArg);
+                    decargs.push_back(substArg);
+                }
             }
         }
         if (matches) {
-            // Valid, matching substitution found (possibly empty)
+            // Matching substitution found. Valid?
+            if (!_htn->_q_db.test(qargs, decargs)) continue;
+
+            // Matching, valid substitution
             if (!substitutions.count(s)) substitutions.insert(s);
             //log(" -- yes\n");
         } else {
