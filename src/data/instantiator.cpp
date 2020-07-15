@@ -95,13 +95,13 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
-    USigSet inst = instantiateLimited(op, state, argsByPriority, 1, true);
+    USigSet inst = instantiateLimited(op, state, argsByPriority, 1, /*returnUnfinished=*/true);
     if (inst.empty()) return inst;
 
     // b) Try if the number of valid instantiations is below the user-defined threshold
     //    -- in that case, return that full instantiation
     if (_q_const_instantiation_limit > 0) {
-        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, false);
+        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
         if (!inst.empty()) return inst;
     }
 

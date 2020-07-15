@@ -45,6 +45,7 @@ private:
     std::vector<Layer>* _layers;
     
     FlatHashMap<USignature, int, USignatureHasher> _substitution_variables;
+    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
     void* _solver;
     std::ofstream _out;
@@ -93,7 +94,7 @@ private:
 
     void encodeFactVariables(Position& pos, const Position& left);
     void encodeFrameAxioms(Position& pos, const Position& left);
-    void initSubstitutionVars(int qconst, Position& pos);
+    void initSubstitutionVars(int opVar, int qconst, Position& pos);
 
     void propagateFact(Position& pos, Position& above, int oldPos, int offset, const USignature& fact);
 

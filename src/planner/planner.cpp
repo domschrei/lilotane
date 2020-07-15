@@ -280,15 +280,31 @@ void Planner::createNextPosition() {
 
     // Remove all q fact decodings which have become invalid
     for (const auto& entry : _layers[_layer_idx][_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+
+        std::vector<int> qargs, qargIndices;
+        for (int i = 0; i < qfactSig._args.size(); i++) {
+            const int& arg = qfactSig._args[i];
+            if (_htn._q_constants.count(arg)) {
+                qargs.push_back(arg);
+                qargIndices.push_back(i);
+            }
+        }
+
         USigSet decodingsToRemove;
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
             if (!_htn.isAbstraction(decFactSig, qfactSig)) {
                 decodingsToRemove.insert(decFactSig);
                 Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
+
             }
         }
         // Remove all invalid q fact decodings
-        for (const auto& decFactSig : decodingsToRemove) _htn.removeQFactDecoding(qfactSig, decFactSig);
+        for (const auto& decFactSig : decodingsToRemove) {
+            _htn.removeQFactDecoding(qfactSig, decFactSig);
+            
+            std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
+            _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
+        } 
     }
 }
 

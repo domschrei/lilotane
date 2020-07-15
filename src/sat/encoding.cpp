@@ -54,8 +54,11 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Init substitution vars where necessary
     stage("initsubstitutions");
-    for (const int& qconst : _htn._q_constants) {
-        initSubstitutionVars(qconst, newPos);
+    for (const auto& a : newPos.getActions()) {
+        for (int arg : a.first._args) initSubstitutionVars(newPos.encode(a.first), arg, newPos);
+    }
+    for (const auto& r : newPos.getReductions()) {
+        for (int arg : r.first._args) initSubstitutionVars(newPos.encode(r.first), arg, newPos);
     }
     stage("initsubstitutions");
 
@@ -279,6 +282,16 @@ void Encoding::encode(int layerIdx, int pos) {
             endClause();
         }
     }
+    for (const auto& sub : _htn._forbidden_substitutions) {
+        assert(!sub.empty());
+        if (_forbidden_substitutions.count(sub)) continue;
+        for (const auto& entry : sub) {
+            appendClause(-varSubstitution(sigSubstitute(entry.first, entry.second)));
+        }
+        endClause();
+        _forbidden_substitutions.insert(sub);
+    }
+    _htn._forbidden_substitutions.clear();
     stage("forbiddensubstitutions");
 
     // Forbid impossible parent ops
@@ -635,7 +648,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     stage("frameaxioms");
 }
 
-void Encoding::initSubstitutionVars(int arg, Position& pos) {
+void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
 
     if (_q_constants.count(arg)) return;
     if (!_htn._q_constants.count(arg)) return;
@@ -654,7 +667,9 @@ void Encoding::initSubstitutionVars(int arg, Position& pos) {
     }
     assert(!substitutionVars.empty());
 
-    // AT LEAST ONE substitution
+    // AT LEAST ONE substitution, or the parent op does NOT occur
+    Log::d("INITSUBVARS @(%i,%i) op=%i qc=%s\n", pos.getPos().first, pos.getPos().second, opVar, TOSTR(arg));
+    appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
 
@@ -885,6 +900,8 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                 // Decode q constants
                 Action& a = _htn._actions_by_sig[aSig];
                 USignature aDec = getDecodedQOp(li, pos, aSig);
+                if (aDec == Position::NONE_SIG) continue;
+
                 if (aDec != aSig) {
 
                     HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
@@ -1003,6 +1020,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                     USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
+                    if (decRSig == Position::NONE_SIG) continue;
+
                     Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
                     Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
 
@@ -1151,7 +1170,11 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 }
             }
 
-            assert(numSubstitutions == 1);
+            int opVar = _layers->at(layer)[pos].getVariable(origSig);
+            if (numSubstitutions == 0) {
+                return Position::NONE_SIG;
+            }
+            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s (op=%i)\n", numSubstitutions, TOSTR(arg), TOSTR(origSig), opVar));
         }
 
         if (!containsQConstants) break; // done

@@ -54,6 +54,7 @@ struct HtnInstance {
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
+    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
     // Maps an action name ID to its action object.
     NodeHashMap<int, Action> _actions;

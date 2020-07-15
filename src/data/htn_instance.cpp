@@ -594,7 +594,7 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
     
     // Create / retrieve an ID for the q constant
     std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
-        + std::to_string(pos) + "_" + std::to_string(USignatureHasher()(sig))
+        + std::to_string(pos) + "_" + std::to_string(_q_constants.size())
         + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
     int qConstId = getNameId(qConstName);
 
@@ -777,7 +777,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
-    if (!_params.isSet("qcm")) return;
+    if (_params.getIntParam("qcm") == 0) return;
     if (!hasQConstants(psig.usig)) return;
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
@@ -807,7 +807,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
             set.insert(toAdd);
         }
 
-        if (bad.empty() || std::min(good.size(), bad.size()) > 1024) continue;
+        if (bad.empty() || std::min(good.size(), bad.size()) > _params.getIntParam("qcm")) continue;
 
         if (good.size() <= bad.size()) {
             _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);
