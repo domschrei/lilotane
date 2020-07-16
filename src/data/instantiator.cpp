@@ -95,13 +95,13 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
-    USigSet inst = instantiateLimited(op, state, argsByPriority, 1, true);
+    USigSet inst = instantiateLimited(op, state, argsByPriority, 1, /*returnUnfinished=*/true);
     if (inst.empty()) return inst;
 
     // b) Try if the number of valid instantiations is below the user-defined threshold
     //    -- in that case, return that full instantiation
     if (_q_const_instantiation_limit > 0) {
-        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, false);
+        USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
         if (!inst.empty()) return inst;
     }
 
@@ -343,11 +343,13 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
         if (eff._negated != negated) continue;
         bool matches = true;
         Substitution s;
+        std::vector<int> qargs, decargs;
         //log("  %s ?= %s ", TOSTR(eff), TOSTR(fact));
         for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
             int substArg = fact._args[argPos];
-            if (!_htn->_q_constants.count(effArg)) {
+            bool effIsQ = _htn->_q_constants.count(effArg);
+            if (!effIsQ) {
                 // If the effect fact has no q const here, the arg must be left unchanged
                 matches &= effArg == substArg;
             } else {
@@ -360,10 +362,17 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
                 matches &= (!s.count(effArg) || s[effArg] == substArg);
                 if (!matches) break;
                 s[effArg] = substArg;
+                if (effIsQ) {
+                    qargs.push_back(effArg);
+                    decargs.push_back(substArg);
+                }
             }
         }
         if (matches) {
-            // Valid, matching substitution found (possibly empty)
+            // Matching substitution found. Valid?
+            if (!_htn->_q_db.test(qargs, decargs)) continue;
+
+            // Matching, valid substitution
             if (!substitutions.count(s)) substitutions.insert(s);
             //log(" -- yes\n");
         } else {

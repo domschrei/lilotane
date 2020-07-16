@@ -216,7 +216,7 @@ public:
     bool isUniversal(QConstantCondition* cond);
     bool isParentAndChild(int parent, int child);
 
-    void backpropagateConditions(int layer, int pos, const NodeHashMap<USignature, int, USignatureHasher>& leafOps);
+    NodeHashSet<PositionedUSig, PositionedUSigHasher> backpropagateConditions(int layer, int pos, const NodeHashMap<USignature, int, USignatureHasher>& leafOps);
 
     ~QConstantDatabase() {
         for (const auto& entry : _conditions_per_op) {

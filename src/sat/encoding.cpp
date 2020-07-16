@@ -54,8 +54,11 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Init substitution vars where necessary
     stage("initsubstitutions");
-    for (const int& qconst : _htn._q_constants) {
-        initSubstitutionVars(qconst, newPos);
+    for (const auto& a : newPos.getActions()) {
+        for (int arg : a.first._args) initSubstitutionVars(newPos.encode(a.first), arg, newPos);
+    }
+    for (const auto& r : newPos.getReductions()) {
+        for (int arg : r.first._args) initSubstitutionVars(newPos.encode(r.first), arg, newPos);
     }
     stage("initsubstitutions");
 
@@ -72,9 +75,19 @@ void Encoding::encode(int layerIdx, int pos) {
         
         int qfactVar = newPos.getVariable(qfactSig);
 
+        std::vector<int> qargs, qargIndices; 
+        for (int aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn._q_constants.count(qfactSig._args[aIdx])) {
+            qargs.push_back(qfactSig._args[aIdx]);
+            qargIndices.push_back(aIdx);
+        } 
+
         // For each possible fact decoding:
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
             if (!newPos.hasFact(decFactSig)) continue;
+
+            // Check if this decoding is valid
+            std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
+            if (!_htn._q_db.test(qargs, decArgs)) continue;
 
             // Already encoded earlier?
             //if (qVarReused && newPos.getPriorPosOfVariable(decFactSig) < pos) continue;
@@ -269,6 +282,16 @@ void Encoding::encode(int layerIdx, int pos) {
             endClause();
         }
     }
+    for (const auto& sub : _htn._forbidden_substitutions) {
+        assert(!sub.empty());
+        if (_forbidden_substitutions.count(sub)) continue;
+        for (const auto& entry : sub) {
+            appendClause(-varSubstitution(sigSubstitute(entry.first, entry.second)));
+        }
+        endClause();
+        _forbidden_substitutions.insert(sub);
+    }
+    _htn._forbidden_substitutions.clear();
     stage("forbiddensubstitutions");
 
     // Forbid impossible parent ops
@@ -400,13 +423,13 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
 
     stage("factvarreusage");
     // Re-use all other fact variables where possible
-    int reused = 0;
     int leftPos = left.getPos().second;
     int thisPos = newPos.getPos().second;
     LayerState& state = _layers->back().getState();
 
     // a) first check normal facts
     FlatHashSet<int> unchangedFactVars;
+    int reusedFacts = 0;
     for (const USignature& factSig : newPos.getFacts()) {
         
         // Fact must be contained to the left
@@ -429,7 +452,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
             int var = left.getVariable(factSig);
             newPos.setVariable(factSig, var, left.getPriorPosOfVariable(factSig));
             //log("REUSE %s (%i,%i) ~> (%i,%i)\n", TOSTR(factSig), layerIdx, pos-1, layerIdx, pos);
-            reused++;
+            reusedFacts++;
 
             //if (state.contains(leftPos, factSig, true) == state.contains(thisPos, factSig, true) 
             //    && state.contains(leftPos, factSig, false) == state.contains(thisPos, factSig, false)) {
@@ -441,20 +464,33 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     }
 
     // b) now check q-facts
+    int reusedQFacts = 0;
+    int totalQFacts = 0;
     for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
-        
+        totalQFacts++;
+
         // Fact must be contained to the left
-        bool reuse = left.getFacts().count(factSig);
+        bool reuse = left.getQFacts().count(factSig._name_id) && left.getQFacts().at(factSig._name_id).count(factSig);
 
         // Fact must not have any support to change
         if (reuse) reuse = !newPos.getPosFactSupports().count(factSig)
                         && !newPos.getNegFactSupports().count(factSig);
         
-        // None of the decoded facts may have changed
+        std::vector<int> qargs, qargIndices; 
+        for (int aIdx = 0; aIdx < factSig._args.size(); aIdx++) if (_htn._q_constants.count(factSig._args[aIdx])) {
+            qargs.push_back(factSig._args[aIdx]);
+            qargIndices.push_back(aIdx);
+        } 
+
+        // None of the (valid) decoded facts may have changed
         //log("     %i decodings\n", _htn.getQFactDecodings(factSig).size());
         if (reuse) for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
             if (!newPos.getFacts().count(decSig)) continue;
             
+            // Check if this decoding is valid
+            std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decSig._args[idx]);
+            if (!_htn._q_db.test(qargs, decArgs)) continue;
+
             // Decoded fact must be completely unchanged
             reuse &= unchangedFactVars.count(newPos.getVariable(decSig));
             if (!reuse) break;
@@ -469,14 +505,16 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         if (reuse) {
             newPos.setVariable(factSig, left.getVariable(factSig), left.getPriorPosOfVariable(factSig));
             //log("  REUSE %s\n", TOSTR(factSig));
-            reused++;
+            reusedQFacts++;
         } else {
             //log("  NO_REUSE %s\n", TOSTR(factSig));
             newPos.encode(factSig);
         }
     }
     stage("factvarreusage");
-    Log::d("%.2f%% of fact variables reused from previous position\n", ((float)100*reused/newPos.getFacts().size()));
+    Log::d("%.2f%% (%.2f%%) of fact (qfact) variables reused from previous position\n", 
+                ((float)100*reusedFacts/newPos.getFacts().size()), 
+                totalQFacts == 0 ? 100 : ((float)100*reusedQFacts/totalQFacts));
 }
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
@@ -610,7 +648,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     stage("frameaxioms");
 }
 
-void Encoding::initSubstitutionVars(int arg, Position& pos) {
+void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
 
     if (_q_constants.count(arg)) return;
     if (!_htn._q_constants.count(arg)) return;
@@ -629,7 +667,9 @@ void Encoding::initSubstitutionVars(int arg, Position& pos) {
     }
     assert(!substitutionVars.empty());
 
-    // AT LEAST ONE substitution
+    // AT LEAST ONE substitution, or the parent op does NOT occur
+    Log::d("INITSUBVARS @(%i,%i) op=%i qc=%s\n", pos.getPos().first, pos.getPos().second, opVar, TOSTR(arg));
+    appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
 
@@ -860,6 +900,8 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                 // Decode q constants
                 Action& a = _htn._actions_by_sig[aSig];
                 USignature aDec = getDecodedQOp(li, pos, aSig);
+                if (aDec == Position::NONE_SIG) continue;
+
                 if (aDec != aSig) {
 
                     HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
@@ -978,6 +1020,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                     USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
+                    if (decRSig == Position::NONE_SIG) continue;
+
                     Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
                     Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
 
@@ -1126,7 +1170,11 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 }
             }
 
-            assert(numSubstitutions == 1);
+            int opVar = _layers->at(layer)[pos].getVariable(origSig);
+            if (numSubstitutions == 0) {
+                return Position::NONE_SIG;
+            }
+            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s (op=%i)\n", numSubstitutions, TOSTR(arg), TOSTR(origSig), opVar));
         }
 
         if (!containsQConstants) break; // done

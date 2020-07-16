@@ -13,7 +13,7 @@ LINKERFLAGS=-lm -Llib -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz -lpandaP
 
 INCLUDES=-Isrc -Isrc/pandaPIparser/src
 
-.PHONY = parser clean
+.PHONY = release debug parser clean
 
 release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable -O3
 release: LINKERFLAGS += -O3
@@ -26,6 +26,8 @@ debug: parser
 debug: treerexx
 
 parser: lib/libpandaPIparser.a 
+
+lib/libpandaPIparser.a:
 	cd src && bash fetch_and_build_parser.sh
 
 treerexx: $(patsubst src/%.cpp,build/%.o,$(wildcard src/data/*.cpp src/planner/*.cpp src/sat/*.cpp src/util/*.cpp)) build/main.o

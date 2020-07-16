@@ -504,109 +504,107 @@ HtnOp& HtnInstance::getOp(const USignature& opSig) {
     else return (HtnOp&)_reductions.at(opSig._name_id);
 }
 
-Action HtnInstance::replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
-    USignature sig = a.getSignature();
-    Substitution s = addQConstants(sig, layerIdx, pos, a.getPreconditions(), state);
-    HtnOp op = a.substitute(s);
-    return Action(op);
+Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
+    std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)a, layerIdx, pos, state);
+    if (newArgs.size() == 1 && newArgs[0] == -1) {
+        // No valid substitution.
+        return a;
+    }
+    return Action(a.substitute(Substitution(a.getArguments(), newArgs)));
 }
-Reduction HtnInstance::replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
-    USignature sig = red.getSignature();
-    Substitution s = addQConstants(sig, layerIdx, pos, red.getPreconditions(), state);
-    return red.substituteRed(s);
+Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
+    std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)red, layerIdx, pos, state);
+    if (newArgs.size() == 1 && newArgs[0] == -1) {
+        // No valid substitution.
+        return red;
+    }
+    return red.substituteRed(Substitution(red.getArguments(), newArgs));
 }
 
-Substitution HtnInstance::addQConstants(const USignature& sig, int layerIdx, int pos, 
-            const SigSet& conditions, const std::function<bool(const Signature&)>& state) {
-    
-    std::vector<int> freeArgPositions = _instantiator->getFreeArgPositions(sig._args);
-    // Sort freeArgPositions ascendingly by their arg's importance / impact 
-    std::sort(freeArgPositions.begin(), freeArgPositions.end(), [&](int left, int right) {
-        int sortLeft = _signature_sorts_table[sig._name_id][left];
-        int sortRight = _signature_sorts_table[sig._name_id][right];
-        return getConstantsOfSort(sortLeft).size() < getConstantsOfSort(sortRight).size();
-    });
+std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
 
-    Substitution s;
-    for (int argPos : freeArgPositions) {
-        size_t domainHash = 0;
-        FlatHashSet<int> domain = computeDomainOfArgument(sig, argPos, conditions, state, s, domainHash);
-        if (domain.empty()) {
-            // No valid value for this argument at this position: return failure
-            //log("%s : %s has no valid domain!\n", TOSTR(sig), TOSTR(sig._args[argPos]));
-            s.clear();
-            break;
-        } else {
-            addQConstant(layerIdx, pos, sig, argPos, domain, domainHash, s);
+    std::vector<int> args = op.getArguments();
+    std::vector<int> varargIndices;
+    for (int i = 0; i < op.getArguments().size(); i++) {
+        const int& arg = op.getArguments()[i];
+        if (_var_ids.count(arg)) varargIndices.push_back(i);
+    }
+    std::vector<bool> occursInPreconditions(op.getArguments().size(), false);
+    std::vector<FlatHashSet<int>> domainPerVariable(op.getArguments().size());
+
+    // Check each precondition regarding its valid decodings w.r.t. current state
+    for (const auto& preSig : op.getPreconditions()) {
+
+        // Find mapping from precond args to op args
+        std::vector<int> opArgIndices;
+        for (int arg : preSig._usig._args) {
+            opArgIndices.push_back(-1);
+            for (int i = 0; i < args.size(); i++) {
+                if (args[i] == arg) {
+                    opArgIndices.back() = i;
+                    occursInPreconditions[i] = true;
+                    break;
+                }
+            }
+        }
+
+        std::vector<USignature> usigs = getDecodedObjects(preSig._usig, /*checkQConstConds=*/true);
+        for (const auto& decUSig : usigs) {
+            Signature decSig(decUSig, preSig._negated);
+            //Log::d("------%s\n", TOSTR(decSig));
+
+            // Valid?
+            if (!_instantiator->test(decSig, state)) continue;
+            
+            // Valid precondition decoding found: Increase domain of concerned variables
+            for (int i = 0; i < opArgIndices.size(); i++) {
+                int opArgIdx = opArgIndices[i];
+                if (opArgIdx >= 0) {
+                    domainPerVariable[opArgIdx].insert(decSig._usig._args[i]);
+                }
+            }
         }
     }
-    return s;
+
+    // Assemble new operator arguments
+    for (int i : varargIndices) {
+        int vararg = args[i];
+        auto& domain = domainPerVariable[i];
+        if (!occursInPreconditions[i]) {
+            domain = _constants_by_sort[_signature_sorts_table[op.getSignature()._name_id][i]];
+        }
+        if (domain.empty()) {
+            // No valid constants at this position! The op is impossible.
+            Log::d("Empty domain for arg %s of %s\n", TOSTR(vararg), TOSTR(op.getSignature()));
+            return std::vector<int>(1, -1);
+        }
+        if (domain.size() == 1) {
+            // Only one valid constant here: Replace directly
+            int onlyArg = -1; for (int arg : domain) {onlyArg = arg; break;}
+            args[i] = onlyArg;
+        } else {
+            // Several valid constants here: Introduce q-constant
+            args[i] = addQConstant(layerIdx, pos, op.getSignature(), i, domain);
+            Log::d("QC %s ~> %s\n", TOSTR(vararg), TOSTR(args[i]));
+        }
+    }
+
+    return args;
 }
 
-FlatHashSet<int> HtnInstance::computeDomainOfArgument(const USignature& sig, int argPos, 
-            const SigSet& conditions, const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash) {
-    
-    int arg = sig._args[argPos];
+int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
+                const FlatHashSet<int>& domain) {
 
-    assert(_name_back_table[arg][0] == '?');
-    assert(_signature_sorts_table.count(sig._name_id));
-    assert(argPos < _signature_sorts_table[sig._name_id].size());
-    
-    //log("%s\n", TOSTR(sig));
-
-    // Get domain of the q constant
     int sort = _signature_sorts_table[sig._name_id][argPos];
-    const FlatHashSet<int>& domain = getConstantsOfSort(sort);
-    assert(!domain.empty());
-    assert(!substitution.count(arg));
-
-    // Reduce the q-constant's domain according to the associated facts and the current state.
-    FlatHashSet<int> actualDomain;
-    size_t sum = 0;
-    for (const int& c : domain) {
-        //substitution[arg] = c;
-        //SigSet substConditions;
-        //for (const auto& cond : conditions) substConditions.insert(cond.substitute(substitution));
-        //if (_instantiator->hasValidPreconditions(substConditions, state)) {
-            actualDomain.insert(c);
-            sum += 7*c;
-        //} 
-    }
-    domainHash = std::hash<int>{}(sum);
-    //log("%.2f%% of q-const domain eliminated\n", 100 - 100.f * actualDomain.size()/domain.size());
-    //substitution.erase(arg);
-    return actualDomain;
-}
-
-void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
-                const FlatHashSet<int>& domain, size_t domainHash, Substitution& s) {
-
-    int arg = sig._args[argPos];
-    int sort = _signature_sorts_table[sig._name_id][argPos];
-
-    // If there is only a single option for the q constant: 
-    // just insert that one option, do not create/retrieve a q constant.
-    if (domain.size() == 1) {
-        int c = -1; for (int x : domain) c = x;
-        s[arg] = c;
-        return;
-    }
     
     // Create / retrieve an ID for the q constant
     std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
-        + std::to_string(pos) + "_" + std::to_string(USignatureHasher()(sig))
+        + std::to_string(pos) + "_" + std::to_string(_q_constants.size())
         + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
     int qConstId = getNameId(qConstName);
 
-    // Add q const to substitution
-    s[arg] = qConstId;
-
-    // Check if q const of that name already exists
-    if (_q_constants.count(qConstId)) return;
-
-    // -- q constant is NEW
-    
     // Insert q constant into set of q constants
+    assert(!_q_constants.count(qConstId));
     _q_constants.insert(qConstId);
 
     // Create or retrieve the exact sort (= domain of constants) for this q-constant
@@ -652,12 +650,14 @@ void HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int
         //log("%s ", TOSTR(sort));
     } 
     //log("\n");
+
+    return qConstId;
 }
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
 const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig, bool checkQConstConds) {
-    if (!hasQConstants(qSig)) return SIGVEC_EMPTY;
+    if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) return SIGVEC_EMPTY;
 
     Substitution s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
@@ -673,7 +673,6 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
         // Calculate decoded objects
         //OBJ_CALC %s\n", TOSTR(normSig));
 
-        assert(_instantiator->isFullyGround(qSig));
         std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
         std::vector<int> qconsts, qconstIndices;
         for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
@@ -685,6 +684,10 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
                 for (int c : getDomainOfQConstant(arg)) {
                     eligibleArgs[argPos].push_back(c);
                 }
+            } else if (_var_ids.count(arg)) {
+                // Variable
+                int sort = _signature_sorts_table[normSig._name_id][argPos];
+                eligibleArgs[argPos] = std::vector<int>(_constants_by_sort[sort].begin(), _constants_by_sort[sort].end());
             } else {
                 // normal constant
                 eligibleArgs[argPos].push_back(arg);
@@ -726,6 +729,10 @@ void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& de
     _qfact_decodings[qFact].insert(decFact);
 }
 
+void HtnInstance::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
+    _qfact_decodings[qFact].erase(decFact);
+}
+
 const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
     return _qfact_decodings[qFact];
 }
@@ -743,16 +750,27 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
     if (concrete._name_id != abstraction._name_id) return false;
     if (concrete._args.size() != abstraction._args.size()) return false;
     
+    // Check syntactical fit
+    std::vector<int> qArgs, decArgs;
     for (int i = 0; i < concrete._args.size(); i++) {
         const int& qarg = abstraction._args[i];
         const int& carg = concrete._args[i];
+        
         // Same argument?
         if (qarg == carg) continue;
         // Different args, no q-constant arg?
         if (!_q_constants.count(qarg)) return false;
+        
+        qArgs.push_back(qarg);
+        decArgs.push_back(carg);
+
         // A q-constant that does not fit the concrete argument?
         if (!getDomainOfQConstant(qarg).count(carg)) return false;
     }
+
+    // Check that q-constant assignment is valid
+    if (!_q_db.test(qArgs, decArgs)) return false;
+
     // A-OK
     return true;
 }
@@ -762,7 +780,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
-    if (!_params.isSet("cqm")) return;
+    if (_params.getIntParam("qcm") == 0) return;
     if (!hasQConstants(psig.usig)) return;
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
@@ -792,7 +810,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
             set.insert(toAdd);
         }
 
-        if (bad.empty() || std::min(good.size(), bad.size()) > 16) continue;
+        if (bad.empty() || std::min(good.size(), bad.size()) > _params.getIntParam("qcm")) continue;
 
         if (good.size() <= bad.size()) {
             _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);

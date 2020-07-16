@@ -144,7 +144,7 @@ bool QConstantDatabase::test(const std::vector<int>& refQConsts, const std::vect
     bool holds = true;
     forEachFitCondition(refQConsts, [&](QConstantCondition* cond) {
 
-        // Continue if the condition is not universally relevant
+        // Continue to next fit condition if the condition is not universally relevant
         if (!isUniversal(cond)) return true;
 
         // Check if the reference is fitting
@@ -181,9 +181,7 @@ bool QConstantDatabase::test(const std::vector<int>& refQConsts, const std::vect
     return holds;
 }
 
-void QConstantDatabase::backpropagateConditions(int layer, int pos, const NodeHashMap<USignature, int, USignatureHasher>& leafOps) {
-
-    return;
+NodeHashSet<PositionedUSig, PositionedUSigHasher> QConstantDatabase::backpropagateConditions(int layer, int pos, const NodeHashMap<USignature, int, USignatureHasher>& leafOps) {
 
     FlatHashSet<int> parentOps;
     for (const auto& leafOp : leafOps) {
@@ -192,10 +190,12 @@ void QConstantDatabase::backpropagateConditions(int layer, int pos, const NodeHa
         for (int id : _op_possible_parents[_op_ids[psig]]) parentOps.insert(id);
     }
 
+    NodeHashSet<PositionedUSig, PositionedUSigHasher> updatedOps;
+
     std::vector<int> parentOpStack(parentOps.begin(), parentOps.end());
-    parentOps.clear();
     while (!parentOpStack.empty()) {
         int parentOp = parentOpStack.back(); parentOpStack.pop_back();
+
         if (parentOp == 0) continue;
         Log::d("??%s\n", TOSTR(_op_sigs[parentOp].usig));
         const auto& children = _op_children_at_offset[parentOp];
@@ -236,14 +236,19 @@ void QConstantDatabase::backpropagateConditions(int layer, int pos, const NodeHa
                     auto newCond = addCondition(parentOp, cond->reference, cond->conjunction, cond->values);
                     if (newCond == nullptr) continue;
                     Log::d("QQ PROPAGATE %s to %s (now universal: %s)\n", cond->toStr().c_str(), TOSTR(_op_sigs[parentOp].usig), isUniversal(newCond) ? "true" : "false");
-                    if (!parentOps.count(parentOp)) {
-                        parentOpStack.push_back(parentOp);
-                        parentOps.insert(parentOp);
+                    
+                    if (!updatedOps.count(_op_sigs[parentOp])) {
+                        updatedOps.insert(_op_sigs[parentOp]);
+                        for (int grandpaOp : _op_possible_parents[parentOp]) {
+                            parentOpStack.push_back(grandpaOp);
+                        }
                     }
                 }
             }
         }
     }
+
+    return updatedOps;
 }
 
 void QConstantDatabase::forEachFitCondition(const std::vector<int>& qConsts, std::function<bool(QConstantCondition*)> onVisit) {

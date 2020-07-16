@@ -54,6 +54,7 @@ struct HtnInstance {
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
+    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
     // Maps an action name ID to its action object.
     NodeHashMap<int, Action> _actions;
@@ -106,12 +107,10 @@ struct HtnInstance {
     Action& createAction(const task& task);
     HtnOp& getOp(const USignature& opSig);
 
-    Action replaceQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    Reduction replaceQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    Substitution addQConstants(const USignature& sig, int layerIdx, int pos, const SigSet& conditions, const std::function<bool(const Signature&)>& state);
-    FlatHashSet<int> computeDomainOfArgument(const USignature& sig, int argPos, const SigSet& conditions, 
-                const std::function<bool(const Signature&)>& state, Substitution& substitution, size_t& domainHash);
-    void addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain, size_t domainHash, Substitution& s);
+    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
+    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
 
     void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
             int offset, const std::function<bool(const Signature&)>& state);
@@ -123,6 +122,7 @@ struct HtnInstance {
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
+    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
 
     const FlatHashSet<int>& getConstantsOfSort(int sort);
