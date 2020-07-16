@@ -35,7 +35,7 @@ clean:
 #- INVISIBLE INTERNAL SUB RULES ----------------------------------------#
 #-----------------------------------------------------------------------#
 
-libipasir$(SIG).a: .FORCE
+libipasir$(SIG).a: 
 	cd $(DIR); ./configure; make; cd ..
 	@#
 	@# compile glue code
@@ -57,5 +57,4 @@ ipasir$(NAME)glue.o: ipasir$(NAME)glue.cpp ipasir.h makefile
 
 #-----------------------------------------------------------------------#
 
-.FORCE:
 .PHONY: all clean
