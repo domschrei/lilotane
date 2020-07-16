@@ -41,7 +41,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     setParam("amor", "20"); // Max. num reductions such that At-most-one constraints are added for reductions
     //setParam("cs"); // check solvability (without assumptions)
-    //setParam("qcm", "32"); // q-constant mutexes: size threshold
+    setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
