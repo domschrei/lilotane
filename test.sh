@@ -1,6 +1,10 @@
 #!/bin/bash
 
-timeout=10
+if [ "x$TIMEOUT" == "x" ]; then
+	timeout=10
+else
+	timeout="$TIMEOUT"
+fi
 rating_timeout=1800
 domains="ipc2020-feature-test-forall miconic smartphone satellite umtranslog woodworking zenotravel childsnack rover barman transport blocksworld factories entertainment" 
 
