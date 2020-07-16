@@ -270,41 +270,48 @@ void Planner::createNextPosition() {
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
 
-    // Use new q-constant conditions from this position to infer conditions 
-    // of the respective parent ops at the layer above. 
-    auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
-    auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
-    updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
+    if (_params.getIntParam("qcm") > 0) {
 
-    pruneRetroactively(updatedOps);
+        // Use new q-constant conditions from this position to infer conditions 
+        // of the respective parent ops at the layer above. 
+        auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
+        auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
+        updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
 
-    // Remove all q fact decodings which have become invalid
-    for (const auto& entry : _layers[_layer_idx][_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+        //pruneRetroactively(updatedOps);
 
-        std::vector<int> qargs, qargIndices;
-        for (int i = 0; i < qfactSig._args.size(); i++) {
-            const int& arg = qfactSig._args[i];
-            if (_htn._q_constants.count(arg)) {
-                qargs.push_back(arg);
-                qargIndices.push_back(i);
+        // Remove all q fact decodings which have become invalid
+        for (const auto& entry : _layers[_layer_idx][_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+
+            std::vector<int> qargs, qargIndices;
+            for (int i = 0; i < qfactSig._args.size(); i++) {
+                const int& arg = qfactSig._args[i];
+                if (_htn._q_constants.count(arg)) {
+                    qargs.push_back(arg);
+                    qargIndices.push_back(i);
+                }
             }
-        }
 
-        USigSet decodingsToRemove;
-        for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (!_htn.isAbstraction(decFactSig, qfactSig)) {
-                decodingsToRemove.insert(decFactSig);
-                Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
+            USigSet decodingsToRemove;
+            for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
+                if (!_htn.isAbstraction(decFactSig, qfactSig)) {
+                    decodingsToRemove.insert(decFactSig);
+                    Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
 
+                }
             }
+            // Remove all invalid q fact decodings
+            for (const auto& decFactSig : decodingsToRemove) {
+                _htn.removeQFactDecoding(qfactSig, decFactSig);
+                
+                std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
+                _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
+            } 
         }
-        // Remove all invalid q fact decodings
-        for (const auto& decFactSig : decodingsToRemove) {
-            _htn.removeQFactDecoding(qfactSig, decFactSig);
-            
-            std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
-            _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
-        } 
+    } 
+
+    if (_pos > 0 && _layers[_layer_idx][_pos-1].getFacts() == _layers[_layer_idx][_pos].getFacts()) {
+        
     }
 }
 

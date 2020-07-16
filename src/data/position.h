@@ -32,6 +32,7 @@ private:
 
     // All ACTUAL facts potentially occurring at this position.
     USigSet _facts;
+    USigSet* _mirrored_facts = nullptr;
 
     // All VIRTUAL facts potentially occurring at this position,
     // partitioned by their predicate name ID.
@@ -76,6 +77,8 @@ public:
     void addExpansionSize(int size);
     void setFactChanges(const USignature& op, const SigSet& factChanges);
     const SigSet& getFactChanges(const USignature& op) const;
+
+    void setMirroredFacts(Position& left);
 
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);

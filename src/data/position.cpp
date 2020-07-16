@@ -7,7 +7,9 @@
 Position::Position() : _layer_idx(-1), _pos(-1) {}
 void Position::setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-void Position::addFact(const USignature& fact) {_facts.insert(fact);}
+void Position::addFact(const USignature& fact) {
+    _facts.insert(fact);
+}
 void Position::addQFact(const USignature& qfact) {
     _qfacts[qfact._name_id];
     _qfacts[qfact._name_id].insert(qfact);
@@ -57,6 +59,12 @@ void Position::setFactChanges(const USignature& op, const SigSet& factChanges) {
 }
 const SigSet& Position::getFactChanges(const USignature& op) const {
     return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
+}
+
+void Position::setMirroredFacts(Position& left) {
+    if (left._mirrored_facts != nullptr) _mirrored_facts = left._mirrored_facts;
+    else _mirrored_facts = &(left._facts);
+    _facts.clear();
 }
 
 void Position::removeActionOccurrence(const USignature& action) {
@@ -121,7 +129,10 @@ bool Position::hasReduction(const USignature& red) const {return _reductions.cou
 
 IntPair Position::getPos() const {return IntPair(_layer_idx, _pos);}
 
-const USigSet& Position::getFacts() const {return _facts;}
+const USigSet& Position::getFacts() const {
+    if (_mirrored_facts != nullptr) return *_mirrored_facts;
+    return _facts;
+}
 const NodeHashMap<int, USigSet>& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
 int Position::getNumQFacts() const {
