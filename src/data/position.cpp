@@ -65,6 +65,7 @@ void Position::setMirroredFacts(Position& left) {
     if (left._mirrored_facts != nullptr) _mirrored_facts = left._mirrored_facts;
     else _mirrored_facts = &(left._facts);
     _facts.clear();
+    _facts.reserve(0);
 }
 
 void Position::removeActionOccurrence(const USignature& action) {
@@ -122,7 +123,10 @@ bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
     return _variables.at(sig).second == _pos;
 }
 
-bool Position::hasFact(const USignature& fact) const {return _facts.count(fact);}
+bool Position::hasFact(const USignature& fact) const {
+    if (_mirrored_facts != nullptr) return _mirrored_facts->count(fact);
+    else return _facts.count(fact);
+}
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}

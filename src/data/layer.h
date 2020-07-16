@@ -28,6 +28,7 @@ public:
     int getSuccessorPos(int oldPos) const;
     LayerState& getState();
     
+    Position& at(int pos);
     Position& operator[](int pos);
     
     void consolidate();

@@ -8,8 +8,8 @@ encodePosition ()
 
 bool beganLine = false;
 
-Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers) : 
-            _params(params), _htn(htn), _layers(&layers), _print_formula(params.isSet("of")) {
+Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
+            _params(params), _htn(htn), _layers(layers), _print_formula(params.isSet("of")) {
     _solver = ipasir_init();
     _sig_primitive = USignature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
@@ -30,19 +30,19 @@ void Encoding::encode(int layerIdx, int pos) {
     // Calculate relevant environment of the position
     Position NULL_POS;
     NULL_POS.setPos(-1, -1);
-    Layer& newLayer = _layers->at(layerIdx);
+    Layer& newLayer = *_layers.at(layerIdx);
     Position& newPos = newLayer[pos];
     bool hasLeft = pos > 0;
     Position& left = (hasLeft ? newLayer[pos-1] : NULL_POS);
     int oldPos = 0, offset = 0;
     bool hasAbove = layerIdx > 0;
     if (hasAbove) {
-        const Layer& oldLayer = _layers->at(layerIdx-1);
+        const Layer& oldLayer = *_layers.at(layerIdx-1);
         while (oldPos+1 < oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= pos) 
             oldPos++;
         offset = pos - oldLayer.getSuccessorPos(oldPos);
     }
-    Position& above = (hasAbove ? _layers->at(layerIdx-1)[oldPos] : NULL_POS);
+    Position& above = (hasAbove ? (*_layers.at(layerIdx-1))[oldPos] : NULL_POS);
 
     // Important variables for this position
     int varPrim = varPrimitive(layerIdx, pos);
@@ -343,10 +343,10 @@ void Encoding::encode(int layerIdx, int pos) {
     Position* positionToClear = nullptr;
     if (oldPos == 0) {
         // Clear rightmost position of "above above" layer
-        if (layerIdx > 1) positionToClear = &_layers->at(layerIdx-2)[_layers->at(layerIdx-2).size()-1];
+        if (layerIdx > 1) positionToClear = &_layers.at(layerIdx-2)->at(_layers.at(layerIdx-2)->size()-1);
     } else {
         // Clear previous parent position of "above" layer
-        positionToClear = &_layers->at(layerIdx-1)[oldPos-1];
+        positionToClear = &_layers.at(layerIdx-1)->at(oldPos-1);
     }
     if (positionToClear != nullptr) {
         Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getPos().first, positionToClear->getPos().second);
@@ -356,7 +356,7 @@ void Encoding::encode(int layerIdx, int pos) {
     if (layerIdx > 1 && pos == 0) {
         // delete data from "above above" layer
         // except for necessary structures for decoding a plan
-        Layer& layerToClear = _layers->at(layerIdx-2);
+        Layer& layerToClear = *_layers.at(layerIdx-2);
         log("  Freeing memory of (%i,{%i..%i}) ...\n", layerIdx-2, 0, layerToClear.size());
         for (int p = 0; p < layerToClear.size(); p++) {
             layerToClear[p].clearUnneeded();
@@ -379,7 +379,7 @@ void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int 
     // Find out whether the variables already occurred in an earlier propagation
     if (oldPos > 0) {
         int oldPriorPos = oldPos-1;
-        int newPriorPos = _layers->at(above.getPos().first).getSuccessorPos(oldPos-1);
+        int newPriorPos = _layers.at(above.getPos().first)->getSuccessorPos(oldPos-1);
         
         bool oldReused = above.getPriorPosOfVariable(factSig) <= oldPriorPos;
         bool reused = newPos.getPriorPosOfVariable(factSig) <= newPriorPos;
@@ -399,7 +399,7 @@ void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int 
 }
 
 void Encoding::addAssumptions(int layerIdx) {
-    Layer& l = _layers->at(layerIdx);
+    Layer& l = *_layers.at(layerIdx);
     for (int pos = 0; pos < l.size(); pos++) {
         assume(varPrimitive(layerIdx, pos));
     }
@@ -425,7 +425,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     // Re-use all other fact variables where possible
     int leftPos = left.getPos().second;
     int thisPos = newPos.getPos().second;
-    LayerState& state = _layers->back().getState();
+    LayerState& state = _layers.back()->getState();
 
     // a) first check normal facts
     FlatHashSet<int> unchangedFactVars;
@@ -817,7 +817,7 @@ bool Encoding::solve() {
 }
 
 bool Encoding::isEncoded(int layer, int pos, const USignature& sig) {
-    return _layers->at(layer)[pos].hasVariable(sig);
+    return _layers.at(layer)->at(pos).hasVariable(sig);
 }
 
 bool Encoding::isEncodedSubstitution(const USignature& sig) {
@@ -845,7 +845,7 @@ void Encoding::printVar(int layer, int pos, const USignature& sig) {
 }
 
 int Encoding::varPrimitive(int layer, int pos) {
-    return _layers->at(layer)[pos].encode(_sig_primitive);
+    return _layers.at(layer)->at(pos).encode(_sig_primitive);
 }
 
 void Encoding::printFailedVars(Layer& layer) {
@@ -859,7 +859,7 @@ void Encoding::printFailedVars(Layer& layer) {
 
 std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
-    Layer& finalLayer = _layers->back();
+    Layer& finalLayer = *_layers.back();
     int li = finalLayer.index();
     VariableDomain::lock();
 
@@ -981,8 +981,8 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
     
     std::vector<PlanItem> itemsOldLayer, itemsNewLayer;
 
-    for (int layerIdx = 0; layerIdx < _layers->size(); layerIdx++) {
-        Layer& l = _layers->at(layerIdx);
+    for (int layerIdx = 0; layerIdx < _layers.size(); layerIdx++) {
+        Layer& l = *_layers.at(layerIdx);
         //log("(decomps at layer %i)\n", l.index());
 
         itemsNewLayer.resize(l.size());
@@ -991,7 +991,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
             int predPos = 0;
             if (layerIdx > 0) {
-                Layer& lastLayer = _layers->at(layerIdx-1);
+                Layer& lastLayer = *_layers.at(layerIdx-1);
                 while (predPos+1 < lastLayer.size() && lastLayer.getSuccessorPos(predPos+1) <= pos) 
                     predPos++;
             } 
@@ -1008,7 +1008,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                 if (value(layerIdx, pos, rSig)) {
 
-                    int v = _layers->at(layerIdx)[pos].getVariable(rSig);
+                    int v = _layers.at(layerIdx)->at(pos).getVariable(rSig);
                     const Reduction& r = _htn._reductions_by_sig[rSig];
 
                     // Check preconditions
@@ -1037,7 +1037,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // Lookup parent reduction
                     Reduction parentRed;
-                    int offset = pos - _layers->at(layerIdx-1).getSuccessorPos(predPos);
+                    int offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
                     PlanItem& parent = itemsOldLayer[predPos];
                     assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
                     assert(_htn._reductions.count(parent.reduction._name_id) || 
@@ -1072,7 +1072,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     if (aSig == _htn._action_blank.getSignature()) continue;
                     
-                    int v = _layers->at(layerIdx)[pos].getVariable(aSig);
+                    int v = _layers.at(layerIdx)->at(pos).getVariable(aSig);
                     Action a = _htn._actions_by_sig[aSig];
 
                     /*
@@ -1093,13 +1093,13 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     // Find the actual action variable at the final layer, not at this (inner) layer
                     int l = layerIdx;
                     int aPos = pos;
-                    while (l+1 < _layers->size()) {
+                    while (l+1 < _layers.size()) {
                         //log("(%i,%i) => ", l, aPos);
-                        aPos = _layers->at(l).getSuccessorPos(aPos);
+                        aPos = _layers.at(l)->getSuccessorPos(aPos);
                         l++;
                         //log("(%i,%i)\n", l, aPos);
                     }
-                    v = classicalPlan[aPos].id; // _layers->at(l-1)[aPos].getVariable(aSig);
+                    v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
                     assert(v > 0);
 
                     //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
@@ -1130,7 +1130,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 }
 
 bool Encoding::value(int layer, int pos, const USignature& sig) {
-    int v = _layers->at(layer)[pos].getVariable(sig);
+    int v = _layers.at(layer)->at(pos).getVariable(sig);
     return (ipasir_val(_solver, v) > 0);
 }
 
@@ -1170,7 +1170,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 }
             }
 
-            int opVar = _layers->at(layer)[pos].getVariable(origSig);
+            int opVar = _layers.at(layer)->at(pos).getVariable(origSig);
             if (numSubstitutions == 0) {
                 return Position::NONE_SIG;
             }

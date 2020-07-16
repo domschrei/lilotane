@@ -42,7 +42,7 @@ class Encoding {
 private:
     Parameters& _params;
     HtnInstance& _htn;
-    std::vector<Layer>* _layers;
+    std::vector<Layer*>& _layers;
     
     FlatHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
@@ -73,7 +73,7 @@ private:
 
 
 public:
-    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
+    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
     ~Encoding();
 
     void encode(int layerIdx, int pos);
