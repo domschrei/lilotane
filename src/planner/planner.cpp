@@ -686,7 +686,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     //log("ADDACTION %s\n", TOSTR(sig));
 
     // Rename any remaining variables in each action as unique q-constants,
-    action = _htn.replaceQConstants(action, _layer_idx, _pos, getStateEvaluator());
+    action = _htn.replaceVariablesWithQConstants(action, _layer_idx, _pos, getStateEvaluator());
 
     // Remove any inconsistent effects that were just created
     action.removeInconsistentEffects();
@@ -749,7 +749,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     USignature sig = red.getSignature();
 
     // Rename any remaining variables in each action as new, unique q-constants 
-    red = _htn.replaceQConstants(red, _layer_idx, _pos, getStateEvaluator());
+    red = _htn.replaceVariablesWithQConstants(red, _layer_idx, _pos, getStateEvaluator());
     
     // Check validity
     if (task._name_id >= 0 && red.getTaskSignature() != task) return false;

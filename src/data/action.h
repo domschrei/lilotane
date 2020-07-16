@@ -12,7 +12,7 @@ class Action : public HtnOp {
     
 public:
     Action();
-    Action(HtnOp& op);
+    Action(const HtnOp& op);
     Action(const Action& a);
     Action(int nameId, std::vector<int> args);
 
