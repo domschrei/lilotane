@@ -1,0 +1,193 @@
+
+; Factories domain by Malte Sönnichsen 2020
+; Automatically generated instance with 6 factories, 5 dependencies, and 2 trucks
+
+(define
+    (problem generated)
+    (:domain factories)
+    (:objects
+        last_factory - factory
+        factory_0 - factory
+        resource_0 - resource
+        location_0 - location
+        location_1 - location
+        location_2 - location
+        location_3 - location
+        location_4 - location
+        location_5 - location
+        location_6 - location
+        location_7 - location
+        location_8 - location
+        location_9 - location
+        location_10 - location
+        location_11 - location
+        location_12 - location
+        location_13 - location
+        location_14 - location
+        location_15 - location
+        location_16 - location
+        factory_1 - factory
+        resource_1 - resource
+        resource_f_1_0 - resource
+        factory_2 - factory
+        resource_2 - resource
+        resource_f_2_0 - resource
+        resource_f_2_1 - resource
+        factory_3 - factory
+        resource_3 - resource
+        resource_f_3_0 - resource
+        resource_f_3_1 - resource
+        resource_f_3_2 - resource
+        factory_4 - factory
+        resource_4 - resource
+        resource_f_4_0 - resource
+        resource_f_4_1 - resource
+        resource_f_4_2 - resource
+        resource_f_4_3 - resource
+        factory_5 - factory
+        resource_5 - resource
+        resource_f_5_0 - resource
+        resource_f_5_1 - resource
+        resource_f_5_2 - resource
+        resource_f_5_3 - resource
+        resource_f_5_4 - resource
+        factory_6 - factory
+        resource_6 - resource
+        resource_f_6_0 - resource
+        resource_f_6_1 - resource
+        resource_f_6_2 - resource
+        resource_f_6_3 - resource
+        resource_f_6_4 - resource
+        truck_1 - truck
+        truck_2 - truck
+    )
+    (:htn
+        :tasks (construct_factory last_factory location_16)
+        :ordering ()
+        :constraints ()
+    )
+    (:init
+        (factory-at factory_0 location_0)
+        (factory-constructed factory_0)
+        (factory-without-demands factory_0)
+        (produces factory_0 resource_0)
+        (demands last_factory resource_6)
+        (location-free location_1)
+        (location-free location_2)
+        (location-free location_3)
+        (location-free location_4)
+        (location-free location_5)
+        (location-free location_6)
+        (location-free location_7)
+        (location-free location_8)
+        (location-free location_9)
+        (location-free location_10)
+        (location-free location_11)
+        (location-free location_12)
+        (location-free location_13)
+        (location-free location_14)
+        (location-free location_15)
+        (location-free location_16)
+        (connected location_0 location_1)
+        (connected location_1 location_0)
+        (connected location_1 location_2)
+        (connected location_2 location_1)
+        (connected location_2 location_3)
+        (connected location_3 location_2)
+        (connected location_3 location_4)
+        (connected location_4 location_3)
+        (connected location_4 location_5)
+        (connected location_5 location_4)
+        (connected location_5 location_6)
+        (connected location_6 location_5)
+        (connected location_6 location_7)
+        (connected location_7 location_6)
+        (connected location_7 location_8)
+        (connected location_8 location_7)
+        (connected location_8 location_9)
+        (connected location_9 location_8)
+        (connected location_9 location_10)
+        (connected location_10 location_9)
+        (connected location_10 location_11)
+        (connected location_11 location_10)
+        (connected location_11 location_12)
+        (connected location_12 location_11)
+        (connected location_12 location_13)
+        (connected location_13 location_12)
+        (connected location_13 location_14)
+        (connected location_14 location_13)
+        (connected location_14 location_15)
+        (connected location_15 location_14)
+        (connected location_15 location_16)
+        (connected location_16 location_15)
+        (connected location_0 location_16)
+        (connected location_16 location_0)
+        (connected location_1 location_15)
+        (connected location_15 location_1)
+        (connected location_8 location_12)
+        (connected location_12 location_8)
+        (connected location_12 location_14)
+        (connected location_14 location_12)
+        (connected location_6 location_10)
+        (connected location_10 location_6)
+        (connected location_1 location_9)
+        (connected location_9 location_1)
+        (connected location_2 location_16)
+        (connected location_16 location_2)
+        (connected location_5 location_12)
+        (connected location_12 location_5)
+        (connected location_0 location_5)
+        (connected location_5 location_0)
+        (connected location_2 location_15)
+        (connected location_15 location_2)
+        (connected location_3 location_14)
+        (connected location_14 location_3)
+        (connected location_13 location_16)
+        (connected location_16 location_13)
+        (connected location_0 location_6)
+        (connected location_6 location_0)
+        (connected location_1 location_16)
+        (connected location_16 location_1)
+        (connected location_0 location_14)
+        (connected location_14 location_0)
+        (connected location_5 location_11)
+        (connected location_11 location_5)
+        (produces factory_1 resource_1)
+        (demands factory_1 resource_0)
+        (fuses resource_f_1_0 resource_0 resource_0)
+        (produces factory_2 resource_2)
+        (demands factory_2 resource_f_2_1)
+        (fuses resource_f_2_0 resource_0 resource_1)
+        (fuses resource_f_2_1 resource_f_2_0 resource_0)
+        (produces factory_3 resource_3)
+        (demands factory_3 resource_f_3_2)
+        (fuses resource_f_3_0 resource_0 resource_0)
+        (fuses resource_f_3_1 resource_f_3_0 resource_2)
+        (fuses resource_f_3_2 resource_f_3_1 resource_1)
+        (produces factory_4 resource_4)
+        (demands factory_4 resource_f_4_3)
+        (fuses resource_f_4_0 resource_0 resource_2)
+        (fuses resource_f_4_1 resource_f_4_0 resource_3)
+        (fuses resource_f_4_2 resource_f_4_1 resource_1)
+        (fuses resource_f_4_3 resource_f_4_2 resource_0)
+        (produces factory_5 resource_5)
+        (demands factory_5 resource_f_5_4)
+        (fuses resource_f_5_0 resource_0 resource_2)
+        (fuses resource_f_5_1 resource_f_5_0 resource_4)
+        (fuses resource_f_5_2 resource_f_5_1 resource_1)
+        (fuses resource_f_5_3 resource_f_5_2 resource_0)
+        (fuses resource_f_5_4 resource_f_5_3 resource_3)
+        (produces factory_6 resource_6)
+        (demands factory_6 resource_f_6_4)
+        (fuses resource_f_6_0 resource_0 resource_2)
+        (fuses resource_f_6_1 resource_f_6_0 resource_5)
+        (fuses resource_f_6_2 resource_f_6_1 resource_0)
+        (fuses resource_f_6_3 resource_f_6_2 resource_4)
+        (fuses resource_f_6_4 resource_f_6_3 resource_1)
+        (truck-at truck_1 location_1)
+        (empty truck_1)
+        (truck-at truck_2 location_3)
+        (empty truck_2)
+    )
+)
+    
