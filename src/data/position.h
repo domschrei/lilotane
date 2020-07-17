@@ -52,7 +52,7 @@ private:
     int _max_expansion_size = 1;
 
     // Prop. variable for each occurring signature, together with the position where it was originally encoded.
-    FlatHashMap<USignature, IntPair, USignatureHasher> _variables;
+    NodeHashMap<USignature, int, USignatureHasher> _variables;
 
 public:
 
@@ -84,10 +84,9 @@ public:
     void removeReductionOccurrence(const USignature& reduction);
 
     int encode(const USignature& sig);
-    void setVariable(const USignature& sig, int v, int priorPos);
+    void setVariableReference(const USignature& sig, int priorPos);
     bool hasVariable(const USignature& sig) const;
-    int getVariable(const USignature& sig) const;
-    int getPriorPosOfVariable(const USignature& sig) const;
+    int getVariableOrReference(const USignature& sig) const;
     bool isVariableOriginallyEncoded(const USignature& sig) const;
 
     bool hasFact(const USignature& fact) const;

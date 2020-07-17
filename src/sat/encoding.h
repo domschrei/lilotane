@@ -47,8 +47,6 @@ private:
     NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
-    NodeHashMap<USignature, USigSet, USignatureHasher> _fact_abstractions_cache;
-
     void* _solver;
     std::ofstream _out;
 
@@ -61,6 +59,7 @@ private:
     std::vector<int> _last_assumptions;
 
     const bool _print_formula;
+    const bool _use_q_constant_mutexes;
 
     int _num_cls;
     int _num_lits;
@@ -126,6 +125,9 @@ private:
     int varSubstitution(const USignature& sigSubst);
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
+    
+    int getVariable(const Position& pos, const USignature& sig);
+    int getVariable(int layer, int pos, const USignature& sig);
 
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);

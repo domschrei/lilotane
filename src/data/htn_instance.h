@@ -78,8 +78,8 @@ struct HtnInstance {
 
     FlatHashMap<int, int> _split_action_from_first;
 
-    bool _remove_rigid_predicates;
-
+    const bool _remove_rigid_predicates;
+    const bool _use_q_constant_mutexes;
 
 
 

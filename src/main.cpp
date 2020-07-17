@@ -53,8 +53,8 @@ int run(Parameters& params) {
 
 int main(int argc, char** argv) {
 
-    signal(SIGSEGV, handleAbort);
-    signal(SIGABRT, handleAbort);
+    //signal(SIGSEGV, handleAbort);
+    //signal(SIGABRT, handleAbort);
 
     Timer::init();
 

@@ -9,7 +9,8 @@ encodePosition ()
 bool beganLine = false;
 
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
-            _params(params), _htn(htn), _layers(layers), _print_formula(params.isSet("of")) {
+            _params(params), _htn(htn), _layers(layers), _print_formula(params.isSet("of")), 
+            _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
     _solver = ipasir_init();
     _sig_primitive = USignature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
@@ -70,10 +71,10 @@ void Encoding::encode(int layerIdx, int pos) {
         assert(!_htn.isRigidPredicate(qfactSig._name_id));
 
         // Already encoded earlier?
-        bool qVarReused = newPos.getPriorPosOfVariable(qfactSig) < pos;
+        bool qVarReused = !newPos.isVariableOriginallyEncoded(qfactSig);
         if (qVarReused) continue;
         
-        int qfactVar = newPos.getVariable(qfactSig);
+        int qfactVar = getVariable(newPos, qfactSig);
 
         std::vector<int> qargs, qargIndices; 
         for (int aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn._q_constants.count(qfactSig._args[aIdx])) {
@@ -92,7 +93,7 @@ void Encoding::encode(int layerIdx, int pos) {
             // Already encoded earlier?
             //if (qVarReused && newPos.getPriorPosOfVariable(decFactSig) < pos) continue;
             
-            int decFactVar = newPos.getVariable(decFactSig);
+            int decFactVar = getVariable(newPos, decFactSig);
 
             // Encode substitution from qfact to its decoded fact
             /*
@@ -154,7 +155,7 @@ void Encoding::encode(int layerIdx, int pos) {
             // Predicate must not be rigid
             assert(!_htn.isRigidPredicate(eff._usig._name_id));
 
-            addClause(-aVar, (eff._negated?-1:1)*newPos.encode(eff._usig));
+            addClause(-aVar, (eff._negated?-1:1)*getVariable(newPos, eff._usig));
         }
     }
     stage("actioneffects");
@@ -176,7 +177,7 @@ void Encoding::encode(int layerIdx, int pos) {
         // Preconditions
         for (const Signature& pre : _htn._actions_by_sig[aSig].getPreconditions()) {
             assert(!_htn.isRigidPredicate(pre._usig._name_id));
-            addClause(-aVar, (pre._negated?-1:1)*newPos.encode(pre._usig));
+            addClause(-aVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
 
         // At-most-one action
@@ -220,7 +221,7 @@ void Encoding::encode(int layerIdx, int pos) {
         for (const Signature& pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
             //assert(newPos.hasFact(pre._usig));
             assert(!_htn.isRigidPredicate(pre._usig._name_id));
-            addClause(-rVar, (pre._negated?-1:1)*newPos.encode(pre._usig));
+            addClause(-rVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
 
         // At-most-one reduction
@@ -254,7 +255,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
                 if (positiveConstraint) {
                     // EITHER of the GOOD constants - one big clause
-                    appendClause(-newPos.getVariable(opSig));
+                    appendClause(-getVariable(newPos, opSig));
                     for (int cnst : c.constants) {
                         appendClause(varSubstitution(sigSubstitute(qconst, cnst)));
                     }
@@ -262,7 +263,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 } else {
                     // NEITHER of the BAD constants - many 2-clauses
                     for (int cnst : c.constants) {
-                        addClause(-newPos.getVariable(opSig), -varSubstitution(sigSubstitute(qconst, cnst)));
+                        addClause(-getVariable(newPos, opSig), -varSubstitution(sigSubstitute(qconst, cnst)));
                     }
                 }
             }
@@ -275,7 +276,7 @@ void Encoding::encode(int layerIdx, int pos) {
     for (const auto& opPair : newPos.getForbiddenSubstitutions()) {
         const USignature& opSig = opPair.first;
         for (const Substitution& s : opPair.second) {
-            appendClause(-newPos.getVariable(opSig));
+            appendClause(-getVariable(newPos, opSig));
             for (const auto& entry : s) {
                 appendClause(-varSubstitution(sigSubstitute(entry.first, entry.second)));
             }
@@ -301,7 +302,7 @@ void Encoding::encode(int layerIdx, int pos) {
         for (const USignature& child : pair.second) {
             if (child == Position::NONE_SIG) {
                 // Forbid parent op that turned out to be impossible
-                int oldOpVar = above.getVariable(parent);
+                int oldOpVar = getVariable(above, parent);
                 addClause(-oldOpVar);
                 break;
             }
@@ -314,10 +315,10 @@ void Encoding::encode(int layerIdx, int pos) {
     for (const auto& pair : newPos.getExpansions()) {
         const USignature& parent = pair.first;
 
-        appendClause(-above.getVariable(parent));
+        appendClause(-getVariable(above, parent));
         for (const USignature& child : pair.second) {
             if (child == Position::NONE_SIG) continue;
-            appendClause(newPos.getVariable(child));
+            appendClause(getVariable(newPos, child));
         }
         endClause();
     }
@@ -328,7 +329,7 @@ void Encoding::encode(int layerIdx, int pos) {
     const USigSet& axiomaticOps = newPos.getAxiomaticOps();
     if (!axiomaticOps.empty()) {
         for (const USignature& op : axiomaticOps) {
-            appendClause(newPos.getVariable(op));
+            appendClause(getVariable(newPos, op));
         }
         endClause();
     }
@@ -372,17 +373,17 @@ void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int 
     // TODO include this or not?
     //if (_htn.hasQConstants(factSig)) continue;
 
-    int factVar = newPos.getVariable(factSig);
+    int factVar = getVariable(newPos, factSig);
     if (offset > 0 || !above.hasVariable(factSig)) return;
-    int oldFactVar = above.getVariable(factSig);
+    int oldFactVar = getVariable(above, factSig);
 
     // Find out whether the variables already occurred in an earlier propagation
     if (oldPos > 0) {
         int oldPriorPos = oldPos-1;
         int newPriorPos = _layers.at(above.getPos().first)->getSuccessorPos(oldPos-1);
         
-        bool oldReused = above.getPriorPosOfVariable(factSig) <= oldPriorPos;
-        bool reused = newPos.getPriorPosOfVariable(factSig) <= newPriorPos;
+        bool oldReused = !above.isVariableOriginallyEncoded(factSig);
+        bool reused = !newPos.isVariableOriginallyEncoded(factSig);
 
         // Do not re-encode the propagation if both variables have already been reused
         //if (reused) log("NEW_REUSED\n");
@@ -422,22 +423,13 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     stage("truefacts");
 
     stage("factvarreusage");
+
     // Re-use all other fact variables where possible
     int leftPos = left.getPos().second;
     int thisPos = newPos.getPos().second;
     LayerState& state = _layers.back()->getState();
 
-    // a) Setup fact abstractions cache for this position
-    _fact_abstractions_cache.clear();
-    for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
-        for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
-            if (!_htn.isAbstraction(decSig, factSig)) continue;  
-            _fact_abstractions_cache[decSig];
-            _fact_abstractions_cache[decSig].insert(factSig);
-        }
-    }
-
-    // b) Check normal facts
+    // a) Check normal facts
     FlatHashSet<int> unchangedFactVars;
     int reusedFacts = 0;
     for (const USignature& factSig : newPos.getFacts()) {
@@ -450,29 +442,24 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
                         && !newPos.getNegFactSupports().count(factSig);
 
         // None of its linked q-facts must have a support
-        //log("     %i abstractions\n", _htn.getQFactDecodings(factSig).size());
-        for (const USignature& qSig : _fact_abstractions_cache[factSig]) {
+        for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
+            if (!_htn.isAbstraction(factSig, qSig)) continue;
             reuse &= !newPos.getPosFactSupports().count(qSig)
                     && !newPos.getNegFactSupports().count(qSig);
             if (!reuse) break;
         }
         
         if (reuse) {
-            int var = left.getVariable(factSig);
-            newPos.setVariable(factSig, var, left.getPriorPosOfVariable(factSig));
-            //log("REUSE %s (%i,%i) ~> (%i,%i)\n", TOSTR(factSig), layerIdx, pos-1, layerIdx, pos);
+            int var = left.getVariableOrReference(factSig);
+            newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
             reusedFacts++;
-
-            //if (state.contains(leftPos, factSig, true) == state.contains(thisPos, factSig, true) 
-            //    && state.contains(leftPos, factSig, false) == state.contains(thisPos, factSig, false)) {
-                unchangedFactVars.insert(var);
-            //}
+            unchangedFactVars.insert(getVariable(newPos, factSig));
         } else {
             newPos.encode(factSig);
         }
     }
 
-    // c) Check q-facts
+    // b) Check q-facts
     int reusedQFacts = 0;
     int totalQFacts = 0;
     for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
@@ -485,38 +472,35 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         if (reuse) reuse = !newPos.getPosFactSupports().count(factSig)
                         && !newPos.getNegFactSupports().count(factSig);
         
-        std::vector<int> qargs, qargIndices; 
-        for (int aIdx = 0; aIdx < factSig._args.size(); aIdx++) if (_htn._q_constants.count(factSig._args[aIdx])) {
-            qargs.push_back(factSig._args[aIdx]);
-            qargIndices.push_back(aIdx);
-        } 
+        std::vector<int> qargs, qargIndices;
+        if (_use_q_constant_mutexes) {
+            for (int aIdx = 0; aIdx < factSig._args.size(); aIdx++) if (_htn._q_constants.count(factSig._args[aIdx])) {
+                qargs.push_back(factSig._args[aIdx]);
+                qargIndices.push_back(aIdx);
+            } 
+        }
 
         // None of the (valid) decoded facts may have changed
-        //log("     %i decodings\n", _htn.getQFactDecodings(factSig).size());
         if (reuse) for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
             if (!newPos.getFacts().count(decSig)) continue;
             
-            // Check if this decoding is valid
-            std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decSig._args[idx]);
-            if (!_htn._q_db.test(qargs, decArgs)) continue;
+            if (_use_q_constant_mutexes) {
+                // Check if this decoding is valid
+                std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decSig._args[idx]);
+                if (!_htn._q_db.test(qargs, decArgs)) continue;
+            }
 
             // Decoded fact must be completely unchanged
-            reuse &= unchangedFactVars.count(newPos.getVariable(decSig));
+            reuse &= unchangedFactVars.count(getVariable(newPos, decSig));
             if (!reuse) break;
-            
-            /*
-            LayerState& state = _layers->back().getState();
-            reuse &= state.contains(leftPos, factSig, true) == state.contains(thisPos, factSig, true);
-            reuse &= state.contains(leftPos, factSig, false) == state.contains(thisPos, factSig, false);
-            */
         }
 
         if (reuse) {
-            newPos.setVariable(factSig, left.getVariable(factSig), left.getPriorPosOfVariable(factSig));
-            //log("  REUSE %s\n", TOSTR(factSig));
-            reusedQFacts++;
+            int var = left.getVariableOrReference(factSig);
+            newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
+            reusedFacts++;
+            unchangedFactVars.insert(getVariable(newPos, factSig));
         } else {
-            //log("  NO_REUSE %s\n", TOSTR(factSig));
             newPos.encode(factSig);
         }
     }
@@ -548,23 +532,24 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         }
 
         // Do not re-encode frame axioms if the fact has a reused variable
-        if (newPos.getPriorPosOfVariable(fact) < pos) continue;
+        if (!newPos.isVariableOriginallyEncoded(fact)) continue;
 
         for (int sign = -1; sign <= 1; sign += 2) {
             //Signature factSig(fact, sign < 0);
-            int oldFactVar = sign*left.getVariable(fact);
-            int factVar = sign*newPos.getVariable(fact);
+            int oldFactVar = sign*getVariable(left, fact);
+            int factVar = sign*getVariable(newPos, fact);
             const auto& supports = sign > 0 ? newPos.getPosFactSupports() : newPos.getNegFactSupports();
 
             // Calculate indirect support through qfact abstractions
             FlatHashSet<int> indirectSupport;
-            for (const USignature& qsig : _fact_abstractions_cache[fact]) {
+            for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
+                if (!_htn.isAbstraction(fact, qsig)) continue;
                 //const Signature qfactSig(sig, sign < 0);
 
                 // For each operation that supports some qfact abstraction of the fact:
                 if (supports.count(qsig))
                 for (const USignature& opSig : supports.at(qsig)) {
-                    int opVar = left.getVariable(opSig);
+                    int opVar = getVariable(left, opSig);
                     assert(opVar > 0);
                     
                     // Calculate and encode prerequisites for indirect support
@@ -638,7 +623,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             // DIRECT support
             if (supports.count(fact)) {
                 for (const USignature& opSig : supports.at(fact)) {
-                    int opVar = left.getVariable(opSig);
+                    int opVar = getVariable(left, opSig);
                     assert(opVar > 0);
                     appendClause(opVar);
                     //log("%i ", opVar);
@@ -832,6 +817,19 @@ bool Encoding::isEncodedSubstitution(const USignature& sig) {
     return _substitution_variables.count(sig);
 }
 
+int Encoding::getVariable(int layer, int pos, const USignature& sig) {
+    return getVariable(_layers[layer]->at(pos), sig);
+}
+
+int Encoding::getVariable(const Position& pos, const USignature& sig) {
+    int x = pos.getVariableOrReference(sig);
+    if (x > 0) return x;
+    Log::d("%s @ %i -> links back to %i\n", TOSTR(sig), pos.getPos().second, -x);
+    x = _layers.at(pos.getPos().first)->at(-x).getVariableOrReference(sig);
+    assert(x > 0);
+    return x;
+}
+
 int Encoding::varSubstitution(const USignature& sigSubst) {
 
     if (!_substitution_variables.count(sigSubst)) {
@@ -898,7 +896,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
             if (value(li, pos, aSig)) {
                 chosenActions++;
-                int aVar = finalLayer[pos].getVariable(aSig);
+                int aVar = getVariable(finalLayer[pos], aSig);
 
                 // Check fact consistency
                 //checkAndApply(_htn._actions_by_sig[aSig], state, newState, li, pos);
@@ -1016,7 +1014,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                 if (value(layerIdx, pos, rSig)) {
 
-                    int v = _layers.at(layerIdx)->at(pos).getVariable(rSig);
+                    int v = getVariable(layerIdx, pos, rSig);
                     const Reduction& r = _htn._reductions_by_sig[rSig];
 
                     // Check preconditions
@@ -1080,7 +1078,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     if (aSig == _htn._action_blank.getSignature()) continue;
                     
-                    int v = _layers.at(layerIdx)->at(pos).getVariable(aSig);
+                    int v = getVariable(layerIdx, pos, aSig);
                     Action a = _htn._actions_by_sig[aSig];
 
                     /*
@@ -1138,7 +1136,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 }
 
 bool Encoding::value(int layer, int pos, const USignature& sig) {
-    int v = _layers.at(layer)->at(pos).getVariable(sig);
+    int v = getVariable(layer, pos, sig);
     return (ipasir_val(_solver, v) > 0);
 }
 
@@ -1176,7 +1174,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 }
             }
 
-            int opVar = _layers.at(layer)->at(pos).getVariable(origSig);
+            int opVar = getVariable(layer, pos, origSig);
             if (numSubstitutions == 0) {
                 //Log::v("No substitutions for arg %s of %s (op=%i)\n", TOSTR(arg), TOSTR(origSig), opVar);
                 return Position::NONE_SIG;

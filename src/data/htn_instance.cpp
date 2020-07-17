@@ -22,12 +22,12 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
 }
 
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
-            _q_db([this](int arg) {return _q_constants.count(arg);}) {
+            _q_db([this](int arg) {return _q_constants.count(arg);}), 
+            _remove_rigid_predicates(_params.isSet("rrp")), 
+            _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
 
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
-
-    _remove_rigid_predicates = _params.isSet("rrp");
 
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
@@ -770,15 +770,17 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
         // Different args, no q-constant arg?
         if (!_q_constants.count(qarg)) return false;
         
-        qArgs.push_back(qarg);
-        decArgs.push_back(carg);
+        if (_use_q_constant_mutexes) {
+            qArgs.push_back(qarg);
+            decArgs.push_back(carg);
+        }
 
         // A q-constant that does not fit the concrete argument?
         if (!getDomainOfQConstant(qarg).count(carg)) return false;
     }
 
     // Check that q-constant assignment is valid
-    if (!_q_db.test(qArgs, decArgs)) return false;
+    if (_use_q_constant_mutexes && !_q_db.test(qArgs, decArgs)) return false;
 
     // A-OK
     return true;
@@ -789,7 +791,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
-    if (_params.getIntParam("qcm") == 0) return;
+    if (!_use_q_constant_mutexes) return;
     if (!hasQConstants(psig.usig)) return;
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);

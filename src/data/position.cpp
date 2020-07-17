@@ -85,34 +85,26 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
 
 int Position::encode(const USignature& sig) {
     
+    // If the variable is already there, then it must be originally encoded to return the correct result
+    assert(!_variables.count(sig) || isVariableOriginallyEncoded(sig));
+
     if (!_variables.count(sig)) {
         // introduce a new variable
         assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-        _variables[sig] = IntPair(VariableDomain::nextVar(), _pos);
-        IntPair& pair = _variables[sig];
-        VariableDomain::printVar(pair.first, _layer_idx, _pos, sig);
+        _variables[sig] = VariableDomain::nextVar();
+        VariableDomain::printVar(_variables[sig], _layer_idx, _pos, sig);
     }
-
-    //log("%i\n", vars[sig]);
-    int val = _variables[sig].first;
-    return val;
+    return _variables[sig];
 }
 
-void Position::setVariable(const USignature& sig, int v, int priorPos) {
+void Position::setVariableReference(const USignature& sig, int priorPos) {
     assert(!_variables.count(sig));
-    assert(v > 0);
-    _variables[sig] = IntPair(v, priorPos);
+    _variables[sig] = -priorPos;
 }
 
-int Position::getVariable(const USignature& sig) const {
+int Position::getVariableOrReference(const USignature& sig) const {
     assert(_variables.count(sig));
-    int v = _variables.at(sig).first;
-    return v;
-}
-int Position::getPriorPosOfVariable(const USignature& sig) const {
-    assert(_variables.count(sig));
-    int priorPos = _variables.at(sig).second;
-    return priorPos;
+    return _variables.at(sig);
 }
 
 bool Position::hasVariable(const USignature& sig) const {
@@ -120,7 +112,7 @@ bool Position::hasVariable(const USignature& sig) const {
 }
 bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
     assert(_variables.count(sig));
-    return _variables.at(sig).second == _pos;
+    return _variables.at(sig) > 0;
 }
 
 bool Position::hasFact(const USignature& fact) const {
@@ -166,10 +158,12 @@ void Position::clearUnneeded() {
     _facts.clear();
     _facts.reserve(0);
 
-    FlatHashMap<USignature, IntPair, USignatureHasher> cleanedVars;
+    /*
+    NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
     for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
     for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
     _variables = std::move(cleanedVars);
+    */
 }
 
 void Position::clearFactChanges() {

@@ -270,7 +270,7 @@ void Planner::createNextPosition() {
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
 
-    if (_params.getIntParam("qcm") > 0) {
+    if (_htn._use_q_constant_mutexes) {
 
         // Use new q-constant conditions from this position to infer conditions 
         // of the respective parent ops at the layer above. 
@@ -467,30 +467,6 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, true)) {
         
-        /*
-        // Check if the preconditions of op subject to such a fact encoding can hold
-        const auto& subs = _instantiator.getOperationSubstitutionsCausingEffect(left.getFactChanges(opSig), decFactAbs, fact._negated);
-        bool valid = false;
-        // For each possible substitution leading to the fact:
-        for (const auto& sub : subs) {
-            HtnOp opSub = op.substitute(sub);
-
-            // Try to get a single valid (w.r.t. preconds) instantiation of the operator
-            std::vector<int> varArgs;
-            for (const int& arg : opSub.getArguments()) {
-                if (_htn._var_ids.count(arg)) varArgs.push_back(arg);
-            }
-            USigSet inst = _instantiator.instantiateLimited(opSub, getStateEvaluator(_layer_idx, _pos-1), varArgs, 1, true);
-
-            if (!inst.empty()) {
-                // Success -- the effect may actually happen
-                valid = true;
-                break;
-            }
-        }
-        if (!valid) continue;
-        */
-
         /*
         // Test if this q constant substitution is valid
         std::vector<int> vals;
