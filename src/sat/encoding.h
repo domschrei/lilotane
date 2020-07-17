@@ -44,8 +44,10 @@ private:
     HtnInstance& _htn;
     std::vector<Layer*>& _layers;
     
-    FlatHashMap<USignature, int, USignatureHasher> _substitution_variables;
+    NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
+
+    NodeHashMap<USignature, USigSet, USignatureHasher> _fact_abstractions_cache;
 
     void* _solver;
     std::ofstream _out;

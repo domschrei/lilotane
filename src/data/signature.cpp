@@ -28,10 +28,7 @@ void USignature::apply(const Substitution& s) {
 
 bool USignature::operator==(const USignature& b) const {
     if (_name_id != b._name_id) return false;
-    if (_args.size() != b._args.size()) return false;
-    for (int i = 0; i < _args.size(); i++) {
-        if (_args[i] != b._args[i]) return false;
-    }
+    if (_args != b._args) return false;
     return true;
 }
 bool USignature::operator!=(const USignature& b) const {

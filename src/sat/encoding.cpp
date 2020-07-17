@@ -427,7 +427,17 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
     int thisPos = newPos.getPos().second;
     LayerState& state = _layers.back()->getState();
 
-    // a) first check normal facts
+    // a) Setup fact abstractions cache for this position
+    _fact_abstractions_cache.clear();
+    for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
+        for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
+            if (!_htn.isAbstraction(decSig, factSig)) continue;  
+            _fact_abstractions_cache[decSig];
+            _fact_abstractions_cache[decSig].insert(factSig);
+        }
+    }
+
+    // b) Check normal facts
     FlatHashSet<int> unchangedFactVars;
     int reusedFacts = 0;
     for (const USignature& factSig : newPos.getFacts()) {
@@ -441,8 +451,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
 
         // None of its linked q-facts must have a support
         //log("     %i abstractions\n", _htn.getQFactDecodings(factSig).size());
-        for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
-            if (!_htn.isAbstraction(factSig, qSig)) continue;  
+        for (const USignature& qSig : _fact_abstractions_cache[factSig]) {
             reuse &= !newPos.getPosFactSupports().count(qSig)
                     && !newPos.getNegFactSupports().count(qSig);
             if (!reuse) break;
@@ -463,7 +472,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
         }
     }
 
-    // b) now check q-facts
+    // c) Check q-facts
     int reusedQFacts = 0;
     int totalQFacts = 0;
     for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
@@ -549,8 +558,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             // Calculate indirect support through qfact abstractions
             FlatHashSet<int> indirectSupport;
-            for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
-                if (!_htn.isAbstraction(fact, qsig)) continue;
+            for (const USignature& qsig : _fact_abstractions_cache[fact]) {
                 //const Signature qfactSig(sig, sign < 0);
 
                 // For each operation that supports some qfact abstraction of the fact:
