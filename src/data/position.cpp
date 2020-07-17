@@ -164,6 +164,7 @@ int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
 void Position::clearUnneeded() {
     _facts.clear();
+    _facts.reserve(0);
 
     FlatHashMap<USignature, IntPair, USignatureHasher> cleanedVars;
     for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
@@ -173,13 +174,23 @@ void Position::clearUnneeded() {
 
 void Position::clearFactChanges() {
     _qfacts.clear();
+    _qfacts.reserve(0);
     _true_facts.clear();
+    _true_facts.reserve(0);
     _false_facts.clear();
+    _false_facts.reserve(0);
     _expansions.clear();
+    _expansions.reserve(0);
     _axiomatic_ops.clear();
+    _axiomatic_ops.reserve(0);
     _pos_fact_supports.clear();
+    _pos_fact_supports.reserve(0);
     _neg_fact_supports.clear();
+    _neg_fact_supports.reserve(0);
     _q_constants_type_constraints.clear();
+    _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
+    _forbidden_substitutions_per_op.reserve(0);
     _fact_changes.clear();
+    _fact_changes.reserve(0);
 }
