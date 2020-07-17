@@ -8,6 +8,10 @@ fi
 rating_timeout=1800
 domains="ipc2020-feature-test-forall miconic smartphone satellite umtranslog woodworking zenotravel childsnack rover barman transport blocksworld factories entertainment" 
 
+function header() {
+    echo -ne "[$((solved+unsolved+1))/$all] "
+}
+
 function rating() {
     time="$1"
     if (( $(echo "$time <= 1"|bc -l) )); then
@@ -67,7 +71,8 @@ for domain in $domains ; do
         verifile="$logdir/VERIFY"
         
         set +e
-        echo -ne "[$((solved+unsolved+1))/$all] ${blue}$pfile${reset} ... "
+        header
+        echo -ne "${blue}$pfile${reset} ... "
 
         command="./treerexx $dfile $pfile $@"
 
@@ -76,10 +81,12 @@ for domain in $domains ; do
         retval="$?"
         end=$(date +%s.%N)    
         runtime=$(python -c "print(${end} - ${start})")
+        thisscore=0
 
         if [ "$retval" == "0" ]; then
             echo -ne "exit code ${green}$retval${reset}. "
-            score=$(echo $score + $(rating "$runtime")|bc -l)
+            thisscore=$(rating "$runtime")
+            score=$(echo "$score + $thisscore"|bc -l)
         else
             echo -ne "${yellow}exit code $retval.${reset} "
             if [ "$retval" == "134" -o "$retval" == "139" -o "$retval" == "6" -o "$retval" == "11" ]; then
@@ -107,6 +114,8 @@ for domain in $domains ; do
                 fi
             else
                 echo "${green}All ok.${reset}"
+                echo -ne "$(header | sed -e 's/./ /g')"
+                LC_ALL=C printf "TIME %.2f SCORE %.2f\n" $runtime $thisscore
             fi
             solved=$((solved+1))
         else
