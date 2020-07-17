@@ -103,7 +103,7 @@ struct HtnInstance {
     void extractMethodSorts(const method& m);
     void extractConstants();
 
-    Reduction& createReduction(const method& method);
+    Reduction& createReduction(method& method);
     Action& createAction(const task& task);
     HtnOp& getOp(const USignature& opSig);
 

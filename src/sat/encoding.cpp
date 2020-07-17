@@ -1165,21 +1165,20 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
             for (int argSubst : _htn.getDomainOfQConstant(arg)) {
                 const USignature& sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    //log("%i TRUE\n", varSubstitution(sigSubst));
-                    //log("%s/%s => %s ~~> ", TOSTR(arg), 
-                    //        TOSTR(argSubst), TOSTR(sig));
+                    //Log::d("%s/%s => %s ~~> ", TOSTR(arg), TOSTR(argSubst), TOSTR(sig));
                     numSubstitutions++;
                     Substitution sub;
                     sub[arg] = argSubst;
                     sig.apply(sub);
-                    //log("%s\n", TOSTR(sig));
+                    //Log::d("%s\n", TOSTR(sig));
                 } else {
-                    //log("%i FALSE\n", varSubstitution(sigSubst));
+                    //Log::d("%i FALSE\n", varSubstitution(sigSubst));
                 }
             }
 
             int opVar = _layers.at(layer)->at(pos).getVariable(origSig);
             if (numSubstitutions == 0) {
+                //Log::v("No substitutions for arg %s of %s (op=%i)\n", TOSTR(arg), TOSTR(origSig), opVar);
                 return Position::NONE_SIG;
             }
             assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s (op=%i)\n", numSubstitutions, TOSTR(arg), TOSTR(origSig), opVar));
@@ -1188,10 +1187,8 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
         if (!containsQConstants) break; // done
     }
 
-    /*
-    if (origSig != sig)
-        log("%s ~~> %s\n", TOSTR(origSig), TOSTR(sig));
-    */
+    //if (origSig != sig) Log::d("%s ~~> %s\n", TOSTR(origSig), TOSTR(sig));
+    
     return sig;
 }
 

@@ -618,6 +618,9 @@ void Planner::propagateReductions(int offset) {
                 assert(_instantiator.isFullyGround(subRSig));
                 
                 newPos.addReduction(subRSig);
+                /*for (const auto& pre : subR.getPreconditions()) {
+                    Log::d(" -- pre %s\n", TOSTR(pre));
+                }*/
                 newPos.addExpansion(rSig, subRSig);
                 //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
