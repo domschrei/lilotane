@@ -46,6 +46,7 @@ void Parameters::setDefaults() {
     setParam("D", "0"); // max depth (= num iterations)
     //setParam("nps"); // non-primitive fact supports
     //setParam("of"); // output formula to f.cnf
+    //setParam("p"); // encode predecessor operations
     //setParam("pvn"); // print variable names
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
@@ -72,6 +73,7 @@ reductions at the current position (0 : no AMO constraints for reductions)\n");
     Log::e("               default: %i\n", getIntParam("D"));
     Log::e(" -nps          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     Log::e(" -of           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::e(" -p            Encode predecessor operations\n");
     Log::e(" -pvn          Print variable names\n");
     Log::e(" -qrf=<limit>  If -q or -qq, do NOT introduce q-constant if an operation has at most <limit> instantiations\n");
     Log::e(" -qrf=<factor> If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");

@@ -370,18 +370,20 @@ void Encoding::encode(int layerIdx, int pos) {
     stage("expansions");
 
     // predecessors
-    stage("predecessors");
-    for (const auto& pair : newPos.getPredecessors()) {
-        const USignature& child = pair.first;
-        if (child == Position::NONE_SIG) continue;
+    if (_params.isSet("p")) {
+        stage("predecessors");
+        for (const auto& pair : newPos.getPredecessors()) {
+            const USignature& child = pair.first;
+            if (child == Position::NONE_SIG) continue;
 
-        appendClause(-getVariable(newPos, child));
-        for (const USignature& parent : pair.second) {
-            appendClause(getVariable(above, parent));
+            appendClause(-getVariable(newPos, child));
+            for (const USignature& parent : pair.second) {
+                appendClause(getVariable(above, parent));
+            }
+            endClause();
         }
-        endClause();
+        stage("predecessors");
     }
-    stage("predecessors");
 
     // choice of axiomatic ops
     stage("axiomaticops");
