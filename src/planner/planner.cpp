@@ -469,7 +469,6 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     Position& pos = (*_layers[_layer_idx])[_pos];
     assert(_pos > 0);
-    Position& left = (*_layers[_layer_idx])[_pos-1];
     //Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
@@ -491,7 +490,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     //log("Calc decoded effects for %s:%s\n", TOSTR(opSig), TOSTR(fact));
 
-    HtnOp& op = _htn.getOp(opSig);
+    //HtnOp& op = _htn.getOp(opSig);
     //assert(!_htn.getDecodedObjects(factAbs, true).empty());
     int numValid = 0;
 
@@ -703,7 +702,7 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
     for (Action& action : actions) {
-        Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
+        //Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
         if (addAction(action, task)) result.push_back(action.getSignature());
     }
     return result;
@@ -718,7 +717,7 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     // applicable in current (super)state
     for (int redId : _htn._task_id_to_reduction_ids[task._name_id]) {
         Reduction r = _htn._reductions[redId];
-        Log::d("SURROGATE for %s\n", TOSTR(r.getTaskArguments()));
+        //Log::d("SURROGATE for %s\n", TOSTR(r.getTaskArguments()));
 
         if (_htn._reduction_to_surrogate.count(redId)) {
             assert(_htn._actions.count(_htn._reduction_to_surrogate.at(redId)));
@@ -727,10 +726,10 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
                 USignature surrSig = a.getSignature().substitute(s);
-                Log::d("SURROGATE %s \n     -> %s\n", TOSTR(task), TOSTR(surrSig));
+                //Log::d("SURROGATE %s \n     -> %s\n", TOSTR(task), TOSTR(surrSig));
 
                 for (const auto& sig : getAllActionsOfTask(surrSig, state)) {
-                    Log::d("          => %s\n", TOSTR(sig));
+                    //Log::d("          => %s\n", TOSTR(sig));
                     result.push_back(sig);
                 }
             }
@@ -765,7 +764,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     // Rename any remaining variables in each action as unique q-constants,
     action = _htn.replaceVariablesWithQConstants(action, _layer_idx, _pos, getStateEvaluator());
 
-    Log::d("ADDACTION %s\n", TOSTR(action.getSignature()));
+    //Log::d("ADDACTION %s\n", TOSTR(action.getSignature()));
 
     // Remove any inconsistent effects that were just created
     action.removeInconsistentEffects();
@@ -785,7 +784,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     // Compute fact changes
     (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
 
-    Log::d("ADDACTION -- added\n");
+    //Log::d("ADDACTION -- added\n");
     return true;
 }
 

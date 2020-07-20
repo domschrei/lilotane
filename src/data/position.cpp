@@ -49,6 +49,8 @@ void Position::addReduction(const USignature& reduction) {
 void Position::addExpansion(const USignature& parent, const USignature& child) {
     _expansions[parent];
     _expansions[parent].insert(child);
+    _predecessors[child];
+    _predecessors[child].insert(parent);
 }
 void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
@@ -151,6 +153,7 @@ Position::getForbiddenSubstitutions() const {
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getActions() const {return _actions;}
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getReductions() const {return _reductions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
+const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
@@ -175,6 +178,8 @@ void Position::clearFactChanges() {
     _false_facts.reserve(0);
     _expansions.clear();
     _expansions.reserve(0);
+    _predecessors.clear();
+    _predecessors.reserve(0);
     _axiomatic_ops.clear();
     _axiomatic_ops.reserve(0);
     _pos_fact_supports.clear();

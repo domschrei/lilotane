@@ -84,9 +84,9 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
                 for (const auto& eff : childAct.getEffects()) _actions[nameId].addEffect(eff);
                 _reduction_to_surrogate[entry.first] = nameId;
                 _signature_sorts_table[nameId] = _signature_sorts_table[entry.first];
-                Log::d("SURROGATE par: %s\n", TOSTR(red));
-                Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
-                Log::d("SURROGATE des: %s\n", TOSTR(_actions[nameId]));
+                //Log::d("SURROGATE par: %s\n", TOSTR(red));
+                //Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
+                //Log::d("SURROGATE des: %s\n", TOSTR(_actions[nameId]));
                 _surrogate_to_orig_parent_and_child[nameId] = std::pair<int, int>(entry.first, childId);
             }
         }

@@ -26,6 +26,7 @@ private:
     NodeHashMap<USignature, int, USignatureHasher> _reductions;
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
+    NodeHashMap<USignature, USigSet, USignatureHasher> _predecessors;
     NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes;
 
     USigSet _axiomatic_ops;
@@ -111,6 +112,7 @@ public:
     const NodeHashMap<USignature, int, USignatureHasher>& getActions() const;
     const NodeHashMap<USignature, int, USignatureHasher>& getReductions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
+    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
     const USigSet& getAxiomaticOps() const;
     int getMaxExpansionSize() const;
 
