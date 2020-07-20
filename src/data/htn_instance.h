@@ -68,6 +68,7 @@ struct HtnInstance {
     NodeHashMap<int, std::vector<int>> _task_id_to_reduction_ids;
 
     FlatHashMap<int, int> _reduction_to_surrogate;
+    NodeHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
 
     FlatHashSet<int> _equality_predicates;
     FlatHashSet<int> _fluent_predicates;

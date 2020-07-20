@@ -89,8 +89,15 @@ void Planner::outputPlan() {
     stream << "==>\n";
     FlatHashSet<int> actionIds;
     FlatHashSet<int> idsToRemove;
+
+    FlatHashSet<int> surrogateIds;
+    std::vector<PlanItem> decompsToInsert;
+    int decompsToInsertIdx = 0;
+    
     for (PlanItem& item : planPair.first) {
+
         if (item.id < 0) continue;
+        
         if (_htn._name_back_table[item.abstractTask._name_id].rfind("_SECOND") != std::string::npos) {
             // Second part of a split action: discard
             idsToRemove.insert(item.id);
@@ -100,6 +107,26 @@ void Planner::outputPlan() {
             // First part of a split action: change name, then handle normally
             item.abstractTask._name_id = _htn._split_action_from_first[item.abstractTask._name_id];
         }
+        
+        if (_htn._name_back_table[item.abstractTask._name_id].rfind("__SURROGATE") != std::string::npos) {
+            // Surrogate action: Replace with actual action, remember represented method to include in decomposition
+
+            const auto& [parentId, childId] = _htn._surrogate_to_orig_parent_and_child[item.abstractTask._name_id];
+            const Reduction& parentRed = _htn._reductions[parentId].substituteRed(
+                        Substitution(_htn._reductions[parentId].getArguments(), item.abstractTask._args));
+            surrogateIds.insert(item.id);
+            
+            PlanItem parent;
+            parent.abstractTask = parentRed.getTaskSignature();  
+            parent.id = item.id-1;
+            parent.reduction = parentRed.getSignature();
+            parent.subtaskIds = std::vector<int>(1, item.id);
+            decompsToInsert.push_back(parent);
+
+            const USignature& childSig = parentRed.getSubtasks()[0];
+            item.abstractTask = childSig;
+        }
+
         actionIds.insert(item.id);
 
         // Do not write blank actions or the virtual goal action
@@ -110,11 +137,24 @@ void Planner::outputPlan() {
     }
     // -- decomposition part
     bool root = true;
-    for (PlanItem& item : planPair.second) {
+    for (int itemIdx = 0; itemIdx < planPair.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
+
+        // Pick next plan item to print
+        PlanItem item;
+        if (decompsToInsertIdx < decompsToInsert.size() && (itemIdx >= planPair.second.size() || decompsToInsert[decompsToInsertIdx].id < planPair.second[itemIdx].id)) {
+            // Pick plan item from surrogate decompositions
+            item = decompsToInsert[decompsToInsertIdx];
+            decompsToInsertIdx++;
+            itemIdx--;
+        } else {
+            // Pick plan item from "normal" plan list
+            item = planPair.second[itemIdx];
+        }
         if (item.id < 0) continue;
 
         std::string subtaskIdStr = "";
         for (int subtaskId : item.subtaskIds) {
+            if (item.id+1 != subtaskId && surrogateIds.count(subtaskId)) subtaskId--;
             if (!idsToRemove.count(subtaskId)) subtaskIdStr += " " + std::to_string(subtaskId);
         }
         
@@ -663,6 +703,7 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
     for (Action& action : actions) {
+        Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
         if (addAction(action, task)) result.push_back(action.getSignature());
     }
     return result;
@@ -677,6 +718,7 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     // applicable in current (super)state
     for (int redId : _htn._task_id_to_reduction_ids[task._name_id]) {
         Reduction r = _htn._reductions[redId];
+        Log::d("SURROGATE for %s\n", TOSTR(r.getTaskArguments()));
 
         if (_htn._reduction_to_surrogate.count(redId)) {
             assert(_htn._actions.count(_htn._reduction_to_surrogate.at(redId)));
@@ -685,9 +727,14 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
                 USignature surrSig = a.getSignature().substitute(s);
-                for (const auto& sig : getAllActionsOfTask(surrSig, state)) result.push_back(sig);
+                Log::d("SURROGATE %s \n     -> %s\n", TOSTR(task), TOSTR(surrSig));
+
+                for (const auto& sig : getAllActionsOfTask(surrSig, state)) {
+                    Log::d("          => %s\n", TOSTR(sig));
+                    result.push_back(sig);
+                }
             }
-            return result;
+            continue;
         }
 
         std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
@@ -718,11 +765,13 @@ bool Planner::addAction(Action& action, const USignature& task) {
     // Rename any remaining variables in each action as unique q-constants,
     action = _htn.replaceVariablesWithQConstants(action, _layer_idx, _pos, getStateEvaluator());
 
+    Log::d("ADDACTION %s\n", TOSTR(action.getSignature()));
+
     // Remove any inconsistent effects that were just created
     action.removeInconsistentEffects();
 
     // Check validity
-    if (task._name_id >= 0 && action.getSignature() != task) return false;
+    //if (task._name_id >= 0 && action.getSignature() != task) return false;
     if (!_instantiator.isFullyGround(action.getSignature())) return false;
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;

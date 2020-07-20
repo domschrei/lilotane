@@ -39,7 +39,7 @@ void handleAbort(int sig) {
     exit(sig);
 }
 
-int run(Parameters& params) {
+void run(Parameters& params) {
 
     ParsedProblem p;
     HtnInstance::parse(params.getDomainFilename(), params.getProblemFilename(), p);
@@ -48,7 +48,10 @@ int run(Parameters& params) {
         p.methods.size(), p.abstract_tasks.size(), p.primitive_tasks.size());
 
     Planner planner(params, p);
-    return planner.findPlan();
+    int result = planner.findPlan();
+
+    if (result == 0) Log::i("Exiting happily.\n");
+    exit(result);
 }
 
 int main(int argc, char** argv) {
@@ -74,8 +77,5 @@ int main(int argc, char** argv) {
     Log::i("- Freely usable, modifiable and redistributable via GPLv3 licence\n");
     Log::i("\n");
 
-    int result = run(params);
-
-    if (result == 0) Log::i("Exiting happily.\n");
-    return result;
+    run(params);
 }

@@ -999,7 +999,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                     //checkAndApply(aDecoded, state, newState, li, pos);
                 }
 
-                //log("* %s @ %i\n", TOSTR(aDec), pos);
+                //Log::d("* %s @ %i\n", TOSTR(aDec), pos);
                 plan.push_back({aVar, aDec, aDec, std::vector<int>()});
             }
         }
