@@ -55,6 +55,7 @@ private:
     int _substitute_name_id;
 
     FlatHashSet<int> _q_constants;
+    FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
 
     std::vector<int> _last_assumptions;
 
@@ -69,8 +70,6 @@ private:
 
     std::map<std::string, int> _num_cls_per_stage;
     std::map<std::string, int> _total_num_cls_per_stage;
-
-
 
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
@@ -122,6 +121,7 @@ private:
 
     int varPrimitive(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
+    int varQConstEquality(int q1, int q2);
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
 

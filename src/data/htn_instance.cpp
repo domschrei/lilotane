@@ -64,9 +64,35 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         createReduction(method);
     }
 
+    /*
+    // Create replacements for surrogate methods with only one subtask
+    for (const auto& entry : _reductions) {
+        const Reduction& red = entry.second;
+        if (red.getSubtasks().size() == 1) {
+            // Surrogate method
+            USignature childSig = red.getSubtasks().at(0);
+            int childId = childSig._name_id;
+            if (_actions.count(childId)) {
+                // Primitive subtask
+                Substitution s(_actions.at(childId).getArguments(), childSig._args);
+                Action childAct = _actions.at(childId).substitute(s);
+                std::string name = "__SURROGATE*" + std::string(TOSTR(entry.first)) + "*" + std::string(TOSTR(childId)) + "*";
+                int nameId = getNameId(name);
+                Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
+                _actions[nameId] = Action(nameId, red.getArguments());
+                for (const auto& pre : red.getPreconditions()) _actions[nameId].addPrecondition(pre);
+                for (const auto& pre : childAct.getPreconditions()) _actions[nameId].addPrecondition(pre);
+                for (const auto& eff : childAct.getEffects()) _actions[nameId].addEffect(eff);
+                _reduction_to_surrogate[entry.first] = nameId;
+                _signature_sorts_table[nameId] = _signature_sorts_table[entry.first];
+                Log::d("SURROGATE %s\n", TOSTR(_actions[nameId]));
+            }
+        }
+    }*/
+
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
-    if (_params.isSet("q") || _params.isSet("qq")) {
+    if (false && (_params.isSet("q") || _params.isSet("qq"))) {
 
         NodeHashMap<int, Action> newActions;
 

@@ -38,7 +38,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
     USigSet inst = instantiate(a, state);
     for (const USignature& sig : inst) {
         //log("%s\n", TOSTR(sig));
-        assert(isFullyGround(sig));
+        //assert(isFullyGround(sig) || Log::e("%s is not fully ground!\n", TOSTR(sig)));
         HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
         result.push_back((Action) newOp);
     }

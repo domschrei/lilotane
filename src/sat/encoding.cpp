@@ -154,7 +154,52 @@ void Encoding::encode(int layerIdx, int pos) {
             // Predicate must not be rigid
             assert(!_htn.isRigidPredicate(eff._usig._name_id));
 
-            addClause(-aVar, (eff._negated?-1:1)*newPos.encode(eff._usig));
+            std::vector<int> unifiersDnf;
+            bool unifiedUnconditionally = false;
+            if (eff._negated) {
+                for (const auto& posEff : _htn._actions_by_sig[aSig].getEffects()) {
+                    if (posEff._negated) continue;
+                    if (posEff._usig._name_id != eff._usig._name_id) continue;
+                    bool fits = true;
+                    std::vector<int> s;
+                    for (int i = 0; i < eff._usig._args.size(); i++) {
+                        const int& effArg = eff._usig._args[i];
+                        const int& posEffArg = posEff._usig._args[i];
+                        if (effArg != posEffArg) {
+                            bool effIsQ = _q_constants.count(effArg);
+                            bool posEffIsQ = _q_constants.count(posEffArg);
+                            if (effIsQ && posEffIsQ) {
+                                s.push_back(varQConstEquality(effArg, posEffArg));
+                            } else if (effIsQ) {
+                                if (!_htn.getDomainOfQConstant(effArg).count(posEffArg)) fits = false;
+                                else s.push_back(varSubstitution(sigSubstitute(effArg, posEffArg)));
+                            } else if (posEffIsQ) {
+                                if (!_htn.getDomainOfQConstant(posEffArg).count(effArg)) fits = false;
+                                else s.push_back(varSubstitution(sigSubstitute(posEffArg, effArg)));
+                            } else fits = false;
+                        }
+                    }
+                    if (fits && s.empty()) {
+                        // Empty substitution does the job
+                        unifiedUnconditionally = true;
+                        break;
+                    }
+                    s.push_back(0);
+                    if (fits) unifiersDnf.insert(unifiersDnf.end(), s.begin(), s.end());
+                }
+            }
+            if (unifiedUnconditionally) {
+                //addClause(-aVar, -getVariable(newPos, eff._usig));
+            } else if (unifiersDnf.empty()) {
+                addClause(-aVar, (eff._negated?-1:1)*getVariable(newPos, eff._usig));
+            } else {
+                auto cnf = getCnf(unifiersDnf);
+                for (const auto& clause : cnf) {
+                    appendClause(-aVar, -getVariable(newPos, eff._usig));
+                    for (int lit : clause) appendClause(lit);
+                    endClause();
+                }
+            }
         }
     }
     stage("actioneffects");
@@ -834,6 +879,43 @@ int Encoding::varSubstitution(const USignature& sigSubst) {
         return var;
     } 
     return _substitution_variables[sigSubst];
+}
+
+int Encoding::varQConstEquality(int q1, int q2) {
+    std::pair<int, int> qPair(std::min(q1, q2), std::max(q1, q2));
+    if (!_q_equality_variables.count(qPair)) {
+        
+        stage("qconstequality");
+        FlatHashSet<int> good, bad1, bad2;
+        for (int c : _htn.getDomainOfQConstant(q1)) {
+            if (!_htn.getDomainOfQConstant(q2).count(c)) bad1.insert(c);
+            else good.insert(c);
+        }
+        for (int c : _htn.getDomainOfQConstant(q2)) {
+            if (_htn.getDomainOfQConstant(q1).count(c)) continue;
+            bad2.insert(c);
+        }
+        int varEq = VariableDomain::nextVar();
+        if (good.empty()) {
+            // Domains are incompatible -- equality never holds
+            addClause(-varEq);
+        } else {
+            // If equality, then all "good" substitution vars are equivalent
+            for (int c : good) {
+                addClause(-varEq, varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)));
+                addClause(-varEq, -varSubstitution(sigSubstitute(q1, c)), varSubstitution(sigSubstitute(q2, c)));
+            }
+            // Any of the GOOD ones
+            for (int c : good) addClause(-varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)), varEq);
+            // None of the BAD ones
+            for (int c : bad1) addClause(-varSubstitution(sigSubstitute(q1, c)), -varEq);
+            for (int c : bad2) addClause(-varSubstitution(sigSubstitute(q2, c)), -varEq);
+        }
+        stage("qconstequality");
+
+        _q_equality_variables[qPair] = varEq;
+    }
+    return _q_equality_variables[qPair];
 }
 
 std::string Encoding::varName(int layer, int pos, const USignature& sig) {

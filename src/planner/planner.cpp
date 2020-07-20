@@ -601,8 +601,16 @@ void Planner::propagateReductions(int offset) {
         if (offset < r.getSubtasks().size()) {
             // Proper expansion
             const USignature& subtask = r.getSubtasks()[offset];
+            auto allActions = getAllActionsOfTask(subtask, getStateEvaluator());
             // reduction(s)?
             for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
+                
+                if (_htn._actions_by_sig.count(subRSig)) {
+                    // Actually an action, not a reduction
+                    allActions.push_back(subRSig);
+                    continue;
+                }
+
                 numAdded++;
                 assert(_htn._reductions_by_sig.count(subRSig));
                 const Reduction& subR = _htn._reductions_by_sig[subRSig];
@@ -626,7 +634,7 @@ void Planner::propagateReductions(int offset) {
                 //log("\n");
             }
             // action(s)?
-            for (const USignature& aSig : getAllActionsOfTask(subtask, getStateEvaluator())) {
+            for (const USignature& aSig : allActions) {
                 numAdded++;
                 assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig);
@@ -662,19 +670,55 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
 
     if (!_htn._actions.count(task._name_id)) return result;
 
-    // Check if the supplied task has consistent sorts
-    //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
-
     const Action& a = _htn._actions[task._name_id];
 
     HtnOp op = a.substitute(Substitution(a.getArguments(), task._args));
     Action act = (Action) op;
-    //log("  task %s : action found: %s\n", TOSTR(task), TOSTR(act));
     
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
-    //log("ADDACTION %s : %i potential actions\n", TOSTR(act.getSignature()), actions.size());
     for (Action& action : actions) {
         if (addAction(action, task)) result.push_back(action.getSignature());
+    }
+    return result;
+}
+
+std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
+    std::vector<USignature> result;
+
+    if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
+
+    // Filter and minimally instantiate methods
+    // applicable in current (super)state
+    for (int redId : _htn._task_id_to_reduction_ids[task._name_id]) {
+        Reduction r = _htn._reductions[redId];
+
+        if (_htn._reduction_to_surrogate.count(redId)) {
+            assert(_htn._actions.count(_htn._reduction_to_surrogate.at(redId)));
+            Action& a = _htn._actions.at(_htn._reduction_to_surrogate.at(redId));
+
+            std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
+            for (const Substitution& s : subs) {
+                USignature surrSig = a.getSignature().substitute(s);
+                for (const auto& sig : getAllActionsOfTask(surrSig, state)) result.push_back(sig);
+            }
+            return result;
+        }
+
+        std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
+        for (const Substitution& s : subs) {
+            for (const auto& entry : s) assert(entry.second != 0);
+
+            //if (_layer_idx <= 1) log("SUBST %s\n", TOSTR(s));
+            Reduction rSub = r.substituteRed(s);
+            USignature origSig = rSub.getSignature();
+            if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
+            
+            //log("   reduction %s ~> %i instantiations\n", TOSTR(origSig), reductions.size());
+            std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
+            for (Reduction& red : reductions) {
+                if (addReduction(red, task)) result.push_back(red.getSignature());
+            }
+        }
     }
     return result;
 }
@@ -708,41 +752,6 @@ bool Planner::addAction(Action& action, const USignature& task) {
 
     Log::d("ADDACTION -- added\n");
     return true;
-}
-
-std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
-    std::vector<USignature> result;
-
-    if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
-
-    // Check if the created reduction has consistent sorts
-    //if (!_instantiator.hasConsistentlyTypedArgs(task)) return result;
-
-    const std::vector<int>& redIds = _htn._task_id_to_reduction_ids[task._name_id];
-    //log("  task %s : %i reductions found\n", TOSTR(task), redIds.size());
-
-    // Filter and minimally instantiate methods
-    // applicable in current (super)state
-    for (int redId : redIds) {
-        Reduction r = _htn._reductions[redId];
-        //log("%s %s\n", TOSTR(r.getTaskSignature()), TOSTR(r.getSignature()));
-        std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
-        for (const Substitution& s : subs) {
-            for (const auto& entry : s) assert(entry.second != 0);
-
-            //if (_layer_idx <= 1) log("SUBST %s\n", TOSTR(s));
-            Reduction rSub = r.substituteRed(s);
-            USignature origSig = rSub.getSignature();
-            if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
-            
-            //log("   reduction %s ~> %i instantiations\n", TOSTR(origSig), reductions.size());
-            std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
-            for (Reduction& red : reductions) {
-                if (addReduction(red, task)) result.push_back(red.getSignature());
-            }
-        }
-    }
-    return result;
 }
 
 bool Planner::addReduction(Reduction& red, const USignature& task) {

@@ -22,4 +22,15 @@
 #define NodeHashSet std::unordered_set
 #endif
 
+#include "util/hash.h"
+
+struct IntPairHasher {
+size_t operator()(const std::pair<int, int>& pair) const {
+    size_t h = 17;
+    hash_combine(h, pair.first);
+    hash_combine(h, pair.second);
+    return h;
+}
+};
+
 #endif
