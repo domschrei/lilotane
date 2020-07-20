@@ -7,7 +7,9 @@
 Position::Position() : _layer_idx(-1), _pos(-1) {}
 void Position::setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-void Position::addFact(const USignature& fact) {_facts.insert(fact);}
+void Position::addFact(const USignature& fact) {
+    _facts.insert(fact);
+}
 void Position::addQFact(const USignature& qfact) {
     _qfacts[qfact._name_id];
     _qfacts[qfact._name_id].insert(qfact);
@@ -59,6 +61,13 @@ const SigSet& Position::getFactChanges(const USignature& op) const {
     return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
 }
 
+void Position::setMirroredFacts(Position& left) {
+    if (left._mirrored_facts != nullptr) _mirrored_facts = left._mirrored_facts;
+    else _mirrored_facts = &(left._facts);
+    _facts.clear();
+    _facts.reserve(0);
+}
+
 void Position::removeActionOccurrence(const USignature& action) {
     assert(_actions.count(action));
     _actions[action]--;
@@ -76,34 +85,26 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
 
 int Position::encode(const USignature& sig) {
     
+    // If the variable is already there, then it must be originally encoded to return the correct result
+    assert(!_variables.count(sig) || isVariableOriginallyEncoded(sig));
+
     if (!_variables.count(sig)) {
         // introduce a new variable
         assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-        _variables[sig] = IntPair(VariableDomain::nextVar(), _pos);
-        IntPair& pair = _variables[sig];
-        VariableDomain::printVar(pair.first, _layer_idx, _pos, sig);
+        _variables[sig] = VariableDomain::nextVar();
+        VariableDomain::printVar(_variables[sig], _layer_idx, _pos, sig);
     }
-
-    //log("%i\n", vars[sig]);
-    int val = _variables[sig].first;
-    return val;
+    return _variables[sig];
 }
 
-void Position::setVariable(const USignature& sig, int v, int priorPos) {
+void Position::setVariableReference(const USignature& sig, int priorPos) {
     assert(!_variables.count(sig));
-    assert(v > 0);
-    _variables[sig] = IntPair(v, priorPos);
+    _variables[sig] = -priorPos;
 }
 
-int Position::getVariable(const USignature& sig) const {
+int Position::getVariableOrReference(const USignature& sig) const {
     assert(_variables.count(sig));
-    int v = _variables.at(sig).first;
-    return v;
-}
-int Position::getPriorPosOfVariable(const USignature& sig) const {
-    assert(_variables.count(sig));
-    int priorPos = _variables.at(sig).second;
-    return priorPos;
+    return _variables.at(sig);
 }
 
 bool Position::hasVariable(const USignature& sig) const {
@@ -111,17 +112,23 @@ bool Position::hasVariable(const USignature& sig) const {
 }
 bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
     assert(_variables.count(sig));
-    return _variables.at(sig).second == _pos;
+    return _variables.at(sig) > 0;
 }
 
-bool Position::hasFact(const USignature& fact) const {return _facts.count(fact);}
+bool Position::hasFact(const USignature& fact) const {
+    if (_mirrored_facts != nullptr) return _mirrored_facts->count(fact);
+    else return _facts.count(fact);
+}
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}
 
 IntPair Position::getPos() const {return IntPair(_layer_idx, _pos);}
 
-const USigSet& Position::getFacts() const {return _facts;}
+const USigSet& Position::getFacts() const {
+    if (_mirrored_facts != nullptr) return *_mirrored_facts;
+    return _facts;
+}
 const NodeHashMap<int, USigSet>& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
 int Position::getNumQFacts() const {
@@ -149,22 +156,35 @@ int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
 void Position::clearUnneeded() {
     _facts.clear();
+    _facts.reserve(0);
 
-    FlatHashMap<USignature, IntPair, USignatureHasher> cleanedVars;
+    /*
+    NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
     for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
     for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
     _variables = std::move(cleanedVars);
+    */
 }
 
 void Position::clearFactChanges() {
     _qfacts.clear();
+    _qfacts.reserve(0);
     _true_facts.clear();
+    _true_facts.reserve(0);
     _false_facts.clear();
+    _false_facts.reserve(0);
     _expansions.clear();
+    _expansions.reserve(0);
     _axiomatic_ops.clear();
+    _axiomatic_ops.reserve(0);
     _pos_fact_supports.clear();
+    _pos_fact_supports.reserve(0);
     _neg_fact_supports.clear();
+    _neg_fact_supports.reserve(0);
     _q_constants_type_constraints.clear();
+    _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
+    _forbidden_substitutions_per_op.reserve(0);
     _fact_changes.clear();
+    _fact_changes.reserve(0);
 }

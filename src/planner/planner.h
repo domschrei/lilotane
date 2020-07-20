@@ -21,7 +21,7 @@ private:
     Parameters& _params;
     HtnInstance _htn;
 
-    std::vector<Layer> _layers;
+    std::vector<Layer*> _layers;
     Instantiator& _instantiator;
     Encoding _enc;
 

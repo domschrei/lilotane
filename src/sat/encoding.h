@@ -42,9 +42,9 @@ class Encoding {
 private:
     Parameters& _params;
     HtnInstance& _htn;
-    std::vector<Layer>* _layers;
+    std::vector<Layer*>& _layers;
     
-    FlatHashMap<USignature, int, USignatureHasher> _substitution_variables;
+    NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
     void* _solver;
@@ -60,6 +60,7 @@ private:
     std::vector<int> _last_assumptions;
 
     const bool _print_formula;
+    const bool _use_q_constant_mutexes;
 
     int _num_cls;
     int _num_lits;
@@ -72,7 +73,7 @@ private:
     std::map<std::string, int> _total_num_cls_per_stage;
 
 public:
-    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer>& layers);
+    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
     ~Encoding();
 
     void encode(int layerIdx, int pos);
@@ -124,6 +125,9 @@ private:
     int varQConstEquality(int q1, int q2);
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
+    
+    int getVariable(const Position& pos, const USignature& sig);
+    int getVariable(int layer, int pos, const USignature& sig);
 
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);

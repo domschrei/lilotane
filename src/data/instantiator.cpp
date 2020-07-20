@@ -591,9 +591,12 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
 bool Instantiator::hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state) {
 
     for (const Signature& pre : preconds) {
+        //Log::d("   %s ? ", TOSTR(pre));
         if (!test(pre, state)) {
+            //Log::d("FALSE\n");
             return false;
         }
+        //Log::d("TRUE\n");
     }
     return true;
 }

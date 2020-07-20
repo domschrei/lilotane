@@ -31,7 +31,7 @@ int Planner::findPlan() {
 
         if (iteration >= firstSatCallIteration) {
 
-            _enc.printFailedVars(_layers.back());
+            _enc.printFailedVars(*_layers.back());
 
             if (_params.isSet("cs")) { // check solvability
                 Log::i("Unsolvable at layer %i with assumptions\n", _layer_idx);
@@ -62,7 +62,7 @@ int Planner::findPlan() {
     }
 
     if (!solved) {
-        if (iteration >= firstSatCallIteration) _enc.printFailedVars(_layers.back());
+        if (iteration >= firstSatCallIteration) _enc.printFailedVars(*_layers.back());
         Log::w("No success. Exiting.\n");
         return 1;
     }
@@ -146,8 +146,8 @@ void Planner::createFirstLayer() {
     Log::i("Creating initial layer of size %i\n", initSize);
     _layer_idx = 0;
     _pos = 0;
-    _layers.push_back(Layer(0, initSize));
-    Layer& initLayer = _layers[0];
+    _layers.push_back(new Layer(0, initSize));
+    Layer& initLayer = (*_layers[0]);
     initLayer[_pos].setPos(_layer_idx, _pos);
     
     /***** LAYER 0, POSITION 0 ******/
@@ -183,7 +183,7 @@ void Planner::createFirstLayer() {
         }
     }
     addNewFalseFacts();
-    _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
+    _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
     _enc.encode(_layer_idx, _pos++);
 
     /***** LAYER 0, POSITION 1 ******/
@@ -216,10 +216,10 @@ void Planner::createFirstLayer() {
 
 void Planner::createNextLayer() {
 
-    _layers.emplace_back(_layers.size(), _layers.back().getNextLayerSize());
-    Layer& newLayer = _layers.back();
+    _layers.push_back(new Layer(_layers.size(), _layers.back()->getNextLayerSize()));
+    Layer& newLayer = *_layers.back();
     Log::i("New layer size: %i\n", newLayer.size());
-    Layer& oldLayer = _layers[_layer_idx];
+    Layer& oldLayer = (*_layers[_layer_idx]);
     _layer_idx++;
     _pos = 0;
 
@@ -237,10 +237,10 @@ void Planner::createNextLayer() {
 
             createNextPosition();
             Log::v("  Instantiation done. (r=%i a=%i f=%i qf=%i)\n", 
-                    _layers[_layer_idx][_pos].getReductions().size(),
-                    _layers[_layer_idx][_pos].getActions().size(),
-                    _layers[_layer_idx][_pos].getFacts().size(),
-                    _layers[_layer_idx][_pos].getNumQFacts()
+                    (*_layers[_layer_idx])[_pos].getReductions().size(),
+                    (*_layers[_layer_idx])[_pos].getActions().size(),
+                    (*_layers[_layer_idx])[_pos].getFacts().size(),
+                    (*_layers[_layer_idx])[_pos].getNumQFacts()
             );
             _enc.encode(_layer_idx, _pos++);
         }
@@ -255,13 +255,13 @@ void Planner::createNextPosition() {
     if (_pos == 0) {
         propagateInitialState();
     } else {
-        Position& left = _layers[_layer_idx][_pos-1];
+        Position& left = (*_layers[_layer_idx])[_pos-1];
         createNextPositionFromLeft(left);
     }
 
     // Generate this new position's content based on the facts and the position above.
     if (_layer_idx > 0) {
-        Position& above = _layers[_layer_idx-1][_old_pos];
+        Position& above = (*_layers[_layer_idx-1])[_old_pos];
         createNextPositionFromAbove(above);
     }
 
@@ -270,49 +270,56 @@ void Planner::createNextPosition() {
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
 
-    // Use new q-constant conditions from this position to infer conditions 
-    // of the respective parent ops at the layer above. 
-    auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getActions());
-    auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, _layers[_layer_idx][_pos].getReductions());
-    updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
+    if (_htn._use_q_constant_mutexes) {
 
-    pruneRetroactively(updatedOps);
+        // Use new q-constant conditions from this position to infer conditions 
+        // of the respective parent ops at the layer above. 
+        auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
+        auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+        updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
 
-    // Remove all q fact decodings which have become invalid
-    for (const auto& entry : _layers[_layer_idx][_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+        //pruneRetroactively(updatedOps);
 
-        std::vector<int> qargs, qargIndices;
-        for (int i = 0; i < qfactSig._args.size(); i++) {
-            const int& arg = qfactSig._args[i];
-            if (_htn._q_constants.count(arg)) {
-                qargs.push_back(arg);
-                qargIndices.push_back(i);
+        // Remove all q fact decodings which have become invalid
+        for (const auto& entry : (*_layers[_layer_idx])[_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+
+            std::vector<int> qargs, qargIndices;
+            for (int i = 0; i < qfactSig._args.size(); i++) {
+                const int& arg = qfactSig._args[i];
+                if (_htn._q_constants.count(arg)) {
+                    qargs.push_back(arg);
+                    qargIndices.push_back(i);
+                }
             }
-        }
 
-        USigSet decodingsToRemove;
-        for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (!_htn.isAbstraction(decFactSig, qfactSig)) {
-                decodingsToRemove.insert(decFactSig);
-                Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
+            USigSet decodingsToRemove;
+            for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
+                if (!_htn.isAbstraction(decFactSig, qfactSig)) {
+                    decodingsToRemove.insert(decFactSig);
+                    Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
 
+                }
             }
+            // Remove all invalid q fact decodings
+            for (const auto& decFactSig : decodingsToRemove) {
+                _htn.removeQFactDecoding(qfactSig, decFactSig);
+                
+                std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
+                _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
+            } 
         }
-        // Remove all invalid q fact decodings
-        for (const auto& decFactSig : decodingsToRemove) {
-            _htn.removeQFactDecoding(qfactSig, decFactSig);
-            
-            std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
-            _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
-        } 
+    } 
+
+    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].getFacts() == (*_layers[_layer_idx])[_pos].getFacts()) {
+        (*_layers[_layer_idx])[_pos].setMirroredFacts((*_layers[_layer_idx])[_pos-1]);
     }
 }
 
 void Planner::createNextPositionFromAbove(const Position& above) {
-    Position& newPos = _layers[_layer_idx][_pos];
+    Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
 
-    int offset = _pos - _layers[_layer_idx-1].getSuccessorPos(_old_pos);
+    int offset = _pos - (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos);
     if (offset == 0) {
         // Propagate facts
         for (const auto& entry : above.getQFacts()) for (const USignature& fact : entry.second) {
@@ -329,7 +336,7 @@ void Planner::createNextPositionFromAbove(const Position& above) {
 }
 
 void Planner::createNextPositionFromLeft(const Position& left) {
-    Position& newPos = _layers[_layer_idx][_pos];
+    Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
     assert(left.getPos() == IntPair(_layer_idx, _pos-1));
 
@@ -378,7 +385,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
 }
 
 void Planner::addPrecondition(const USignature& op, const Signature& fact) {
-    Position& pos = _layers[_layer_idx][_pos];
+    Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
 
     bool isQFact = _htn.hasQConstants(factAbs);
@@ -420,10 +427,10 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 }
 
 void Planner::addEffect(const USignature& opSig, const Signature& fact) {
-    Position& pos = _layers[_layer_idx][_pos];
+    Position& pos = (*_layers[_layer_idx])[_pos];
     assert(_pos > 0);
-    Position& left = _layers[_layer_idx][_pos-1];
-    //Position& left = _layers[_layer_idx][_pos-1];
+    Position& left = (*_layers[_layer_idx])[_pos-1];
+    //Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
     if (isQFact) pos.addQFact(factAbs);
@@ -461,30 +468,6 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, true)) {
         
         /*
-        // Check if the preconditions of op subject to such a fact encoding can hold
-        const auto& subs = _instantiator.getOperationSubstitutionsCausingEffect(left.getFactChanges(opSig), decFactAbs, fact._negated);
-        bool valid = false;
-        // For each possible substitution leading to the fact:
-        for (const auto& sub : subs) {
-            HtnOp opSub = op.substitute(sub);
-
-            // Try to get a single valid (w.r.t. preconds) instantiation of the operator
-            std::vector<int> varArgs;
-            for (const int& arg : opSub.getArguments()) {
-                if (_htn._var_ids.count(arg)) varArgs.push_back(arg);
-            }
-            USigSet inst = _instantiator.instantiateLimited(opSub, getStateEvaluator(_layer_idx, _pos-1), varArgs, 1, true);
-
-            if (!inst.empty()) {
-                // Success -- the effect may actually happen
-                valid = true;
-                break;
-            }
-        }
-        if (!valid) continue;
-        */
-
-        /*
         // Test if this q constant substitution is valid
         std::vector<int> vals;
         for (const int& i : qconstIndices) vals.push_back(decFactAbs._args[i]);
@@ -506,8 +489,8 @@ void Planner::propagateInitialState() {
     assert(_layer_idx > 0);
     assert(_pos == 0);
 
-    Position& newPos = _layers[_layer_idx][0];
-    Position& above = _layers[_layer_idx-1][0];
+    Position& newPos = (*_layers[_layer_idx])[0];
+    Position& above = (*_layers[_layer_idx-1])[0];
 
     // Propagate occurring facts
     for (const USignature& fact : above.getFacts()) {
@@ -523,7 +506,7 @@ void Planner::propagateInitialState() {
         newPos.addFalseFact(fact);
 
     // Propagate state: initial position and all q-facts
-    getLayerState(_layer_idx) = //LayerState(getLayerState(_layer_idx-1), _layers[_layer_idx-1].getOffsets());
+    getLayerState(_layer_idx) = //LayerState(getLayerState(_layer_idx-1), (*_layers[_layer_idx-1]).getOffsets());
     LayerState();
     const auto& oldState = getLayerState(_layer_idx-1);
     auto& newState = getLayerState(_layer_idx);
@@ -533,10 +516,10 @@ void Planner::propagateInitialState() {
             //log("  ~~~> %s\n", TOSTR(fact));
             const auto& range = entry.second;
             if (range.first == 0 || _htn.hasQConstants(fact)) {
-                int newRangeFirst = _layers[_layer_idx-1].getSuccessorPos(range.first);
+                int newRangeFirst = (*_layers[_layer_idx-1]).getSuccessorPos(range.first);
                 newState.add(newRangeFirst, fact, neg);
                 if (range.second != INT32_MAX) {
-                    int newRangeSecond = _layers[_layer_idx-1].getSuccessorPos(range.second);    
+                    int newRangeSecond = (*_layers[_layer_idx-1]).getSuccessorPos(range.second);    
                     newState.withdraw(newRangeSecond, fact, neg);
                 }
             }
@@ -548,8 +531,8 @@ void Planner::propagateInitialState() {
 }
 
 void Planner::propagateActions(int offset) {
-    Position& newPos = _layers[_layer_idx][_pos];
-    Position& above = _layers[_layer_idx-1][_old_pos];
+    Position& newPos = (*_layers[_layer_idx])[_pos];
+    Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Propagate actions
     for (const auto& entry : above.getActions()) {
@@ -587,8 +570,8 @@ void Planner::propagateActions(int offset) {
 }
 
 void Planner::propagateReductions(int offset) {
-    Position& newPos = _layers[_layer_idx][_pos];
-    Position& above = _layers[_layer_idx-1][_old_pos];
+    Position& newPos = (*_layers[_layer_idx])[_pos];
+    Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Expand reductions
     for (const auto& entry : above.getReductions()) {
@@ -619,6 +602,9 @@ void Planner::propagateReductions(int offset) {
                 assert(_instantiator.isFullyGround(subRSig));
                 
                 newPos.addReduction(subRSig);
+                /*for (const auto& pre : subR.getPreconditions()) {
+                    Log::d(" -- pre %s\n", TOSTR(pre));
+                }*/
                 newPos.addExpansion(rSig, subRSig);
                 //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
@@ -748,7 +734,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     _htn._actions_by_sig[sig] = action;
 
     // Compute fact changes
-    _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
 
     Log::d("ADDACTION -- added\n");
     return true;
@@ -773,13 +759,13 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     _htn._reductions_by_sig[sig] = red;
 
     // Compute fact changes
-    _layers[_layer_idx][_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
 
     return true;
 }
 
 void Planner::addNewFalseFacts() {
-    Position& newPos = _layers[_layer_idx][_pos];
+    Position& newPos = (*_layers[_layer_idx])[_pos];
     
     // For each action:
     for (const auto& entry : newPos.getActions()) {
@@ -828,8 +814,8 @@ void Planner::addNewFalseFacts() {
 
     // For each fact from "above" the next position:
     if (_layer_idx == 0) return;
-    if (_old_pos+1 < _layers[_layer_idx-1].size() && _layers[_layer_idx-1].getSuccessorPos(_old_pos+1) == _pos+1) {
-        Position& newAbove = _layers[_layer_idx-1][_old_pos+1];
+    if (_old_pos+1 < (*_layers[_layer_idx-1]).size() && (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos+1) == _pos+1) {
+        Position& newAbove = (*_layers[_layer_idx-1])[_old_pos+1];
 
         for (const USignature& fact : newAbove.getFacts()) {
             // If fact was not seen here before
@@ -863,7 +849,7 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
     std::vector<TypeConstraint> cs = _instantiator.getQConstantTypeConstraints(op);
     // Add to this position's data structure
     for (const TypeConstraint& c : cs) {
-        _layers[_layer_idx][_pos].addQConstantTypeConstraint(op, c);
+        (*_layers[_layer_idx])[_pos].addQConstantTypeConstraint(op, c);
     }
 }
 
@@ -894,8 +880,8 @@ void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSi
             // COMPLETELY remove this op, disregarding witness counters.
 
             bool isReduction = _htn._reductions.count(sig._name_id);
-            if (isReduction) _layers[layerIdx][pos].removeReductionOccurrence(sig);
-            else _layers[layerIdx][pos].removeActionOccurrence(sig);
+            if (isReduction) (*_layers[layerIdx])[pos].removeReductionOccurrence(sig);
+            else (*_layers[layerIdx])[pos].removeActionOccurrence(sig);
         }
     }
 }
@@ -903,7 +889,7 @@ void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSi
 
 LayerState& Planner::getLayerState(int layer) {
     if (layer == -1) layer = _layer_idx;
-    return _layers[layer].getState();
+    return (*_layers[layer]).getState();
 }
 
 std::function<bool(const Signature&)> Planner::getStateEvaluator(int layer, int pos) {

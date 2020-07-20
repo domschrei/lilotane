@@ -1,0 +1,65 @@
+(define (domain gripper-typed)
+
+(:requirements
+  :typing
+  :hierachie)
+
+(:types room ball gripper)
+
+(:constants left right - gripper)
+
+(:predicates (at-robby ?r - room) (at ?b - ball ?r - room) (free ?g - gripper) (carry ?o - ball ?g - gripper))
+
+(:task move_two_balls
+  :parameters (?b1 - ball ?b2 - ball ?r - room) )
+
+(:task move_one_ball
+  :parameters (?b - ball ?r - room) )
+
+(:task goto
+  :parameters (?r - room) )
+
+(:method m0_move_two_balls
+  :parameters ( ?b1 - ball  ?b2 - ball  ?r - room ?g1 - gripper ?g2 - gripper ?rb - room )
+  :task (move_two_balls ?b1 ?b2 ?r)
+  :precondition (and (at ?b1 ?rb) (at ?b2 ?rb))
+  :ordered-subtasks(and (t1 (goto ?rb)) (t2 (pick ?b1 ?rb ?g1)) (t3 (pick ?b2 ?rb ?g2)) (t4 (move ?rb ?r)) (t5 (drop ?b1 ?r ?g1)) (t6 (drop ?b2 ?r ?g2))) ) 
+
+(:method m1_move_one_ball
+  :parameters ( ?b - ball  ?r - room ?g - gripper ?rb - room )
+  :task (move_one_ball ?b ?r)
+  :precondition (and (at ?b ?rb))
+  :ordered-subtasks(and (t1 (goto ?rb)) (t2 (pick ?b ?rb ?g)) (t3 (move ?rb ?r)) (t4 (drop ?b ?r ?g))) ) 
+
+(:method m2_goto
+  :parameters ( ?r - room )
+  :task (goto ?r)
+  :precondition (and (at-robby ?r))
+  :ordered-subtasks(and (t1 (nop))) ) 
+
+(:method m3_goto
+  :parameters ( ?r - room ?from - room )
+  :task (goto ?r)
+  :precondition (and (at-robby ?from) (not (= ?from ?r)))
+  :ordered-subtasks(and (t1 (move ?from ?r))) ) 
+
+(:action move
+  :parameters (?from - room ?to - room)
+  :precondition (at-robby ?from)
+  :effect (and (at-robby ?to) (not (at-robby ?from))))
+
+(:action pick
+  :parameters (?obj - ball ?room - room ?gripper - gripper)
+  :precondition (and (at ?obj ?room) (at-robby ?room) (free ?gripper))
+  :effect (and (carry ?obj ?gripper) (not (at ?obj ?room)) (not (free ?gripper))))
+
+(:action drop
+  :parameters (?obj - ball ?room - room ?gripper - gripper)
+  :precondition (and (carry ?obj ?gripper) (at-robby ?room))
+  :effect (and (at ?obj ?room) (free ?gripper) (not (carry ?obj ?gripper))))
+
+(:action nop
+  :parameters ()
+  :precondition ()
+  :effect ())
+)

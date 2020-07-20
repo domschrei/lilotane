@@ -80,8 +80,8 @@ struct HtnInstance {
 
     FlatHashMap<int, int> _split_action_from_first;
 
-    bool _remove_rigid_predicates;
-
+    const bool _remove_rigid_predicates;
+    const bool _use_q_constant_mutexes;
 
 
 
@@ -105,7 +105,7 @@ struct HtnInstance {
     void extractMethodSorts(const method& m);
     void extractConstants();
 
-    Reduction& createReduction(const method& method);
+    Reduction& createReduction(method& method);
     Action& createAction(const task& task);
     HtnOp& getOp(const USignature& opSig);
 

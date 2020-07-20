@@ -22,12 +22,12 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
 }
 
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
-            _q_db([this](int arg) {return _q_constants.count(arg);}) {
+            _q_db([this](int arg) {return _q_constants.count(arg);}), 
+            _remove_rigid_predicates(_params.isSet("rrp")), 
+            _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
 
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
-
-    _remove_rigid_predicates = _params.isSet("rrp");
 
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
@@ -60,7 +60,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _actions[blankId] = _action_blank;
 
     // Create reductions
-    for (const method& method : methods) {
+    for (method& method : methods) {
         createReduction(method);
     }
 
@@ -339,7 +339,7 @@ void HtnInstance::extractConstants() {
     }
 }
 
-Reduction& HtnInstance::createReduction(const method& method) {
+Reduction& HtnInstance::createReduction(method& method) {
     int id = getNameId(method.name);
     std::vector<int> args = getArguments(id, method.vars);
     
@@ -355,12 +355,9 @@ Reduction& HtnInstance::createReduction(const method& method) {
     std::vector<literal> condLiterals;
 
     // Extract (in)equality constraints, put into preconditions to process later
-    if (!method.constraints.empty()) {
-        for (const literal& lit : method.constraints) {            
-            //log("%s\n", TOSTR(getSignature(lit)));
-            assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"\"!\n", lit.predicate.c_str()));
-            condLiterals.push_back(lit);
-        }
+    for (const literal& lit : method.constraints) {            
+        assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"\"!\n", lit.predicate.c_str()));
+        condLiterals.push_back(lit);
     }
 
     // Go through expansion of the method
@@ -391,7 +388,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
                     taskName = matches.str(1);
                 }
 
-                //log(" %s\n", taskName.c_str());
+                //Log::d(" ~~~ %s\n", taskName.c_str());
                 if (subtaskName.rfind(taskName) != std::string::npos) {
 
                     int size = t.name.size();
@@ -403,14 +400,12 @@ Reduction& HtnInstance::createReduction(const method& method) {
                 }
             }
             assert(numFound >= 1);
-            Log::d("- Using %i preconds of prim. task %s as preconds of method %s\n", 
-                    precTask.prec.size(), precTask.name.c_str(), st.task.c_str());
+            Log::d("- Using %i preconds of prim. task %s as preconds of method %s\n",
+                    precTask.prec.size() + precTask.constraints.size(), precTask.name.c_str(), st.task.c_str());
 
             // Add its preconditions to the method's preconditions
-            for (const literal& lit : precTask.prec) {
-                //log("COND_LIT %s\n", lit.predicate.c_str());
-                condLiterals.push_back(lit);
-            }
+            for (const literal& lit : precTask.prec) condLiterals.push_back(lit);
+            for (const literal& lit : precTask.constraints) condLiterals.push_back(lit);
 
             // If necessary, (re-)add parameters of the method precondition task
             for (const auto& varPair : precTask.vars) {
@@ -423,6 +418,7 @@ Reduction& HtnInstance::createReduction(const method& method) {
                     r.addArgument(varId);
                     args = r.getArguments();
                     _signature_sorts_table[id].push_back(getNameId(varPair.second));
+                    method.vars.push_back(varPair);
                 }
             }
 
@@ -440,16 +436,20 @@ Reduction& HtnInstance::createReduction(const method& method) {
     // Process preconditions and constraints of the method
     for (const literal& lit : condLiterals) {
 
+        //Log::d("( %s ", lit.predicate.c_str());
+        //for (std::string arg : lit.arguments) Log::d("%s ", arg.c_str());
+        //Log::d(")\n");
+
         if (lit.predicate == dummy_equal_literal) {
             // Equality precondition
 
             // Find out "type" of this equality predicate
             std::string arg1Str = lit.arguments[0];
             std::string arg2Str = lit.arguments[1];
-            //log("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
+            //Log::d("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
             int sort1 = -1, sort2 = -1;
             for (int argPos = 0; argPos < method.vars.size(); argPos++) {
-                //log("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
+                //Log::d("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
                 if (arg1Str == method.vars[argPos].first)
                     sort1 = getNameId(method.vars[argPos].second);
                 if (arg2Str == method.vars[argPos].first)
@@ -549,6 +549,8 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
 
 std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
 
+    std::vector<int> vecFailure(1, -1);
+
     std::vector<int> args = op.getArguments();
     std::vector<int> varargIndices;
     for (int i = 0; i < op.getArguments().size(); i++) {
@@ -560,6 +562,9 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
 
     // Check each precondition regarding its valid decodings w.r.t. current state
     for (const auto& preSig : op.getPreconditions()) {
+
+        // Check base condition; if unsatisfied, discard op 
+        if (!_instantiator->test(preSig, state)) return vecFailure;
 
         // Find mapping from precond args to op args
         std::vector<int> opArgIndices;
@@ -574,7 +579,9 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             }
         }
 
+        // Check possible decodings of precondition
         std::vector<USignature> usigs = getDecodedObjects(preSig._usig, /*checkQConstConds=*/true);
+        bool anyValid = usigs.empty();
         for (const auto& decUSig : usigs) {
             Signature decSig(decUSig, preSig._negated);
             //Log::d("------%s\n", TOSTR(decSig));
@@ -583,6 +590,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             if (!_instantiator->test(decSig, state)) continue;
             
             // Valid precondition decoding found: Increase domain of concerned variables
+            anyValid = true;
             for (int i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
                 if (opArgIdx >= 0) {
@@ -590,6 +598,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
                 }
             }
         }
+        if (!anyValid) return vecFailure;
     }
 
     // Assemble new operator arguments
@@ -602,7 +611,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         if (domain.empty()) {
             // No valid constants at this position! The op is impossible.
             Log::d("Empty domain for arg %s of %s\n", TOSTR(vararg), TOSTR(op.getSignature()));
-            return std::vector<int>(1, -1);
+            return vecFailure;
         }
         if (domain.size() == 1) {
             // Only one valid constant here: Replace directly
@@ -787,15 +796,17 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
         // Different args, no q-constant arg?
         if (!_q_constants.count(qarg)) return false;
         
-        qArgs.push_back(qarg);
-        decArgs.push_back(carg);
+        if (_use_q_constant_mutexes) {
+            qArgs.push_back(qarg);
+            decArgs.push_back(carg);
+        }
 
         // A q-constant that does not fit the concrete argument?
         if (!getDomainOfQConstant(qarg).count(carg)) return false;
     }
 
     // Check that q-constant assignment is valid
-    if (!_q_db.test(qArgs, decArgs)) return false;
+    if (_use_q_constant_mutexes && !_q_db.test(qArgs, decArgs)) return false;
 
     // A-OK
     return true;
@@ -806,7 +817,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
-    if (_params.getIntParam("qcm") == 0) return;
+    if (!_use_q_constant_mutexes) return;
     if (!hasQConstants(psig.usig)) return;
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
