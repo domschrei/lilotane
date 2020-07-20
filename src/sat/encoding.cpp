@@ -885,7 +885,7 @@ int Encoding::getVariable(int layer, int pos, const USignature& sig) {
 int Encoding::getVariable(const Position& pos, const USignature& sig) {
     int x = pos.getVariableOrReference(sig);
     if (x > 0) return x;
-    Log::d("%s @ %i -> links back to %i\n", TOSTR(sig), pos.getPos().second, -x);
+    //Log::d("%s @ %i -> links back to %i\n", TOSTR(sig), pos.getPos().second, -x);
     x = _layers.at(pos.getPos().first)->at(-x).getVariableOrReference(sig);
     assert(x > 0);
     return x;

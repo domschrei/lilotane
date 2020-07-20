@@ -5,7 +5,7 @@ set -e
 # Fetch a clean state of pandaPIparser
 if [ ! -d pandaPIparser ]; then
     echo "Fetching pandaPIparser ..."
-    git clone git@github.com:panda-planner-dev/pandaPIparser.git
+    git clone https://github.com/panda-planner-dev/pandaPIparser.git
     cd pandaPIparser
 else
     cd pandaPIparser
