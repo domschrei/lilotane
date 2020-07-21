@@ -1,0 +1,40 @@
+--- glucose-4/core/Solver.h	2016-12-08 13:48:26.000000000 +0100
++++ Solver.h	2020-07-21 08:09:34.000000000 +0200
+@@ -186,6 +186,10 @@
+     virtual void garbageCollect();
+     void    checkGarbage(double gf);
+     void    checkGarbage();
++    
++    // ADDED by domschrei 2020-07-21
++    // Set a callback called for each learnt clause.
++    void setLearnCallback(void * state, int max_length, void (*learn)(void * state, int * clause));
+ 
+     // Extra results: (read-only member variable)
+     //
+@@ -394,6 +398,11 @@
+     int nbSatCalls,nbUnsatCalls;
+     vec<int> assumptionPositions,initialPositions;
+ 
++    // ADDED by domschrei 2020-07-21
++    // Structs for learnt clauses callback
++    void *exportClsState;
++    int maxExportClsLength = 0;
++    void (*exportClsCallback)(void * state, int * clause);    
+ 
+     // Main internal methods:
+     //
+@@ -500,6 +509,14 @@
+     if (ca.wasted() > ca.size() * gf)
+         garbageCollect(); }
+ 
++// ADDED by domschrei 2020-07-21
++// Set a callback called for each learnt clause.
++inline void Solver::setLearnCallback(void * state, int max_length, void (*learn)(void * state, int * clause)) {
++    exportClsState = state;
++    maxExportClsLength = max_length;
++    exportClsCallback = learn;
++}
++
+ // NOTE: enqueue does not set the ok flag! (only public methods do)
+ inline bool     Solver::enqueue         (Lit p, CRef from)      { return value(p) != l_Undef ? value(p) != l_False : (uncheckedEnqueue(p, from), true); }
+ inline bool     Solver::addClause       (const vec<Lit>& ps)    { ps.copyTo(add_tmp); return addClause_(add_tmp); }

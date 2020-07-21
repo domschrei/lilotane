@@ -1,0 +1,38 @@
+--- glucose-4/core/Solver.cc	2016-12-08 13:48:26.000000000 +0100
++++ Solver.cc	2020-07-21 08:32:38.000000000 +0200
+@@ -49,6 +49,9 @@
+ 
+ #include <math.h>
+ 
++// ADDED by domschrei 2020-07-21
++#include <stdlib.h>
++
+ #include "utils/System.h"
+ #include "mtl/Sort.h"
+ #include "core/Solver.h"
+@@ -2000,10 +2003,25 @@
+ 
+ 
+ void Solver::parallelExportUnaryClause(Lit p) {
++    // ADDED by domschrei 2020-07-21
++    if (maxExportClsLength >= 1) {
++        int cls[2];
++        cls[0] = sign(p) ? -(var(p)+1) : (var(p)+1);
++        cls[1] = 0;
++        exportClsCallback(exportClsState, cls);
++    }
+ }
+ 
+ 
+ void Solver::parallelExportClauseDuringSearch(Clause &c) {
++    // ADDED by domschrei 2020-07-21
++    if (maxExportClsLength >= c.size()) {
++        int* cls = (int*)malloc(sizeof(int) * (c.size()+1));
++        for (int i = 0; i < c.size(); i++) cls[i] = sign(c[i]) ? -(var(c[i])+1) : (var(c[i])+1);
++        cls[c.size()] = 0;
++        exportClsCallback(exportClsState, cls);
++        free(cls);
++    }
+ }
+ 
+ 
