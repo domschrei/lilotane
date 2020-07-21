@@ -693,6 +693,7 @@ const std::vector<USignature> SIGVEC_EMPTY;
 
 const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig, bool checkQConstConds) {
     if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) return SIGVEC_EMPTY;
+    checkQConstConds &= _use_q_constant_mutexes;
 
     Substitution s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
@@ -714,15 +715,17 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
             int arg = qSig._args[argPos];
             if (_q_constants.count(arg)) {
                 // q constant
-                qconsts.push_back(arg);
-                qconstIndices.push_back(argPos);
-                for (int c : getDomainOfQConstant(arg)) {
-                    eligibleArgs[argPos].push_back(c);
+                if (checkQConstConds) {
+                    qconsts.push_back(arg);
+                    qconstIndices.push_back(argPos);
                 }
+                const auto& domain = getDomainOfQConstant(arg);
+                eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
             } else if (_var_ids.count(arg)) {
                 // Variable
                 int sort = _signature_sorts_table[normSig._name_id][argPos];
-                eligibleArgs[argPos] = std::vector<int>(_constants_by_sort[sort].begin(), _constants_by_sort[sort].end());
+                const auto& domain = _constants_by_sort[sort];
+                eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
             } else {
                 // normal constant
                 eligibleArgs[argPos].push_back(arg);

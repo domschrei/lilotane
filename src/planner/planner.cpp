@@ -378,7 +378,8 @@ void Planner::createNextPositionFromAbove(const Position& above) {
 void Planner::createNextPositionFromLeft(const Position& left) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
-    assert(left.getPos() == IntPair(_layer_idx, _pos-1));
+    assert(left.getLayerIndex() == _layer_idx);
+    assert(left.getPositionIndex() == _pos-1);
 
     // Propagate state
     //newPos.extendState(left.getState());
@@ -878,7 +879,7 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     assert(!_htn.hasQConstants(fact));
     newPos.addDefinitiveFact(sig);
     newPos.addFact(fact);
-    getLayerState(newPos.getPos().first).add(newPos.getPos().second, sig);
+    getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), sig);
     //log("FALSE_FACT %s @(%i,%i)\n", TOSTR(fact.abs().opposite()), 
     //        newPos.getPos().first, newPos.getPos().second);
 }

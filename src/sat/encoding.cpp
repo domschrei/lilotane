@@ -397,7 +397,7 @@ void Encoding::encode(int layerIdx, int pos) {
         positionToClear = &_layers.at(layerIdx-1)->at(oldPos-1);
     }
     if (positionToClear != nullptr) {
-        Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getPos().first, positionToClear->getPos().second);
+        Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getLayerIndex(), positionToClear->getPositionIndex());
         positionToClear->clearAtPastLayer();
     }
     /*
@@ -436,7 +436,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     stage("factvarencoding");
 
     // Re-use all other fact variables where possible
-    int leftPos = left.getPos().second;
+    int leftPos = left.getPositionIndex();
 
     // a) Check normal facts
     FlatHashSet<int> unchangedFactVars;
@@ -542,8 +542,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
     stage("frameaxioms");
 
-    int layerIdx = newPos.getPos().first;
-    int pos = newPos.getPos().second;
+    int layerIdx = newPos.getLayerIndex();
+    int pos = newPos.getPositionIndex();
     int prevVarPrim = pos>0 ? varPrimitive(layerIdx, pos-1) : 0;
 
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
@@ -687,7 +687,7 @@ void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
     assert(!substitutionVars.empty());
 
     // AT LEAST ONE substitution, or the parent op does NOT occur
-    Log::d("INITSUBVARS @(%i,%i) op=%i qc=%s\n", pos.getPos().first, pos.getPos().second, opVar, TOSTR(arg));
+    Log::d("INITSUBVARS @(%i,%i) op=%i qc=%s\n", pos.getLayerIndex(), pos.getPositionIndex(), opVar, TOSTR(arg));
     appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
@@ -860,7 +860,7 @@ int Encoding::getVariable(const Position& pos, const USignature& sig) {
     int x = pos.getVariableOrReference(sig);
     if (x > 0) return x;
     //Log::d("%s @ %i -> links back to %i\n", TOSTR(sig), pos.getPos().second, -x);
-    x = _layers.at(pos.getPos().first)->at(-x).getVariableOrReference(sig);
+    x = _layers.at(pos.getLayerIndex())->at(-x).getVariableOrReference(sig);
     assert(x > 0);
     return x;
 }

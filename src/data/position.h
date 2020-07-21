@@ -97,8 +97,9 @@ public:
     bool hasAction(const USignature& action) const;
     bool hasReduction(const USignature& red) const;
 
-    IntPair getPos() const;
-    
+    int getLayerIndex() const;
+    int getPositionIndex() const;
+
     const USigSet& getFacts() const;
     const NodeHashMap<int, USigSet>& getQFacts() const;
     const USigSet& getQFacts(int predId) const;

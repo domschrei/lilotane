@@ -11,46 +11,44 @@ void Position::addFact(const USignature& fact) {
     _facts.insert(fact);
 }
 void Position::addQFact(const USignature& qfact) {
-    _qfacts[qfact._name_id];
-    _qfacts[qfact._name_id].insert(qfact);
+    auto& set = _qfacts[qfact._name_id];
+    set.insert(qfact);
 }
 void Position::addTrueFact(const USignature& fact) {_true_facts.insert(fact);}
 void Position::addFalseFact(const USignature& fact) {_false_facts.insert(fact);}
 void Position::addDefinitiveFact(const Signature& fact) {(fact._negated ? _false_facts : _true_facts).insert(fact._usig);}
 
 void Position::addFactSupport(const Signature& fact, const USignature& operation) {
-    auto& supports = (fact._negated ? _neg_fact_supports : _pos_fact_supports);
-    supports[fact._usig];
-    supports[fact._usig].insert(operation);
+    auto& set = (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
+    set.insert(operation);
 }
 void Position::touchFactSupport(const Signature& fact) {
-    auto& supports = (fact._negated ? _neg_fact_supports : _pos_fact_supports);
-    supports[fact._usig];
+    (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
 }
 void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
-    _q_constants_type_constraints[op];
-    _q_constants_type_constraints[op].push_back(c);
+    auto& vec = _q_constants_type_constraints[op];
+    vec.push_back(c);
 }
 void Position::addForbiddenSubstitution(const USignature& op, const std::vector<int>& src, const std::vector<int>& dest) {
-    _forbidden_substitutions_per_op[op];
-    _forbidden_substitutions_per_op[op].emplace(src, dest);
+    auto& set = _forbidden_substitutions_per_op[op];
+    set.emplace(src, dest);
 }
 
 void Position::addAction(const USignature& action) {
-    _actions[action];
-    _actions[action]++;
+    auto& entry = _actions[action];
+    entry++;
     Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
 void Position::addReduction(const USignature& reduction) {
-    _reductions[reduction];
-    _reductions[reduction]++;
+    auto& entry = _reductions[reduction];
+    entry++;
     Log::d("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
 }
 void Position::addExpansion(const USignature& parent, const USignature& child) {
-    _expansions[parent];
-    _expansions[parent].insert(child);
-    _predecessors[child];
-    _predecessors[child].insert(parent);
+    auto& set = _expansions[parent];
+    set.insert(child);
+    auto& pred = _predecessors[child];
+    pred.insert(parent);
 }
 void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
@@ -132,7 +130,8 @@ bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}
 
-IntPair Position::getPos() const {return IntPair(_layer_idx, _pos);}
+int Position::getLayerIndex() const {return _layer_idx;}
+int Position::getPositionIndex() const {return _pos;}
 
 const USigSet& Position::getFacts() const {
     if (_mirrored_facts != nullptr) return *_mirrored_facts;
