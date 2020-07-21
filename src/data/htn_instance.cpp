@@ -65,7 +65,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     }
 
     // Create replacements for surrogate methods with only one subtask
-    if (_params.isSet("surr")) for (const auto& entry : _reductions) {
+    if (_params.isNonzero("surr")) for (const auto& entry : _reductions) {
         const Reduction& red = entry.second;
         if (red.getSubtasks().size() == 1) {
             // Surrogate method
@@ -94,7 +94,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
 
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
-    if (false && (_params.isSet("q") || _params.isSet("qq"))) {
+    if (false && (_params.isNonzero("q") || _params.isNonzero("qq"))) {
 
         NodeHashMap<int, Action> newActions;
 

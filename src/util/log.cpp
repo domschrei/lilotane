@@ -132,9 +132,9 @@ void Log::printColorModifier(int verb) {
     static Modifier blue(FG_BLUE);
     static Modifier gray(FG_DARK_GRAY);
 
-    if (verb == V0_ESSENTIAL) printf("%s", green.str());
+    if (verb == V0_ESSENTIAL) printf("%s", blue.str());
     if (verb == V1_WARNINGS) printf("%s", red.str());
-    if (verb == V2_INFORMATION) printf("%s", white.str());
+    if (verb == V2_INFORMATION) printf("%s", green.str());
     if (verb == V3_VERBOSE || verb == V4_DEBUG) printf("%s", gray.str());
 }
 

@@ -23,7 +23,9 @@ void Parameters::init(int argc, char** argv) {
         }
         char* eq = strchr(arg, '=');
         if (eq == NULL) {
-            _params[arg+1];
+            char* left = arg+1;
+            if (_params.count(left) && _params[left] == "0") _params[left] = "1";
+            else _params[left];
         } else {
             *eq = 0;
             char* left = arg+1;
@@ -40,19 +42,19 @@ void Parameters::init(int argc, char** argv) {
 
 void Parameters::setDefaults() {
     setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
-    //setParam("cs"); // check solvability (without assumptions)
+    setParam("cs", "0"); // check solvability (without assumptions)
     setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
-    //setParam("nps"); // non-primitive fact supports
-    //setParam("of"); // output formula to f.cnf
-    //setParam("p"); // encode predecessor operations
-    //setParam("pvn"); // print variable names
+    setParam("nps", "0"); // non-primitive fact supports
+    setParam("of", "0"); // output formula to f.cnf
+    setParam("p", "0"); // encode predecessor operations
+    setParam("pvn", "0"); // print variable names
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
-    //setParam("q"); // q-constants
-    //setParam("qq"); // no instantiation of preconditions
-    //setParam("rrp"); // remove rigid predicates
+    setParam("q", "0"); // q-constants
+    setParam("qq", "1"); // no instantiation of preconditions
+    setParam("surr", "1"); // replace surrogate methods
     setParam("v", "2"); // verbosity
 }
 
@@ -63,24 +65,25 @@ void Parameters::printUsage() {
     Log::e("  <problemfile> Path to problem file in HDDL format.\n");
     Log::e("\n");
     Log::e("Option syntax: -OPTION or -OPTION=VALUE .\n");
-    Log::e(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> \
-reductions at the current position (0 : no AMO constraints for reductions)\n");
-    Log::e(" -cs           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
-    Log::e("               to see whether the formula has become generally unsatisfiable\n");
-    Log::e(" -qcm=<limit>  Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
-    Log::e(" -d=<depth>    Minimum depth to begin SAT solving at\n");
-    Log::e(" -D=<depth>    Maximum depth to explore (0 : no limit)\n");
-    Log::e("               default: %i\n", getIntParam("D"));
-    Log::e(" -nps          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
-    Log::e(" -of           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
-    Log::e(" -p            Encode predecessor operations\n");
-    Log::e(" -pvn          Print variable names\n");
-    Log::e(" -qrf=<factor> If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
-    Log::e(" -q            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
-    Log::e("               after fully instantiating all preconditions\n");
-    Log::e(" -qq           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
-    Log::e(" -surr         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
-    Log::e(" -v=<verb>     Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
+    Log::e(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> reductions\n");
+    Log::e("                     at the current position (0 : no AMO constraints for reductions)\n");
+    Log::e(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
+    Log::e("                     to see whether the formula has become generally unsatisfiable\n");
+    Log::e(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
+    Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
+    Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
+    Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
+    Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::e(" -p=<0|1>            Encode predecessor operations\n");
+    Log::e(" -pvn=<0|1>          Print variable names\n");
+    Log::e(" -qit=<threshold>    Q-constant instantiation threshold: fully instantiate up to <threshold> operations\n");
+    Log::e(" -qrf=<factor>       If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
+    Log::e(" -q=<0|1>            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
+    Log::e("                     after fully instantiating all preconditions\n");
+    Log::e(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
+    Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
+    Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
+    printParams(/*forcePrint=*/true);
 }
 
 std::string Parameters::getDomainFilename() {
@@ -90,7 +93,7 @@ std::string Parameters::getProblemFilename() {
   return _problem_filename;
 }
 
-void Parameters::printParams() {
+void Parameters::printParams(bool forcePrint) {
     std::string out = "";
     for (std::map<std::string,std::string>::iterator it = _params.begin(); it != _params.end(); it++) {
         if (it->second.empty()) {
@@ -100,7 +103,7 @@ void Parameters::printParams() {
         }
     }
     out = out.substr(0, out.size()-2);
-    Log::i("Called with parameters: %s\n", out.c_str());
+    (forcePrint ? Log::e : Log::i)("Called with parameters: %s\n", out.c_str());
 }
 
 void Parameters::setParam(const char* name) {
@@ -113,6 +116,10 @@ void Parameters::setParam(const char* name, const char* value) {
 
 bool Parameters::isSet(const std::string& name) const {
     return _params.count(name);
+}
+
+bool Parameters::isNonzero(const std::string& intParamName) const {
+    return atoi(_params.at(intParamName).c_str()) != 0;
 }
 
 std::string Parameters::getParam(const std::string& name, const std::string& defaultValue) {

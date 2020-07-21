@@ -59,6 +59,9 @@ for domain in $domains ; do
     done
 done
 
+# Output chosen parameters of treerexx
+echo "${blue}$(./treerexx $@|tail -1)${reset}"
+
 # Attempt to solve each instance
 for domain in $domains ; do
     dfile=instances/$domain/domain.hddl

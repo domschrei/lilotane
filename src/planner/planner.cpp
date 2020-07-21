@@ -33,7 +33,7 @@ int Planner::findPlan() {
 
             _enc.printFailedVars(*_layers.back());
 
-            if (_params.isSet("cs")) { // check solvability
+            if (_params.isNonzero("cs")) { // check solvability
                 Log::i("Unsolvable at layer %i with assumptions\n", _layer_idx);
 
                 // Attempt to solve formula again, now without assumptions
@@ -477,7 +477,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
-    if (_params.isSet("nps") || _htn._actions_by_sig.count(opSig)) {
+    if (_params.isNonzero("nps") || _htn._actions_by_sig.count(opSig)) {
         pos.addFactSupport(fact, opSig);
     } else {
         // Remember that there is some (unspecified) support for this fact

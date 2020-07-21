@@ -61,9 +61,9 @@ private:
 
 public:
     Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn), _traversal(htn) {
-        if (_params.isSet("qq")) {
+        if (_params.isNonzero("qq")) {
             _inst_mode = INSTANTIATE_NOTHING;
-        } else if (_params.isSet("q")) {
+        } else if (_params.isNonzero("q")) {
             _inst_mode = INSTANTIATE_PRECONDITIONS;
         } else {
             _inst_mode = INSTANTIATE_FULL;

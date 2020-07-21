@@ -9,7 +9,7 @@ bool VariableDomain::_locked = false;
 bool VariableDomain::_print_variables = false;
 
 void VariableDomain::init(const Parameters& params) {
-    _print_variables = params.isSet("pvn");
+    _print_variables = params.isNonzero("pvn");
 }
 
 int VariableDomain::nextVar() {

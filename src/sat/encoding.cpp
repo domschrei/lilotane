@@ -9,7 +9,7 @@ encodePosition ()
 bool beganLine = false;
 
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
-            _params(params), _htn(htn), _layers(layers), _print_formula(params.isSet("of")), 
+            _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
     _solver = ipasir_init();
     _sig_primitive = USignature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
@@ -370,7 +370,7 @@ void Encoding::encode(int layerIdx, int pos) {
     stage("expansions");
 
     // predecessors
-    if (_params.isSet("p")) {
+    if (_params.isNonzero("p")) {
         stage("predecessors");
         for (const auto& pair : newPos.getPredecessors()) {
             const USignature& child = pair.first;
@@ -1318,7 +1318,7 @@ void Encoding::printStages() {
 
 Encoding::~Encoding() {
 
-    if (_params.isSet("of")) {
+    if (_params.isNonzero("of")) {
 
         // Append assumptions to written formula, close stream
         for (int asmpt : _last_assumptions) {
