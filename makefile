@@ -1,5 +1,5 @@
 
-# Options: minisat220 lingeling glucose4
+# Options: lingeling glucose4 cadical cryptominisat
 IPASIRSOLVER?=glucose4
 
 TREEREXX_VERSION:=dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
@@ -9,7 +9,7 @@ CC=g++
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
 
 COMPILEFLAGS=-pipe -Wall -Wextra -pedantic -std=c++17 $(CWARN) $(CERROR) -DIPASIRSOLVER=\"${IPASIRSOLVER}\" -DTREEREXX_VERSION=\"${TREEREXX_VERSION}\"
-LINKERFLAGS=-lm -Llib -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz -lpandaPIparser
+LINKERFLAGS=-lm -Llib -Llib/${IPASIRSOLVER} -lipasir${IPASIRSOLVER} -lz -lpandaPIparser $(shell cat lib/${IPASIRSOLVER}/LIBS || echo "")
 
 INCLUDES=-Isrc -Isrc/pandaPIparser/src
 

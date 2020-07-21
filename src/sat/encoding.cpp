@@ -861,9 +861,18 @@ void Encoding::assume(int lit) {
     _num_asmpts++;
 }
 
+void onClauseLearnt(void* state, int* cls) {
+    std::string str = "";
+    int i = 0; while (cls[i] != 0) str += std::to_string(cls[i++]) + " ";
+    Log::d("LEARNT_CLAUSE %s\n", str.c_str());
+}
+
 bool Encoding::solve() {
     Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _num_cls, _num_lits, _num_asmpts);
+    
+    ipasir_set_learn(_solver, this, /*maxLength=*/1, onClauseLearnt);
+
     bool solved = ipasir_solve(_solver) == 10;
     if (_num_asmpts == 0) _last_assumptions.clear();
     _num_asmpts = 0;

@@ -54,8 +54,8 @@ public:
   IPAsirMiniSAT () : szfmap (0), fmap (0), nomodel (false), calls (0) {
     // MiniSAT by default produces non standard conforming messages.
     // So either we have to set this to '0' or patch the sources.
-    verbosity = 1;
-    verbEveryConflicts = 1000;
+    verbosity = 0;
+    verbEveryConflicts = 0;
   }
   ~IPAsirMiniSAT () { reset (); }
   void add (int lit) {
@@ -121,6 +121,6 @@ void ipasir_assume (void * s, int l) { import (s)->assume (l); }
 int ipasir_val (void * s, int l) { return import (s)->val (l); }
 int ipasir_failed (void * s, int l) { return import (s)->failed (l); }
 void ipasir_set_terminate (void * s, void * state, int (*callback)(void * state)) { /*import(s)->setTermCallback(state, callback)*/; }
-void ipasir_set_learn (void * s, void * state, int max_length, void (*learn)(void * state, int * clause)) { /*import(s)->setLearnCallback(state, max_length, learn)*/; }
+void ipasir_set_learn (void * s, void * state, int max_length, void (*learn)(void * state, int * clause)) { import(s)->setLearnCallback(state, max_length, learn); }
 
 };
