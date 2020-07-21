@@ -39,7 +39,7 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
-    setParam("amor", "20"); // Max. num reductions such that At-most-one constraints are added for reductions
+    setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
     //setParam("cs"); // check solvability (without assumptions)
     setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("d", "0"); // min depth to start SAT solving at
@@ -75,12 +75,10 @@ reductions at the current position (0 : no AMO constraints for reductions)\n");
     Log::e(" -of           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::e(" -p            Encode predecessor operations\n");
     Log::e(" -pvn          Print variable names\n");
-    Log::e(" -qrf=<limit>  If -q or -qq, do NOT introduce q-constant if an operation has at most <limit> instantiations\n");
     Log::e(" -qrf=<factor> If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
     Log::e(" -q            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
     Log::e("               after fully instantiating all preconditions\n");
     Log::e(" -qq           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
-    Log::e(" -rrp          Remove rigid predicates\n");
     Log::e(" -v=<verb>     Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
 }
 
