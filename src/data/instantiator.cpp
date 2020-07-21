@@ -384,23 +384,11 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
 }
 
 SigSet Instantiator::getAllFactChanges(const USignature& sig) {    
-    SigSet result;
-    if (sig == Position::NONE_SIG) return result;
-    //log("FACT_CHANGES %s : ", TOSTR(sig));
-    for (const Signature& effect : getPossibleFactChanges(sig)) {
-        std::vector<USignature> instantiation = ArgIterator::getFullInstantiation(effect._usig, *_htn);
-        for (const USignature& i : instantiation) {
-            assert(isFullyGround(i));
-            if (_params.isSet("rrp")) _htn->_fluent_predicates.insert(i._name_id);
-            result.emplace(effect._usig._name_id, i._args, effect._negated);
-            //log("%s ", TOSTR(i));
-        }
-    }
-    //log("\n");
-    return result;
+    if (sig == Position::NONE_SIG) return SigSet();
+    return getPossibleFactChanges(sig);
 }
 
-std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& sig) {
+SigSet Instantiator::getPossibleFactChanges(const USignature& sig) {
 
     int nameId = sig._name_id;
     
@@ -412,7 +400,7 @@ std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& si
     if (!_fact_changes.count(nameId)) {
         // Compute fact changes for origSig
         
-        FlatHashSet<Signature, SignatureHasher> facts;
+        NodeHashSet<Signature, SignatureHasher> facts;
 
         _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
         [&](const USignature& nodeSig, int depth) {
@@ -427,28 +415,19 @@ std::vector<Signature> Instantiator::getPossibleFactChanges(const USignature& si
         });
 
         // Convert result to vector
-        std::vector<Signature>& result = _fact_changes[nameId];
-        result.reserve(facts.size());
+        SigSet& result = _fact_changes[nameId];
         for (const Signature& sig : facts) {
-            result.push_back(sig);
+            for (const Signature& sigGround : ArgIterator::getFullInstantiation(sig, *_htn)) {
+                result.insert(sigGround);
+            }
         }
     }
 
     // Get fact changes, substitute arguments
-    const std::vector<Signature>& sigs = _fact_changes[nameId];
-    std::vector<Signature> out;
-    
-    //log("   fact changes of %s : ", TOSTR(sig));
-    for (const Signature& fact : sigs) {
-        //log("%s ", TOSTR(fact));
-        Signature sigRes = fact.substitute(sFromPlaceholder);
-        for (int arg : sigRes._usig._args) assert(arg > 0);
-        
-        for (const Signature& sigGround : ArgIterator::getFullInstantiation(sigRes, *_htn)) {
-            out.push_back(sigGround);
-        }
+    SigSet out = _fact_changes[nameId];
+    for (Signature& sig : out) {
+        sig = sig.substitute(sFromPlaceholder);
     }
-    //log("\n");
     return out;
 }
 

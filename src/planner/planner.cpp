@@ -775,9 +775,6 @@ bool Planner::addAction(Action& action, const USignature& task) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
     
-    // Remove unneeded rigid conditions from the reduction
-    _htn.removeRigidConditions(action);
-
     sig = action.getSignature();
     _htn._actions_by_sig[sig] = action;
 
@@ -799,9 +796,6 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.isFullyGround(red.getSignature())) return false;
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
-    
-    // Remove unneeded rigid conditions from the reduction
-    _htn.removeRigidConditions(red);
     
     sig = red.getSignature();
     _htn._reductions_by_sig[sig] = red;

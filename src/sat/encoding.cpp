@@ -47,11 +47,11 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Important variables for this position
     int varPrim = varPrimitive(layerIdx, pos);
-    int prevVarPrim = hasLeft ? varPrimitive(layerIdx, pos-1) : 0;
+    //int prevVarPrim = hasLeft ? varPrimitive(layerIdx, pos-1) : 0;
     
     // Encode true facts at this position and decide for each fact
     // whether to encode it or to reuse the previous variable
-    encodeFactVariables(newPos, left);
+    encodeFactVariables(newPos, left, above, oldPos, offset);
 
     // Init substitution vars where necessary
     stage("initsubstitutions");
@@ -68,7 +68,6 @@ void Encoding::encode(int layerIdx, int pos) {
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
     for (const auto& entry : newPos.getQFacts()) for (const auto& qfactSig : entry.second) {
         assert(_htn.hasQConstants(qfactSig));
-        assert(!_htn.isRigidPredicate(qfactSig._name_id));
 
         // Already encoded earlier?
         bool qVarReused = !newPos.isVariableOriginallyEncoded(qfactSig);
@@ -121,14 +120,6 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("qfactsemantics");
 
-    // Propagate fact assignments from above
-    stage("propagatefacts");
-    for (const USignature& factSig : newPos.getFacts())
-        propagateFact(newPos, above, oldPos, offset, factSig);
-    //for (const auto& entry : newPos.getQFacts()) for (const auto& factSig : entry.second)
-    //    propagateFact(newPos, above, oldPos, offset, factSig);
-    stage("propagatefacts");
-
     encodeFrameAxioms(newPos, left);
 
     // Effects of "old" actions to the left
@@ -152,9 +143,6 @@ void Encoding::encode(int layerIdx, int pos) {
                 break;
             }
             
-            // Predicate must not be rigid
-            assert(!_htn.isRigidPredicate(eff._usig._name_id));
-
             std::vector<int> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
@@ -221,7 +209,6 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // Preconditions
         for (const Signature& pre : _htn._actions_by_sig[aSig].getPreconditions()) {
-            assert(!_htn.isRigidPredicate(pre._usig._name_id));
             addClause(-aVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
 
@@ -265,7 +252,6 @@ void Encoding::encode(int layerIdx, int pos) {
         // Preconditions
         for (const Signature& pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
             //assert(newPos.hasFact(pre._usig));
-            assert(!_htn.isRigidPredicate(pre._usig._name_id));
             addClause(-rVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
 
@@ -426,40 +412,6 @@ void Encoding::encode(int layerIdx, int pos) {
     }*/
 }
 
-void Encoding::propagateFact(Position& newPos, Position& above, int oldPos, int offset, const USignature& factSig) {
-    
-    if (_htn.isRigidPredicate(factSig._name_id)) return;
-        
-    // Do not propagate fact if a q-fact 
-    // TODO include this or not?
-    //if (_htn.hasQConstants(factSig)) continue;
-
-    int factVar = getVariable(newPos, factSig);
-    if (offset > 0 || !above.hasVariable(factSig)) return;
-    int oldFactVar = getVariable(above, factSig);
-
-    // Find out whether the variables already occurred in an earlier propagation
-    if (oldPos > 0) {
-        int oldPriorPos = oldPos-1;
-        int newPriorPos = _layers.at(above.getPos().first)->getSuccessorPos(oldPos-1);
-        
-        bool oldReused = !above.isVariableOriginallyEncoded(factSig);
-        bool reused = !newPos.isVariableOriginallyEncoded(factSig);
-
-        // Do not re-encode the propagation if both variables have already been reused
-        //if (reused) log("NEW_REUSED\n");
-        //if (oldReused) log("OLD_REUSED\n");
-        if (reused && oldReused) {
-            //log("AVOID_REENCODE\n");
-            return;
-        } 
-    }
-
-    // Fact comes from above: propagate meaning
-    addClause(-oldFactVar, factVar);
-    addClause(oldFactVar, -factVar);
-}
-
 void Encoding::addAssumptions(int layerIdx) {
     Layer& l = *_layers.at(layerIdx);
     for (int pos = 0; pos < l.size(); pos++) {
@@ -467,28 +419,24 @@ void Encoding::addAssumptions(int layerIdx) {
     }
 }
 
-void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
+void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above, int oldPos, int offset) {
 
     // Facts that must hold at this position
     stage("truefacts");
     for (const USignature& factSig : newPos.getTrueFacts()) {
-        if (_htn.isRigidPredicate(factSig._name_id)) continue;
         int factVar = newPos.encode(factSig);
         addClause(factVar);
     }
     for (const USignature& factSig : newPos.getFalseFacts()) {
-        if (_htn.isRigidPredicate(factSig._name_id)) continue;
         int factVar = -newPos.encode(factSig);
         addClause(factVar);
     }
     stage("truefacts");
 
-    stage("factvarreusage");
+    stage("factvarencoding");
 
     // Re-use all other fact variables where possible
     int leftPos = left.getPos().second;
-    int thisPos = newPos.getPos().second;
-    LayerState& state = _layers.back()->getState();
 
     // a) Check normal facts
     FlatHashSet<int> unchangedFactVars;
@@ -503,21 +451,39 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
                         && !newPos.getNegFactSupports().count(factSig);
 
         // None of its linked q-facts must have a support
-        for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
+        if (reuse) for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
             if (!_htn.isAbstraction(factSig, qSig)) continue;
             reuse &= !newPos.getPosFactSupports().count(qSig)
                     && !newPos.getNegFactSupports().count(qSig);
             if (!reuse) break;
         }
         
+        int var;
         if (reuse) {
-            int var = left.getVariableOrReference(factSig);
+            var = left.getVariableOrReference(factSig);
             newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
             reusedFacts++;
-            unchangedFactVars.insert(getVariable(newPos, factSig));
+            var = getVariable(newPos, factSig);
+            unchangedFactVars.insert(var);
         } else {
-            newPos.encode(factSig);
+            var = newPos.encode(factSig);
         }
+
+        // Propagate fact from above, if applicable
+        if (offset > 0 || !above.hasVariable(factSig)) continue;
+        int oldFactVar = getVariable(above, factSig);
+
+        // Find out whether the variables already occurred in an earlier propagation
+        if (oldPos > 0) {
+            bool oldReused = !above.isVariableOriginallyEncoded(factSig);
+
+            // Do not re-encode the propagation if both variables have already been reused
+            if (reuse && oldReused) continue;
+        }
+
+        // Fact comes from above: propagate meaning
+        addClause(-oldFactVar, var);
+        addClause(oldFactVar, -var);
     }
 
     // b) Check q-facts
@@ -565,7 +531,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left) {
             newPos.encode(factSig);
         }
     }
-    stage("factvarreusage");
+    stage("factvarencoding");
     Log::d("%.2f%% (%.2f%%) of fact (qfact) variables reused from previous position\n", 
                 ((float)100*reusedFacts/newPos.getFacts().size()), 
                 totalQFacts == 0 ? 100 : ((float)100*reusedQFacts/totalQFacts));
@@ -583,7 +549,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
     if (pos > 0)
     for (const USignature& fact : newPos.getFacts()) {
-        if (_htn.isRigidPredicate(fact._name_id)) continue;
 
         bool firstOccurrence = !left.hasFact(fact);
         if (firstOccurrence) {
@@ -1058,8 +1023,7 @@ void Encoding::checkAndApply(const Action& a, State& state, State& newState, int
     for (const Signature& pre : a.getPreconditions()) {
 
         // Check assignment
-        if (!_htn.isRigidPredicate(pre._usig._name_id))
-            assert((isEncoded(layer, pos, pre._usig) && value(layer, pos, pre._usig) == !pre._negated) 
+        assert((isEncoded(layer, pos, pre._usig) && value(layer, pos, pre._usig) == !pre._negated) 
             || Log::e("Plan error: Precondition %s of action %s does not hold in assignment at step %i!\n", TOSTR(pre), TOSTR(a), pos));
 
         // Check state

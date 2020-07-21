@@ -22,8 +22,7 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
 }
 
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
-            _q_db([this](int arg) {return _q_constants.count(arg);}), 
-            _remove_rigid_predicates(_params.isSet("rrp")), 
+            _q_db([this](int arg) {return _q_constants.count(arg);}),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
 
     Names::init(_name_back_table);
@@ -521,7 +520,6 @@ Action& HtnInstance::createAction(const task& task) {
     for (const auto& p : task.eff) {
         Signature sig = getSignature(id, p);
         _actions[id].addEffect(sig);
-        if (_params.isSet("rrp")) _fluent_predicates.insert(sig._usig._name_id);
     }
     _actions[id].removeInconsistentEffects();
     return _actions[id];
@@ -857,22 +855,6 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
             _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_NOR, bad);
         }
     }
-}
-
-bool HtnInstance::isRigidPredicate(int predId) {
-    if (!_remove_rigid_predicates) return false;
-    return !_fluent_predicates.count(predId);
-}
-
-void HtnInstance::removeRigidConditions(HtnOp& op) {
-
-    SigSet newPres;
-    for (const Signature& pre : op.getPreconditions()) {
-        if (!isRigidPredicate(pre._usig._name_id)) {
-            newPres.insert(pre); // only add fluent preconditions
-        }
-    }
-    op.setPreconditions(newPres);
 }
 
 USignature HtnInstance::cutNonoriginalTaskArguments(const USignature& sig) {

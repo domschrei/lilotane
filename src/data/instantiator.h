@@ -57,7 +57,7 @@ private:
     // Maps an (action|reduction) name 
     // to the set of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    NodeHashMap<int, std::vector<Signature>> _fact_changes;
+    NodeHashMap<int, SigSet> _fact_changes;
 
 public:
     Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn), _traversal(htn) {
@@ -91,7 +91,7 @@ public:
     // Maps a (action|reduction) signature of any grounding state
     // to a corresponding list of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    std::vector<Signature> getPossibleFactChanges(const USignature& sig);
+    SigSet getPossibleFactChanges(const USignature& sig);
 
 
     bool isFullyGround(const USignature& sig);

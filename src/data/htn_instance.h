@@ -81,7 +81,6 @@ struct HtnInstance {
 
     FlatHashMap<int, int> _split_action_from_first;
 
-    const bool _remove_rigid_predicates;
     const bool _use_q_constant_mutexes;
 
 
@@ -129,9 +128,6 @@ struct HtnInstance {
     const USigSet& getQFactDecodings(const USignature& qfact);
 
     const FlatHashSet<int>& getConstantsOfSort(int sort);
-
-    bool isRigidPredicate(int predId);
-    void removeRigidConditions(HtnOp& op);
 
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
 
