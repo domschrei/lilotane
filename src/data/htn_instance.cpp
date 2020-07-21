@@ -65,7 +65,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     }
 
     // Create replacements for surrogate methods with only one subtask
-    for (const auto& entry : _reductions) {
+    if (_params.isSet("surr")) for (const auto& entry : _reductions) {
         const Reduction& red = entry.second;
         if (red.getSubtasks().size() == 1) {
             // Surrogate method

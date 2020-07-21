@@ -79,6 +79,7 @@ reductions at the current position (0 : no AMO constraints for reductions)\n");
     Log::e(" -q            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
     Log::e("               after fully instantiating all preconditions\n");
     Log::e(" -qq           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
+    Log::e(" -surr         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
     Log::e(" -v=<verb>     Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
 }
 
