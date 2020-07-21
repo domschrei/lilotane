@@ -62,6 +62,13 @@ void Position::setFactChanges(const USignature& op, const SigSet& factChanges) {
 const SigSet& Position::getFactChanges(const USignature& op) const {
     return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
 }
+bool Position::hasFactChanges(const USignature& op) const {
+    return _fact_changes.count(op);
+}
+void Position::moveFactChanges(Position& dest, const USignature& op) {
+    dest._fact_changes[op] = std::move(_fact_changes[op]);
+    _fact_changes.erase(op);
+}
 
 void Position::setMirroredFacts(Position& left) {
     if (left._mirrored_facts != nullptr) _mirrored_facts = left._mirrored_facts;
@@ -157,9 +164,11 @@ const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecess
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
-void Position::clearUnneeded() {
+void Position::clearAtPastLayer() {
     _facts.clear();
     _facts.reserve(0);
+    _fact_changes.clear();
+    _fact_changes.reserve(0);
 
     /*
     NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
@@ -169,7 +178,7 @@ void Position::clearUnneeded() {
     */
 }
 
-void Position::clearFactChanges() {
+void Position::clearAtPastPosition() {
     _qfacts.clear();
     _qfacts.reserve(0);
     _true_facts.clear();
@@ -190,6 +199,4 @@ void Position::clearFactChanges() {
     _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
     _forbidden_substitutions_per_op.reserve(0);
-    _fact_changes.clear();
-    _fact_changes.reserve(0);
 }

@@ -134,8 +134,8 @@ void Encoding::encode(int layerIdx, int pos) {
             // Check that the action is contained in the effect's support
             const auto& supports = eff._negated ? newPos.getNegFactSupports() : newPos.getPosFactSupports();
 
-            assert(supports.count(eff._usig));
-            assert(supports.at(eff._usig).count(aSig));
+            assert(supports.count(eff._usig) || Log::e("%s not contained in supports!\n", TOSTR(eff)));
+            assert(supports.at(eff._usig).count(aSig) || Log::e("%s not contained in support of %s!\n", TOSTR(aSig), TOSTR(eff)));
 
             // If the action is not contained, it is invalid -- forbid and skip
             if (!supports.count(eff._usig) || !supports.at(eff._usig).count(aSig)) {
@@ -384,7 +384,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     Log::i("Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
-    left.clearFactChanges();
+    left.clearAtPastPosition();
 
     if (layerIdx == 0 || offset != 0) return;
     
@@ -398,7 +398,7 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     if (positionToClear != nullptr) {
         Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getPos().first, positionToClear->getPos().second);
-        positionToClear->clearUnneeded();
+        positionToClear->clearAtPastLayer();
     }
     /*
     if (layerIdx > 1 && pos == 0) {

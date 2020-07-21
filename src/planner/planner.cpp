@@ -595,6 +595,7 @@ void Planner::propagateActions(int offset) {
             assert(_instantiator.isFullyGround(aSig));
             newPos.addAction(aSig);
             newPos.addExpansion(aSig, aSig);
+            above.moveFactChanges(newPos, aSig);
             // Add preconditions of action
             for (const Signature& fact : a.getPreconditions()) {
                 addPrecondition(aSig, fact);
@@ -813,8 +814,6 @@ void Planner::addNewFalseFacts() {
     for (const auto& entry : newPos.getActions()) {
         const USignature& aSig = entry.first;
 
-        newPos.setFactChanges(aSig, _instantiator.getAllFactChanges(aSig));
-
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig) && !newPos.hasFact(eff._usig)) {
@@ -835,8 +834,6 @@ void Planner::addNewFalseFacts() {
     for (const auto& entry : newPos.getReductions()) {
         const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
-
-        newPos.setFactChanges(rSig, _instantiator.getAllFactChanges(rSig));
 
         for (const Signature& eff : newPos.getFactChanges(rSig)) {
 

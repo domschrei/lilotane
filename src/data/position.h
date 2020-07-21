@@ -78,6 +78,8 @@ public:
     void addExpansionSize(int size);
     void setFactChanges(const USignature& op, const SigSet& factChanges);
     const SigSet& getFactChanges(const USignature& op) const;
+    bool hasFactChanges(const USignature& op) const;
+    void moveFactChanges(Position& dest, const USignature& op);
 
     void setMirroredFacts(Position& left);
 
@@ -116,8 +118,8 @@ public:
     const USigSet& getAxiomaticOps() const;
     int getMaxExpansionSize() const;
 
-    void clearUnneeded();
-    void clearFactChanges();
+    void clearAtPastPosition();
+    void clearAtPastLayer();
 };
 
 
