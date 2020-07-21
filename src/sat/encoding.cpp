@@ -439,7 +439,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     int leftPos = left.getPositionIndex();
 
     // a) Check normal facts
-    FlatHashSet<int> unchangedFactVars;
+    FlatHashSet<int> changedFactVars;
     int reusedFacts = 0;
     for (const USignature& factSig : newPos.getFacts()) {
         
@@ -464,9 +464,9 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
             newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
             reusedFacts++;
             var = getVariable(newPos, factSig);
-            unchangedFactVars.insert(var);
         } else {
             var = newPos.encode(factSig);
+            changedFactVars.insert(var);
         }
 
         // Propagate fact from above, if applicable
@@ -518,7 +518,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
             }
 
             // Decoded fact must be completely unchanged
-            reuse &= unchangedFactVars.count(getVariable(newPos, decSig));
+            reuse &= !changedFactVars.count(getVariable(newPos, decSig));
             if (!reuse) break;
         }
 
@@ -526,7 +526,6 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
             int var = left.getVariableOrReference(factSig);
             newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
             reusedFacts++;
-            unchangedFactVars.insert(getVariable(newPos, factSig));
         } else {
             newPos.encode(factSig);
         }
