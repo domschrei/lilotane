@@ -7,9 +7,6 @@
 Position::Position() : _layer_idx(-1), _pos(-1) {}
 void Position::setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
 
-void Position::addFact(const USignature& fact) {
-    _facts.insert(fact);
-}
 void Position::addQFact(const USignature& qfact) {
     auto& set = _qfacts[qfact._name_id];
     set.insert(qfact);
@@ -68,13 +65,6 @@ void Position::moveFactChanges(Position& dest, const USignature& op) {
     _fact_changes.erase(op);
 }
 
-void Position::setMirroredFacts(Position& left) {
-    if (left._mirrored_facts != nullptr) _mirrored_facts = left._mirrored_facts;
-    else _mirrored_facts = &(left._facts);
-    _facts.clear();
-    _facts.reserve(0);
-}
-
 void Position::removeActionOccurrence(const USignature& action) {
     assert(_actions.count(action));
     _actions[action]--;
@@ -122,10 +112,6 @@ bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
     return _variables.at(sig) > 0;
 }
 
-bool Position::hasFact(const USignature& fact) const {
-    if (_mirrored_facts != nullptr) return _mirrored_facts->count(fact);
-    else return _facts.count(fact);
-}
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}
@@ -133,10 +119,6 @@ bool Position::hasReduction(const USignature& red) const {return _reductions.cou
 int Position::getLayerIndex() const {return _layer_idx;}
 int Position::getPositionIndex() const {return _pos;}
 
-const USigSet& Position::getFacts() const {
-    if (_mirrored_facts != nullptr) return *_mirrored_facts;
-    return _facts;
-}
 const NodeHashMap<int, USigSet>& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
 int Position::getNumQFacts() const {
@@ -164,8 +146,6 @@ const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
 void Position::clearAtPastLayer() {
-    _facts.clear();
-    _facts.reserve(0);
     _fact_changes.clear();
     _fact_changes.reserve(0);
 

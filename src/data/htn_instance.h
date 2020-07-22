@@ -53,6 +53,7 @@ struct HtnInstance {
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
+    USigSet _facts;
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
@@ -122,6 +123,10 @@ struct HtnInstance {
     const std::vector<USignature>& getDecodedObjects(const USignature& qFact, bool checkQConstConds);
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
+
+    void addFact(const USignature& fact);
+    bool hasFact(const USignature& fact);
+    const USigSet& getFacts();
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);

@@ -47,6 +47,8 @@ private:
     NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
+    USigSet _frame_relevant_facts;
+
     void* _solver;
     std::ofstream _out;
 

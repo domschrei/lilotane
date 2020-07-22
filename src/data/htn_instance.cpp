@@ -762,6 +762,18 @@ const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
     return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
 }
 
+void HtnInstance::addFact(const USignature& fact) {
+    _facts.insert(fact);
+}
+
+bool HtnInstance::hasFact(const USignature& fact) {
+    return _facts.count(fact);
+}
+
+const USigSet& HtnInstance::getFacts() {
+    return _facts;
+}
+
 void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
     _qfact_decodings[qFact];
     _qfact_decodings[qFact].insert(decFact);

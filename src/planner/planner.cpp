@@ -195,7 +195,7 @@ void Planner::createFirstLayer() {
     // Initial state
     SigSet initState = _htn.getInitState();
     for (const Signature& fact : initState) {
-        initLayer[_pos].addFact(fact._usig);
+        _htn.addFact(fact._usig);
         initLayer[_pos].addDefinitiveFact(fact);
         getLayerState().add(_pos, fact);
     }
@@ -241,7 +241,7 @@ void Planner::createFirstLayer() {
     SigSet goalSet = _htn.getGoals();
     for (const Signature& fact : goalSet) {
         assert(getLayerState().contains(_pos, fact));
-        assert(initLayer[_pos].hasFact(fact.getUnsigned()));
+        assert(_htn.hasFact(fact.getUnsigned()));
         goalAction.addPrecondition(fact);
         addPrecondition(goalSig, fact);
     }
@@ -276,10 +276,9 @@ void Planner::createNextLayer() {
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            Log::v("  Instantiation done. (r=%i a=%i f=%i qf=%i)\n", 
+            Log::v("  Instantiation done. (r=%i a=%i qf=%i)\n", 
                     (*_layers[_layer_idx])[_pos].getReductions().size(),
                     (*_layers[_layer_idx])[_pos].getActions().size(),
-                    (*_layers[_layer_idx])[_pos].getFacts().size(),
                     (*_layers[_layer_idx])[_pos].getNumQFacts()
             );
             _enc.encode(_layer_idx, _pos++);
@@ -348,10 +347,6 @@ void Planner::createNextPosition() {
                 _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
             } 
         }
-    } 
-
-    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].getFacts() == (*_layers[_layer_idx])[_pos].getFacts()) {
-        (*_layers[_layer_idx])[_pos].setMirroredFacts((*_layers[_layer_idx])[_pos-1]);
     }
 }
 
@@ -364,10 +359,6 @@ void Planner::createNextPositionFromAbove(const Position& above) {
         // Propagate facts
         for (const auto& entry : above.getQFacts()) for (const USignature& fact : entry.second) {
             newPos.addQFact(fact);
-        }
-        for (const USignature& fact : above.getFacts()) {
-            //assert(newPos.getFacts().count(entry.first)); // already added as false fact!
-            newPos.addFact(fact);
         }
     }
 
@@ -408,7 +399,6 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     }
 
     // Propagate occurring facts
-    for (const USignature& fact : left.getFacts()) newPos.addFact(fact);
     for (const auto& entry : left.getQFacts()) for (const USignature& fact : entry.second) {
         bool add = true;
         for (const int& arg : fact._args) {
@@ -431,7 +421,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 
     bool isQFact = _htn.hasQConstants(factAbs);
 
-    if (fact._negated && !isQFact && !pos.hasFact(factAbs)) {
+    if (fact._negated && !isQFact && !getLayerState().contains(_pos, fact.opposite())) { // TODO
         // Negative precondition not contained in facts: initialize
         //log("NEG_PRE %s\n", TOSTR(fact));
         introduceNewFalseFact(pos, factAbs);
@@ -444,7 +434,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 
     // Add additional reason for the fact / add it first if it's a q-constant
     if (isQFact) pos.addQFact(factAbs);
-    else pos.addFact(factAbs);
+    else _htn.addFact(factAbs);
 
     // For each fact decoded from the q-fact:
     assert(!isQFact || !_htn.getDecodedObjects(factAbs, false).empty());
@@ -457,13 +447,13 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
             continue;
         }
 
-        if (!pos.hasFact(decFactAbs)) {
+        if (decFact._negated && !getLayerState().contains(_pos, decFact.opposite())) { // TODO
             // Decoded fact did not occur before.
             introduceNewFalseFact(pos, decFactAbs);
         }
 
         _htn.addQFactDecoding(factAbs, decFactAbs);
-        pos.addFact(decFactAbs); // also add fact as an (indirect) consequence of op
+        _htn.addFact(decFactAbs); // also add fact as an (indirect) consequence of op
     }
 }
 
@@ -474,7 +464,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
     if (isQFact) pos.addQFact(factAbs);
-    else pos.addFact(factAbs);
+    else _htn.addFact(factAbs);
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
@@ -533,9 +523,6 @@ void Planner::propagateInitialState() {
     Position& above = (*_layers[_layer_idx-1])[0];
 
     // Propagate occurring facts
-    for (const USignature& fact : above.getFacts()) {
-        newPos.addFact(fact);
-    }
     for (const auto& entry : above.getQFacts()) for (const USignature& fact : entry.second) {
         newPos.addQFact(fact);
     }
@@ -817,13 +804,13 @@ void Planner::addNewFalseFacts() {
 
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
-            if (!_htn.hasQConstants(eff._usig) && !newPos.hasFact(eff._usig)) {
+            if (!_htn.hasQConstants(eff._usig) && !getLayerState().contains(_pos, eff._negated ? eff.opposite() : eff)) { // TODO
                 // New fact: set to false before the action may happen
                 introduceNewFalseFact(newPos, eff._usig);
             }
 
             for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
-                if (!newPos.hasFact(decEff)) {
+                if (!getLayerState().contains(_pos, Signature(decEff, /*negated=*/false))) { // TODO
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
@@ -838,13 +825,13 @@ void Planner::addNewFalseFacts() {
 
         for (const Signature& eff : newPos.getFactChanges(rSig)) {
 
-            if (!_htn.hasQConstants(eff._usig) && !newPos.getFacts().count(eff._usig)) {
+            if (!_htn.hasQConstants(eff._usig) && !getLayerState().contains(_pos, eff._negated ? eff.opposite() : eff)) { // TODO
                 // New fact: set to false before the reduction may happen
                 introduceNewFalseFact(newPos, eff._usig);
             }
 
             for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
-                if (!newPos.hasFact(decEff)) {
+                if (!getLayerState().contains(_pos, Signature(decEff, /*negated=*/false))) { // TODO
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
@@ -857,14 +844,8 @@ void Planner::addNewFalseFacts() {
     if (_old_pos+1 < (*_layers[_layer_idx-1]).size() && (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos+1) == _pos+1) {
         Position& newAbove = (*_layers[_layer_idx-1])[_old_pos+1];
 
-        for (const USignature& fact : newAbove.getFacts()) {
-            // If fact was not seen here before
-            if (!newPos.hasFact(fact)) {
-                // Add fact
-                newPos.addFact(fact);
-                introduceNewFalseFact(newPos, fact);
-            }
-        }
+        // TODO Propagation of facts from above to new layer ~> add as new false facts?
+
         for (const auto& entry : newAbove.getQFacts()) for (const USignature& fact : entry.second) {
             // If fact was not seen here before
             if (!newPos.hasQFact(fact)) {
@@ -878,7 +859,7 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     Signature sig(fact, /*negated=*/true);
     assert(!_htn.hasQConstants(fact));
     newPos.addDefinitiveFact(sig);
-    newPos.addFact(fact);
+    _htn.addFact(fact);
     getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), sig);
     //log("FALSE_FACT %s @(%i,%i)\n", TOSTR(fact.abs().opposite()), 
     //        newPos.getPos().first, newPos.getPos().second);

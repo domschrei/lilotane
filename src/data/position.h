@@ -31,10 +31,6 @@ private:
 
     USigSet _axiomatic_ops;
 
-    // All ACTUAL facts potentially occurring at this position.
-    USigSet _facts;
-    USigSet* _mirrored_facts = nullptr;
-
     // All VIRTUAL facts potentially occurring at this position,
     // partitioned by their predicate name ID.
     NodeHashMap<int, USigSet> _qfacts;
@@ -60,7 +56,6 @@ public:
     Position();
     void setPos(int layerIdx, int pos);
 
-    void addFact(const USignature& fact);
     void addQFact(const USignature& qfact);
     void addTrueFact(const USignature& fact);
     void addFalseFact(const USignature& fact);
@@ -81,8 +76,6 @@ public:
     bool hasFactChanges(const USignature& op) const;
     void moveFactChanges(Position& dest, const USignature& op);
 
-    void setMirroredFacts(Position& left);
-
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);
 
@@ -92,7 +85,6 @@ public:
     int getVariableOrReference(const USignature& sig) const;
     bool isVariableOriginallyEncoded(const USignature& sig) const;
 
-    bool hasFact(const USignature& fact) const;
     bool hasQFact(const USignature& fact) const;
     bool hasAction(const USignature& action) const;
     bool hasReduction(const USignature& red) const;
@@ -100,7 +92,6 @@ public:
     int getLayerIndex() const;
     int getPositionIndex() const;
 
-    const USigSet& getFacts() const;
     const NodeHashMap<int, USigSet>& getQFacts() const;
     const USigSet& getQFacts(int predId) const;
     int getNumQFacts() const;

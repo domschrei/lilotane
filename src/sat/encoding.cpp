@@ -83,11 +83,15 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (!newPos.hasFact(decFactSig)) continue;
+            //if (!newPos.hasFact(decFactSig)) continue;
 
-            // Check if this decoding is valid
-            std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
-            if (!_htn._q_db.test(qargs, decArgs)) continue;
+            // TODO Need to check if this fact decoding can occur here?
+
+            if (_params.isNonzero("qcm")) {
+                // Check if this decoding is valid
+                std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
+                if (!_htn._q_db.test(qargs, decArgs)) continue;
+            }
 
             // Already encoded earlier?
             //if (qVarReused && newPos.getPriorPosOfVariable(decFactSig) < pos) continue;
@@ -437,48 +441,57 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
 
     // Re-use all other fact variables where possible
     int leftPos = left.getPositionIndex();
+    _frame_relevant_facts.clear();
 
-    // a) Check normal facts
-    FlatHashSet<int> changedFactVars;
-    int reusedFacts = 0;
-    for (const USignature& factSig : newPos.getFacts()) {
-        
-        // Fact must be contained to the left
-        bool reuse = left.getFacts().count(factSig);
-
-        // Fact must not have any support to change
-        if (reuse) reuse = !newPos.getPosFactSupports().count(factSig)
-                        && !newPos.getNegFactSupports().count(factSig);
-
-        // None of its linked q-facts must have a support
-        if (reuse) for (const USignature& qSig : newPos.getQFacts(factSig._name_id)) {
-            if (!_htn.isAbstraction(factSig, qSig)) continue;
-            reuse &= !newPos.getPosFactSupports().count(qSig)
-                    && !newPos.getNegFactSupports().count(qSig);
-            if (!reuse) break;
-        }
-        
-        int var;
-        if (reuse) {
-            var = left.getVariableOrReference(factSig);
-            newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
-            reusedFacts++;
-            var = getVariable(newPos, factSig);
+    // Collect all facts which require a new fact variable
+    USigSet newFacts;
+    for (const auto& [fact, supp] : newPos.getPosFactSupports()) newFacts.insert(fact);
+    for (const auto& [fact, supp] : newPos.getNegFactSupports()) newFacts.insert(fact);
+    for (const auto& fact : USigSet(newFacts)) {
+        if (_htn.hasQConstants(fact)) {
+            // q fact
+            for (const auto& decFact : _htn.getQFactDecodings(fact)) newFacts.insert(decFact);
         } else {
-            var = newPos.encode(factSig);
-            changedFactVars.insert(var);
+            // normal fact
+            for (const auto& qFact : newPos.getQFacts(fact._name_id)) 
+                if (_htn.isAbstraction(fact, qFact)) newFacts.insert(qFact);
+        }
+    }
+
+    // Assign variables to all facts for this position
+    int reusedFacts = 0;
+    for (const auto& fact : _htn.getFacts()) {
+        bool reused;
+        int var;
+        if (newPos.hasVariable(fact)) {
+            // Definitive fact
+            var = getVariable(newPos, fact);
+            reused = false;
+        } else if (newFacts.count(fact) || !left.hasVariable(fact)) {
+            // Needs to be (re)encoded
+            var = newPos.encode(fact);
+            reused = false;
+            if (!_htn.hasQConstants(fact) && left.hasVariable(fact)) 
+                _frame_relevant_facts.insert(fact);
+        } else {
+            // Fact variable can be reused
+            var = left.getVariableOrReference(fact);
+            newPos.setVariableReference(fact, var > 0 ? leftPos : -var);
+            var = getVariable(newPos, fact);
+            reused = true;
+            reusedFacts++;
         }
 
         // Propagate fact from above, if applicable
-        if (offset > 0 || !above.hasVariable(factSig)) continue;
-        int oldFactVar = getVariable(above, factSig);
+        if (offset > 0 || !above.hasVariable(fact)) continue;
+        int oldFactVar = getVariable(above, fact);
 
         // Find out whether the variables already occurred in an earlier propagation
         if (oldPos > 0) {
-            bool oldReused = !above.isVariableOriginallyEncoded(factSig);
+            bool oldReused = !above.isVariableOriginallyEncoded(fact);
 
             // Do not re-encode the propagation if both variables have already been reused
-            if (reuse && oldReused) continue;
+            if (reused && oldReused) continue;
         }
 
         // Fact comes from above: propagate meaning
@@ -486,54 +499,20 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
         addClause(oldFactVar, -var);
     }
 
-    // b) Check q-facts
-    int reusedQFacts = 0;
-    int totalQFacts = 0;
-    for (const auto& entry : newPos.getQFacts()) for (const USignature& factSig : entry.second) {
-        totalQFacts++;
-
-        // Fact must be contained to the left
-        bool reuse = left.getQFacts().count(factSig._name_id) && left.getQFacts().at(factSig._name_id).count(factSig);
-
-        // Fact must not have any support to change
-        if (reuse) reuse = !newPos.getPosFactSupports().count(factSig)
-                        && !newPos.getNegFactSupports().count(factSig);
-        
-        std::vector<int> qargs, qargIndices;
-        if (_use_q_constant_mutexes) {
-            for (int aIdx = 0; aIdx < factSig._args.size(); aIdx++) if (_htn._q_constants.count(factSig._args[aIdx])) {
-                qargs.push_back(factSig._args[aIdx]);
-                qargIndices.push_back(aIdx);
-            } 
-        }
-
-        // None of the (valid) decoded facts may have changed
-        if (reuse) for (const USignature& decSig : _htn.getQFactDecodings(factSig)) {
-            if (!newPos.getFacts().count(decSig)) continue;
-            
-            if (_use_q_constant_mutexes) {
-                // Check if this decoding is valid
-                std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decSig._args[idx]);
-                if (!_htn._q_db.test(qargs, decArgs)) continue;
-            }
-
-            // Decoded fact must be completely unchanged
-            reuse &= !changedFactVars.count(getVariable(newPos, decSig));
-            if (!reuse) break;
-        }
-
-        if (reuse) {
-            int var = left.getVariableOrReference(factSig);
-            newPos.setVariableReference(factSig, var > 0 ? leftPos : -var);
-            reusedFacts++;
+    for (const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
+        if (newFacts.count(qfact) || !left.hasVariable(qfact)) {
+            newPos.encode(qfact);
         } else {
-            newPos.encode(factSig);
+            // Q-Fact variable can be reused
+            int var = left.getVariableOrReference(qfact);
+            newPos.setVariableReference(qfact, var > 0 ? leftPos : -var);
+            reusedFacts++;
         }
     }
+
     stage("factvarencoding");
-    Log::d("%.2f%% (%.2f%%) of fact (qfact) variables reused from previous position\n", 
-                ((float)100*reusedFacts/newPos.getFacts().size()), 
-                totalQFacts == 0 ? 100 : ((float)100*reusedQFacts/totalQFacts));
+    Log::d("%.2f%% of fact variables reused from previous position\n", 
+                ((float)100*reusedFacts/_htn.getFacts().size()));
 }
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
@@ -547,17 +526,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
     if (pos > 0)
-    for (const USignature& fact : newPos.getFacts()) {
-
-        bool firstOccurrence = !left.hasFact(fact);
-        if (firstOccurrence) {
-            // First time the fact occurs must be as a "false fact"
-            assert(newPos.getFalseFacts().count(fact));
-            continue;
-        }
-
-        // Do not re-encode frame axioms if the fact has a reused variable
-        if (!newPos.isVariableOriginallyEncoded(fact)) continue;
+    for (const USignature& fact : _frame_relevant_facts) {
 
         for (int sign = -1; sign <= 1; sign += 2) {
             //Signature factSig(fact, sign < 0);
