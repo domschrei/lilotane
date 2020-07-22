@@ -43,6 +43,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
     setParam("cs", "0"); // check solvability (without assumptions)
+    setParam("eqfp", "0"); // encode q-fact propagations
     setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
@@ -69,13 +70,14 @@ void Parameters::printUsage() {
     Log::e("                     at the current position (0 : no AMO constraints for reductions)\n");
     Log::e(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
-    Log::e(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
     Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
     Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
+    Log::e(" -eqfp=<0|1>         Encode q-fact propagations in between layers\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::e(" -p=<0|1>            Encode predecessor operations\n");
     Log::e(" -pvn=<0|1>          Print variable names\n");
+    Log::e(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
     Log::e(" -qit=<threshold>    Q-constant instantiation threshold: fully instantiate up to <threshold> operations\n");
     Log::e(" -qrf=<factor>       If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
     Log::e(" -q=<0|1>            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");

@@ -488,36 +488,52 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
         }
 
         // Propagate fact from above, if applicable
-        if (offset > 0 || !above.hasVariable(fact)) continue;
-        int oldFactVar = getVariable(above, fact);
-
-        // Find out whether the variables already occurred in an earlier propagation
-        if (oldPos > 0) {
-            bool oldReused = !above.isVariableOriginallyEncoded(fact);
-
-            // Do not re-encode the propagation if both variables have already been reused
-            if (reused && oldReused) continue;
-        }
-
-        // Fact comes from above: propagate meaning
-        addClause(-oldFactVar, var);
-        addClause(oldFactVar, -var);
+        encodeFactPropagation(fact, newPos, above, offset, var, reused);
     }
 
+    bool encodePropagation = _params.isNonzero("eqfp");
     for (const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
+        int var;
+        bool reused;
         if (newFacts.count(qfact) || !left.hasVariable(qfact)) {
-            newPos.encode(qfact);
+            var = newPos.encode(qfact);
+            reused = false;
         } else {
             // Q-Fact variable can be reused
-            int var = left.getVariableOrReference(qfact);
+            var = left.getVariableOrReference(qfact);
             newPos.setVariableReference(qfact, var > 0 ? leftPos : -var);
+            var = getVariable(newPos, qfact);
             reusedFacts++;
+            reused = true;
         }
+
+        // Propagate qfact from above, if applicable
+        if (encodePropagation) encodeFactPropagation(qfact, newPos, above, offset, var, reused);
     }
 
     stage("factvarencoding");
     Log::d("%.2f%% of fact variables reused from previous position\n", 
                 ((float)100*reusedFacts/_htn.getFacts().size()));
+}
+
+void Encoding::encodeFactPropagation(const USignature& fact, Position& pos, Position& above, int offset, 
+            int factVar, bool varReused) {
+
+    // Propagate qfact from above, if applicable
+    if (offset > 0 || !above.hasVariable(fact)) return;
+    int oldFactVar = getVariable(above, fact);
+
+    // Find out whether the variables already occurred in an earlier propagation
+    if (above.getPositionIndex() > 0) {
+        bool oldReused = !above.isVariableOriginallyEncoded(fact);
+
+        // Do not re-encode the propagation if both variables have already been reused
+        if (varReused && oldReused) return;
+    }
+
+    // Fact comes from above: propagate meaning
+    addClause(-oldFactVar, factVar);
+    addClause(oldFactVar, -factVar);
 }
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
