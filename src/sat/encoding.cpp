@@ -197,6 +197,9 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("actioneffects");
 
+    // Store all operations occurring here, for one big clause ORing them
+    std::vector<int> aloElemClause(newPos.getActions().size() + newPos.getReductions().size(), 0);
+
     // New actions
     stage("actionconstraints");
     int numOccurringOps = 0;
@@ -204,8 +207,8 @@ void Encoding::encode(int layerIdx, int pos) {
         const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
 
-        numOccurringOps++;
         int aVar = newPos.encode(aSig);
+        aloElemClause[numOccurringOps++] = aVar;
         //printVar(layerIdx, pos, aSig);
 
         // If the action occurs, the position is primitive
@@ -233,8 +236,8 @@ void Encoding::encode(int layerIdx, int pos) {
         const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
 
-        numOccurringOps++;
         int rVar = newPos.encode(rSig);
+        aloElemClause[numOccurringOps++] = rVar;
 
         bool trivialReduction = _htn._reductions_by_sig[rSig].getSubtasks().size() == 0;
         if (trivialReduction) {
@@ -274,8 +277,15 @@ void Encoding::encode(int layerIdx, int pos) {
     
     if (numOccurringOps == 0) {
         //addClause(varPrim);
-        //assert(pos+1 == newLayer.size() || fail("No operations to encode at (" + std::to_string(layerIdx) + "," + std::to_string(pos) + ")!\n"));
+        assert(pos+1 == newLayer.size() || Log::d("No operations to encode at (%i,%i)!\n", layerIdx, pos));
     }
+
+    stage("atleastoneelement");
+    int i = 0; 
+    while (i < aloElemClause.size() && aloElemClause[i] != 0) 
+        appendClause(aloElemClause[i++]);
+    endClause();
+    stage("atleastoneelement");
 
     // Q-constants type constraints
     stage("qtypeconstraints");
