@@ -50,8 +50,11 @@ void run(Parameters& params) {
     Planner planner(params, p);
     int result = planner.findPlan();
 
-    if (result == 0) Log::i("Exiting happily.\n");
-    exit(result);
+    if (result == 0) {
+        Log::i("Exiting happily.\n");
+        exit(result);
+    }
+    return;
 }
 
 int main(int argc, char** argv) {
@@ -78,4 +81,5 @@ int main(int argc, char** argv) {
     Log::i("\n");
 
     run(params);
+    return 1; // something went wrong if run() returns
 }

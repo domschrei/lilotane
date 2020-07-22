@@ -148,6 +148,10 @@ int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 void Position::clearAtPastLayer() {
     _fact_changes.clear();
     _fact_changes.reserve(0);
+    _true_facts.clear();
+    _true_facts.reserve(0);
+    _false_facts.clear();
+    _false_facts.reserve(0);
 
     /*
     NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
@@ -160,10 +164,6 @@ void Position::clearAtPastLayer() {
 void Position::clearAtPastPosition() {
     _qfacts.clear();
     _qfacts.reserve(0);
-    _true_facts.clear();
-    _true_facts.reserve(0);
-    _false_facts.clear();
-    _false_facts.reserve(0);
     _expansions.clear();
     _expansions.reserve(0);
     _predecessors.clear();

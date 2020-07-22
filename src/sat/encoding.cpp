@@ -450,11 +450,16 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     for (const auto& fact : USigSet(newFacts)) {
         if (_htn.hasQConstants(fact)) {
             // q fact
-            for (const auto& decFact : _htn.getQFactDecodings(fact)) newFacts.insert(decFact);
-        } else {
-            // normal fact
-            for (const auto& qFact : newPos.getQFacts(fact._name_id)) 
-                if (_htn.isAbstraction(fact, qFact)) newFacts.insert(qFact);
+            for (const auto& decFact : _htn.getQFactDecodings(fact)) 
+                if (_htn.hasFact(decFact)) newFacts.insert(decFact);
+        }
+    }
+    for (const auto& [name, qfacts] : newPos.getQFacts()) for (const auto& fact : qfacts) {
+        for (const auto& decFact : _htn.getQFactDecodings(fact)) {
+            if (newFacts.count(decFact)) {
+                newFacts.insert(fact);
+                break;
+            }
         }
     }
 
