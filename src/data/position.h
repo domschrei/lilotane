@@ -80,6 +80,7 @@ public:
     void removeReductionOccurrence(const USignature& reduction);
 
     int encode(const USignature& sig);
+    void setVariable(const USignature& sig, int var);
     void setVariableReference(const USignature& sig, int priorPos);
     bool hasVariable(const USignature& sig) const;
     int getVariableOrReference(const USignature& sig) const;

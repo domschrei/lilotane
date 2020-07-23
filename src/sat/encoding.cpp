@@ -449,15 +449,24 @@ void Encoding::addAssumptions(int layerIdx) {
 
 void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above, int oldPos, int offset) {
 
+    FlatHashSet<int> factVarsFromAbove;
+
     // Facts that must hold at this position
     stage("truefacts");
-    for (const USignature& factSig : newPos.getTrueFacts()) {
-        int factVar = newPos.encode(factSig);
-        addClause(factVar);
-    }
-    for (const USignature& factSig : newPos.getFalseFacts()) {
-        int factVar = -newPos.encode(factSig);
-        addClause(factVar);
+    const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
+    const USigSet* cAbove[] = {&above.getTrueFacts(), &above.getFalseFacts()}; 
+    for (int i = 0; i < 2; i++) 
+    for (const USignature& factSig : *cHere[i]) {
+        if (offset == 0 && cAbove[i]->count(factSig)) {
+            // Propagation of a definitive fact; use same variable
+            int var = getVariable(above, factSig);
+            newPos.setVariable(factSig, var);
+            factVarsFromAbove.insert(var);
+        } else {
+            // No direct propagation: reencode
+            int factVar = newPos.encode(factSig);
+            addClause((i == 0 ? 1 : -1) * factVar);
+        }
     }
     stage("truefacts");
 
@@ -495,6 +504,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
         if (newPos.hasVariable(fact)) {
             // Definitive fact
             var = getVariable(newPos, fact);
+            if (factVarsFromAbove.count(var)) continue; // no propagation: same variable
             reused = false;
         } else if (newFacts.count(fact) || !left.hasVariable(fact)) {
             // Needs to be (re)encoded

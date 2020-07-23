@@ -94,6 +94,11 @@ int Position::encode(const USignature& sig) {
     return _variables[sig];
 }
 
+void Position::setVariable(const USignature& sig, int var) {
+    assert(!_variables.count(sig));
+    _variables[sig] = var;
+}
+
 void Position::setVariableReference(const USignature& sig, int priorPos) {
     assert(!_variables.count(sig));
     _variables[sig] = -priorPos;
