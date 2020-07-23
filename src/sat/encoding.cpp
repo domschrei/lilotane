@@ -199,10 +199,10 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Store all operations occurring here, for one big clause ORing them
     std::vector<int> aloElemClause(newPos.getActions().size() + newPos.getReductions().size(), 0);
+    int numOccurringOps = 0;
 
     // New actions
     stage("actionconstraints");
-    int numOccurringOps = 0;
     for (const auto& entry : newPos.getActions()) {
         const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
@@ -220,13 +220,15 @@ void Encoding::encode(int layerIdx, int pos) {
         }
 
         // At-most-one action
+        /*
+        amoActionVars[numActionVars++] = aVar;
         for (const auto& otherEntry : newPos.getActions()) {
             const USignature& otherSig = otherEntry.first;
             int otherVar = newPos.encode(otherSig);
             if (aVar < otherVar) {
                 addClause(-aVar, -otherVar);
             }
-        }
+        }*/
     }
     stage("actionconstraints");
 
@@ -245,12 +247,15 @@ void Encoding::encode(int layerIdx, int pos) {
             addClause(-rVar, varPrim);
 
             // TODO At-most-one constraints to other trivial reductions?
+            //amoActionVars[numActionVars++] = rVar;
 
             // Add At-most-one constraints to "proper" actions
+            /*
             for (const auto& otherEntry : newPos.getActions()) {
                 int otherVar = newPos.encode(otherEntry.first);
                 addClause(-rVar, -otherVar);
             }
+            */
         } else {
             // If a non-trivial reduction occurs, the position is non-primitive
             addClause(-rVar, -varPrim);
@@ -263,6 +268,7 @@ void Encoding::encode(int layerIdx, int pos) {
         }
 
         // At-most-one reduction
+        /*
         if (newPos.getReductions().size() > _params.getIntParam("amor")) continue;
         for (const auto& otherEntry : newPos.getReductions()) {
             const USignature& otherSig = otherEntry.first;
@@ -271,7 +277,7 @@ void Encoding::encode(int layerIdx, int pos) {
             if (rVar < otherVar) {
                 addClause(-rVar, -otherVar);
             }
-        }
+        }*/
     }
     stage("reductionconstraints");
     
@@ -286,6 +292,14 @@ void Encoding::encode(int layerIdx, int pos) {
         appendClause(aloElemClause[i++]);
     endClause();
     stage("atleastoneelement");
+
+    stage("atmostoneelement");
+    for (int i = 0; i < aloElemClause.size(); i++) {
+        for (int j = i+1; j < aloElemClause.size(); j++) {
+            addClause(-aloElemClause[i], -aloElemClause[j]);
+        }
+    }
+    stage("atmostoneelement");
 
     // Q-constants type constraints
     stage("qtypeconstraints");
@@ -1284,6 +1298,9 @@ Encoding::~Encoding() {
     if (_params.isNonzero("of")) {
 
         // Append assumptions to written formula, close stream
+        if (_last_assumptions.empty()) {
+            addAssumptions(_layers.size()-1);
+        }
         for (int asmpt : _last_assumptions) {
             _out << asmpt << " 0\n";
         }
