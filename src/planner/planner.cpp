@@ -572,8 +572,7 @@ void Planner::propagateActions(int offset) {
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
-            //log("FORBIDDING action %s@(%i,%i): no children at offset %i\n", 
-            //        TOSTR(aSig), _layer_idx-1, _old_pos, offset);
+            Log::i("Forbidding action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
             newPos.addExpansion(aSig, Position::NONE_SIG);
             continue;
         }

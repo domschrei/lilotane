@@ -565,6 +565,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
     stage("frameaxioms");
 
+    bool nonprimFactSupport = _params.isNonzero("nps");
+
     int layerIdx = newPos.getLayerIndex();
     int pos = newPos.getPositionIndex();
     int prevVarPrim = pos>0 ? varPrimitive(layerIdx, pos-1) : 0;
@@ -631,10 +633,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                         for (const std::set<int>& subsCls : cnfSubs) {
                             // IF fact change AND the operation is applied,
                             if (oldFactVar != 0) appendClause(oldFactVar);
-                            #ifndef NONPRIMITIVE_SUPPORT
-                            appendClause(-prevVarPrim);
-                            #endif
                             appendClause(-factVar, -opVar);
+                            if (!nonprimFactSupport) appendClause(-prevVarPrim);
                             //log("FRAME AXIOMS %i %i %i ", oldFactVar, -factVar, -opVar);
                             // THEN either of the valid substitution combinations
                             for (int subVar : subsCls) {
@@ -655,10 +655,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             //log("FRAME AXIOMS %i %i ", oldFactVar, -factVar);
             if (oldFactVar != 0) appendClause(oldFactVar);
             appendClause(-factVar);
-            #ifndef NONPRIMITIVE_SUPPORT
             // Non-primitiveness wildcard
-            appendClause(-prevVarPrim);
-            #endif
+            if (!nonprimFactSupport) appendClause(-prevVarPrim);
             // DIRECT support
             if (supports.count(fact)) {
                 for (const USignature& opSig : supports.at(fact)) {
@@ -764,6 +762,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     }
 
     if (cnf.size() > 1000) Log::w("CNF of size %i generated\n", cnf.size());
+    //else Log::v("CNF of size %i generated\n", cnf.size());
 
     return cnf;
 }
@@ -1294,6 +1293,8 @@ void Encoding::printStages() {
 }
 
 Encoding::~Encoding() {
+
+    if (!_total_num_cls_per_stage.empty()) printStages();
 
     if (_params.isNonzero("of")) {
 
