@@ -533,7 +533,10 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             // Do not commit on encoding the new fact yet, except if the variable already exists
             int factVar = 0; 
-            if (newPos.hasVariable(fact)) factVar = sign*getVariable(newPos, fact);
+            if (newPos.hasVariable(fact)) {
+                factVar = sign*getVariable(newPos, fact);
+                if (oldFactVars[i] == factVar) break;
+            }
 
             // Calculate indirect support through qfact abstractions
             for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
@@ -622,6 +625,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             }
         } else factVar = getVariable(newPos, fact);
 
+        if (factVar == oldFactVars[1]) continue;
+
         // Encode frame axioms for this fact
         i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
@@ -629,16 +634,18 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);
-            // Non-primitiveness wildcard
-            if (!nonprimFactSupport) appendClause(-prevVarPrim);
-            // DIRECT support
-            if (supports[i]->count(fact)) for (const USignature& opSig : supports[i]->at(fact)) {
-                    int opVar = getVariable(left, opSig);
-                    assert(opVar > 0);
-                    appendClause(opVar);
+            if (supports[i]->count(fact) || !indirectSupports[i].empty()) {
+                // Non-primitiveness wildcard
+                if (!nonprimFactSupport) appendClause(-prevVarPrim);
+                // DIRECT support
+                if (supports[i]->count(fact)) for (const USignature& opSig : supports[i]->at(fact)) {
+                        int opVar = getVariable(left, opSig);
+                        assert(opVar > 0);
+                        appendClause(opVar);
+                }
+                // INDIRECT support
+                for (int opVar : indirectSupports[i]) appendClause(opVar);
             }
-            // INDIRECT support
-            for (int opVar : indirectSupports[i]) appendClause(opVar);
             endClause();
         }
     }
