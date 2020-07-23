@@ -508,6 +508,8 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
         _htn.addQFactDecoding(factAbs, decFactAbs);
         getLayerState().add(_pos, decFact);
         numValid++;
+
+        pos.touchFactSupport(decFact);
     }
 
     if (numValid == 0) {
