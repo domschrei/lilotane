@@ -93,7 +93,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
 
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
-    if (false && (_params.isNonzero("q") || _params.isNonzero("qq"))) {
+    if (_params.isNonzero("sace")) {
 
         NodeHashMap<int, Action> newActions;
 

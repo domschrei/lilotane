@@ -49,12 +49,13 @@ void Parameters::setDefaults() {
     setParam("D", "0"); // max depth (= num iterations)
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // output formula to f.cnf
-    setParam("p", "0"); // encode predecessor operations
+    setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
     setParam("q", "0"); // q-constants
     setParam("qq", "1"); // no instantiation of preconditions
+    setParam("sace", "0"); // split actions with (potentially) conflicting effects
     setParam("surr", "1"); // replace surrogate methods
     setParam("v", "2"); // verbosity
 }
@@ -83,6 +84,7 @@ void Parameters::printUsage() {
     Log::e(" -q=<0|1>            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
     Log::e("                     after fully instantiating all preconditions\n");
     Log::e(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
+    Log::e(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
     Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     printParams(/*forcePrint=*/true);
