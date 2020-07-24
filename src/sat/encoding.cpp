@@ -12,8 +12,8 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
             _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
     _solver = ipasir_init();
-    _sig_primitive = USignature(_htn.getNameId("__PRIMITIVE___"), std::vector<int>());
-    _substitute_name_id = _htn.getNameId("__SUBSTITUTE___");
+    _sig_primitive = USignature(_htn.nameId("__PRIMITIVE___"), std::vector<int>());
+    _substitute_name_id = _htn.nameId("__SUBSTITUTE___");
     _sig_substitution = USignature(_substitute_name_id, std::vector<int>(2));
     if (_print_formula) _out.open("formula.cnf");
     VariableDomain::init(params);
@@ -86,7 +86,7 @@ void Encoding::encode(int layerIdx, int pos) {
         if (!_new_fact_vars.count(qfactVar)) continue;
 
         std::vector<int> qargs, qargIndices; 
-        for (int aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn._q_constants.count(qfactSig._args[aIdx])) {
+        for (int aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
             qargs.push_back(qfactSig._args[aIdx]);
             qargIndices.push_back(aIdx);
         } 
@@ -555,10 +555,9 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             // Calculate indirect support through qfact abstractions
             for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
-                if (!_htn.isAbstraction(fact, qsig)) continue;
+                if (!supports[i]->count(qsig) || !_htn.isAbstraction(fact, qsig)) continue;
 
                 // For each operation that supports some qfact abstraction of the fact:
-                if (supports[i]->count(qsig))
                 for (const USignature& opSig : supports[i]->at(qsig)) {
                     int opVar = getVariable(left, opSig);
                     assert(opVar > 0);
@@ -671,7 +670,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
 
     if (_q_constants.count(arg)) return;
-    if (!_htn._q_constants.count(arg)) return;
+    if (!_htn.isQConstant(arg)) return;
     // arg is a *new* q-constant: initialize substitution logic
 
     _q_constants.insert(arg);
@@ -1107,7 +1106,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     if (layerIdx == 0) {
                         // Initial reduction
                         PlanItem root(0, 
-                            USignature(_htn.getNameId("root"), std::vector<int>()), 
+                            USignature(_htn.nameId("root"), std::vector<int>()), 
                             decRSig, std::vector<int>());
                         itemsNewLayer[0] = root;
                         reductionsThisPos++;
@@ -1228,7 +1227,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
     USignature sig = origSig;
     while (true) {
         bool containsQConstants = false;
-        for (int arg : sig._args) if (_htn._q_constants.count(arg)) {
+        for (int arg : sig._args) if (_htn.isQConstant(arg)) {
             // q constant found
             containsQConstants = true;
 

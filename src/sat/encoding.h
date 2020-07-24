@@ -98,7 +98,7 @@ private:
     void initSubstitutionVars(int opVar, int qconst, Position& pos);
     
     const USignature& sigSubstitute(int qConstId, int trueConstId) {
-        //assert(!_htn._q_constants.count(trueConstId) || trueConstId < qConstId);
+        //assert(!_htn.isQConstant(trueConstId) || trueConstId < qConstId);
         auto& args = _sig_substitution._args;
         args[0] = (qConstId);
         args[1] = (trueConstId);

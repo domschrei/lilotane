@@ -131,7 +131,7 @@ void Planner::outputPlan() {
 
         // Do not write blank actions or the virtual goal action
         if (item.abstractTask == _htn._action_blank.getSignature()) continue;
-        if (item.abstractTask._name_id == _htn.getNameId("_GOAL_ACTION_")) continue;
+        if (item.abstractTask._name_id == _htn.nameId("_GOAL_ACTION_")) continue;
 
         stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
     }
@@ -231,7 +231,7 @@ void Planner::createFirstLayer() {
     createNextPosition(); // position 1
 
     // Create virtual goal action
-    Action goalAction(_htn.getNameId("_GOAL_ACTION_"), std::vector<int>());
+    Action goalAction(_htn.nameId("_GOAL_ACTION_"), std::vector<int>());
     USignature goalSig = goalAction.getSignature();
     _htn._actions[goalSig._name_id] = goalAction;
     initLayer[_pos].addAction(goalSig);
@@ -325,7 +325,7 @@ void Planner::createNextPosition() {
             std::vector<int> qargs, qargIndices;
             for (int i = 0; i < qfactSig._args.size(); i++) {
                 const int& arg = qfactSig._args[i];
-                if (_htn._q_constants.count(arg)) {
+                if (_htn.isQConstant(arg)) {
                     qargs.push_back(arg);
                     qargIndices.push_back(i);
                 }
@@ -384,7 +384,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
             addEffect(aSig, fact);
         }
         for (const int& arg : aSig._args) {
-            if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
+            if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
         }
     }
     for (const auto& entry : left.getReductions()) {
@@ -394,7 +394,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
             addEffect(rSig, fact);
         }
         for (const int& arg : rSig._args) {
-            if (_htn._q_constants.count(arg)) relevantQConstants.insert(arg);
+            if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
         }
     }
 
@@ -402,7 +402,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     for (const auto& entry : left.getQFacts()) for (const USignature& fact : entry.second) {
         bool add = true;
         for (const int& arg : fact._args) {
-            if (_htn._q_constants.count(arg) && !relevantQConstants.count(arg)) add = false;
+            if (_htn.isQConstant(arg) && !relevantQConstants.count(arg)) add = false;
         }
         if (!add) {
             // forget q-facts that have become irrelevant
@@ -489,7 +489,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     // Assemble reference list of contained q-constants for decodings validity check
     std::vector<int> qconsts, qconstIndices;
     for (int i = 0; i < fact._usig._args.size(); i++) {
-        if (_htn._q_constants.count(fact._usig._args[i])) {
+        if (_htn.isQConstant(fact._usig._args[i])) {
             qconsts.push_back(fact._usig._args[i]);
             qconstIndices.push_back(i);
         }

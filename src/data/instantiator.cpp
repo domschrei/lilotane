@@ -199,7 +199,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
     std::vector<int> qconstants, qconstIndices;
     for (int i = 0; i < argsByPriority; i++) {
         const int& arg = op.getArguments()[i];
-        if (_htn->_q_constants.count(arg)) {
+        if (_htn->isQConstant(arg)) {
             qconstants.push_back(arg);
             qconstIndices.push_back(i);
         }
@@ -348,7 +348,7 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
         for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
             int substArg = fact._args[argPos];
-            bool effIsQ = _htn->_q_constants.count(effArg);
+            bool effIsQ = _htn->isQConstant(effArg);
             if (!effIsQ) {
                 // If the effect fact has no q const here, the arg must be left unchanged
                 matches &= effArg == substArg;
@@ -473,7 +473,7 @@ bool Instantiator::hasConsistentlyTypedArgs(const USignature& sig) {
         int arg = sig._args[argPos];
         if (_htn->_var_ids.count(arg)) continue; // skip variable
         bool valid = false;
-        if (_htn->_q_constants.count(arg)) {
+        if (_htn->isQConstant(arg)) {
             // q constant: TODO check if SOME SUBSTITUTEABLE CONSTANT has the correct sort
             for (int cnst : _htn->getDomainOfQConstant(arg)) {
                 if (_htn->getConstantsOfSort(sort).count(cnst)) {
@@ -505,7 +505,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
         int arg = sig._args[argPos];
         
         // Not a q-constant here
-        if (!_htn->_q_constants.count(arg)) {
+        if (!_htn->isQConstant(arg)) {
             // Must be of valid type
             assert(_htn->getConstantsOfSort(sigSort).count(arg));
             continue;
