@@ -476,10 +476,6 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
             }
         }
     }
-    // Encode q-facts that are not encoded yet
-    for (const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
-        if (!newPos.hasVariable(qfact)) _new_fact_vars.insert(newPos.encode(qfact));
-    }
     stage("factvarencoding");
 
     if (newPos.getPositionIndex() == 0) {
@@ -488,6 +484,25 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     } else {
         // Encode frame axioms which will assign variables to all "normal" facts
         encodeFrameAxioms(newPos, left);
+    }
+
+    // Encode q-facts that are not encoded yet
+    for (const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
+        if (newPos.hasVariable(qfact)) continue;
+
+        bool reuseFromLeft = left.hasVariable(qfact) 
+                && !newPos.getPosFactSupports().count(qfact)
+                && !newPos.getNegFactSupports().count(qfact);
+        if (reuseFromLeft) for (const auto& decFact : _htn.getQFactDecodings(qfact)) {
+            int decFactVar = getVariable(newPos, decFact);
+            if (_new_fact_vars.count(decFactVar)) {
+                reuseFromLeft = false;
+                break;
+            }  
+        } 
+        
+        if (reuseFromLeft) newPos.setVariable(qfact, getVariable(left, qfact)); 
+        else _new_fact_vars.insert(newPos.encode(qfact));
     }
 
     // Facts that must hold at this position
