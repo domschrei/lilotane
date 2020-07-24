@@ -6,7 +6,7 @@ else
 	timeout="$TIMEOUT"
 fi
 rating_timeout=1800
-domains="ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack rover barman depots transport hiking blocksworld factories entertainment" 
+domains="ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport factories" 
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "

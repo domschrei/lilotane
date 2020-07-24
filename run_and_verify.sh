@@ -3,11 +3,11 @@
 set -e
 set -o pipefail
 
-red=`tput setaf 1`
-green=`tput setaf 2`
-yellow=`tput setaf 3`
-blue=`tput setaf 4`
-reset=`tput sgr0`
+red=$(tput setaf 1)
+green=$(tput setaf 2)
+yellow=$(tput setaf 3)
+blue=$(tput setaf 4)
+reset=$(tput sgr0)
 
 dfile="$1"
 pfile="$2"
@@ -15,7 +15,7 @@ timeout="$3"
 shift 3
 
 logdir="logs/$(echo $dfile|sed 's,/,_,g')_$(basename $pfile .hddl)_$@_$(date +%s)/"
-logdir=$(echo $logdir|sed 's/ /_/g')
+logdir=${logdir// /_}
 mkdir -p "$logdir"
 outfile="$logdir/OUT"
 timefile="$logdir/TIME"
