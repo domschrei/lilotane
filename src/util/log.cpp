@@ -37,9 +37,7 @@ class Modifier {
 private:
     std::string _str;
 public:
-    Modifier(Code pCode) {
-        _str = "\033[" + std::to_string(pCode) + "m";
-    }
+    explicit Modifier(const Code& pCode) : _str("\033[" + std::to_string(pCode) + "m") {}
     const char* str() {
         return _str.c_str();
     }

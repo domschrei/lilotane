@@ -43,7 +43,7 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
             // Scan through all eligible arguments, filtering out q constants
             std::vector<int> eligibleConstants;
             for (int arg : _htn._constants_by_sort[sort]) {
-                if (_htn._q_constants.count(arg)) continue;
+                if (_htn.isQConstant(arg)) continue;
                 eligibleConstants.push_back(arg);
             }
 

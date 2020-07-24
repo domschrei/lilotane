@@ -22,7 +22,7 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
 }
 
 HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
-            _q_db([this](int arg) {return _q_constants.count(arg);}),
+            _q_db([this](int arg) {return isQConstant(arg);}),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
 
     Names::init(_name_back_table);
@@ -54,7 +54,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     }
     
     // Create blank action without any preconditions or effects
-    int blankId = getNameId("__BLANK___");
+    int blankId = nameId("__BLANK___");
     _action_blank = Action(blankId, std::vector<int>());
     _actions[blankId] = _action_blank;
 
@@ -75,25 +75,25 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
                 Substitution s(_actions.at(childId).getArguments(), childSig._args);
                 Action childAct = _actions.at(childId).substitute(s);
                 std::string name = "__SURROGATE*" + std::string(TOSTR(entry.first)) + "*" + std::string(TOSTR(childId)) + "*";
-                int nameId = getNameId(name);
+                int id = nameId(name);
                 Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
-                _actions[nameId] = Action(nameId, red.getArguments());
-                for (const auto& pre : red.getPreconditions()) _actions[nameId].addPrecondition(pre);
-                for (const auto& pre : childAct.getPreconditions()) _actions[nameId].addPrecondition(pre);
-                for (const auto& eff : childAct.getEffects()) _actions[nameId].addEffect(eff);
-                _reduction_to_surrogate[entry.first] = nameId;
-                _signature_sorts_table[nameId] = _signature_sorts_table[entry.first];
+                _actions[id] = Action(id, red.getArguments());
+                for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
+                for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
+                for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
+                _reduction_to_surrogate[entry.first] = id;
+                _signature_sorts_table[id] = _signature_sorts_table[entry.first];
                 //Log::d("SURROGATE par: %s\n", TOSTR(red));
                 //Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
-                //Log::d("SURROGATE des: %s\n", TOSTR(_actions[nameId]));
-                _surrogate_to_orig_parent_and_child[nameId] = std::pair<int, int>(entry.first, childId);
+                //Log::d("SURROGATE des: %s\n", TOSTR(_actions[id]));
+                _surrogate_to_orig_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
             }
         }
     }
 
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
-    if (false && (_params.isNonzero("q") || _params.isNonzero("qq"))) {
+    if (_params.isNonzero("sace")) {
 
         NodeHashMap<int, Action> newActions;
 
@@ -130,7 +130,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             std::string oldName = _name_back_table[aId];
 
             // First action: all preconditions, only the neg. effects to be moved
-            int idFirst = getNameId(oldName + "_FIRST");
+            int idFirst = nameId(oldName + "_FIRST");
             Action aFirst = Action(idFirst, aSig._args);
             aFirst.setPreconditions(a.getPreconditions());
             for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
@@ -138,7 +138,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             newActions[idFirst] = aFirst;
 
             // Second action: no preconditions, all other effects
-            int idSecond = getNameId(oldName + "_SECOND");
+            int idSecond = nameId(oldName + "_SECOND");
             Action aSecond = Action(idSecond, aSig._args);
             for (const Signature& eff : a.getEffects()) {
                 if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
@@ -192,22 +192,29 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
 
-int HtnInstance::getNameId(const std::string& name) {
+int HtnInstance::nameId(const std::string& name, bool createQConstant) {
+    int id = -1;
     if (!_name_table.count(name)) {
-        _name_table[name] = _name_table_running_id++;
-        _name_back_table[_name_table_running_id-1] = name;
-        if (name[0] == '?') {
-            // variable
-            _var_ids.insert(_name_table[name]);
+        if (createQConstant) {
+            id = std::numeric_limits<int>::max() - _q_constants.size();
+            _q_constants.insert(id);
+        } else {
+            id = _name_table_running_id++;
+            if (name[0] == '?') {
+                // variable
+                _var_ids.insert(id);
+            }
         }
+        _name_table[name] = id;
+        _name_back_table[id] = name;
     }
-    return _name_table[name];
+    return id == -1 ? _name_table[name] : id;
 }
 
 std::vector<int> HtnInstance::getArguments(int predNameId, const std::vector<std::pair<string, string>>& vars) {
     std::vector<int> args;
     for (const auto& var : vars) {
-        int id = var.first[0] == '?' ? getNameId(var.first + "_" + std::to_string(predNameId)) : getNameId(var.first);
+        int id = var.first[0] == '?' ? nameId(var.first + "_" + std::to_string(predNameId)) : nameId(var.first);
         args.push_back(id);
     }
     return args;
@@ -215,20 +222,20 @@ std::vector<int> HtnInstance::getArguments(int predNameId, const std::vector<std
 std::vector<int> HtnInstance::getArguments(int predNameId, const std::vector<std::string>& vars) {
     std::vector<int> args;
     for (const auto& var : vars) {
-        int id = var[0] == '?' ? getNameId(var + "_" + std::to_string(predNameId)) : getNameId(var);
+        int id = var[0] == '?' ? nameId(var + "_" + std::to_string(predNameId)) : nameId(var);
         args.push_back(id);
     }
     return args;
 }
 
 USignature HtnInstance::getSignature(const task& task) {
-    return USignature(getNameId(task.name), getArguments(getNameId(task.name), task.vars));
+    return USignature(nameId(task.name), getArguments(nameId(task.name), task.vars));
 }
 USignature HtnInstance::getSignature(const method& method) {
-    return USignature(getNameId(method.name), getArguments(getNameId(method.name), method.vars));
+    return USignature(nameId(method.name), getArguments(nameId(method.name), method.vars));
 }
 Signature HtnInstance::getSignature(int parentNameId, const literal& literal) {
-    Signature sig = Signature(getNameId(literal.predicate), getArguments(parentNameId, literal.arguments));
+    Signature sig = Signature(nameId(literal.predicate), getArguments(parentNameId, literal.arguments));
     if (!literal.positive) sig.negate();
     return sig;
 }
@@ -240,7 +247,7 @@ USignature HtnInstance::getInitTaskSignature(int pos) {
         std::smatch matches;
         if (std::regex_match(name, matches, std::regex("\\?var_for_(.*)_[0-9]+"))) {
             name = matches.str(1);
-            newArgs.push_back(getNameId(name));
+            newArgs.push_back(nameId(name));
         } else {
             // Parameter inside initial task
             Log::w("%s was not matched by initial task argname substitution!\n", name.c_str());
@@ -255,7 +262,7 @@ USignature HtnInstance::getInitTaskSignature(int pos) {
 SigSet HtnInstance::getInitState() {
     SigSet result;
     for (const ground_literal& lit : _p.init) {
-        Signature sig(getNameId(lit.predicate), getArguments(getNameId(lit.predicate), lit.args));
+        Signature sig(nameId(lit.predicate), getArguments(nameId(lit.predicate), lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
     }
@@ -288,7 +295,7 @@ SigSet HtnInstance::getInitState() {
 SigSet HtnInstance::getGoals() {
     SigSet result;
     for (const ground_literal& lit : _p.goal) {
-        Signature sig(getNameId(lit.predicate), getArguments(getNameId(lit.predicate), lit.args));
+        Signature sig(nameId(lit.predicate), getArguments(nameId(lit.predicate), lit.args));
         if (!lit.positive) sig.negate();
         result.insert(sig);
     }
@@ -296,10 +303,10 @@ SigSet HtnInstance::getGoals() {
 }
 
 void HtnInstance::extractPredSorts(const predicate_definition& p) {
-    int pId = getNameId(p.name);
+    int pId = nameId(p.name);
     std::vector<int> sorts;
     for (const std::string& var : p.argument_sorts) {
-        sorts.push_back(getNameId(var));
+        sorts.push_back(nameId(var));
     }
     assert(!_signature_sorts_table.count(pId));
     _signature_sorts_table[pId] = sorts;
@@ -308,10 +315,10 @@ void HtnInstance::extractPredSorts(const predicate_definition& p) {
 void HtnInstance::extractTaskSorts(const task& t) {
     std::vector<int> sorts;
     for (const auto& var : t.vars) {
-        int sortId = getNameId(var.second);
+        int sortId = nameId(var.second);
         sorts.push_back(sortId);
     }
-    int tId = getNameId(t.name);
+    int tId = nameId(t.name);
     assert(!_signature_sorts_table.count(tId));
     _signature_sorts_table[tId] = sorts;
     _original_n_taskvars[tId] = t.number_of_original_vars;
@@ -320,31 +327,31 @@ void HtnInstance::extractTaskSorts(const task& t) {
 void HtnInstance::extractMethodSorts(const method& m) {
     std::vector<int> sorts;
     for (const auto& var : m.vars) {
-        int sortId = getNameId(var.second);
+        int sortId = nameId(var.second);
         sorts.push_back(sortId);
     }
-    int mId = getNameId(m.name);
+    int mId = nameId(m.name);
     assert(!_signature_sorts_table.count(mId));
     _signature_sorts_table[mId] = sorts;
 }
 
 void HtnInstance::extractConstants() {
     for (const auto& sortPair : _p.sorts) {
-        int sortId = getNameId(sortPair.first);
+        int sortId = nameId(sortPair.first);
         _constants_by_sort[sortId];
         FlatHashSet<int>& constants = _constants_by_sort[sortId];
         for (const std::string& c : sortPair.second) {
-            constants.insert(getNameId(c));
+            constants.insert(nameId(c));
             //log("constant %s of sort %s\n", c.c_str(), sortPair.first.c_str());
         }
     }
 }
 
 Reduction& HtnInstance::createReduction(method& method) {
-    int id = getNameId(method.name);
+    int id = nameId(method.name);
     std::vector<int> args = getArguments(id, method.vars);
     
-    int taskId = getNameId(method.at);
+    int taskId = nameId(method.at);
     std::vector<int> taskArgs = getArguments(id, method.atargs);
     _task_id_to_reduction_ids[taskId];
     _task_id_to_reduction_ids[taskId].push_back(id);
@@ -413,12 +420,12 @@ Reduction& HtnInstance::createReduction(method& method) {
                 
                 if (varPair.first[0] != '?') continue; // not a variable
 
-                int varId = getNameId(varPair.first + "_" + std::to_string(id));
+                int varId = nameId(varPair.first + "_" + std::to_string(id));
                 if (std::find(args.begin(), args.end(), varId) == args.end()) {
                     // Arg is not contained, must be added
                     r.addArgument(varId);
                     args = r.getArguments();
-                    _signature_sorts_table[id].push_back(getNameId(varPair.second));
+                    _signature_sorts_table[id].push_back(nameId(varPair.second));
                     method.vars.push_back(varPair);
                 }
             }
@@ -428,7 +435,7 @@ Reduction& HtnInstance::createReduction(method& method) {
         } else {
             
             // Actual subtask
-            USignature sig(getNameId(st.task), getArguments(id, st.args));
+            USignature sig(nameId(st.task), getArguments(id, st.args));
             _reductions[id].addSubtask(sig);
             subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
         }
@@ -452,9 +459,9 @@ Reduction& HtnInstance::createReduction(method& method) {
             for (int argPos = 0; argPos < method.vars.size(); argPos++) {
                 //Log::d("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
                 if (arg1Str == method.vars[argPos].first)
-                    sort1 = getNameId(method.vars[argPos].second);
+                    sort1 = nameId(method.vars[argPos].second);
                 if (arg2Str == method.vars[argPos].first)
-                    sort2 = getNameId(method.vars[argPos].second);
+                    sort2 = nameId(method.vars[argPos].second);
             }
             //log("\n");
             assert(sort1 >= 0 && sort2 >= 0);
@@ -463,7 +470,7 @@ Reduction& HtnInstance::createReduction(method& method) {
 
             // Create equality predicate
             std::string newPredicate = "__equal_" + _name_back_table[eqSort] + "_" + _name_back_table[eqSort];
-            int newPredId = getNameId(newPredicate);
+            int newPredId = nameId(newPredicate);
             if (!_signature_sorts_table.count(newPredId)) {
                 // Predicate is new: remember sorts
                 std::vector<int> sorts(2, eqSort);
@@ -472,7 +479,7 @@ Reduction& HtnInstance::createReduction(method& method) {
             }
 
             // Add as a precondition to reduction
-            std::vector<int> args; args.push_back(getNameId(arg1Str + "_" + std::to_string(id))); args.push_back(getNameId(arg2Str + "_" + std::to_string(id)));
+            std::vector<int> args; args.push_back(nameId(arg1Str + "_" + std::to_string(id))); args.push_back(nameId(arg2Str + "_" + std::to_string(id)));
             _reductions[id].addPrecondition(Signature(newPredId, args, !lit.positive));
 
         } else {
@@ -508,7 +515,7 @@ Reduction& HtnInstance::createReduction(method& method) {
     return _reductions[id];
 }
 Action& HtnInstance::createAction(const task& task) {
-    int id = getNameId(task.name);
+    int id = nameId(task.name);
     std::vector<int> args = getArguments(id, task.vars);
 
     assert(_actions.count(id) == 0);
@@ -632,21 +639,17 @@ int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int 
 
     int sort = _signature_sorts_table[sig._name_id][argPos];
     
-    // Create / retrieve an ID for the q constant
+    // Create a new ID for the q constant (also adds ID to _q_constants)
     std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
         + std::to_string(pos) + "_" + std::to_string(_q_constants.size())
         + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
-    int qConstId = getNameId(qConstName);
-
-    // Insert q constant into set of q constants
-    assert(!_q_constants.count(qConstId));
-    _q_constants.insert(qConstId);
+    int qConstId = nameId(qConstName, /*createQConstant=*/true);
 
     // Create or retrieve the exact sort (= domain of constants) for this q-constant
     std::string qSortName = "qsort_" + std::to_string(sort) + "_"; 
         //+ std::to_string(domain.size()) + "_h";
     for (const auto& d : domain) qSortName += std::to_string(d) + "_";
-    int newSortId = getNameId(qSortName);
+    int newSortId = nameId(qSortName);
     if (!_constants_by_sort.count(newSortId)) {
         _constants_by_sort[newSortId] = domain;
     }
@@ -656,7 +659,7 @@ int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int 
 
     // 1. assume that the q-constant is of ALL (super) sorts
     std::set<int> qConstSorts;
-    for (const auto& sortPair : _p.sorts) qConstSorts.insert(getNameId(sortPair.first));
+    for (const auto& sortPair : _p.sorts) qConstSorts.insert(nameId(sortPair.first));
 
     // 2. for each constant of the primary sort:
     //      remove all q-constant sorts NOT containing that constant
@@ -698,8 +701,8 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
     Substitution s;
     for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
-        if (!checkQConstConds && _q_constants.count(arg) && !s.count(arg)) {
-            s[arg] = getNameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
+        if (!checkQConstConds && isQConstant(arg) && !s.count(arg)) {
+            s[arg] = nameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
         }
     }
     USignature normSig = qSig.substitute(s);
@@ -713,7 +716,7 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
         std::vector<int> qconsts, qconstIndices;
         for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
             int arg = qSig._args[argPos];
-            if (_q_constants.count(arg)) {
+            if (isQConstant(arg)) {
                 // q constant
                 if (checkQConstConds) {
                     qconsts.push_back(arg);
@@ -787,10 +790,12 @@ const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
     return _qfact_decodings[qFact];
 }
 
+bool HtnInstance::isQConstant(const int& c) {
+    return c > _name_table_running_id;
+}
+
 bool HtnInstance::hasQConstants(const USignature& sig) {
-    for (const int& arg : sig._args) {
-        if (_q_constants.count(arg)) return true;
-    }
+    for (const int& arg : sig._args) if (isQConstant(arg)) return true;
     return false;
 }
 
@@ -809,7 +814,7 @@ bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& ab
         // Same argument?
         if (qarg == carg) continue;
         // Different args, no q-constant arg?
-        if (!_q_constants.count(qarg)) return false;
+        if (!isQConstant(qarg)) return false;
         
         if (_use_q_constant_mutexes) {
             qArgs.push_back(qarg);
@@ -843,7 +848,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         std::vector<int> qConstIndices;
         for (int i = 0; i < pre._usig._args.size(); i++) {
             const int& arg = pre._usig._args[i];
-            if (_q_constants.count(arg)) {
+            if (isQConstant(arg)) {
                 ref.push_back(arg);
                 qConstIndices.push_back(i);
             }

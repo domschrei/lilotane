@@ -24,7 +24,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
             int arg = nodeSig._args[argPos];
             if (arg > 0 && _htn->_var_ids.count(arg)) {
                 // Variable
-                if (!s.count(arg)) s[arg] = _htn->getNameId(std::string("??_") + std::to_string(argPos));
+                if (!s.count(arg)) s[arg] = _htn->nameId(std::string("??_") + std::to_string(argPos));
             }
         }
         USignature normNodeSig = nodeSig.substitute(s);
@@ -43,7 +43,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
             // Arguments need to be renamed on recursive domains
             Substitution s;
             for (int arg : child._args) {
-                if (arg > 0) s[arg] = _htn->getNameId(_htn->_name_back_table[arg] + "_");
+                if (arg > 0) s[arg] = _htn->nameId(_htn->_name_back_table[arg] + "_");
             }
             frontier.push_back(child.substitute(s));
             depths.push_back(depth+1);

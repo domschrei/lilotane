@@ -90,7 +90,7 @@ struct HtnInstance {
 
     HtnInstance(Parameters& params, ParsedProblem& p);
 
-    int getNameId(const std::string& name);
+    int nameId(const std::string& name, bool createQConstant = false);
 
     std::vector<int> getArguments(int predNameId, const std::vector<std::pair<string, string>>& vars);
     std::vector<int> getArguments(int predNameId, const std::vector<std::string>& vars);
@@ -118,6 +118,7 @@ struct HtnInstance {
     void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
             int offset, const std::function<bool(const Signature&)>& state);
 
+    bool isQConstant(const int& c);
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);
     const std::vector<USignature>& getDecodedObjects(const USignature& qFact, bool checkQConstConds);

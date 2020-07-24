@@ -13,7 +13,7 @@ class Reduction : public HtnOp {
 private:
 
     // Coding of the methods' AT's name.
-    int _task_name_id;
+    int _task_name_id = -1;
     // The method's AT's arguments.
     std::vector<int> _task_args;
 

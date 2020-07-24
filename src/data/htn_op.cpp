@@ -2,7 +2,7 @@
 #include "htn_op.h"
 
 HtnOp::HtnOp() {}
-HtnOp::HtnOp(int id, std::vector<int> args) : _id(id), _args(args) {}
+HtnOp::HtnOp(int id, const std::vector<int>& args) : _id(id), _args(args) {}
 HtnOp::HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
 
 void HtnOp::setPreconditions(const SigSet& set) {
