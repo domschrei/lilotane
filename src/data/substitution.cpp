@@ -15,9 +15,7 @@ bool Substitution::Entry::operator==(const Entry& other) const {
 
 Substitution::Substitution() {}
 
-Substitution::Substitution(const Substitution& other) {
-    _entries = other._entries;
-}
+Substitution::Substitution(const Substitution& other) : _entries(other._entries) {}
 
 Substitution::Substitution(const std::vector<int>& src, const std::vector<int>& dest) {
     assert(src.size() == dest.size());

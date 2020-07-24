@@ -99,7 +99,7 @@ std::string Parameters::getProblemFilename() {
 
 void Parameters::printParams(bool forcePrint) {
     std::string out = "";
-    for (std::map<std::string,std::string>::iterator it = _params.begin(); it != _params.end(); it++) {
+    for (std::map<std::string,std::string>::iterator it = _params.begin(); it != _params.end(); ++it) {
         if (it->second.empty()) {
             out += it->first + ", ";
         } else {

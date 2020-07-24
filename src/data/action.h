@@ -14,7 +14,7 @@ public:
     Action();
     Action(const HtnOp& op);
     Action(const Action& a);
-    Action(int nameId, std::vector<int> args);
+    Action(int nameId, const std::vector<int>& args);
 
     Action& operator=(const Action& op);
 };

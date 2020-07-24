@@ -978,12 +978,12 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
                 //if (aSig == _htn._action_blank.getSignature()) continue;
 
                 // Decode q constants
-                Action& a = _htn._actions_by_sig[aSig];
                 USignature aDec = getDecodedQOp(li, pos, aSig);
                 if (aDec == Position::NONE_SIG) continue;
 
                 if (aDec != aSig) {
 
+                    Action& a = _htn._actions_by_sig[aSig];
                     HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
                     Action aDecoded = (Action) opDecoded;
 

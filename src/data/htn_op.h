@@ -18,7 +18,7 @@ protected:
 
 public:
     HtnOp();
-    HtnOp(int id, std::vector<int> args);
+    HtnOp(int id, const std::vector<int>& args);
     HtnOp(const HtnOp& op);
 
     void setPreconditions(const SigSet& set);
