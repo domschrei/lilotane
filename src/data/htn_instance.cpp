@@ -595,6 +595,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
     std::vector<int> vecFailure(1, -1);
 
     std::vector<int> args = op.getArguments();
+    const std::vector<int>& sorts = _signature_sorts_table[op.getSignature()._name_id];
     std::vector<int> varargIndices;
     for (int i = 0; i < op.getArguments().size(); i++) {
         const int& arg = op.getArguments()[i];
@@ -636,8 +637,10 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             anyValid = true;
             for (int i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
-                if (opArgIdx >= 0) {
-                    domainPerVariable[opArgIdx].insert(decSig._usig._args[i]);
+                auto& sortDomain = _constants_by_sort[sorts[opArgIdx]];
+                const int& arg = decSig._usig._args[i];
+                if (opArgIdx >= 0 && sortDomain.count(arg)) {
+                    domainPerVariable[opArgIdx].insert(arg);
                 }
             }
         }
@@ -649,7 +652,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         int vararg = args[i];
         auto& domain = domainPerVariable[i];
         if (!occursInPreconditions[i]) {
-            domain = _constants_by_sort[_signature_sorts_table[op.getSignature()._name_id][i]];
+            domain = _constants_by_sort[sorts[i]];
         }
         if (domain.empty()) {
             // No valid constants at this position! The op is impossible.
@@ -663,7 +666,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         } else {
             // Several valid constants here: Introduce q-constant
             args[i] = addQConstant(layerIdx, pos, op.getSignature(), i, domain);
-            Log::d("QC %s ~> %s\n", TOSTR(vararg), TOSTR(args[i]));
+            Log::d("QC %s ~> %s (|dom|=%i)\n", TOSTR(vararg), TOSTR(args[i]), domain.size());
         }
     }
 
