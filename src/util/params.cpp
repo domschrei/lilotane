@@ -42,6 +42,7 @@ void Parameters::init(int argc, char** argv) {
 
 void Parameters::setDefaults() {
     setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
+    setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
     setParam("eqfp", "0"); // encode q-fact propagations
     setParam("qcm", "0"); // q-constant mutexes: size threshold
@@ -69,6 +70,7 @@ void Parameters::printUsage() {
     Log::e("Option syntax: -OPTION or -OPTION=VALUE .\n");
     Log::e(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> reductions\n");
     Log::e("                     at the current position (0 : no AMO constraints for reductions)\n");
+    Log::e(" -co=<0|1>           Colored terminal output\n");
     Log::e(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
     Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");

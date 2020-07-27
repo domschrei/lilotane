@@ -289,9 +289,9 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("reductionconstraints");
     
-    if (numOccurringOps == 0) {
-        //addClause(varPrim);
-        assert(pos+1 == newLayer.size() || Log::d("No operations to encode at (%i,%i)!\n", layerIdx, pos));
+    if (numOccurringOps == 0 && pos+1 != newLayer.size()) {
+        Log::e("No operations to encode at (%i,%i)! Considering this problem UNSOLVABLE.\n", layerIdx, pos);
+        exit(1);
     }
 
     stage("atleastoneelement");

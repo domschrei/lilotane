@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
     Parameters params;
     params.init(argc, argv);
 
-    Log::init(params.getIntParam("v"), params.isSet("co"));
+    Log::init(params.getIntParam("v"), params.isNonzero("co"));
 
     Log::i("\n");
     Log::i("Welcome to  t r e e r e x x ,  a SAT-based planner for totally ordered HTN problems\n");

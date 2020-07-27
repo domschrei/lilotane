@@ -2,6 +2,7 @@
 #include <regex>
 #include <algorithm>
 #include <getopt.h>
+#include <sys/stat.h>
 
 #include "data/htn_instance.h"
 
@@ -11,6 +12,16 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
     const char* firstArg = "pandaPIparser";
     const char* domainStr = domainFile.c_str();
     const char* problemStr = problemFile.c_str();
+
+    struct stat sb;
+    if (stat(domainStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        Log::e("Domain file \"%s\" is not a regular file. Exiting.\n", domainStr);
+        exit(1);
+    }
+    if (stat(problemStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        Log::e("Problem file \"%s\" is not a regular file. Exiting.\n", problemStr);
+        exit(1);
+    }
 
     char* args[3];
     args[0] = (char*)firstArg;
