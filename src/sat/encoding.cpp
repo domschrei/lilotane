@@ -751,7 +751,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     }
 
     if (cnf.size() > 1000) Log::w("CNF of size %i generated\n", cnf.size());
-    //else Log::v("CNF of size %i generated\n", cnf.size());
+    //else Log::d("CNF of size %i generated\n", cnf.size());
 
     return cnf;
 }

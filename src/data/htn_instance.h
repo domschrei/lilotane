@@ -105,6 +105,7 @@ struct HtnInstance {
     void extractTaskSorts(const task& t);
     void extractMethodSorts(const method& m);
     void extractConstants();
+    SigSet extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars);
 
     Reduction& createReduction(method& method);
     Action& createAction(const task& task);

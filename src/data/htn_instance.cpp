@@ -362,7 +362,7 @@ Reduction& HtnInstance::createReduction(method& method) {
 
     std::vector<literal> condLiterals;
 
-    // Extract (in)equality constraints, put into preconditions to process later
+    // Extract (in)equality constraints, put into preconditions to process later   
     for (const literal& lit : method.constraints) {            
         assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"\"!\n", lit.predicate.c_str()));
         condLiterals.push_back(lit);
@@ -441,52 +441,17 @@ Reduction& HtnInstance::createReduction(method& method) {
         }
     }
 
-    // Process preconditions and constraints of the method
+    // Process constraints of the method
+    for (const auto& pre : extractEqualityConstraints(id, condLiterals, method.vars))
+        _reductions[id].addPrecondition(pre);
+
+    // Process preconditions of the method
     for (const literal& lit : condLiterals) {
+        if (lit.predicate == dummy_equal_literal) continue;
 
-        //Log::d("( %s ", lit.predicate.c_str());
-        //for (std::string arg : lit.arguments) Log::d("%s ", arg.c_str());
-        //Log::d(")\n");
-
-        if (lit.predicate == dummy_equal_literal) {
-            // Equality precondition
-
-            // Find out "type" of this equality predicate
-            std::string arg1Str = lit.arguments[0];
-            std::string arg2Str = lit.arguments[1];
-            //Log::d("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
-            int sort1 = -1, sort2 = -1;
-            for (int argPos = 0; argPos < method.vars.size(); argPos++) {
-                //Log::d("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
-                if (arg1Str == method.vars[argPos].first)
-                    sort1 = nameId(method.vars[argPos].second);
-                if (arg2Str == method.vars[argPos].first)
-                    sort2 = nameId(method.vars[argPos].second);
-            }
-            //log("\n");
-            assert(sort1 >= 0 && sort2 >= 0);
-            // Use the "larger" sort as the sort for both argument positions
-            int eqSort = (_constants_by_sort[sort1].size() > _constants_by_sort[sort2].size() ? sort1 : sort2);
-
-            // Create equality predicate
-            std::string newPredicate = "__equal_" + _name_back_table[eqSort] + "_" + _name_back_table[eqSort];
-            int newPredId = nameId(newPredicate);
-            if (!_signature_sorts_table.count(newPredId)) {
-                // Predicate is new: remember sorts
-                std::vector<int> sorts(2, eqSort);
-                _signature_sorts_table[newPredId] = sorts;
-                _equality_predicates.insert(newPredId);
-            }
-
-            // Add as a precondition to reduction
-            std::vector<int> args; args.push_back(nameId(arg1Str + "_" + std::to_string(id))); args.push_back(nameId(arg2Str + "_" + std::to_string(id)));
-            _reductions[id].addPrecondition(Signature(newPredId, args, !lit.positive));
-
-        } else {
-            // Normal precondition
-            Signature sig = getSignature(id, lit);
-            _reductions[id].addPrecondition(sig);
-        }
+        // Normal precondition
+        Signature sig = getSignature(id, lit);
+        _reductions[id].addPrecondition(sig);
     }
 
     // Order subtasks
@@ -514,12 +479,21 @@ Reduction& HtnInstance::createReduction(method& method) {
 
     return _reductions[id];
 }
+
 Action& HtnInstance::createAction(const task& task) {
     int id = nameId(task.name);
     std::vector<int> args = getArguments(id, task.vars);
 
     assert(_actions.count(id) == 0);
     _actions[id] = Action(id, args);
+
+    // Process (equality) constraints
+    for (const auto& pre : extractEqualityConstraints(id, task.constraints, task.vars))
+        _actions[id].addPrecondition(pre);
+    for (const auto& pre : extractEqualityConstraints(id, task.prec, task.vars))
+        _actions[id].addPrecondition(pre);
+
+    // Process preconditions
     for (const auto& p : task.prec) {
         Signature sig = getSignature(id, p);
         _actions[id].addPrecondition(sig);
@@ -530,6 +504,57 @@ Action& HtnInstance::createAction(const task& task) {
     }
     _actions[id].removeInconsistentEffects();
     return _actions[id];
+}
+
+SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars) {
+    
+    SigSet result;
+
+    for (const literal& lit : lits) {
+
+        //Log::d("( %s ", lit.predicate.c_str());
+        //for (std::string arg : lit.arguments) Log::d("%s ", arg.c_str());
+        //Log::d(")\n");
+
+        if (lit.predicate == dummy_equal_literal) {
+            // Equality precondition
+
+            // Find out "type" of this equality predicate
+            std::string arg1Str = lit.arguments[0];
+            std::string arg2Str = lit.arguments[1];
+            //Log::d("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
+            int sort1 = -1, sort2 = -1;
+            for (int argPos = 0; argPos < vars.size(); argPos++) {
+                //Log::d("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
+                if (arg1Str == vars[argPos].first)
+                    sort1 = nameId(vars[argPos].second);
+                if (arg2Str == vars[argPos].first)
+                    sort2 = nameId(vars[argPos].second);
+            }
+            //log("\n");
+            assert(sort1 >= 0 && sort2 >= 0);
+            // Use the "larger" sort as the sort for both argument positions
+            int eqSort = (_constants_by_sort[sort1].size() > _constants_by_sort[sort2].size() ? sort1 : sort2);
+
+            // Create equality predicate
+            std::string newPredicate = "__equal_" + _name_back_table[eqSort] + "_" + _name_back_table[eqSort];
+            int newPredId = nameId(newPredicate);
+            if (!_signature_sorts_table.count(newPredId)) {
+                // Predicate is new: remember sorts
+                std::vector<int> sorts(2, eqSort);
+                _signature_sorts_table[newPredId] = sorts;
+                _equality_predicates.insert(newPredId);
+            }
+
+            // Add as a precondition
+            std::vector<int> args(2); 
+            args[0] = nameId(arg1Str + "_" + std::to_string(opId)); 
+            args[1] = nameId(arg2Str + "_" + std::to_string(opId));
+            result.emplace(newPredId, args, !lit.positive);
+        }
+    }
+
+    return result;
 }
 
 HtnOp& HtnInstance::getOp(const USignature& opSig) {
