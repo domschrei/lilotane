@@ -52,7 +52,7 @@ void Parameters::setDefaults() {
     setParam("of", "0"); // output formula to f.cnf
     setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
-    setParam("qit", "1"); // q-constant instantiation threshold
+    setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
     setParam("q", "0"); // q-constants
     setParam("qq", "1"); // no instantiation of preconditions
