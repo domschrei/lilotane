@@ -31,7 +31,7 @@ static double getime (void) {
 }
 };
 
-class IPAsirMiniSAT : public Solver {
+struct IPAsirMiniSAT : public Solver {
   vec<Lit> assumptions, clause;
   int szfmap; unsigned char * fmap; bool nomodel;
   unsigned long long calls;
@@ -122,5 +122,6 @@ int ipasir_val (void * s, int l) { return import (s)->val (l); }
 int ipasir_failed (void * s, int l) { return import (s)->failed (l); }
 void ipasir_set_terminate (void * s, void * state, int (*callback)(void * state)) { /*import(s)->setTermCallback(state, callback)*/; }
 void ipasir_set_learn (void * s, void * state, int max_length, void (*learn)(void * state, int * clause)) { import(s)->setLearnCallback(state, max_length, learn); }
-
+void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var) { import(s)->setDecisionVar(var(import(s)->import(v)), decision_var); }
+void ipasir_set_phase (void * s, unsigned int v, bool phase) { import(s)->setPolarity(var(import(s)->import(v)), phase); }
 };

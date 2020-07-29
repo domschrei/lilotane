@@ -111,7 +111,7 @@ void Planner::outputPlan() {
         if (_htn._name_back_table[item.abstractTask._name_id].rfind("__SURROGATE") != std::string::npos) {
             // Surrogate action: Replace with actual action, remember represented method to include in decomposition
 
-            const auto& [parentId, childId] = _htn._surrogate_to_orig_parent_and_child[item.abstractTask._name_id];
+            [[maybe_unused]] const auto& [parentId, childId] = _htn._surrogate_to_orig_parent_and_child[item.abstractTask._name_id];
             const Reduction& parentRed = _htn._reductions[parentId].substituteRed(
                         Substitution(_htn._reductions[parentId].getArguments(), item.abstractTask._args));
             surrogateIds.insert(item.id);

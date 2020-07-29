@@ -59,6 +59,7 @@ private:
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
 
     std::vector<int> _last_assumptions;
+    std::vector<int> _no_decision_variables;
 
     const bool _print_formula;
     const bool _use_q_constant_mutexes;
@@ -122,11 +123,13 @@ private:
     int varPrimitive(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
     int varQConstEquality(int q1, int q2);
+
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
     
     int getVariable(const Position& pos, const USignature& sig);
     int getVariable(int layer, int pos, const USignature& sig);
+    int encodeVariable(Position& pos, const USignature& sig, bool decisionVar = true);
 
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);

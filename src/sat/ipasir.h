@@ -111,4 +111,7 @@ void ipasir_set_terminate (void * solver, void * state, int (*terminate)(void * 
 
 void ipasir_set_learn (void * solver, void * state, int max_length, void (*learn)(void * state, int * clause));
 
+void ipasir_set_phase (void * s, unsigned int v, bool phase);
+void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var);
+
 #endif
