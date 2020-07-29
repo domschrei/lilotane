@@ -98,22 +98,21 @@ void Planner::outputPlan() {
 
         if (item.id < 0) continue;
         
-        if (_htn._name_back_table[item.abstractTask._name_id].rfind("_SECOND") != std::string::npos) {
+        if (_htn.toString(item.abstractTask._name_id).rfind("_SECOND") != std::string::npos) {
             // Second part of a split action: discard
             idsToRemove.insert(item.id);
             continue;
         }
-        if (_htn._name_back_table[item.abstractTask._name_id].rfind("_FIRST") != std::string::npos) {
+        if (_htn.toString(item.abstractTask._name_id).rfind("_FIRST") != std::string::npos) {
             // First part of a split action: change name, then handle normally
-            item.abstractTask._name_id = _htn._split_action_from_first[item.abstractTask._name_id];
+            item.abstractTask._name_id = _htn.getSplitAction(item.abstractTask._name_id);
         }
         
-        if (_htn._name_back_table[item.abstractTask._name_id].rfind("__SURROGATE") != std::string::npos) {
+        if (_htn.toString(item.abstractTask._name_id).rfind("__SURROGATE") != std::string::npos) {
             // Surrogate action: Replace with actual action, remember represented method to include in decomposition
 
-            [[maybe_unused]] const auto& [parentId, childId] = _htn._surrogate_to_orig_parent_and_child[item.abstractTask._name_id];
-            const Reduction& parentRed = _htn._reductions[parentId].substituteRed(
-                        Substitution(_htn._reductions[parentId].getArguments(), item.abstractTask._args));
+            [[maybe_unused]] const auto& [parentId, childId] = _htn.getParentAndChildFromSurrogate(item.abstractTask._name_id);
+            const Reduction& parentRed = _htn.toReduction(parentId, item.abstractTask._args);
             surrogateIds.insert(item.id);
             
             PlanItem parent;
@@ -130,7 +129,7 @@ void Planner::outputPlan() {
         actionIds.insert(item.id);
 
         // Do not write blank actions or the virtual goal action
-        if (item.abstractTask == _htn._action_blank.getSignature()) continue;
+        if (item.abstractTask == HtnInstance::BLANK_ACTION.getSignature()) continue;
         if (item.abstractTask._name_id == _htn.nameId("_GOAL_ACTION_")) continue;
 
         stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
@@ -200,9 +199,8 @@ void Planner::createFirstLayer() {
     }
 
     // Instantiate all possible init. reductions
-    _htn._init_reduction_choices = _instantiator.getApplicableInstantiations(
-            _htn._init_reduction, getStateEvaluator());
-    std::vector<Reduction> roots = _htn._init_reduction_choices;
+    std::vector<Reduction> roots = _instantiator.getApplicableInstantiations(
+            _htn.getInitReduction(), getStateEvaluator());
     for (Reduction& r : roots) {
 
         if (addReduction(r, USignature())) {
@@ -222,7 +220,7 @@ void Planner::createFirstLayer() {
         }
     }
     addNewFalseFacts();
-    _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+    _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
     _enc.encode(_layer_idx, _pos++);
 
     /***** LAYER 0, POSITION 1 ******/
@@ -230,20 +228,16 @@ void Planner::createFirstLayer() {
     createNextPosition(); // position 1
 
     // Create virtual goal action
-    Action goalAction(_htn.nameId("_GOAL_ACTION_"), std::vector<int>());
+    Action goalAction = _htn.getGoalAction();
     USignature goalSig = goalAction.getSignature();
-    _htn._actions[goalSig._name_id] = goalAction;
     initLayer[_pos].addAction(goalSig);
     initLayer[_pos].addAxiomaticOp(goalSig);
     
     // Extract primitive goals, add to preconds of goal action
-    SigSet goalSet = _htn.getGoals();
-    for (const Signature& fact : goalSet) {
+    for (const Signature& fact : goalAction.getPreconditions()) {
         assert(getLayerState().contains(_pos, fact));
-        goalAction.addPrecondition(fact);
         addPrecondition(goalSig, fact);
     }
-    _htn._actions_by_sig[goalSig] = goalAction;
     
     _enc.encode(_layer_idx, _pos++);
 
@@ -307,12 +301,12 @@ void Planner::createNextPosition() {
     // as (initially false) facts to THIS position.  
     addNewFalseFacts();
 
-    if (_htn._use_q_constant_mutexes) {
+    if (_params.isNonzero("qcm")) {
 
         // Use new q-constant conditions from this position to infer conditions 
         // of the respective parent ops at the layer above. 
-        auto updatedOps = _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
-        auto updatedReductions = _htn._q_db.backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+        auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
+        auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
         updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
 
         //pruneRetroactively(updatedOps);
@@ -342,7 +336,7 @@ void Planner::createNextPosition() {
                 _htn.removeQFactDecoding(qfactSig, decFactSig);
                 
                 std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
-                _htn._forbidden_substitutions.insert(Substitution(qargs, decargs));
+                _htn.addForbiddenSubstitution(qargs, decargs);
             } 
         }
     }
@@ -463,7 +457,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
-    if (_params.isNonzero("nps") || _htn._actions_by_sig.count(opSig)) {
+    if (_params.isNonzero("nps") || _htn.isAction(opSig)) {
         pos.addFactSupport(fact, opSig);
     } else {
         // Remember that there is some (unspecified) support for this fact
@@ -563,7 +557,7 @@ void Planner::propagateActions(int offset) {
     for (const auto& entry : above.getActions()) {
         const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
-        const Action& a = _htn._actions_by_sig[aSig];
+        const Action& a = _htn.getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
         bool valid = _instantiator.hasValidPreconditions(a.getPreconditions(), getStateEvaluator());
@@ -587,7 +581,7 @@ void Planner::propagateActions(int offset) {
             }
         } else {
             // action expands to "blank" at non-zero offsets
-            USignature blankSig = _htn._action_blank.getSignature();
+            USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
             newPos.addAction(blankSig);
             newPos.addExpansion(aSig, blankSig);
         }
@@ -602,7 +596,7 @@ void Planner::propagateReductions(int offset) {
     for (const auto& entry : above.getReductions()) {
         const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
-        const Reduction r = _htn._reductions_by_sig[rSig];
+        const Reduction r = _htn.getReduction(rSig);
         const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
         
         int numAdded = 0;
@@ -613,17 +607,17 @@ void Planner::propagateReductions(int offset) {
             // reduction(s)?
             for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
                 
-                if (_htn._actions_by_sig.count(subRSig)) {
+                if (_htn.isAction(subRSig)) {
                     // Actually an action, not a reduction
                     allActions.push_back(subRSig);
                     continue;
                 }
 
                 numAdded++;
-                assert(_htn._reductions_by_sig.count(subRSig));
-                const Reduction& subR = _htn._reductions_by_sig[subRSig];
+                assert(_htn.isReduction(subRSig));
+                const Reduction& subR = _htn.getReduction(subRSig);
 
-                assert(subRSig == _htn._reductions_by_sig[subRSig].getSignature());
+                assert(subRSig == subR.getSignature());
                 assert(_instantiator.isFullyGround(subRSig));
                 
                 newPos.addReduction(subRSig);
@@ -651,7 +645,7 @@ void Planner::propagateReductions(int offset) {
                 newPos.addAction(aSig);
                 newPos.addExpansion(rSig, aSig);
                 // Add preconditions of action
-                const Action& a = _htn._actions_by_sig[aSig];
+                const Action& a = _htn.getAction(aSig);
                 for (const Signature& fact : a.getPreconditions()) {
                     addPrecondition(aSig, fact);
                 }
@@ -662,7 +656,7 @@ void Planner::propagateReductions(int offset) {
         } else {
             // Blank
             numAdded++;
-            USignature blankSig = _htn._action_blank.getSignature();
+            USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
             newPos.addAction(blankSig);
             newPos.addExpansion(rSig, blankSig);
         }
@@ -679,14 +673,11 @@ void Planner::propagateReductions(int offset) {
 std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
     std::vector<USignature> result;
 
-    if (!_htn._actions.count(task._name_id)) return result;
+    if (!_htn.isAction(task)) return result;
 
-    const Action& a = _htn._actions[task._name_id];
-
-    HtnOp op = a.substitute(Substitution(a.getArguments(), task._args));
-    Action act = (Action) op;
+    const Action& a = _htn.toAction(task._name_id, task._args);
     
-    std::vector<Action> actions = _instantiator.getApplicableInstantiations(act, state);
+    std::vector<Action> actions = _instantiator.getApplicableInstantiations(a, state);
     for (Action& action : actions) {
         //Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
         if (addAction(action, task)) result.push_back(action.getSignature());
@@ -697,17 +688,15 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
 std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
     std::vector<USignature> result;
 
-    if (!_htn._task_id_to_reduction_ids.count(task._name_id)) return result;
+    if (!_htn.hasReductions(task._name_id)) return result;
 
     // Filter and minimally instantiate methods
     // applicable in current (super)state
-    for (int redId : _htn._task_id_to_reduction_ids[task._name_id]) {
-        Reduction r = _htn._reductions[redId];
-        //Log::d("SURROGATE for %s\n", TOSTR(r.getTaskArguments()));
+    for (int redId : _htn.getReductionIdsOfTaskId(task._name_id)) {
+        Reduction r = _htn.getReductionTemplate(redId);
 
-        if (_htn._reduction_to_surrogate.count(redId)) {
-            assert(_htn._actions.count(_htn._reduction_to_surrogate.at(redId)));
-            Action& a = _htn._actions.at(_htn._reduction_to_surrogate.at(redId));
+        if (_htn.hasSurrogate(redId)) {
+            const Action& a = _htn.getSurrogate(redId);
 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
@@ -762,7 +751,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
     
     sig = action.getSignature();
-    _htn._actions_by_sig[sig] = action;
+    _htn.addAction(action);
 
     // Compute fact changes
     (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
@@ -784,7 +773,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
     
     sig = red.getSignature();
-    _htn._reductions_by_sig[sig] = red;
+    _htn.addReduction(red);
 
     // Compute fact changes
     (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
@@ -905,7 +894,7 @@ void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSi
 
             // COMPLETELY remove this op, disregarding witness counters.
 
-            bool isReduction = _htn._reductions.count(sig._name_id);
+            bool isReduction = _htn.isReduction(sig);
             if (isReduction) (*_layers[layerIdx])[pos].removeReductionOccurrence(sig);
             else (*_layers[layerIdx])[pos].removeActionOccurrence(sig);
         }

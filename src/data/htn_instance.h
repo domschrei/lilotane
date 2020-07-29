@@ -19,110 +19,49 @@
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
 
-struct HtnInstance {
+class HtnInstance {
 
-    Parameters& _params;
+public:
 
-    // The raw parsed problem.
-    ParsedProblem& _p;
+    // Special action representing a virtual "No-op".
+    static Action BLANK_ACTION;
 
-    // Maps a string to its name ID within the problem.
-    FlatHashMap<std::string, int> _name_table;
-    NodeHashMap<int, std::string> _name_back_table;
-    // Running ID to assign to new strings of the problem.
-    int _name_table_running_id = 1;
-
-    // Set of all name IDs that are variables (start with '?').
-    FlatHashSet<int> _var_ids;
-    FlatHashSet<int> _predicate_ids;
-
-    // Maps a {predicate,task,method} name ID to a list of sorts IDs.
-    NodeHashMap<int, std::vector<int>> _signature_sorts_table;
-
-    FlatHashMap<int, int> _original_n_taskvars;
-
-    // Maps a sort name ID to a list of constant name IDs of that sort.
-    NodeHashMap<int, FlatHashSet<int>> _constants_by_sort;
-
-    FlatHashSet<int> _q_constants;
-    FlatHashMap<int, int> _primary_sort_of_q_constants;
-    NodeHashMap<int, FlatHashSet<int>> _sorts_of_q_constants;
-    QConstantDatabase _q_db;
-
-    // Maps a normalized fact signature to a list of possible decodings
-    // using the normalized arguments.
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
-
-    NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
-    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
-
-    // Maps an action name ID to its action object.
-    NodeHashMap<int, Action> _actions;
-
-    // Maps a reduction name ID to its reduction object.
-    NodeHashMap<int, Reduction> _reductions;
-
-    NodeHashMap<USignature, Action, USignatureHasher> _actions_by_sig;
-    NodeHashMap<USignature, Reduction, USignatureHasher> _reductions_by_sig;
-
-    NodeHashMap<int, std::vector<int>> _task_id_to_reduction_ids;
-
-    FlatHashMap<int, int> _reduction_to_surrogate;
-    NodeHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
-
-    FlatHashSet<int> _equality_predicates;
-    FlatHashSet<int> _fluent_predicates;
-
-    Instantiator* _instantiator;
-
-    Reduction _init_reduction;
-    std::vector<Reduction> _init_reduction_choices;
-    Action _action_blank;
-
-    FlatHashMap<int, int> _split_action_from_first;
-
-    const bool _use_q_constant_mutexes;
-
-
+    HtnInstance(Parameters& params, ParsedProblem& p);
+    ~HtnInstance();
 
     static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
 
-    HtnInstance(Parameters& params, ParsedProblem& p);
-
-    int nameId(const std::string& name, bool createQConstant = false);
-
-    std::vector<int> getArguments(int predNameId, const std::vector<std::pair<string, string>>& vars);
-    std::vector<int> getArguments(int predNameId, const std::vector<std::string>& vars);
-    USignature getSignature(const task& task);
-    USignature getSignature(const method& method);
-    Signature getSignature(int parentNameId, const literal& literal);
-    USignature getInitTaskSignature(int pos);
     SigSet getInitState();
-    SigSet getGoals();
+    const Reduction& getInitReduction();
+    Action getGoalAction();
 
-    void extractPredSorts(const predicate_definition& p);
-    void extractTaskSorts(const task& t);
-    void extractMethodSorts(const method& m);
-    void extractConstants();
-    SigSet extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars);
+    bool isVariable(int c);
+    bool isQConstant(int c);
 
-    Reduction& createReduction(method& method);
-    Action& createAction(const task& task);
-    HtnOp& getOp(const USignature& opSig);
-
-    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
-    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
-
-    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const std::function<bool(const Signature&)>& state);
-
-    bool isQConstant(const int& c);
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+
+    bool isPredicate(int nameId) const;
+    bool isAction(const USignature& sig) const;
+    bool isReduction(const USignature& sig) const;
+    Action toAction(int actionName, const std::vector<int>& args) const;
+    Reduction toReduction(int reductionName, const std::vector<int>& args) const;
+    HtnOp& getOp(const USignature& opSig);
+    const Action& getActionTemplate(int nameId) const;
+    const Reduction& getReductionTemplate(int nameId) const;
+    const Action& getAction(const USignature& sig) const;
+    const Reduction& getReduction(const USignature& sig) const;
+    void addAction(const Action& a);
+    void addReduction(const Reduction& r);
+
+    bool hasReductions(int taskId) const;
+    const std::vector<int>& getReductionIdsOfTaskId(int taskId) const;
+
+    bool hasSurrogate(int reductionId) const;
+    const Action& getSurrogate(int reductionId) const;
+
+    const std::vector<int>& getSorts(int nameId) const;
+    const FlatHashSet<int>& getConstantsOfSort(int sort) const;
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
 
@@ -130,12 +69,133 @@ struct HtnInstance {
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
 
+    void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
+    const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
+    void clearForbiddenSubstitutions();
+
+    
+    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
+    
+    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
+            int offset, const std::function<bool(const Signature&)>& state);
+
+    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+
+
     const FlatHashSet<int>& getConstantsOfSort(int sort);
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
-
+    
     USignature cutNonoriginalTaskArguments(const USignature& sig);
+    int getSplitAction(int firstActionName);
+    std::pair<int, int> getParentAndChildFromSurrogate(int surrogateActionName);
+
+    Instantiator& getInstantiator();
+    QConstantDatabase& getQConstantDatabase();
+
+    int nameId(const std::string& name, bool createQConstant = false);
+    std::string toString(int id) const;
+
+private:
+
+    Parameters& _params;
+
+    // The raw parsed problem.
+    ParsedProblem& _p;
+
+    QConstantDatabase _q_db;
+    Instantiator* _instantiator;
+    
+    // Maps a string to its name ID within the problem.
+    FlatHashMap<std::string, int> _name_table;
+    // Maps a name ID to its string within the problem.
+    NodeHashMap<int, std::string> _name_back_table;
+    // Running number to assign new IDs to strings.
+    int _name_table_running_id = 1;
+
+    // Set of all name IDs that are variables (start with '?').
+    FlatHashSet<int> _var_ids;
+    // Set of all predicate name IDs.
+    FlatHashSet<int> _predicate_ids;
+    // Set of equality predicate name IDs.
+    FlatHashSet<int> _equality_predicates;
+    // Set of all q-constant IDs.
+    FlatHashSet<int> _q_constants;
+
+    // Maps a {predicate,task,method} name ID to a list of sorts IDs.
+    NodeHashMap<int, std::vector<int>> _signature_sorts_table;
+
+    // Maps a sort name ID to a set of constants of that sort.
+    NodeHashMap<int, FlatHashSet<int>> _constants_by_sort;
+
+    // Maps each q-constant to the sort it was created with.
+    FlatHashMap<int, int> _primary_sort_of_q_constants;
+    // Maps each q-constant to a list of sorts it is constrained with.
+    NodeHashMap<int, FlatHashSet<int>> _sorts_of_q_constants;
+    
+    // Maps each {action,reduction} name ID to the number of task variables it originally had.
+    FlatHashMap<int, int> _original_n_taskvars;
+
+    // Maps a normalized q-fact signature to a list of possible decodings
+    // with the normalized arguments.
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
+    // TODO
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
+
+    // TODO
+    NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
+
+    // TODO
+    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
+
+    // Maps an action name ID to its action object.
+    NodeHashMap<int, Action> _actions;
+    // Maps a reduction name ID to its reduction object.
+    NodeHashMap<int, Reduction> _reductions;
+
+    // Maps a signature of a ground or pseudo-ground action to the actual action object.
+    NodeHashMap<USignature, Action, USignatureHasher> _actions_by_sig;
+    // Maps a signature of a ground or pseudo-ground reduction to the actual reduction object.
+    NodeHashMap<USignature, Reduction, USignatureHasher> _reductions_by_sig;
+
+    // Maps a task name ID to the name IDs of possible reductions for the task.
+    NodeHashMap<int, std::vector<int>> _task_id_to_reduction_ids;
+
+    // Maps a virtual "_FIRST" action ID to the original action that was split into parts.  
+    FlatHashMap<int, int> _split_action_from_first;
+    // Maps a reduction name ID to the surrogate action that replaces it.
+    FlatHashMap<int, int> _reduction_to_surrogate;
+    // Maps a surrogate action name ID to its original reduction name ID
+    // and the replaced child name ID.
+    NodeHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
+
+    // The initial reduction of the problem.
+    Reduction _init_reduction;
+    
+    // Whether q constant mutexes are created and used.
+    const bool _use_q_constant_mutexes;
+
+    std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
+    std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);
+    USignature convertSignature(const task& task);
+    USignature convertSignature(const method& method);
+    Signature  convertSignature(int parentNameId, const literal& literal);
+
+    void extractPredSorts(const predicate_definition& p);
+    void extractTaskSorts(const task& t);
+    void extractMethodSorts(const method& m);
+    void extractConstants();
+    SigSet extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars);
+    SigSet extractGoals();
+
+    Reduction& createReduction(method& method);
+    Action& createAction(const task& task);
+
+    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
+
 };
 
 #endif

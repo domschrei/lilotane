@@ -21,8 +21,7 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
 
     // enumerate all arg combinations for variable args
     // Get all constants of the respective type(s)
-    assert(_htn._signature_sorts_table.count(sig._name_id));
-    std::vector<int> sorts = _htn._signature_sorts_table[sig._name_id];
+    std::vector<int> sorts = _htn.getSorts(sig._name_id);
     assert(sorts.size() == sig._args.size() || Log::e("Sorts table of predicate %s has an invalid size\n", TOSTR(sig)));
     
     //log("SORTS %s ", TOSTR(sig._name_id));
@@ -34,15 +33,14 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
     for (int pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
 
-        if (_htn._var_ids.count(arg)) {
+        if (_htn.isVariable(arg)) {
             // free argument
 
             int sort = sorts[pos];
-            assert(_htn._constants_by_sort.count(sort));
 
             // Scan through all eligible arguments, filtering out q constants
             std::vector<int> eligibleConstants;
-            for (int arg : _htn._constants_by_sort[sort]) {
+            for (int arg : _htn.getConstantsOfSort(sort)) {
                 if (_htn.isQConstant(arg)) continue;
                 eligibleConstants.push_back(arg);
             }

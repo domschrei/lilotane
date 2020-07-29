@@ -44,20 +44,20 @@ void Parameters::setDefaults() {
     setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
-    setParam("eqfp", "0"); // encode q-fact propagations
-    setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // output formula to f.cnf
     setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
+    setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
-    setParam("q", "0"); // q-constants
-    setParam("qq", "1"); // no instantiation of preconditions
+    setParam("q", "0"); // q-constants while always instantiating all preconditions
+    setParam("qq", "1"); // q-constants without instantiation of preconditions
     setParam("sace", "0"); // split actions with (potentially) conflicting effects
     setParam("surr", "1"); // replace surrogate methods
+    setParam("svp", "0"); // set variable phases
     setParam("v", "2"); // verbosity
 }
 
@@ -75,7 +75,6 @@ void Parameters::printUsage() {
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
     Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
     Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
-    Log::e(" -eqfp=<0|1>         Encode q-fact propagations in between layers\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::e(" -p=<0|1>            Encode predecessor operations\n");

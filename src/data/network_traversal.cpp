@@ -22,7 +22,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
         Substitution s;
         for (int argPos = 0; argPos < nodeSig._args.size(); argPos++) {
             int arg = nodeSig._args[argPos];
-            if (arg > 0 && _htn->_var_ids.count(arg)) {
+            if (arg > 0 && _htn->isVariable(arg)) {
                 // Variable
                 if (!s.count(arg)) s[arg] = _htn->nameId(std::string("??_") + std::to_string(argPos));
             }
@@ -43,7 +43,7 @@ void NetworkTraversal::traverse(const USignature& opSig, std::function<void(cons
             // Arguments need to be renamed on recursive domains
             Substitution s;
             for (int arg : child._args) {
-                if (arg > 0) s[arg] = _htn->nameId(_htn->_name_back_table[arg] + "_");
+                if (arg > 0) s[arg] = _htn->nameId(_htn->toString(arg) + "_");
             }
             frontier.push_back(child.substitute(s));
             depths.push_back(depth+1);
@@ -56,11 +56,10 @@ std::vector<USignature> NetworkTraversal::getPossibleChildren(const USignature& 
     std::vector<USignature> result;
 
     int nameId = opSig._name_id;
-    if (!_htn->_reductions.count(nameId)) return result;
+    if (!_htn->isReduction(opSig)) return result;
 
     // Reduction
-    Reduction r = _htn->_reductions[nameId];
-    r = r.substituteRed(Substitution(r.getArguments(), opSig._args));
+    Reduction r = _htn->toReduction(nameId, opSig._args);
 
     const std::vector<USignature>& subtasks = r.getSubtasks();
 
@@ -68,17 +67,14 @@ std::vector<USignature> NetworkTraversal::getPossibleChildren(const USignature& 
     for (const USignature& sig : subtasks) {
         // Find all possible (sub-)reductions of this subtask
         int taskNameId = sig._name_id;
-        if (_htn->_actions.count(taskNameId)) {
+        if (_htn->isAction(sig)) {
             // Action
-            Action& subaction = _htn->_actions[taskNameId];
-            const std::vector<int>& origArgs = subaction.getArguments();
-            USignature substSig = sig.substitute(Substitution(origArgs, sig._args));
-            result.push_back(substSig);
+            result.push_back(sig);
         } else {
             // Reduction
-            std::vector<int> subredIds = _htn->_task_id_to_reduction_ids[taskNameId];
+            std::vector<int> subredIds = _htn->getReductionIdsOfTaskId(taskNameId);
             for (int subredId : subredIds) {
-                const Reduction& subred = _htn->_reductions[subredId];
+                const Reduction& subred = _htn->getReductionTemplate(subredId);
                 // Substitute original subred. arguments
                 // with the subtask's arguments
                 const std::vector<int>& origArgs = subred.getTaskArguments();

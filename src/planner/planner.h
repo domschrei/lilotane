@@ -31,7 +31,7 @@ private:
 
 public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
-            _instantiator(*(_htn._instantiator)), _enc(_params, _htn, _layers) {}
+            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers) {}
     int findPlan();
 
 private:

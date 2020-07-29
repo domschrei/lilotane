@@ -102,7 +102,7 @@ void Encoding::encode(int layerIdx, int pos) {
             if (_params.isNonzero("qcm")) {
                 // Check if this decoding is valid
                 std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
-                if (!_htn._q_db.test(qargs, decArgs)) continue;
+                if (!_htn.getQConstantDatabase().test(qargs, decArgs)) continue;
             }
 
             // Already encoded earlier?
@@ -143,7 +143,7 @@ void Encoding::encode(int layerIdx, int pos) {
         if (aSig == Position::NONE_SIG) continue;
         int aVar = getVariable(left, aSig);
 
-        for (const Signature& eff : _htn._actions_by_sig[aSig].getEffects()) {
+        for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
             
             // Check that the action is contained in the effect's support
             const auto& supports = eff._negated ? newPos.getNegFactSupports() : newPos.getPosFactSupports();
@@ -160,7 +160,7 @@ void Encoding::encode(int layerIdx, int pos) {
             std::vector<int> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
-                for (const auto& posEff : _htn._actions_by_sig[aSig].getEffects()) {
+                for (const auto& posEff : _htn.getAction(aSig).getEffects()) {
                     if (posEff._negated) continue;
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
                     bool fits = true;
@@ -225,7 +225,7 @@ void Encoding::encode(int layerIdx, int pos) {
         addClause(-aVar, varPrim);
 
         // Preconditions
-        for (const Signature& pre : _htn._actions_by_sig[aSig].getPreconditions()) {
+        for (const Signature& pre : _htn.getAction(aSig).getPreconditions()) {
             addClause(-aVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
 
@@ -251,7 +251,7 @@ void Encoding::encode(int layerIdx, int pos) {
         int rVar = getVariable(newPos, rSig);
         aloElemClause[numOccurringOps++] = rVar;
 
-        bool trivialReduction = _htn._reductions_by_sig[rSig].getSubtasks().size() == 0;
+        bool trivialReduction = _htn.getReduction(rSig).getSubtasks().size() == 0;
         if (trivialReduction) {
             // If a trivial reduction occurs, the position is primitive
             addClause(-rVar, varPrim);
@@ -272,7 +272,7 @@ void Encoding::encode(int layerIdx, int pos) {
         }
 
         // Preconditions
-        for (const Signature& pre : _htn._reductions_by_sig[rSig].getPreconditions()) {
+        for (const Signature& pre : _htn.getReduction(rSig).getPreconditions()) {
             //assert(newPos.hasFact(pre._usig));
             addClause(-rVar, (pre._negated?-1:1)*getVariable(newPos, pre._usig));
         }
@@ -352,7 +352,7 @@ void Encoding::encode(int layerIdx, int pos) {
             endClause();
         }
     }
-    for (const auto& sub : _htn._forbidden_substitutions) {
+    for (const auto& sub : _htn.getForbiddenSubstitutions()) {
         assert(!sub.empty());
         if (_forbidden_substitutions.count(sub)) continue;
         for (const auto& entry : sub) {
@@ -361,7 +361,7 @@ void Encoding::encode(int layerIdx, int pos) {
         endClause();
         _forbidden_substitutions.insert(sub);
     }
-    _htn._forbidden_substitutions.clear();
+    _htn.clearForbiddenSubstitutions();
     stage("forbiddensubstitutions");
 
     // Forbid impossible parent ops
@@ -466,7 +466,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     int reusedFacts = 0;
     if (newPos.getLayerIndex() > 0 && offset == 0) {
         for (const auto& [sig, var] : above.getVariableTable()) {
-            if (_htn._predicate_ids.count(sig._name_id)) {
+            if (_htn.isPredicate(sig._name_id)) {
                 // Fact variable
                 newPos.setVariable(sig, var);
                 reusedFacts++;
@@ -535,7 +535,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
 
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
-        if (!_htn._predicate_ids.count(fact._name_id) || _htn.hasQConstants(fact)) continue;
+        if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
         
         const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
         FlatHashSet<int> indirectSupports[2];
@@ -566,7 +566,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     // Calculate and encode prerequisites for indirect support
 
                     // Find valid sets of substitutions for this operation causing the desired effect
-                    auto subs = _htn._instantiator->getOperationSubstitutionsCausingEffect(
+                    auto subs = _htn.getInstantiator().getOperationSubstitutionsCausingEffect(
                         left.getFactChanges(opSig), fact, sign<0);
                     //assert(subMap.count(opSig));
                     if (subs.empty()) {
@@ -679,7 +679,7 @@ void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
     std::vector<int> substitutionVars;
     for (int c : _htn.getDomainOfQConstant(arg)) {
 
-        assert(!_htn._var_ids.count(c));
+        assert(!_htn.isVariable(c));
 
         // either of the possible substitutions must be chosen
         int varSubst = varSubstitution(sigSubstitute(arg, c));
@@ -700,12 +700,14 @@ void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
         }
     }
 
-    // Choose one substitution at random, set negativ phase for all others
-    std::default_random_engine generator;
-    std::uniform_int_distribution<int> distribution(0, substitutionVars.size()-1);
-    int randomIdx = distribution(generator);
-    for (int i = 0; i < substitutionVars.size(); i++) {
-        ipasir_set_phase(_solver, substitutionVars[i], i == randomIdx);
+    if (_params.isNonzero("svp")) {
+        // Choose one substitution at random, set negative phase for all others
+        std::default_random_engine generator;
+        std::uniform_int_distribution<int> distribution(0, substitutionVars.size()-1);
+        int randomIdx = distribution(generator);
+        for (int i = 0; i < substitutionVars.size(); i++) {
+            ipasir_set_phase(_solver, substitutionVars[i], i == randomIdx);
+        }
     }
 }
 
@@ -1005,7 +1007,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
                 if (aDec != aSig) {
 
-                    Action& a = _htn._actions_by_sig[aSig];
+                    const Action& a = _htn.getAction(aSig);
                     HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
                     Action aDecoded = (Action) opDecoded;
 
@@ -1108,7 +1110,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                 if (value(layerIdx, pos, rSig)) {
 
                     int v = getVariable(layerIdx, pos, rSig);
-                    const Reduction& r = _htn._reductions_by_sig[rSig];
+                    const Reduction& r = _htn.getReduction(rSig);
 
                     // Check preconditions
                     /*
@@ -1139,11 +1141,10 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     int offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
                     PlanItem& parent = itemsOldLayer[predPos];
                     assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
-                    assert(_htn._reductions.count(parent.reduction._name_id) || 
+                    assert(_htn.isReduction(parent.reduction) || 
                         Log::e("Plan error: Invalid reduction id=%i at %i,%i!\n", parent.reduction._name_id, layerIdx-1, predPos));
 
-                    parentRed = _htn._reductions[parent.reduction._name_id];
-                    parentRed = parentRed.substituteRed(Substitution(parentRed.getArguments(), parent.reduction._args));
+                    parentRed = _htn.toReduction(parent.reduction._name_id, parent.reduction._args);
 
                     // Is the current reduction a proper subtask?
                     assert(offset < parentRed.getSubtasks().size());
@@ -1169,10 +1170,10 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                 if (value(layerIdx, pos, aSig)) {
                     actionsThisPos++;
 
-                    if (aSig == _htn._action_blank.getSignature()) continue;
+                    if (aSig == HtnInstance::BLANK_ACTION.getSignature()) continue;
                     
                     int v = getVariable(layerIdx, pos, aSig);
-                    Action a = _htn._actions_by_sig[aSig];
+                    Action a = _htn.getAction(aSig);
 
                     /*
                     // Check preconditions, effects
