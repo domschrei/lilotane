@@ -34,6 +34,7 @@ struct HtnInstance {
 
     // Set of all name IDs that are variables (start with '?').
     FlatHashSet<int> _var_ids;
+    FlatHashSet<int> _predicate_ids;
 
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
     NodeHashMap<int, std::vector<int>> _signature_sorts_table;
@@ -53,7 +54,6 @@ struct HtnInstance {
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
-    USigSet _facts;
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
@@ -122,19 +122,16 @@ struct HtnInstance {
     bool isQConstant(const int& c);
     bool hasQConstants(const USignature& sig);
     bool isAbstraction(const USignature& concrete, const USignature& abstraction);
-    const std::vector<USignature>& getDecodedObjects(const USignature& qFact, bool checkQConstConds);
+    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
-
-    void addFact(const USignature& fact);
-    bool hasFact(const USignature& fact);
-    const USigSet& getFacts();
 
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
 
     const FlatHashSet<int>& getConstantsOfSort(int sort);
+    std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
 

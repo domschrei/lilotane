@@ -463,15 +463,10 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     // Reuse variables from above position
     int reusedFacts = 0;
     if (newPos.getLayerIndex() > 0 && offset == 0) {
-        for (const USignature& factSig : _htn.getFacts()) {
-            if (above.hasVariable(factSig)) {
-                newPos.setVariable(factSig, getVariable(above, factSig));
-                reusedFacts++;
-            }
-        }
-        for (const auto& [name, qfacts] : newPos.getQFacts()) for (const auto& qfactSig : qfacts) {
-            if (above.hasVariable(qfactSig)) {
-                newPos.setVariable(qfactSig, getVariable(above, qfactSig));
+        for (const auto& [sig, var] : above.getVariableTable()) {
+            if (_htn._predicate_ids.count(sig._name_id)) {
+                // Fact variable
+                newPos.setVariable(sig, var);
                 reusedFacts++;
             }
         }
@@ -480,7 +475,8 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
 
     if (newPos.getPositionIndex() == 0) {
         // Initialize all facts
-        for (const USignature& fact : _htn.getFacts()) _new_fact_vars.insert(newPos.encode(fact));
+        for (const auto& fact : newPos.getTrueFacts()) _new_fact_vars.insert(newPos.encode(fact));
+        for (const auto& fact : newPos.getFalseFacts()) _new_fact_vars.insert(newPos.encode(fact));
     } else {
         // Encode frame axioms which will assign variables to all "normal" facts
         encodeFrameAxioms(newPos, left);
@@ -510,9 +506,15 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
     for (int i = 0; i < 2; i++) 
     for (const USignature& factSig : *cHere[i]) {
-        int var = getVariable(newPos, factSig);
-        if (_new_fact_vars.count(var))
-            addClause((i == 0 ? 1 : -1) * var);
+        if (newPos.hasVariable(factSig)) {
+            // Variable is already encoded.
+            int var = getVariable(newPos, factSig);
+            if (_new_fact_vars.count(var))
+                addClause((i == 0 ? 1 : -1) * var);
+        } else {
+            // Variable is not encoded yet.
+            addClause((i == 0 ? 1 : -1) * newPos.encode(factSig));
+        }
     }
     stage("truefacts");
 }
@@ -529,13 +531,10 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     int prevVarPrim = varPrimitive(layerIdx, pos-1);
 
     std::vector<int> dnfSubs; dnfSubs.reserve(8192);
-    for (const USignature& fact : _htn.getFacts()) {
 
-        if (!left.hasVariable(fact)) {
-            if (!newPos.hasVariable(fact)) _new_fact_vars.insert(newPos.encode(fact));
-            continue;
-        }
-
+    for (const auto& [fact, var] : left.getVariableTable()) {
+        if (!_htn._predicate_ids.count(fact._name_id) || _htn.hasQConstants(fact)) continue;
+        
         const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
         FlatHashSet<int> indirectSupports[2];
         int oldFactVars[2] = {-getVariable(left, fact), 0};

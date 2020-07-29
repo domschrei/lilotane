@@ -195,7 +195,6 @@ void Planner::createFirstLayer() {
     // Initial state
     SigSet initState = _htn.getInitState();
     for (const Signature& fact : initState) {
-        _htn.addFact(fact._usig);
         initLayer[_pos].addDefinitiveFact(fact);
         getLayerState().add(_pos, fact);
     }
@@ -241,7 +240,6 @@ void Planner::createFirstLayer() {
     SigSet goalSet = _htn.getGoals();
     for (const Signature& fact : goalSet) {
         assert(getLayerState().contains(_pos, fact));
-        assert(_htn.hasFact(fact.getUnsigned()));
         goalAction.addPrecondition(fact);
         addPrecondition(goalSig, fact);
     }
@@ -432,13 +430,12 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
     if (!isQFact) assert(getLayerState().contains(_pos, fact) 
             || Log::e("%s not contained in state!\n", TOSTR(fact)));
 
-    // Add additional reason for the fact / add it first if it's a q-constant
-    if (isQFact) pos.addQFact(factAbs);
-    else _htn.addFact(factAbs);
+    if (!isQFact) return;
+    pos.addQFact(factAbs);
 
     // For each fact decoded from the q-fact:
-    assert(!isQFact || !_htn.getDecodedObjects(factAbs, false).empty());
-    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, false)) {
+    std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
         Signature decFact(decFactAbs, fact._negated);
         
         if (!_instantiator.test(decFact, getStateEvaluator())) {
@@ -453,7 +450,6 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
         }
 
         _htn.addQFactDecoding(factAbs, decFactAbs);
-        _htn.addFact(decFactAbs); // also add fact as an (indirect) consequence of op
     }
 }
 
@@ -464,7 +460,6 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
     if (isQFact) pos.addQFact(factAbs);
-    else _htn.addFact(factAbs);
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
@@ -495,7 +490,8 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
         }
     }*/
 
-    for (const USignature& decFactAbs : _htn.getDecodedObjects(factAbs, true)) {
+    std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
         
         /*
         // Test if this q constant substitution is valid
@@ -808,11 +804,12 @@ void Planner::addNewFalseFacts() {
             if (!_htn.hasQConstants(eff._usig)) { // TODO
                 // New fact: set to false before the action may happen
                 introduceNewFalseFact(newPos, eff._usig);
-            }
-
-            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
-                // New fact: set to false before the action may happen
-                introduceNewFalseFact(newPos, decEff);
+            } else {
+                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
+                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
+                    // New fact: set to false before the action may happen
+                    introduceNewFalseFact(newPos, decEff);
+                }
             }
         }
     }
@@ -827,12 +824,14 @@ void Planner::addNewFalseFacts() {
             if (!_htn.hasQConstants(eff._usig)) { // TODO
                 // New fact: set to false before the reduction may happen
                 introduceNewFalseFact(newPos, eff._usig);
+            } else {
+                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, rSig);
+                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
+                    // New fact: set to false before the action may happen
+                    introduceNewFalseFact(newPos, decEff);
+                }
             }
 
-            for (const USignature& decEff : _htn.getDecodedObjects(eff._usig, true)) {
-                // New fact: set to false before the action may happen
-                introduceNewFalseFact(newPos, decEff);
-            }
         }
     }
 
@@ -867,7 +866,6 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(fact)) return;
     
     newPos.addDefinitiveFact(sig);
-    _htn.addFact(fact);
     
     //Log::d("FALSE_FACT %s @(%i,%i)\n", TOSTR(fact), newPos.getLayerIndex(), newPos.getPositionIndex());
 }

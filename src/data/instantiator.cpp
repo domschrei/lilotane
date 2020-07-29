@@ -546,7 +546,7 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
     // Q-Fact:
     if (_htn->hasQConstants(sig._usig)) {
         //log("QTEST %s\n", TOSTR(sig));
-        for (const auto& decSig : _htn->getDecodedObjects(sig._usig, true)) {
+        for (const auto& decSig : _htn->decodeObjects(sig._usig, true)) {
             bool result = test(Signature(decSig, sig._negated), state);
             //log("QTEST -- %s : %s\n", TOSTR(decSig), result ? "TRUE" : "FALSE");    
             if (result) return true;

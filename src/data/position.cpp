@@ -118,6 +118,10 @@ bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
     return _variables.at(sig) > 0;
 }
 
+const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable() const {
+    return _variables;
+}
+
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}

@@ -85,6 +85,7 @@ public:
     bool hasVariable(const USignature& sig) const;
     int getVariableOrReference(const USignature& sig) const;
     bool isVariableOriginallyEncoded(const USignature& sig) const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable() const;
 
     bool hasQFact(const USignature& fact) const;
     bool hasAction(const USignature& action) const;

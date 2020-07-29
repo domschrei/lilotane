@@ -315,6 +315,7 @@ SigSet HtnInstance::getGoals() {
 
 void HtnInstance::extractPredSorts(const predicate_definition& p) {
     int pId = nameId(p.name);
+    _predicate_ids.insert(pId);
     std::vector<int> sorts;
     for (const std::string& var : p.argument_sorts) {
         sorts.push_back(nameId(var));
@@ -555,6 +556,7 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
                 std::vector<int> sorts(2, eqSort);
                 _signature_sorts_table[newPredId] = sorts;
                 _equality_predicates.insert(newPredId);
+                _predicate_ids.insert(newPredId);
             }
 
             // Add as a precondition
@@ -611,20 +613,26 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         if (!_instantiator->test(preSig, state)) return vecFailure;
 
         // Find mapping from precond args to op args
-        std::vector<int> opArgIndices;
-        for (int arg : preSig._usig._args) {
-            opArgIndices.push_back(-1);
+        std::vector<int> opArgIndices(preSig._usig._args.size(), -1);
+        for (int preIdx = 0; preIdx < preSig._usig._args.size(); preIdx++) {
+            const int& arg = preSig._usig._args[preIdx];
             for (int i = 0; i < args.size(); i++) {
                 if (args[i] == arg) {
-                    opArgIndices.back() = i;
+                    opArgIndices[preIdx] = i;
                     occursInPreconditions[i] = true;
                     break;
                 }
             }
         }
 
+        // Compute sorts of the condition's args w.r.t. op signature
+        std::vector<int> preSorts(preSig._usig._args.size());
+        for (int i = 0; i < preSorts.size(); i++) {
+            preSorts[i] = sorts[opArgIndices[i]];
+        }
+
         // Check possible decodings of precondition
-        std::vector<USignature> usigs = getDecodedObjects(preSig._usig, /*checkQConstConds=*/true);
+        std::vector<USignature> usigs = decodeObjects(preSig._usig, /*checkQConstConds=*/true, /*restrictiveSorts=*/preSorts);
         bool anyValid = usigs.empty();
         for (const auto& decUSig : usigs) {
             Signature decSig(decUSig, preSig._negated);
@@ -637,9 +645,8 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             anyValid = true;
             for (int i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
-                auto& sortDomain = _constants_by_sort[sorts[opArgIdx]];
                 const int& arg = decSig._usig._args[i];
-                if (opArgIdx >= 0 && sortDomain.count(arg)) {
+                if (opArgIdx >= 0) {
                     domainPerVariable[opArgIdx].insert(arg);
                 }
             }
@@ -733,7 +740,9 @@ int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int 
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
-const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& qSig, bool checkQConstConds) {
+const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig, bool checkQConstConds, 
+        const std::vector<int>& restrictiveSorts) {
+
     if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) return SIGVEC_EMPTY;
     checkQConstConds &= _use_q_constant_mutexes;
 
@@ -767,7 +776,14 @@ const std::vector<USignature>& HtnInstance::getDecodedObjects(const USignature& 
                 // Variable
                 int sort = _signature_sorts_table[normSig._name_id][argPos];
                 const auto& domain = _constants_by_sort[sort];
-                eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
+                if (restrictiveSorts.empty()) {
+                    eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
+                } else {
+                    const auto& restrictiveDomain = _constants_by_sort[restrictiveSorts[argPos]];
+                    for (const int& c : domain) {
+                        if (restrictiveDomain.count(c)) eligibleArgs[argPos].push_back(c);
+                    }
+                }
             } else {
                 // normal constant
                 eligibleArgs[argPos].push_back(arg);
@@ -800,20 +816,23 @@ const FlatHashSet<int>& HtnInstance::getConstantsOfSort(int sort) {
     return _constants_by_sort[sort]; 
 }
 
+std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, const USignature& op) {
+    std::vector<int> sigSorts(sig._args.size());
+    const auto& opSorts = _signature_sorts_table[op._name_id];
+    for (int sigIdx = 0; sigIdx < sigSorts.size(); sigIdx++) {
+        for (int opIdx = 0; opIdx < op._args.size(); opIdx++) {
+            if (sig._args[sigIdx] == op._args[opIdx]) {
+                // Found
+                sigSorts[sigIdx] = opSorts[opIdx];
+                break;
+            }
+        }
+    }
+    return sigSorts;
+}
+
 const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
     return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
-}
-
-void HtnInstance::addFact(const USignature& fact) {
-    _facts.insert(fact);
-}
-
-bool HtnInstance::hasFact(const USignature& fact) {
-    return _facts.count(fact);
-}
-
-const USigSet& HtnInstance::getFacts() {
-    return _facts;
 }
 
 void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
@@ -897,7 +916,8 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         ValueSet good;
         ValueSet bad;
         //log("QQ %s\n", TOSTR(pre._usig));
-        for (const auto& decPre : getDecodedObjects(pre._usig, true)) {
+        std::vector<int> sorts = getOpSortsForCondition(pre._usig, op.getSignature());
+        for (const auto& decPre : decodeObjects(pre._usig, true, sorts)) {
             bool holds = _instantiator->test(Signature(decPre, pre._negated), state);
             //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
             auto& set = holds ? good : bad;
