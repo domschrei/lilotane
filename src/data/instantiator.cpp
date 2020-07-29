@@ -186,25 +186,6 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
         }   
     }
 
-    /*
-    TODO
-    For each assignment level, remember all of op's preconditions which *are to become ground* at that level.
-    If this set is not empty at level x, then, instead of iterating over all valid constants to the current
-    assignment, iterate over the according true facts in the state and use their corresponding constants.
-
-    Prerequisite: Capability of state to iterate over all true facts of given predicate and polarity.
-    */
-
-    /*
-    std::vector<int> qconstants, qconstIndices;
-    for (int i = 0; i < argsByPriority; i++) {
-        const int& arg = op.getArguments()[i];
-        if (_htn->isQConstant(arg)) {
-            qconstants.push_back(arg);
-            qconstIndices.push_back(i);
-        }
-    }*/
-
     std::vector<std::vector<int>> assignmentsStack;
     assignmentsStack.push_back(std::vector<int>()); // begin with empty assignment
     while (!assignmentsStack.empty()) {
@@ -280,7 +261,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
         NodeHashMap<int, std::vector<float>> ratings;
         NodeHashMap<int, std::vector<int>> numRatings;
         
-        NetworkTraversal(*_htn).traverse(normSig, [&](const USignature& nodeSig, int depth) {
+        NetworkTraversal(*_htn).traverse(normSig, NetworkTraversal::TRAVERSE_PREORDER, [&](const USignature& nodeSig, int depth) {
 
             HtnOp& op = (_htn->_actions.count(nodeSig._name_id) ? (HtnOp&)_htn->_actions.at(nodeSig._name_id) : (HtnOp&)_htn->_reductions.at(nodeSig._name_id));
             HtnOp opSub = op.substitute(Substitution(op.getArguments(), nodeSig._args));
@@ -403,6 +384,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig) {
         NodeHashSet<Signature, SignatureHasher> facts;
 
         _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
+        NetworkTraversal::TRAVERSE_PREORDER,
         [&](const USignature& nodeSig, int depth) {
             // If visited node is an action: add effects
             if (_htn->_actions.count(nodeSig._name_id)) {
@@ -429,6 +411,132 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig) {
         sig = sig.substitute(sFromPlaceholder);
     }
     return out;
+}
+
+FactFrame Instantiator::getFactFrame(const USignature& sig) {
+    static USigSet currentOps;
+
+    Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
+
+    int nameId = sig._name_id;
+    if (!_fact_frames.count(nameId)) {
+
+        FactFrame& result = _fact_frames[nameId];
+
+        std::vector<int> newArgs(sig._args.size());
+        for (int i = 0; i < sig._args.size(); i++) {
+            newArgs[i] = _htn->nameId("c" + std::to_string(i));
+        }
+        USignature op(sig._name_id, newArgs);
+
+        if (currentOps.count(op)) {
+        
+            // Handle recursive call of same reduction: Only add direct preconditions
+            FactFrame f;
+            f.sig = op;
+            if (_htn->_actions.count(op._name_id)) {
+                const Action& aBase = _htn->_actions.at(op._name_id);
+                Action a = (Action) aBase.substitute(Substitution(a.getArguments(), op._args));
+                f.preconditions = a.getPreconditions();
+            } else {
+                const Reduction& rBase = _htn->_reductions.at(op._name_id);
+                Reduction r = rBase.substituteRed(Substitution(rBase.getArguments(), op._args));
+                f.preconditions = r.getPreconditions();
+            }
+            result = f;
+
+        } else {
+
+            currentOps.insert(op);
+
+            if (_htn->_actions.count(op._name_id)) {
+                // Action
+                const Action& aBase = _htn->_actions.at(op._name_id);
+                Action a = (Action) aBase.substitute(Substitution(aBase.getArguments(), op._args));
+                result.sig = op;
+                result.preconditions = a.getPreconditions();
+                result.flatEffects = a.getEffects();
+                result.causalEffects[std::vector<Signature>()] = a.getEffects();
+
+            } else {
+                // Reduction
+                
+                const Reduction& rBase = _htn->_reductions.at(op._name_id);
+                Reduction r = rBase.substituteRed(Substitution(rBase.getArguments(), op._args));
+                result.sig = op;
+                result.preconditions.insert(r.getPreconditions().begin(), r.getPreconditions().end());
+                
+                // For each subtask position ("offset")
+                for (int offset = 0; offset < r.getSubtasks().size(); offset++) {
+                    
+                    FactFrame frameOfOffset;
+                    std::vector<USignature> children;
+                    _traversal.getPossibleChildren(r.getSubtasks(), offset, children);
+                    bool firstChild = true;
+
+                    // Assemble fact frame of this offset by iterating over all possible children at the offset
+                    for (const auto& child : children) {
+
+                        // Assemble unified argument names
+                        std::vector<int> newChildArgs(child._args);
+                        for (int i = 0; i < child._args.size(); i++) {
+                            if (_htn->_var_ids.count(child._args[i])) newChildArgs[i] = _htn->nameId("??_");
+                        }
+
+                        // Recursively get child frame of the child
+                        FactFrame childFrame = getFactFrame(USignature(child._name_id, newChildArgs));
+                        
+                        if (firstChild) {
+                            // Add all preconditions of child that are not yet part of the parent's effects
+                            for (const auto& pre : childFrame.preconditions) {
+                                if (!result.flatEffects.count(pre))
+                                    frameOfOffset.preconditions.insert(pre);
+                            }
+                            firstChild = false;
+                        } else {
+                            // Intersect preconditions
+                            SigSet newPrec;
+                            for (const auto& pre : childFrame.preconditions) {
+                                if (frameOfOffset.preconditions.count(pre)) {
+                                    newPrec.insert(pre);
+                                }
+                            }
+                            frameOfOffset.preconditions = std::move(newPrec);
+                        }
+
+                        // Add all effects with (child's precondition + eff. preconditions) minus the parent's effects
+                        for (const auto& [pres, effs] : childFrame.causalEffects) {
+                            SigSet newPres;
+                            for (const auto& pre : childFrame.preconditions) {
+                                if (!result.flatEffects.count(pre) && !frameOfOffset.preconditions.count(pre)) 
+                                    newPres.insert(pre);
+                            }
+                            for (const auto& pre : pres) {
+                                if (!result.flatEffects.count(pre) && !frameOfOffset.preconditions.count(pre)) 
+                                    newPres.insert(pre);
+                            }
+                            frameOfOffset.causalEffects[std::vector<Signature>(newPres.begin(), newPres.end())] = effs;
+                            frameOfOffset.flatEffects.insert(effs.begin(), effs.end());
+                        }
+                    }
+
+                    // Write into parent's fact frame
+                    result.preconditions.insert(frameOfOffset.preconditions.begin(), frameOfOffset.preconditions.end());
+                    for (const auto& [pres, effs] : frameOfOffset.causalEffects) {
+                        result.causalEffects[pres].insert(effs.begin(), effs.end());
+                        result.flatEffects.insert(effs.begin(), effs.end());
+                    }
+                }
+            }
+
+            currentOps.erase(sig);
+        }
+
+        Log::d("FACT_FRAME %s\n", TOSTR(result));
+    }
+
+    const FactFrame& f = _fact_frames[nameId];
+    return f.substitute(Substitution(f.sig._args, sig._args));
 }
 
 bool Instantiator::isFullyGround(const USignature& sig) {

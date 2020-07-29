@@ -75,6 +75,10 @@ struct SignatureHasher {
     USignatureHasher _usig_hasher;
     std::size_t operator()(const Signature& s) const;
 };
+struct SigVecHasher {
+    SignatureHasher _sig_hasher;
+    std::size_t operator()(const std::vector<Signature>& s) const;
+};
 
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;
 typedef FlatHashSet<USignature, USignatureHasher> USigSet;

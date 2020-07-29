@@ -10,6 +10,7 @@
 #include "data/code_table.h"
 #include "data/signature.h"
 #include "data/network_traversal.h"
+#include "data/fact_frame.h"
 #include "util/params.h"
 
 class HtnInstance; // incomplete forward def
@@ -59,6 +60,8 @@ private:
     // that might be added to the state due to this operator. 
     NodeHashMap<int, SigSet> _fact_changes;
 
+    NodeHashMap<int, FactFrame> _fact_frames;
+
 public:
     Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn), _traversal(htn) {
         if (_params.isNonzero("qq")) {
@@ -92,6 +95,8 @@ public:
     // to a corresponding list of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
     SigSet getPossibleFactChanges(const USignature& sig);
+
+    FactFrame getFactFrame(const USignature& sig);
 
 
     bool isFullyGround(const USignature& sig);

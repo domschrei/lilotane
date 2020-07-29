@@ -770,6 +770,8 @@ bool Planner::addAction(Action& action, const USignature& task) {
 
     // Compute fact changes
     (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    auto frame = _instantiator.getFactFrame(sig);
+    //Log::d("FACT_FRAME %s\n", TOSTR(frame));
 
     //Log::d("ADDACTION -- added\n");
     return true;
@@ -792,6 +794,8 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 
     // Compute fact changes
     (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    auto frame = _instantiator.getFactFrame(sig);
+    //Log::d("FACT_FRAME %s\n", TOSTR(frame));
 
     return true;
 }

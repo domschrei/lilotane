@@ -6,6 +6,7 @@
 
 #include "data/signature.h"
 #include "data/action.h"
+#include "data/fact_frame.h"
 
 #define TOSTR(x) Names::to_string(x).c_str()
 
@@ -18,6 +19,7 @@ namespace Names {
     std::string to_string_nobrackets(const USignature& sig);
     std::string to_string(const FlatHashMap<int, int>& s);
     std::string to_string(const Action& a);
+    std::string to_string(const FactFrame& f);
 }
 
 #endif

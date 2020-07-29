@@ -78,4 +78,20 @@ namespace Names {
         }
         return out + "}";
     }
+
+    std::string to_string(const FactFrame& f) {
+        std::string out = "{\n";
+        for (const Signature& pre : f.preconditions) {
+            out += "  " + to_string(pre) + "\n";
+        }
+        out += "} " + to_string(f.sig) + " {\n";
+        for (const auto& [pres, effs] : f.causalEffects) {
+            out += "  (\n";
+            for (const auto& pre : pres) out += "    " + to_string(pre) + "\n";
+            out += "  ) => (\n";
+            for (const auto& eff : effs) out += "    " + to_string(eff) + "\n";
+            out += "  )\n";
+        }
+        return out + "}";
+    }
 }

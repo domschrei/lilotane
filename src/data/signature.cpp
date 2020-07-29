@@ -109,3 +109,9 @@ std::size_t SignatureHasher::operator()(const Signature& s) const {
     hash_combine(hash, s._negated);
     return hash;
 }
+
+std::size_t SigVecHasher::operator()(const std::vector<Signature>& s) const {
+    size_t hash = s.size();
+    for (const Signature& sig : s) hash_combine(hash, _sig_hasher(sig));
+    return hash;
+}
