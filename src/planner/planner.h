@@ -45,7 +45,12 @@ private:
     void createNextPositionFromAbove(const Position& above);
     void createNextPositionFromLeft(const Position& left);
 
-    void addPrecondition(const USignature& op, const Signature& fact);
+    void addPrecondition(const USignature& op, const Signature& fact, 
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
+    void addSubstitutionConstraints(const USignature& op, 
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
     void addEffect(const USignature& op, const Signature& fact);
     bool addAction(Action& a, const USignature& task);
     bool addReduction(Reduction& r, const USignature& task);

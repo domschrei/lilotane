@@ -2,6 +2,7 @@
 #include <random>
 
 #include "sat/encoding.h"
+#include "sat/literal_tree.h"
 #include "util/log.h"
 
 /*
@@ -342,15 +343,38 @@ void Encoding::encode(int layerIdx, int pos) {
     stage("qtypeconstraints");
 
     // Forbidden substitutions per operator
-    stage("forbiddensubstitutions");
-    for (const auto& opPair : newPos.getForbiddenSubstitutions()) {
-        const USignature& opSig = opPair.first;
-        for (const Substitution& s : opPair.second) {
+    stage("substitutionconstraints");
+    for (const auto& [opSig, subs] : newPos.getForbiddenSubstitutions()) {
+        for (const Substitution& s : subs) {
             appendClause(-getVariable(newPos, opSig));
             for (const auto& [src, dest] : s) {
                 appendClause(-varSubstitution(sigSubstitute(src, dest)));
             }
             endClause();
+        }
+    }
+    for (const auto& [opSig, subsVec] : newPos.getValidSubstitutions()) {
+        // For each set of valid substitution options
+        for (const auto& subs : subsVec) {
+            // Build literal tree from this set of valid substitution options for this op
+            LiteralTree tree;
+            // For each substitution option:
+            for (const auto& s : subs) {
+                std::vector<int> sVars(s.size()); 
+                i = 0;
+                // For each atomic substitution:
+                for (const auto& [src, dest] : s) {
+                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
+                }
+                tree.insert(sVars);
+            }
+            // Encode set of valid substitution options into CNF
+            std::vector<std::vector<int>> cls = tree.encode(
+                std::vector<int>(1, getVariable(newPos, opSig))
+            );
+            for (const auto& c : cls) {
+                addClause(c);
+            }
         }
     }
     for (const auto& sub : _htn.getForbiddenSubstitutions()) {
@@ -363,7 +387,7 @@ void Encoding::encode(int layerIdx, int pos) {
         _forbidden_substitutions.insert(sub);
     }
     _htn.clearForbiddenSubstitutions();
-    stage("forbiddensubstitutions");
+    stage("substitutionconstraints");
 
     // Forbid impossible parent ops
     stage("forbiddenparents");
@@ -774,18 +798,24 @@ void Encoding::addClause(int lit1, int lit2, int lit3) {
     _num_lits += 3; _num_cls++;
 }
 void Encoding::addClause(const std::initializer_list<int>& lits) {
-    //log("CNF ");
     for (int lit : lits) {
         ipasir_add(_solver, lit);
         if (_print_formula) _out << lit << " ";
-        //log("%i ", lit);
     } 
     ipasir_add(_solver, 0);
     if (_print_formula) _out << "0\n";
-    //log("0\n");
-
     _num_cls++;
     _num_lits += lits.size();
+}
+void Encoding::addClause(const std::vector<int>& cls) {
+    for (int lit : cls) {
+        ipasir_add(_solver, lit);
+        if (_print_formula) _out << lit << " ";
+    } 
+    ipasir_add(_solver, 0);
+    if (_print_formula) _out << "0\n";
+    _num_cls++;
+    _num_lits += cls.size();
 }
 void Encoding::appendClause(int lit) {
     if (!beganLine) beganLine = true;
@@ -924,6 +954,16 @@ int Encoding::varQConstEquality(int q1, int q2) {
         _q_equality_variables[qPair] = varEq;
     }
     return _q_equality_variables[qPair];
+}
+
+const USignature& Encoding::sigSubstitute(int qConstId, int trueConstId) {
+    //assert(!_htn.isQConstant(trueConstId) || trueConstId < qConstId);
+    auto& args = _sig_substitution._args;
+    assert(_htn.isQConstant(qConstId));
+    assert(!_htn.isQConstant(trueConstId));
+    args[0] = qConstId;
+    args[1] = trueConstId;
+    return _sig_substitution;
 }
 
 std::string Encoding::varName(int layer, int pos, const USignature& sig) {

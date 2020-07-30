@@ -44,7 +44,9 @@ private:
     NodeHashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
+
     NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
+    NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher> _valid_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
@@ -64,7 +66,9 @@ public:
     void addFactSupport(const Signature& fact, const USignature& operation);
     void touchFactSupport(const Signature& fact);
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
-    void addForbiddenSubstitution(const USignature& op, const std::vector<int>& src, const std::vector<int>& dest);
+
+    void addForbiddenSubstitution(const USignature& op, const Substitution& s);
+    void addValidSubstitutions(const USignature& op, const NodeHashSet<Substitution, Substitution::Hasher>& subs);
 
     void addAction(const USignature& action);
     void addReduction(const USignature& reduction);
@@ -103,6 +107,8 @@ public:
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
     const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const;
+    const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
+    getValidSubstitutions() const;
 
     const NodeHashMap<USignature, int, USignatureHasher>& getActions() const;
     const NodeHashMap<USignature, int, USignatureHasher>& getReductions() const;

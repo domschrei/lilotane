@@ -98,20 +98,13 @@ private:
     void encodeFrameAxioms(Position& pos, const Position& left);
     void initSubstitutionVars(int opVar, int qconst, Position& pos);
     
-    const USignature& sigSubstitute(int qConstId, int trueConstId) {
-        //assert(!_htn.isQConstant(trueConstId) || trueConstId < qConstId);
-        auto& args = _sig_substitution._args;
-        args[0] = (qConstId);
-        args[1] = (trueConstId);
-        return _sig_substitution;
-    }
-
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
     void addClause(int lit);
     void addClause(int lit1, int lit2);
     void addClause(int lit1, int lit2, int lit3);
     void addClause(const std::initializer_list<int>& lits);
+    void addClause(const std::vector<int>& cls);
 
     void appendClause(int lit);
     void appendClause(int lit1, int lit2);
@@ -123,6 +116,7 @@ private:
     int varPrimitive(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
     int varQConstEquality(int q1, int q2);
+    const USignature& sigSubstitute(int qConstId, int trueConstId);
 
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);

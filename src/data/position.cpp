@@ -26,9 +26,13 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);
 }
-void Position::addForbiddenSubstitution(const USignature& op, const std::vector<int>& src, const std::vector<int>& dest) {
+void Position::addForbiddenSubstitution(const USignature& op, const Substitution& s) {
     auto& set = _forbidden_substitutions_per_op[op];
-    set.emplace(src, dest);
+    set.insert(s);
+}
+void Position::addValidSubstitutions(const USignature& op, const NodeHashSet<Substitution, Substitution::Hasher>& subs) {
+    auto& set = _valid_substitutions_per_op[op];
+    set.push_back(subs);
 }
 
 void Position::addAction(const USignature& action) {
@@ -138,6 +142,10 @@ const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Po
 const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
 Position::getForbiddenSubstitutions() const {
     return _forbidden_substitutions_per_op;
+}
+const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
+Position::getValidSubstitutions() const {
+    return _valid_substitutions_per_op;
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getActions() const {return _actions;}

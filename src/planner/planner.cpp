@@ -211,9 +211,12 @@ void Planner::createFirstLayer() {
             initLayer[_pos].addAxiomaticOp(sig);
             initLayer[_pos].addExpansionSize(r.getSubtasks().size());
             // Add preconditions
+            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
             for (const Signature& fact : r.getPreconditions()) {
-                addPrecondition(sig, fact);
+                addPrecondition(sig, fact, goodSubs, badSubs);
             }
+            addSubstitutionConstraints(sig, goodSubs, badSubs);
             addQConstantTypeConstraints(sig);
             const PositionedUSig psig{_layer_idx,_pos,sig};
             _htn.addQConstantConditions(r, psig, QConstantDatabase::PSIG_ROOT, 0, getStateEvaluator());
@@ -234,10 +237,13 @@ void Planner::createFirstLayer() {
     initLayer[_pos].addAxiomaticOp(goalSig);
     
     // Extract primitive goals, add to preconds of goal action
+    NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+    std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
     for (const Signature& fact : goalAction.getPreconditions()) {
         assert(getLayerState().contains(_pos, fact));
-        addPrecondition(goalSig, fact);
+        addPrecondition(goalSig, fact, goodSubs, badSubs);
     }
+    assert(goodSubs.empty() && badSubs.empty());
     
     _enc.encode(_layer_idx, _pos++);
 
@@ -407,7 +413,10 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     }
 }
 
-void Planner::addPrecondition(const USignature& op, const Signature& fact) {
+void Planner::addPrecondition(const USignature& op, const Signature& fact, 
+        std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
+        NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
+
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
 
@@ -429,13 +438,16 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
 
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
+    NodeHashSet<Substitution, Substitution::Hasher> goods;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
         Signature decFact(decFactAbs, fact._negated);
         
         if (!_instantiator.test(decFact, getStateEvaluator())) {
             // Fact cannot be true here
-            pos.addForbiddenSubstitution(op, factAbs._args, decFactAbs._args);
+            badSubs.emplace(factAbs._args, decFactAbs._args);
             continue;
+        } else {
+            goods.emplace(factAbs._args, decFactAbs._args);
         }
 
         if (decFact._negated) { // TODO
@@ -444,6 +456,31 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact) {
         }
 
         _htn.addQFactDecoding(factAbs, decFactAbs);
+    }
+    goodSubs.push_back(std::move(goods));
+}
+
+void Planner::addSubstitutionConstraints(const USignature& op, 
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
+    
+    Position& newPos = _layers[_layer_idx]->at(_pos);
+
+    int goodSize = 0;
+    for (const auto& subs : goodSubs) goodSize += subs.size();
+
+    if (badSubs.size() <= goodSize) {
+        for (const auto& s : badSubs) {
+            //Log::d("(%i,%i) FORBIDDEN_SUBST NOR %s\n", _layer_idx, _pos, TOSTR(op));
+            newPos.addForbiddenSubstitution(op, s);
+        }
+    } else {
+        // More bad subs than there are good ones:
+        // Remember good ones instead (although encoding them can be more complex)
+        for (const auto& subs : goodSubs) {
+            //Log::d("(%i,%i) VALID_SUBST OR %s\n", _layer_idx, _pos, TOSTR(op));
+            newPos.addValidSubstitutions(op, subs);
+        }
     }
 }
 
@@ -576,9 +613,13 @@ void Planner::propagateActions(int offset) {
             newPos.addExpansion(aSig, aSig);
             above.moveFactChanges(newPos, aSig);
             // Add preconditions of action
+            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
             for (const Signature& fact : a.getPreconditions()) {
-                addPrecondition(aSig, fact);
+                addPrecondition(aSig, fact, goodSubs, badSubs);
             }
+            // Not necessary – were already added for above action!
+            //addSubstitutionConstraints(aSig, goodSubs, badSubs);
         } else {
             // action expands to "blank" at non-zero offsets
             USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
@@ -629,10 +670,13 @@ void Planner::propagateReductions(int offset) {
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
                 //log("PRECONDS %s ", TOSTR(subRSig));
+                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
                 for (const Signature& fact : subR.getPreconditions()) {
-                    addPrecondition(subRSig, fact);
+                    addPrecondition(subRSig, fact, goodSubs, badSubs);
                     //log("%s ", TOSTR(fact));
                 }
+                addSubstitutionConstraints(subRSig, goodSubs, badSubs);
                 addQConstantTypeConstraints(subRSig);
                 _htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
                                         parentPSig, offset, getStateEvaluator());
@@ -646,9 +690,12 @@ void Planner::propagateReductions(int offset) {
                 newPos.addExpansion(rSig, aSig);
                 // Add preconditions of action
                 const Action& a = _htn.getAction(aSig);
+                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
                 for (const Signature& fact : a.getPreconditions()) {
-                    addPrecondition(aSig, fact);
+                    addPrecondition(aSig, fact, goodSubs, badSubs);
                 }
+                addSubstitutionConstraints(aSig, goodSubs, badSubs);
                 addQConstantTypeConstraints(aSig);
                 _htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
                                         parentPSig, offset, getStateEvaluator());
