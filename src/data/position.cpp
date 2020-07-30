@@ -81,10 +81,6 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
 }
 
 int Position::encode(const USignature& sig) {
-    
-    // If the variable is already there, then it must be originally encoded to return the correct result
-    assert(!_variables.count(sig) || isVariableOriginallyEncoded(sig));
-
     if (!_variables.count(sig)) {
         // introduce a new variable
         assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
@@ -100,22 +96,18 @@ int Position::setVariable(const USignature& sig, int var) {
     return var;
 }
 
-void Position::setVariableReference(const USignature& sig, int priorPos) {
-    assert(!_variables.count(sig));
-    _variables[sig] = -priorPos;
-}
-
-int Position::getVariableOrReference(const USignature& sig) const {
-    assert(_variables.count(sig));
-    return _variables.at(sig);
-}
-
 bool Position::hasVariable(const USignature& sig) const {
     return _variables.count(sig);
 }
-bool Position::isVariableOriginallyEncoded(const USignature& sig) const {
-    assert(_variables.count(sig));
-    return _variables.at(sig) > 0;
+
+int Position::getVariable(const USignature& sig) const {
+    return _variables.at(sig);
+}
+
+int Position::getVariableOrZero(const USignature& sig) const {
+    const auto& it = _variables.find(sig);
+    if (it == _variables.end()) return 0;
+    return it->second;
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable() const {

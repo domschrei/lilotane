@@ -65,6 +65,9 @@ public:
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst);
 
+    std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
+
+    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);
@@ -73,24 +76,17 @@ public:
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
     void clearForbiddenSubstitutions();
 
-    
     Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
     Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
     
     void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
             int offset, const std::function<bool(const Signature&)>& state);
 
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
-
-
-    const FlatHashSet<int>& getConstantsOfSort(int sort);
-    std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
-
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
     
     USignature cutNonoriginalTaskArguments(const USignature& sig);
     int getSplitAction(int firstActionName);
-    std::pair<int, int> getParentAndChildFromSurrogate(int surrogateActionName);
+    const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
 
     Instantiator& getInstantiator();
     QConstantDatabase& getQConstantDatabase();
@@ -138,16 +134,18 @@ private:
     // Maps each {action,reduction} name ID to the number of task variables it originally had.
     FlatHashMap<int, int> _original_n_taskvars;
 
-    // Maps a normalized q-fact signature to a list of possible decodings
-    // with the normalized arguments.
+    // Lookup table for the possible decodings of a fact signature with ground, lifted, and/or
+    // q-constant arguments.
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
-    // TODO
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_unchecked;
 
-    // TODO
+    // Lookup table for the possible decodings of a fact signature with normalized arguments.    
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_normalized;
+
+    // Maps a q-fact to the set of possibly valid decoded facts.
     NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
 
-    // TODO
+    // Collection of a set of q-constant substitutions which are invalid. 
+    // Periodically cleared after being encoded.
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
 
     // Maps an action name ID to its action object.
@@ -176,6 +174,9 @@ private:
     
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
+
+    void replaceSurrogateReductionsWithAction();
+    void splitActionsWithConflictingEffects();
 
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
     std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);

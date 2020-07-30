@@ -77,121 +77,11 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     }
 
     // Create replacements for surrogate methods with only one subtask
-    if (_params.isNonzero("surr")) for (const auto& entry : _reductions) {
-        const Reduction& red = entry.second;
-        if (red.getSubtasks().size() == 1) {
-            // Surrogate method
-            USignature childSig = red.getSubtasks().at(0);
-            int childId = childSig._name_id;
-            if (_actions.count(childId)) {
-                // Primitive subtask
-                Substitution s(_actions.at(childId).getArguments(), childSig._args);
-                Action childAct = _actions.at(childId).substitute(s);
-                std::string name = "__SURROGATE*" + std::string(TOSTR(entry.first)) + "*" + std::string(TOSTR(childId)) + "*";
-                int id = nameId(name);
-                Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
-                _actions[id] = Action(id, red.getArguments());
-                for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
-                for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
-                for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
-                _reduction_to_surrogate[entry.first] = id;
-                _signature_sorts_table[id] = _signature_sorts_table[entry.first];
-                //Log::d("SURROGATE par: %s\n", TOSTR(red));
-                //Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
-                //Log::d("SURROGATE des: %s\n", TOSTR(_actions[id]));
-                _surrogate_to_orig_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
-            }
-        }
-    }
+    if (_params.isNonzero("surr")) replaceSurrogateReductionsWithAction();
 
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
-    if (_params.isNonzero("sace")) {
-
-        NodeHashMap<int, Action> newActions;
-
-        for (const auto& pair : _actions) {
-            int aId = pair.first;
-            std::vector<int> aSorts = _signature_sorts_table[aId];
-            const Action& a = pair.second;
-            const USignature& aSig = a.getSignature();
-
-            // Find all negative effects to move
-            FlatHashSet<int> posEffPreds;
-            FlatHashSet<Signature, SignatureHasher> negEffsToMove;
-            // Collect positive effect predicates
-            for (const Signature& eff : a.getEffects()) {
-                if (eff._negated) continue;
-                posEffPreds.insert(eff._usig._name_id);
-            }
-            // Match against negative effects
-            for (const Signature& eff : a.getEffects()) {
-                if (!eff._negated) continue;
-                if (posEffPreds.count(eff._usig._name_id)) {
-                    // Must be factorized
-                    negEffsToMove.insert(eff);
-                }
-            }
-            
-            if (negEffsToMove.empty()) {
-                // Nothing to do
-                newActions[aId] = a;
-                continue;
-            }
-
-            // Create two new actions
-            std::string oldName = _name_back_table[aId];
-
-            // First action: all preconditions, only the neg. effects to be moved
-            int idFirst = nameId(oldName + "_FIRST");
-            Action aFirst = Action(idFirst, aSig._args);
-            aFirst.setPreconditions(a.getPreconditions());
-            for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
-            _signature_sorts_table[aFirst.getSignature()._name_id] = aSorts;
-            newActions[idFirst] = aFirst;
-
-            // Second action: no preconditions, all other effects
-            int idSecond = nameId(oldName + "_SECOND");
-            Action aSecond = Action(idSecond, aSig._args);
-            for (const Signature& eff : a.getEffects()) {
-                if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
-            }
-            _signature_sorts_table[aSecond.getSignature()._name_id] = aSorts;
-            newActions[idSecond] = aSecond;
-
-            // Replace all occurrences of the action with BOTH new actions in correct order
-            for (auto& rPair : _reductions) {
-                Reduction& r = rPair.second;
-                bool change = false;
-                std::vector<USignature> newSubtasks;
-                for (int i = 0; i < r.getSubtasks().size(); i++) {
-                    const USignature& subtask = r.getSubtasks()[i];
-                    if (subtask._name_id == aId) {
-                        // Replace
-                        change = true;
-                        Substitution s(aSig._args, subtask._args);
-                        newSubtasks.push_back(aFirst.getSignature().substitute(s));
-                        newSubtasks.push_back(aSecond.getSignature().substitute(s));
-                    } else {
-                        newSubtasks.push_back(subtask);
-                    }
-                }
-                if (change) {
-                    r.setSubtasks(newSubtasks);
-                } 
-            }
-
-            /*
-            log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", TOSTR(a), 
-                    TOSTR(aFirst), 
-                    TOSTR(aSecond));
-            */
-            // Remember original action name ID
-            _split_action_from_first[idFirst] = aId;
-        }
-
-        _actions = newActions;
-    }
+    if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
 
     // Instantiate possible "root" / "top" methods
     for (const auto& rPair : _reductions) {
@@ -203,6 +93,123 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     }
     
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+}
+
+void HtnInstance::replaceSurrogateReductionsWithAction() {
+
+    for (const auto& entry : _reductions) {
+        const Reduction& red = entry.second;
+        if (red.getSubtasks().size() != 1) continue;
+        
+        // Surrogate method
+        USignature childSig = red.getSubtasks().at(0);
+        int childId = childSig._name_id;
+        if (!_actions.count(childId)) continue;
+        
+        // Primitive subtask
+        Substitution s(_actions.at(childId).getArguments(), childSig._args);
+        Action childAct = _actions.at(childId).substitute(s);
+        std::string name = "__SURROGATE*" + std::string(TOSTR(entry.first)) + "*" + std::string(TOSTR(childId)) + "*";
+        int id = nameId(name);
+        Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
+        _actions[id] = Action(id, red.getArguments());
+        for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
+        _reduction_to_surrogate[entry.first] = id;
+        _signature_sorts_table[id] = _signature_sorts_table[entry.first];
+        //Log::d("SURROGATE par: %s\n", TOSTR(red));
+        //Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
+        //Log::d("SURROGATE des: %s\n", TOSTR(_actions[id]));
+        _surrogate_to_orig_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
+    }
+}
+
+void HtnInstance::splitActionsWithConflictingEffects() {
+
+    NodeHashMap<int, Action> newActions;
+
+    for (const auto& pair : _actions) {
+        int aId = pair.first;
+        std::vector<int> aSorts = _signature_sorts_table[aId];
+        const Action& a = pair.second;
+        const USignature& aSig = a.getSignature();
+
+        // Find all negative effects to move
+        FlatHashSet<int> posEffPreds;
+        FlatHashSet<Signature, SignatureHasher> negEffsToMove;
+        // Collect positive effect predicates
+        for (const Signature& eff : a.getEffects()) {
+            if (eff._negated) continue;
+            posEffPreds.insert(eff._usig._name_id);
+        }
+        // Match against negative effects
+        for (const Signature& eff : a.getEffects()) {
+            if (!eff._negated) continue;
+            if (posEffPreds.count(eff._usig._name_id)) {
+                // Must be factorized
+                negEffsToMove.insert(eff);
+            }
+        }
+        
+        if (negEffsToMove.empty()) {
+            // Nothing to do
+            newActions[aId] = a;
+            continue;
+        }
+
+        // Create two new actions
+        std::string oldName = _name_back_table[aId];
+
+        // First action: all preconditions, only the neg. effects to be moved
+        int idFirst = nameId(oldName + "_FIRST");
+        Action aFirst = Action(idFirst, aSig._args);
+        aFirst.setPreconditions(a.getPreconditions());
+        for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
+        _signature_sorts_table[aFirst.getSignature()._name_id] = aSorts;
+        newActions[idFirst] = aFirst;
+
+        // Second action: no preconditions, all other effects
+        int idSecond = nameId(oldName + "_SECOND");
+        Action aSecond = Action(idSecond, aSig._args);
+        for (const Signature& eff : a.getEffects()) {
+            if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
+        }
+        _signature_sorts_table[aSecond.getSignature()._name_id] = aSorts;
+        newActions[idSecond] = aSecond;
+
+        // Replace all occurrences of the action with BOTH new actions in correct order
+        for (auto& rPair : _reductions) {
+            Reduction& r = rPair.second;
+            bool change = false;
+            std::vector<USignature> newSubtasks;
+            for (int i = 0; i < r.getSubtasks().size(); i++) {
+                const USignature& subtask = r.getSubtasks()[i];
+                if (subtask._name_id == aId) {
+                    // Replace
+                    change = true;
+                    Substitution s(aSig._args, subtask._args);
+                    newSubtasks.push_back(aFirst.getSignature().substitute(s));
+                    newSubtasks.push_back(aSecond.getSignature().substitute(s));
+                } else {
+                    newSubtasks.push_back(subtask);
+                }
+            }
+            if (change) {
+                r.setSubtasks(newSubtasks);
+            } 
+        }
+
+        /*
+        log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", TOSTR(a), 
+                TOSTR(aFirst), 
+                TOSTR(aSecond));
+        */
+        // Remember original action name ID
+        _split_action_from_first[idFirst] = aId;
+    }
+
+    _actions = newActions;
 }
 
 int HtnInstance::nameId(const std::string& name, bool createQConstant) {
@@ -271,7 +278,7 @@ SigSet HtnInstance::getInitState() {
     for (int eqPredId : _equality_predicates) {
 
         // For each pair of constants of correct sorts: TODO something more efficient
-        std::vector<int> sorts = _signature_sorts_table[eqPredId];
+        const std::vector<int>& sorts = getSorts(eqPredId);
         assert(sorts[0] == sorts[1]);
         for (int c1 : _constants_by_sort[sorts[0]]) {
             for (int c2 : _constants_by_sort[sorts[1]]) {
@@ -802,7 +809,7 @@ const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig
         }
     }
     USignature normSig = qSig.substitute(s);
-    auto& set = checkQConstConds ? _fact_sig_decodings : _fact_sig_decodings_unchecked;
+    auto& set = checkQConstConds ? _fact_sig_decodings : _fact_sig_decodings_normalized;
 
     if (!set.count(normSig)) {
         // Calculate decoded objects
@@ -866,10 +873,6 @@ const FlatHashSet<int>& HtnInstance::getConstantsOfSort(int sort) const {
 
 const FlatHashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
     return _sorts_of_q_constants[qconst];
-}
-
-const FlatHashSet<int>& HtnInstance::getConstantsOfSort(int sort) {
-    return _constants_by_sort[sort]; 
 }
 
 std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, const USignature& op) {
@@ -1040,7 +1043,7 @@ int HtnInstance::getSplitAction(int firstActionName) {
     return _split_action_from_first[firstActionName];
 }
 
-std::pair<int, int> HtnInstance::getParentAndChildFromSurrogate(int surrogateActionName) {
+const std::pair<int, int>& HtnInstance::getParentAndChildFromSurrogate(int surrogateActionName) {
     return _surrogate_to_orig_parent_and_child[surrogateActionName];
 }
 

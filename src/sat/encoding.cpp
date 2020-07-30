@@ -316,7 +316,8 @@ void Encoding::encode(int layerIdx, int pos) {
     const auto& constraints = newPos.getQConstantsTypeConstraints();
     for (const auto& pair : constraints) {
         const USignature& opSig = pair.first;
-        if (isEncoded(layerIdx, pos, opSig)) {
+        int opVar = newPos.getVariableOrZero(opSig);
+        if (opVar != 0) {
             for (const TypeConstraint& c : pair.second) {
                 int qconst = c.qconstant;
                 bool positiveConstraint = c.sign;
@@ -324,7 +325,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
                 if (positiveConstraint) {
                     // EITHER of the GOOD constants - one big clause
-                    appendClause(-getVariable(newPos, opSig));
+                    appendClause(-opVar);
                     for (int cnst : c.constants) {
                         appendClause(varSubstitution(sigSubstitute(qconst, cnst)));
                     }
@@ -332,7 +333,7 @@ void Encoding::encode(int layerIdx, int pos) {
                 } else {
                     // NEITHER of the BAD constants - many 2-clauses
                     for (int cnst : c.constants) {
-                        addClause(-getVariable(newPos, opSig), -varSubstitution(sigSubstitute(qconst, cnst)));
+                        addClause(-opVar, -varSubstitution(sigSubstitute(qconst, cnst)));
                     }
                 }
             }
@@ -346,8 +347,8 @@ void Encoding::encode(int layerIdx, int pos) {
         const USignature& opSig = opPair.first;
         for (const Substitution& s : opPair.second) {
             appendClause(-getVariable(newPos, opSig));
-            for (const auto& entry : s) {
-                appendClause(-varSubstitution(sigSubstitute(entry.first, entry.second)));
+            for (const auto& [src, dest] : s) {
+                appendClause(-varSubstitution(sigSubstitute(src, dest)));
             }
             endClause();
         }
@@ -355,8 +356,8 @@ void Encoding::encode(int layerIdx, int pos) {
     for (const auto& sub : _htn.getForbiddenSubstitutions()) {
         assert(!sub.empty());
         if (_forbidden_substitutions.count(sub)) continue;
-        for (const auto& entry : sub) {
-            appendClause(-varSubstitution(sigSubstitute(entry.first, entry.second)));
+        for (const auto& [src, dest] : sub) {
+            appendClause(-varSubstitution(sigSubstitute(src, dest)));
         }
         endClause();
         _forbidden_substitutions.insert(sub);
@@ -438,16 +439,6 @@ void Encoding::encode(int layerIdx, int pos) {
         Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getLayerIndex(), positionToClear->getPositionIndex());
         positionToClear->clearAtPastLayer();
     }
-    /*
-    if (layerIdx > 1 && pos == 0) {
-        // delete data from "above above" layer
-        // except for necessary structures for decoding a plan
-        Layer& layerToClear = *_layers.at(layerIdx-2);
-        log("  Freeing memory of (%i,{%i..%i}) ...\n", layerIdx-2, 0, layerToClear.size());
-        for (int p = 0; p < layerToClear.size(); p++) {
-            layerToClear[p].clearUnneeded();
-        }
-    }*/
 }
 
 void Encoding::addAssumptions(int layerIdx) {
@@ -488,7 +479,8 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     for ([[maybe_unused]] const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
         if (newPos.hasVariable(qfact)) continue;
 
-        bool reuseFromLeft = left.hasVariable(qfact) 
+        int leftVar = left.getVariableOrZero(qfact);
+        bool reuseFromLeft = leftVar != 0 
                 && !newPos.getPosFactSupports().count(qfact)
                 && !newPos.getNegFactSupports().count(qfact);
         if (reuseFromLeft) for (const auto& decFact : _htn.getQFactDecodings(qfact)) {
@@ -496,10 +488,10 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
             if (_new_fact_vars.count(decFactVar)) {
                 reuseFromLeft = false;
                 break;
-            }  
-        } 
+            }
+        }
         
-        if (reuseFromLeft) newPos.setVariable(qfact, getVariable(left, qfact)); 
+        if (reuseFromLeft) newPos.setVariable(qfact, leftVar); 
         else _new_fact_vars.insert(encodeVariable(newPos, qfact, false));
     }
 
@@ -508,14 +500,14 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
     for (int i = 0; i < 2; i++) 
     for (const USignature& factSig : *cHere[i]) {
-        if (newPos.hasVariable(factSig)) {
-            // Variable is already encoded.
-            int var = getVariable(newPos, factSig);
-            if (_new_fact_vars.count(var))
-                addClause((i == 0 ? 1 : -1) * var);
-        } else {
+        int var = newPos.getVariableOrZero(factSig);
+        if (var == 0) {
             // Variable is not encoded yet.
             addClause((i == 0 ? 1 : -1) * encodeVariable(newPos, factSig, false));
+        } else {
+            // Variable is already encoded.
+            if (_new_fact_vars.count(var))
+                addClause((i == 0 ? 1 : -1) * var);
         }
     }
     stage("truefacts");
@@ -542,17 +534,15 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         int oldFactVars[2] = {-getVariable(left, fact), 0};
         oldFactVars[1] = -oldFactVars[0];
 
+        // Do not commit on encoding the new fact yet, except if the variable already exists
+        int factVar = newPos.getVariableOrZero(fact);
+        if (oldFactVars[1] == factVar) continue;
+
         // Calculate indirect fact support for both polarities
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
-
-            // Do not commit on encoding the new fact yet, except if the variable already exists
-            int factVar = 0; 
-            if (newPos.hasVariable(fact)) {
-                factVar = sign*getVariable(newPos, fact);
-                if (oldFactVars[i] == factVar) break;
-            }
+            factVar *= -1; 
 
             // Calculate indirect support through qfact abstractions
             for (const USignature& qsig : newPos.getQFacts(fact._name_id)) {
@@ -592,53 +582,54 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                         substOptions.insert(substOpt);
                     }
 
-                    if (!unconditionalEffect) {
-                        // Bring the found substitution sets to CNF and encode them
-                        for (const auto& set : substOptions) {
-                            dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
-                            dnfSubs.push_back(0);
-                        }
-                        std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
-                        dnfSubs.clear();
-                        for (const std::set<int>& subsCls : cnfSubs) {
-                            // IF fact change AND the operation is applied,
-                            if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
-                            if (factVar == 0) {
-                                // Initialize fact variable, now that it is known 
-                                // that there is some support for it to change
-                                int v = encodeVariable(newPos, fact, false);
-                                _new_fact_vars.insert(v);
-                                factVar = sign*v;
-                            }
-                            appendClause(-factVar, -opVar);
-                            if (!nonprimFactSupport) appendClause(-prevVarPrim);
-                            // THEN either of the valid substitution combinations
-                            for (int subVar : subsCls) appendClause(subVar); 
-                            endClause();
-                        }
-                    }
-
                     // Add operation to indirect support
                     indirectSupports[i].insert(opVar); 
+                    
+                    if (unconditionalEffect) continue;
+
+                    // Bring the found substitution sets to CNF and encode them
+                    for (const auto& set : substOptions) {
+                        dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
+                        dnfSubs.push_back(0);
+                    }
+                    std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
+                    dnfSubs.clear();
+                    for (const std::set<int>& subsCls : cnfSubs) {
+                        // IF fact change AND the operation is applied,
+                        if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
+                        if (factVar == 0) {
+                            // Initialize fact variable, now that it is known 
+                            // that there is some support for it to change
+                            int v = encodeVariable(newPos, fact, false);
+                            _new_fact_vars.insert(v);
+                            factVar = sign*v;
+                        }
+                        appendClause(-factVar, -opVar);
+                        if (!nonprimFactSupport) appendClause(-prevVarPrim);
+                        // THEN either of the valid substitution combinations
+                        for (int subVar : subsCls) appendClause(subVar); 
+                        endClause();
+                    }
                 }
             }
         }
 
         // Retrieve (and possibly encode) fact variable
-        int factVar;
-        if (!newPos.hasVariable(fact)) {
-            if (left.hasVariable(fact) 
+        if (factVar == 0) {
+            int leftVar = left.getVariableOrZero(fact);
+            if (leftVar != 0 
                     && indirectSupports[0].empty() && indirectSupports[1].empty() 
                     && !supports[0]->count(fact) && !supports[1]->count(fact)) {
                 // No support for this (yet unencoded) variable: reuse it from left position
-                factVar = newPos.setVariable(fact, getVariable(left, fact));
+                factVar = leftVar;
+                newPos.setVariable(fact, leftVar);
                 continue; // Skip frame axiom encoding
             } else {
                 // There is some support: use a new variable
                 factVar = encodeVariable(newPos, fact, false);
                 _new_fact_vars.insert(factVar);
             }
-        } else factVar = getVariable(newPos, fact);
+        }
 
         if (factVar == oldFactVars[1]) continue;
 
@@ -868,11 +859,11 @@ bool Encoding::isEncodedSubstitution(const USignature& sig) {
 }
 
 int Encoding::encodeVariable(Position& pos, const USignature& sig, bool decisionVar) {
-    int var;
-    if (!pos.hasVariable(sig)) {
+    int var = pos.getVariableOrZero(sig);
+    if (var == 0) {
         var = pos.encode(sig);
         if (!decisionVar) _no_decision_variables.push_back(var);
-    } else var = getVariable(pos, sig);
+    }
     return var;
 }
 
@@ -881,25 +872,20 @@ int Encoding::getVariable(int layer, int pos, const USignature& sig) {
 }
 
 int Encoding::getVariable(const Position& pos, const USignature& sig) {
-    int x = pos.getVariableOrReference(sig);
-    if (x > 0) return x;
-    //Log::d("%s @ %i -> links back to %i\n", TOSTR(sig), pos.getPos().second, -x);
-    x = _layers.at(pos.getLayerIndex())->at(-x).getVariableOrReference(sig);
-    assert(x > 0);
-    return x;
+    return pos.getVariable(sig);
 }
 
 int Encoding::varSubstitution(const USignature& sigSubst) {
 
+    int var;
     if (!_substitution_variables.count(sigSubst)) {
         assert(!VariableDomain::isLocked() || Log::e("Unknown substitution variable %s queried!\n", TOSTR(sigSubst)));
-        int var = VariableDomain::nextVar();
+        var = VariableDomain::nextVar();
         _substitution_variables[sigSubst] = var;
         VariableDomain::printVar(var, -1, -1, sigSubst);
         //_no_decision_variables.push_back(var);
-        return var;
-    }
-    return _substitution_variables[sigSubst];
+    } else var = _substitution_variables[sigSubst];
+    return var;
 }
 
 int Encoding::varQConstEquality(int q1, int q2) {

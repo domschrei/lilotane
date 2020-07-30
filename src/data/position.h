@@ -48,7 +48,7 @@ private:
 
     int _max_expansion_size = 1;
 
-    // Prop. variable for each occurring signature, together with the position where it was originally encoded.
+    // Prop. variable for each occurring signature.
     NodeHashMap<USignature, int, USignatureHasher> _variables;
 
 public:
@@ -81,10 +81,9 @@ public:
 
     int encode(const USignature& sig);
     int setVariable(const USignature& sig, int var);
-    void setVariableReference(const USignature& sig, int priorPos);
     bool hasVariable(const USignature& sig) const;
-    int getVariableOrReference(const USignature& sig) const;
-    bool isVariableOriginallyEncoded(const USignature& sig) const;
+    int getVariable(const USignature& sig) const;
+    int getVariableOrZero(const USignature& sig) const;
     const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable() const;
 
     bool hasQFact(const USignature& fact) const;
