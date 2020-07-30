@@ -188,4 +188,6 @@ void Position::clearAtPastPosition() {
     _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
     _forbidden_substitutions_per_op.reserve(0);
+    _valid_substitutions_per_op.clear();
+    _valid_substitutions_per_op.reserve(0);
 }
