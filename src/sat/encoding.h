@@ -102,6 +102,8 @@ private:
     void encodeFactVariables(Position& pos, const Position& left, Position& above, int oldPos, int offset);
     void encodeFrameAxioms(Position& pos, const Position& left);
     void initSubstitutionVars(int opVar, int qconst, Position& pos);
+
+    void setVariablePhases(const std::vector<int>& vars);
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 

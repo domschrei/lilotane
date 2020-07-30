@@ -314,6 +314,8 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("atmostoneelement");
 
+    if (_params.isNonzero("svp")) setVariablePhases(aloElemClause);
+
     // Q-constants type constraints
     stage("qtypeconstraints");
     const auto& constraints = newPos.getQConstantsTypeConstraints();
@@ -721,14 +723,16 @@ void Encoding::initSubstitutionVars(int opVar, int arg, Position& pos) {
         }
     }
 
-    if (_params.isNonzero("svp")) {
-        // Choose one substitution at random, set negative phase for all others
-        std::default_random_engine generator;
-        std::uniform_int_distribution<int> distribution(0, substitutionVars.size()-1);
-        int randomIdx = distribution(generator);
-        for (int i = 0; i < substitutionVars.size(); i++) {
-            ipasir_set_phase(_solver, substitutionVars[i], i == randomIdx);
-        }
+    if (_params.isNonzero("svp")) setVariablePhases(substitutionVars);
+}
+
+void Encoding::setVariablePhases(const std::vector<int>& vars) {
+    // Choose one positive phase variable at random, set negative phase for all others
+    std::default_random_engine generator;
+    std::uniform_int_distribution<int> distribution(0, vars.size()-1);
+    int randomIdx = distribution(generator);
+    for (int i = 0; i < vars.size(); i++) {
+        ipasir_set_phase(_solver, vars[i], i == randomIdx);
     }
 }
 
