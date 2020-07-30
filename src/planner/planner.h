@@ -29,10 +29,13 @@ private:
     int _pos;
     int _old_pos;
 
+    float _sat_time_limit = 0;
+
 public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
             _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers) {}
     int findPlan();
+    friend int terminateSatCall(void* state);
 
 private:
 

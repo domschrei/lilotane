@@ -14,6 +14,8 @@
 #include <cstring>
 #include <climits>
 
+#include <thread>
+
 using namespace std;
 using namespace Glucose;
 
@@ -35,7 +37,16 @@ struct IPAsirMiniSAT : public Solver {
   vec<Lit> assumptions, clause;
   int szfmap; unsigned char * fmap; bool nomodel;
   unsigned long long calls;
-  void reset () { if (fmap) delete [] fmap, fmap = 0, szfmap = 0; }
+
+  bool running = false;
+  bool destroy = false;
+  void* callbackState = nullptr;
+  int (*terminateCallback)(void*);
+  std::thread terminateMonitor;
+  
+  void reset () { 
+    if (fmap) delete [] fmap, fmap = 0, szfmap = 0;
+  }
   Lit import (int lit) { 
     while (abs (lit) > nVars ()) (void) newVar ();
     return mkLit (Var (abs (lit) - 1), (lit < 0));
@@ -57,7 +68,11 @@ public:
     verbosity = 0;
     verbEveryConflicts = 0;
   }
-  ~IPAsirMiniSAT () { reset (); }
+  ~IPAsirMiniSAT () { 
+    reset (); 
+    destroy = true;
+    if (terminateMonitor.joinable()) terminateMonitor.join();
+  }
   void add (int lit) {
     reset ();
     nomodel = true;
@@ -69,10 +84,26 @@ public:
     nomodel = true;
     assumptions.push (import (lit));
   }
+  void setTermCallback(void* state, int (*terminate)(void* state)) {
+    callbackState = state;
+    terminateCallback = terminate;
+
+    terminateMonitor = std::thread([&]() {
+      while (!destroy) {
+        usleep(1000 * 100); // 100 milliseconds
+        if (running && terminateCallback(callbackState)) {
+          interrupt();
+        }
+      }
+    });
+  }
   int solve () {
     calls++;
     reset ();
+    clearInterrupt();
+    running = true;
     lbool res = solveLimited (assumptions);
+    running = false;
     assumptions.clear ();
     nomodel = (res != l_True);
     return (res == l_Undef) ? 0 : (res == l_True ? 10 : 20);
@@ -120,7 +151,7 @@ void ipasir_add (void * s, int l) { import (s)->add (l); }
 void ipasir_assume (void * s, int l) { import (s)->assume (l); }
 int ipasir_val (void * s, int l) { return import (s)->val (l); }
 int ipasir_failed (void * s, int l) { return import (s)->failed (l); }
-void ipasir_set_terminate (void * s, void * state, int (*callback)(void * state)) { /*import(s)->setTermCallback(state, callback)*/; }
+void ipasir_set_terminate (void * s, void * state, int (*callback)(void * state)) { import(s)->setTermCallback(state, callback); }
 void ipasir_set_learn (void * s, void * state, int max_length, void (*learn)(void * state, int * clause)) { import(s)->setLearnCallback(state, max_length, learn); }
 void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var) { import(s)->setDecisionVar(var(import(s)->import(v)), decision_var); }
 void ipasir_set_phase (void * s, unsigned int v, bool phase) { import(s)->setPolarity(var(import(s)->import(v)), phase); }

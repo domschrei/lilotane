@@ -9,6 +9,15 @@
 #include "planner.h"
 #include "util/log.h"
 
+int terminateSatCall(void* state) {
+    Planner* planner = (Planner*) state;
+    if (planner->_sat_time_limit > 0 &&
+        planner->_enc.getTimeSinceSatCallStart() > planner->_sat_time_limit) {
+        return 1;
+    }
+    return 0;
+}
+
 int Planner::findPlan() {
     
     int iteration = 0;
@@ -19,11 +28,18 @@ int Planner::findPlan() {
     // Bounds on depth to solve / explore
     int firstSatCallIteration = _params.getIntParam("d");
     int maxIterations = _params.getIntParam("D");
+    _sat_time_limit = _params.getFloatParam("stl");
 
     bool solved = false;
+    if (_sat_time_limit > 0) _enc.setTerminateCallback(this, terminateSatCall);
     if (iteration >= firstSatCallIteration) {
         _enc.addAssumptions(_layer_idx);
-        solved = _enc.solve();
+        int result = _enc.solve();
+        if (result == 0) {
+            Log::w("Solver was interrupted. Discarding time limit for next solving attempts.\n");
+            _sat_time_limit = 0;
+        }
+        solved = result == 10;
     } 
     
     // Next layers
@@ -34,16 +50,16 @@ int Planner::findPlan() {
             _enc.printFailedVars(*_layers.back());
 
             if (_params.isNonzero("cs")) { // check solvability
-                Log::i("Unsolvable at layer %i with assumptions\n", _layer_idx);
+                Log::i("Not solved at layer %i with assumptions\n", _layer_idx);
 
                 // Attempt to solve formula again, now without assumptions
                 // (is usually simple; if it fails, we know the entire problem is unsolvable)
-                solved = _enc.solve();
-                if (!solved) {
+                int result = _enc.solve();
+                if (result == 20) {
                     Log::w("Unsolvable at layer %i even without assumptions!\n", _layer_idx);
                     break;
                 } else {
-                    Log::i("Solvable without assumptions - expanding by another layer\n");
+                    Log::i("Not proven unsolvable - expanding by another layer\n");
                 }
             } else {
                 Log::i("Unsolvable at layer %i -- expanding.\n", _layer_idx);
@@ -57,7 +73,12 @@ int Planner::findPlan() {
 
         if (iteration >= firstSatCallIteration) {
             _enc.addAssumptions(_layer_idx);
-            solved = _enc.solve();
+            int result = _enc.solve();
+            if (result == 0) {
+                Log::w("Solver was interrupted. Discarding time limit for next solving attempts.\n");
+                _sat_time_limit = 0;
+            }
+            solved = result == 10;
         } 
     }
 
@@ -267,14 +288,14 @@ void Planner::createNextLayer() {
 
         for (int offset = 0; offset < maxOffset; offset++) {
             assert(_pos == newPos + offset);
-            Log::i(" Position (%i,%i)\n", _layer_idx, _pos);
-            Log::v("  Instantiating ...\n");
+            Log::v(" Position (%i,%i)\n", _layer_idx, _pos);
+            Log::d("  Instantiating ...\n");
 
             //log("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            Log::v("  Instantiation done. (r=%i a=%i qf=%i)\n", 
+            Log::d("  Instantiation done. (r=%i a=%i qf=%i)\n", 
                     (*_layers[_layer_idx])[_pos].getReductions().size(),
                     (*_layers[_layer_idx])[_pos].getActions().size(),
                     (*_layers[_layer_idx])[_pos].getNumQFacts()

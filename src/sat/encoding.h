@@ -74,13 +74,18 @@ private:
     std::map<std::string, int> _num_cls_per_stage;
     std::map<std::string, int> _total_num_cls_per_stage;
 
+    float _sat_call_start_time;
+
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
     ~Encoding();
 
     void encode(int layerIdx, int pos);
     void addAssumptions(int layerIdx);
-    bool solve();
+    void setTerminateCallback(void * state, int (*terminate)(void * state));
+    int solve();
+
+    float getTimeSinceSatCallStart();
 
     void stage(std::string name);
     void printStages();

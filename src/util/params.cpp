@@ -56,6 +56,7 @@ void Parameters::setDefaults() {
     setParam("q", "0"); // q-constants while always instantiating all preconditions
     setParam("qq", "1"); // q-constants without instantiation of preconditions
     setParam("sace", "0"); // split actions with (potentially) conflicting effects
+    setParam("stl", "0"); // SAT time limit
     setParam("surr", "1"); // replace surrogate methods
     setParam("svp", "0"); // set variable phases
     setParam("v", "2"); // verbosity
@@ -86,6 +87,7 @@ void Parameters::printUsage() {
     Log::e("                     after fully instantiating all preconditions\n");
     Log::e(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
     Log::e(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
+    Log::e(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");
     Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     printParams(/*forcePrint=*/true);

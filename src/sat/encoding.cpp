@@ -4,6 +4,8 @@
 #include "sat/encoding.h"
 #include "sat/literal_tree.h"
 #include "util/log.h"
+#include "util/timer.h"
+
 
 /*
 encodePosition ()
@@ -445,7 +447,7 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("axiomaticops");
 
-    Log::i("Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
+    Log::v("Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
 
     left.clearAtPastPosition();
 
@@ -470,6 +472,10 @@ void Encoding::addAssumptions(int layerIdx) {
     for (int pos = 0; pos < l.size(); pos++) {
         assume(varPrimitive(layerIdx, pos));
     }
+}
+
+void Encoding::setTerminateCallback(void * state, int (*terminate)(void * state)) {
+    ipasir_set_terminate(_solver, state, terminate);
 }
 
 void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above, int oldPos, int offset) {
@@ -865,7 +871,7 @@ void onClauseLearnt(void* state, int* cls) {
     Log::d("LEARNT_CLAUSE %s\n", str.c_str());
 }
 
-bool Encoding::solve() {
+int Encoding::solve() {
     Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _num_cls, _num_lits, _num_asmpts);
     
@@ -874,10 +880,18 @@ bool Encoding::solve() {
     //for (const int& v: _no_decision_variables) ipasir_set_decision_var(_solver, v, false);
     _no_decision_variables.clear();
 
-    bool solved = ipasir_solve(_solver) == 10;
+    _sat_call_start_time = Timer::elapsedSeconds();
+    int result = ipasir_solve(_solver);
+    _sat_call_start_time = 0;
+
     if (_num_asmpts == 0) _last_assumptions.clear();
     _num_asmpts = 0;
-    return solved;
+    return result;
+}
+
+float Encoding::getTimeSinceSatCallStart() {
+    if (_sat_call_start_time == 0) return 0;
+    return Timer::elapsedSeconds() - _sat_call_start_time;
 }
 
 bool Encoding::isEncoded(int layer, int pos, const USignature& sig) {
