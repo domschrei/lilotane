@@ -57,12 +57,15 @@ private:
 
     FlatHashSet<int> _q_constants;
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
+    std::vector<int> _primitive_ops;
+    std::vector<int> _nonprimitive_ops;
 
     std::vector<int> _last_assumptions;
     std::vector<int> _no_decision_variables;
 
     const bool _print_formula;
     const bool _use_q_constant_mutexes;
+    const bool _implicit_primitiveness;
 
     int _num_cls;
     int _num_lits;

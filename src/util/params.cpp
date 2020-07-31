@@ -46,6 +46,7 @@ void Parameters::setDefaults() {
     setParam("cs", "0"); // check solvability (without assumptions)
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
+    setParam("ip", "0"); // implicit primitiveness
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // output formula to f.cnf
     setParam("p", "1"); // encode predecessor operations
@@ -76,6 +77,7 @@ void Parameters::printUsage() {
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
     Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
     Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
+    Log::e(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::e(" -p=<0|1>            Encode predecessor operations\n");
