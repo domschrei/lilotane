@@ -17,19 +17,21 @@ public:
     const static USignature NONE_SIG;
     const static SigSet EMPTY_SIG_SET;
     const static USigSet EMPTY_USIG_SET;
+    const static NodeHashSet<Substitution, Substitution::Hasher> EMPTY_SUBST_SET;
+    const static std::vector<NodeHashSet<Substitution, Substitution::Hasher>> EMPTY_SUBST_SET_VEC;
 
 private:
     int _layer_idx;
     int _pos;
 
-    NodeHashMap<USignature, int, USignatureHasher> _actions;
-    NodeHashMap<USignature, int, USignatureHasher> _reductions;
+    NodeHashMap<USignature, int, USignatureHasher> _fact_ids;
+    NodeHashMap<USignature, int, USignatureHasher> _op_ids;
 
-    NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
-    NodeHashMap<USignature, USigSet, USignatureHasher> _predecessors;
-    NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes;
+    std::vector<bool> _primitive_ops;
 
-    USigSet _axiomatic_ops;
+    std::vector<std::vector<USigSet>> _expansions;
+    std::vector<USigSet> _predecessors;
+    std::vector<SigSet> _fact_changes;
 
     // All VIRTUAL facts potentially occurring at this position,
     // partitioned by their predicate name ID.
@@ -40,18 +42,19 @@ private:
     // All facts that are definitely false at this position.
     USigSet _false_facts;
 
-    NodeHashMap<USignature, USigSet, USignatureHasher> _pos_fact_supports;
-    NodeHashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
+    std::vector<USigSet> _pos_fact_supports;
+    std::vector<USigSet> _neg_fact_supports;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 
-    NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
-    NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher> _valid_substitutions_per_op;
+    std::vector<NodeHashSet<Substitution, Substitution::Hasher>> _forbidden_substitutions_per_op;
+    std::vector<std::vector<NodeHashSet<Substitution, Substitution::Hasher>>> _valid_substitutions_per_op;
 
     int _max_expansion_size = 1;
 
-    // Prop. variable for each occurring signature.
-    NodeHashMap<USignature, int, USignatureHasher> _variables;
+    std::vector<int> _fact_variables;
+    std::vector<int> _op_variables;
+    int _primitive_variable = 0;
 
 public:
 
@@ -72,27 +75,38 @@ public:
 
     void addAction(const USignature& action);
     void addReduction(const USignature& reduction);
-    void addExpansion(const USignature& parent, const USignature& child);
-    void addAxiomaticOp(const USignature& op);
+    void addExpansion(const USignature& parent, int offset, const USignature& child);
+    void addPredecessor(const USignature& parent, const USignature& child);
     void addExpansionSize(int size);
     void setFactChanges(const USignature& op, const SigSet& factChanges);
     const SigSet& getFactChanges(const USignature& op) const;
-    bool hasFactChanges(const USignature& op) const;
     void moveFactChanges(Position& dest, const USignature& op);
 
-    void removeActionOccurrence(const USignature& action);
-    void removeReductionOccurrence(const USignature& reduction);
-
-    int encode(const USignature& sig);
-    int setVariable(const USignature& sig, int var);
-    bool hasVariable(const USignature& sig) const;
-    int getVariable(const USignature& sig) const;
-    int getVariableOrZero(const USignature& sig) const;
-    const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable() const;
-
+    int encodeFact(const USignature& sig);
+    int encodeOp(const USignature& sig);
+    int encodeFact(int factId);
+    int encodeOp(int opId);
+    int encodePrimitiveness();
+    
+    int setFactVariable(const USignature& sig, int var);
+    int setFactVariable(int factId, int var);
+    bool hasFactVariable(const USignature& sig) const;
+    bool hasFactVariable(int factId) const;
+    int getFactVariable(const USignature& sig) const;
+    int getFactVariableOrZero(const USignature& sig) const;
+    int getFactVariable(int factId) const;
+    int getFactVariableOrZero(int factId) const;
+    
+    int setOpVariable(const USignature& sig, int var);
+    bool hasOpVariable(const USignature& sig) const;
+    int getOpVariable(const USignature& sig) const;
+    int getOpVariableOrZero(const USignature& sig) const;
+    int getOpVariable(int opId) const;
+    int getOpVariableOrZero(int opId) const;
+    
     bool hasQFact(const USignature& fact) const;
-    bool hasAction(const USignature& action) const;
-    bool hasReduction(const USignature& red) const;
+    bool hasOp(const USignature& op) const;
+    bool isPrimitive(int opId) const;
 
     int getLayerIndex() const;
     int getPositionIndex() const;
@@ -102,23 +116,47 @@ public:
     int getNumQFacts() const;
     const USigSet& getTrueFacts() const;
     const USigSet& getFalseFacts() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports() const;
+    const USigSet& getPosFactSupport(const USignature& fact) const;
+    const USigSet& getNegFactSupport(const USignature& fact) const;
+    const USigSet& getFactSupport(const Signature& fact) const;
+    const USigSet& getFactSupport(const USignature& fact, bool negated) const;
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
-    getForbiddenSubstitutions() const;
-    const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
-    getValidSubstitutions() const;
+    const NodeHashSet<Substitution, Substitution::Hasher>& 
+    getForbiddenSubstitutions(const USignature& op) const;
+    const std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& 
+    getValidSubstitutions(const USignature& op) const;
 
-    const NodeHashMap<USignature, int, USignatureHasher>& getActions() const;
-    const NodeHashMap<USignature, int, USignatureHasher>& getReductions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
-    const USigSet& getAxiomaticOps() const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getFacts() const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getOps() const;
+
+    const USigSet& getExpansions(const USignature& sig, int offset) const;
+    const USigSet& getPredecessors(const USignature& sig) const;
     int getMaxExpansionSize() const;
 
     void clearAtPastPosition();
     void clearAtPastLayer();
+
+    int getFactIdOrNegative(const USignature& sig) const;
+    int factId(const USignature& sig);
+
+private:
+    int getFactId(const USignature& sig) const;
+    int getOpId(const USignature& sig) const;
+    int opId(const USignature& sig);
+    int anyId(const USignature& sig, NodeHashMap<USignature, int, USignatureHasher>& map);
+    int anyIdOrNegative(const USignature& sig, const NodeHashMap<USignature, int, USignatureHasher>& map) const;
+
+    int encode(const USignature& sig, int id, std::vector<int>& vars);
+    int setVariable(int id, int var, std::vector<int>& vars);
+    int getVariableOrZero(int id, const std::vector<int>& vars) const;
+
+    template<typename T>
+    static void resizeIfNeeded(std::vector<T>& vec, int id) {
+        if (id >= vec.size()) {
+            vec.resize(2*id+1);
+        }
+    }
+
 };
 
 

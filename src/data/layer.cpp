@@ -8,6 +8,8 @@
 const USignature Position::NONE_SIG = USignature(-1, std::vector<int>());
 const USigSet Position::EMPTY_USIG_SET;
 const SigSet Position::EMPTY_SIG_SET;
+const NodeHashSet<Substitution, Substitution::Hasher> Position::EMPTY_SUBST_SET;
+const std::vector<NodeHashSet<Substitution, Substitution::Hasher>> Position::EMPTY_SUBST_SET_VEC;
 
 Layer::Layer(int index, int size) : _index(index), _content(size) {
     assert(size > 0);
