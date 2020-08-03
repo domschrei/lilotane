@@ -919,64 +919,6 @@ void HtnInstance::clearForbiddenSubstitutions() {
     _forbidden_substitutions.clear();
 }
 
-bool HtnInstance::isVariable(int c) {
-    return _var_ids.count(c);
-}
-
-bool HtnInstance::isQConstant(int c) {
-    return c > _name_table_running_id;
-}
-
-bool HtnInstance::hasQConstants(const USignature& sig) {
-    for (const int& arg : sig._args) if (isQConstant(arg)) return true;
-    return false;
-}
-
-bool HtnInstance::isAbstraction(const USignature& concrete, const USignature& abstraction) {
-    
-    // Different predicates?
-    if (concrete._name_id != abstraction._name_id) return false;
-    if (concrete._args.size() != abstraction._args.size()) return false;
-    
-    // Check syntactical fit
-    std::vector<int> qArgs, decArgs;
-    for (int i = 0; i < concrete._args.size(); i++) {
-        const int& qarg = abstraction._args[i];
-        const int& carg = concrete._args[i];
-        
-        // Same argument?
-        if (qarg == carg) continue;
-        // Different args, no q-constant arg?
-        if (!isQConstant(qarg)) return false;
-        
-        if (_use_q_constant_mutexes) {
-            qArgs.push_back(qarg);
-            decArgs.push_back(carg);
-        }
-
-        // A q-constant that does not fit the concrete argument?
-        if (!getDomainOfQConstant(qarg).count(carg)) return false;
-    }
-
-    // Check that q-constant assignment is valid
-    if (_use_q_constant_mutexes && !_q_db.test(qArgs, decArgs)) return false;
-
-    // A-OK
-    return true;
-}
-
-bool HtnInstance::isPredicate(int nameId) const {
-    return _predicate_ids.count(nameId);
-}
-
-bool HtnInstance::isAction(const USignature& sig) const {
-    return _actions.count(sig._name_id);
-}
-
-bool HtnInstance::isReduction(const USignature& sig) const {
-    return _reductions.count(sig._name_id);
-}
-
 Action HtnInstance::toAction(int actionName, const std::vector<int>& args) const {
     const auto& op = _actions.at(actionName);
     return op.substitute(Substitution(op.getArguments(), args));

@@ -116,7 +116,6 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            // TODO Need to check if this fact decoding can occur here?
 
             if (_params.isNonzero("qcm")) {
                 // Check if this decoding is valid
@@ -550,8 +549,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     int pos = newPos.getPositionIndex();
     int prevVarPrim = varPrimitive(layerIdx, pos-1);
 
-    std::vector<int> dnfSubs; dnfSubs.reserve(8192);
-
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
         if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
         
@@ -642,7 +639,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                         }
                         for (const auto& cls : tree.encode(headLits)) addClause(cls);
                     } else {
-                        dnfSubs.clear();
+                        std::vector<int> dnfSubs;
                         for (const auto& set : substOptions) {
                             dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
                             dnfSubs.push_back(0);

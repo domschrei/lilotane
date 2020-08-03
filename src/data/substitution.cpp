@@ -134,16 +134,6 @@ bool Substitution::operator!=(const Substitution& other) const {
     return !(*this == other);
 }
 
-std::size_t Substitution::Hasher::operator()(const Substitution& s) const {
-    size_t hash = 1337;
-    for (const auto& pair : s) {
-        hash_combine(hash, pair.first);
-        hash_combine(hash, pair.second);
-    }
-    hash_combine(hash, s.size());
-    return hash;
-}
-
 std::forward_list<Substitution::Entry>::const_iterator Substitution::begin() const {
     return _entries.begin();
 }

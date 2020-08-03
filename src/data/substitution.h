@@ -48,7 +48,15 @@ public:
     static std::vector<Substitution> getAll(const std::vector<int>& src, const std::vector<int>& dest);
 
     struct Hasher {
-        std::size_t operator()(const Substitution& s) const;
+        inline std::size_t operator()(const Substitution& s) const {
+            size_t hash = 1337;
+            for (const auto& pair : s) {
+                hash_combine(hash, pair.first);
+                hash_combine(hash, pair.second);
+            }
+            hash_combine(hash, s.size());
+            return hash;
+        }
     };
 
 private:

@@ -38,11 +38,17 @@ struct USignature {
     USignature substitute(const Substitution& s) const;
     void apply(const Substitution& s);
 
-    bool operator==(const USignature& b) const;
-    bool operator!=(const USignature& b) const;
-
     USignature& operator=(const USignature& sig);
     USignature& operator=(USignature&& sig);
+
+    inline bool operator==(const USignature& b) const {
+        if (_name_id != b._name_id) return false;
+        if (_args != b._args) return false;
+        return true;
+    }
+    inline bool operator!=(const USignature& b) const {
+        return !(*this == b);
+    }
 };
 
 struct Signature {
@@ -61,19 +67,37 @@ struct Signature {
     Signature opposite() const;
     Signature substitute(const Substitution& s) const;
 
-    bool operator==(const Signature& b) const;
-    bool operator!=(const Signature& b) const;
-
     Signature& operator=(const Signature& sig);
     Signature& operator=(Signature&& sig);
+
+    inline bool operator==(const Signature& b) const {
+        if (_negated != b._negated) return false;
+        if (_usig != b._usig) return false;
+        return true;
+    }
+
+    inline bool operator!=(const Signature& b) const {
+        return !(*this == b);
+    }
 };
 
 struct USignatureHasher {
-    std::size_t operator()(const USignature& s) const;
+    inline std::size_t operator()(const USignature& s) const {
+        size_t hash = s._args.size();
+        for (const int& arg : s._args) {
+            hash_combine(hash, arg);
+        }
+        hash_combine(hash, s._name_id);
+        return hash;
+    }
 };
 struct SignatureHasher {
-    USignatureHasher _usig_hasher;
-    std::size_t operator()(const Signature& s) const;
+    static USignatureHasher _usig_hasher;
+    inline std::size_t operator()(const Signature& s) const {
+        size_t hash = _usig_hasher(s._usig);
+        hash_combine(hash, s._negated);
+        return hash;
+    }
 };
 
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;

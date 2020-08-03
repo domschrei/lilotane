@@ -21,79 +21,6 @@
 
 class HtnInstance {
 
-public:
-
-    // Special action representing a virtual "No-op".
-    static Action BLANK_ACTION;
-
-    HtnInstance(Parameters& params, ParsedProblem& p);
-    ~HtnInstance();
-
-    static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
-
-    SigSet getInitState();
-    const Reduction& getInitReduction();
-    Action getGoalAction();
-
-    bool isVariable(int c);
-    bool isQConstant(int c);
-
-    bool hasQConstants(const USignature& sig);
-    bool isAbstraction(const USignature& concrete, const USignature& abstraction);
-
-    bool isPredicate(int nameId) const;
-    bool isAction(const USignature& sig) const;
-    bool isReduction(const USignature& sig) const;
-    Action toAction(int actionName, const std::vector<int>& args) const;
-    Reduction toReduction(int reductionName, const std::vector<int>& args) const;
-    HtnOp& getOp(const USignature& opSig);
-    const Action& getActionTemplate(int nameId) const;
-    const Reduction& getReductionTemplate(int nameId) const;
-    const Action& getAction(const USignature& sig) const;
-    const Reduction& getReduction(const USignature& sig) const;
-    void addAction(const Action& a);
-    void addReduction(const Reduction& r);
-
-    bool hasReductions(int taskId) const;
-    const std::vector<int>& getReductionIdsOfTaskId(int taskId) const;
-
-    bool hasSurrogate(int reductionId) const;
-    const Action& getSurrogate(int reductionId) const;
-
-    const std::vector<int>& getSorts(int nameId) const;
-    const FlatHashSet<int>& getConstantsOfSort(int sort) const;
-    const FlatHashSet<int>& getSortsOfQConstant(int qconst);
-    const FlatHashSet<int>& getDomainOfQConstant(int qconst);
-
-    std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
-
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
-    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
-    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
-    const USigSet& getQFactDecodings(const USignature& qfact);
-
-    void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
-    const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
-    void clearForbiddenSubstitutions();
-
-    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
-    
-    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const std::function<bool(const Signature&)>& state);
-
-    USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
-    
-    USignature cutNonoriginalTaskArguments(const USignature& sig);
-    int getSplitAction(int firstActionName);
-    const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
-
-    Instantiator& getInstantiator();
-    QConstantDatabase& getQConstantDatabase();
-
-    int nameId(const std::string& name, bool createQConstant = false);
-    std::string toString(int id) const;
-
 private:
 
     Parameters& _params;
@@ -174,6 +101,131 @@ private:
     
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
+
+public:
+
+    // Special action representing a virtual "No-op".
+    static Action BLANK_ACTION;
+
+    HtnInstance(Parameters& params, ParsedProblem& p);
+    ~HtnInstance();
+
+    static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
+
+    SigSet getInitState();
+    const Reduction& getInitReduction();
+    Action getGoalAction();
+    
+    Action toAction(int actionName, const std::vector<int>& args) const;
+    Reduction toReduction(int reductionName, const std::vector<int>& args) const;
+    HtnOp& getOp(const USignature& opSig);
+    const Action& getActionTemplate(int nameId) const;
+    const Reduction& getReductionTemplate(int nameId) const;
+    const Action& getAction(const USignature& sig) const;
+    const Reduction& getReduction(const USignature& sig) const;
+    void addAction(const Action& a);
+    void addReduction(const Reduction& r);
+
+    bool hasReductions(int taskId) const;
+    const std::vector<int>& getReductionIdsOfTaskId(int taskId) const;
+
+    bool hasSurrogate(int reductionId) const;
+    const Action& getSurrogate(int reductionId) const;
+
+    const std::vector<int>& getSorts(int nameId) const;
+    const FlatHashSet<int>& getConstantsOfSort(int sort) const;
+    const FlatHashSet<int>& getSortsOfQConstant(int qconst);
+    const FlatHashSet<int>& getDomainOfQConstant(int qconst);
+
+    std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
+
+    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
+    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
+    const USigSet& getQFactDecodings(const USignature& qfact);
+
+    void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
+    const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
+    void clearForbiddenSubstitutions();
+
+    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
+    
+    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
+            int offset, const std::function<bool(const Signature&)>& state);
+
+    USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
+    
+    USignature cutNonoriginalTaskArguments(const USignature& sig);
+    int getSplitAction(int firstActionName);
+    const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
+
+    Instantiator& getInstantiator();
+    QConstantDatabase& getQConstantDatabase();
+
+    int nameId(const std::string& name, bool createQConstant = false);
+    std::string toString(int id) const;
+
+    inline bool isVariable(int c) {
+        return _var_ids.count(c);
+    }
+
+    inline bool isQConstant(int c) {
+        return c > _name_table_running_id;
+    }
+
+    inline bool hasQConstants(const USignature& sig) {
+        for (const int& arg : sig._args) if (isQConstant(arg)) return true;
+        return false;
+    }
+
+    inline bool isAbstraction(const USignature& concrete, const USignature& abstraction) {
+        
+        // Different predicates?
+        if (concrete._name_id != abstraction._name_id) return false;
+        if (concrete._args.size() != abstraction._args.size()) return false;
+        
+        // Check syntactical fit
+        std::vector<int> qArgs, decArgs;
+        for (int i = 0; i < concrete._args.size(); i++) {
+            const int& qarg = abstraction._args[i];
+            const int& carg = concrete._args[i];
+            
+            // Same argument?
+            if (qarg == carg) continue;
+            // Different args, no q-constant arg?
+            if (!isQConstant(qarg)) return false;
+            
+            if (_use_q_constant_mutexes) {
+                qArgs.push_back(qarg);
+                decArgs.push_back(carg);
+            }
+
+            // A q-constant that does not fit the concrete argument?
+            if (!getDomainOfQConstant(qarg).count(carg)) return false;
+        }
+
+        // Check that q-constant assignment is valid
+        if (_use_q_constant_mutexes && !_q_db.test(qArgs, decArgs)) return false;
+
+        // A-OK
+        return true;
+    }
+
+    inline bool isPredicate(int nameId) const {
+        return _predicate_ids.count(nameId);
+    }
+
+    inline bool isAction(const USignature& sig) const {
+        return _actions.count(sig._name_id);
+    }
+
+    inline bool isReduction(const USignature& sig) const {
+        return _reductions.count(sig._name_id);
+    }
+
+
+private:
 
     void replaceSurrogateReductionsWithAction();
     void splitActionsWithConflictingEffects();

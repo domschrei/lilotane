@@ -84,37 +84,6 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
     }
 }
 
-int Position::encode(const USignature& sig) {
-    if (!_variables.count(sig)) {
-        // introduce a new variable
-        assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-        _variables[sig] = VariableDomain::nextVar();
-        VariableDomain::printVar(_variables[sig], _layer_idx, _pos, sig);
-    }
-    return _variables[sig];
-}
-
-int Position::setVariable(const USignature& sig, int var) {
-    assert(!_variables.count(sig));
-    _variables[sig] = var;
-    return var;
-}
-
-bool Position::hasVariable(const USignature& sig) const {
-    return _variables.count(sig);
-}
-
-int Position::getVariable(const USignature& sig) const {
-    assert(_variables.count(sig) || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-    return _variables.at(sig);
-}
-
-int Position::getVariableOrZero(const USignature& sig) const {
-    const auto& it = _variables.find(sig);
-    if (it == _variables.end()) return 0;
-    return it->second;
-}
-
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable() const {
     return _variables;
 }

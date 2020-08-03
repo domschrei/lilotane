@@ -26,15 +26,6 @@ void USignature::apply(const Substitution& s) {
     }
 }
 
-bool USignature::operator==(const USignature& b) const {
-    if (_name_id != b._name_id) return false;
-    if (_args != b._args) return false;
-    return true;
-}
-bool USignature::operator!=(const USignature& b) const {
-    return !(*this == b);
-}
-
 USignature& USignature::operator=(const USignature& sig) {
     _name_id = sig._name_id;
     _args = sig._args;
@@ -44,15 +35,6 @@ USignature& USignature::operator=(USignature&& sig) {
     _name_id = sig._name_id;
     _args = std::move(sig._args);
     return *this;
-}
-
-std::size_t USignatureHasher::operator()(const USignature& s) const {
-    size_t hash = s._args.size();
-    for (const int& arg : s._args) {
-        hash_combine(hash, arg);
-    }
-    hash_combine(hash, s._name_id);
-    return hash;
 }
 
 Signature::Signature() {}
@@ -82,16 +64,6 @@ Signature Signature::substitute(const Substitution& s) const {
     return Signature(_usig.substitute(s), _negated);
 }
 
-bool Signature::operator==(const Signature& b) const {
-    if (_negated != b._negated) return false;
-    if (_usig != b._usig) return false;
-    return true;
-}
-
-bool Signature::operator!=(const Signature& b) const {
-    return !(*this == b);
-}
-
 Signature& Signature::operator=(const Signature& sig) {
     _usig = sig._usig;
     _negated = sig._negated;
@@ -104,8 +76,4 @@ Signature& Signature::operator=(Signature&& sig) {
     return *this;
 }
 
-std::size_t SignatureHasher::operator()(const Signature& s) const {
-    size_t hash = _usig_hasher(s._usig);
-    hash_combine(hash, s._negated);
-    return hash;
-}
+USignatureHasher SignatureHasher::_usig_hasher;

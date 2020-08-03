@@ -117,18 +117,18 @@ private:
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
-    void addClause(int lit);
-    void addClause(int lit1, int lit2);
-    void addClause(int lit1, int lit2, int lit3);
-    void addClause(const std::initializer_list<int>& lits);
-    void addClause(const std::vector<int>& cls);
+    inline void addClause(int lit);
+    inline void addClause(int lit1, int lit2);
+    inline void addClause(int lit1, int lit2, int lit3);
+    inline void addClause(const std::initializer_list<int>& lits);
+    inline void addClause(const std::vector<int>& cls);
 
-    void appendClause(int lit);
-    void appendClause(int lit1, int lit2);
-    void appendClause(const std::initializer_list<int>& lits);
+    inline void appendClause(int lit);
+    inline void appendClause(int lit1, int lit2);
+    inline void appendClause(const std::initializer_list<int>& lits);
     
-    void endClause();
-    void assume(int lit);
+    inline void endClause();
+    inline void assume(int lit);
 
     int varPrimitive(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
@@ -138,9 +138,9 @@ private:
     bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
     
-    int getVariable(const Position& pos, const USignature& sig);
-    int getVariable(int layer, int pos, const USignature& sig);
-    int encodeVariable(Position& pos, const USignature& sig, bool decisionVar = true);
+    inline int getVariable(const Position& pos, const USignature& sig);
+    inline int getVariable(int layer, int pos, const USignature& sig);
+    inline int encodeVariable(Position& pos, const USignature& sig, bool decisionVar = true);
 
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);
