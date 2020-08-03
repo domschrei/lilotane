@@ -17,6 +17,7 @@ int Layer::index() const {return _index;}
 LayerState& Layer::getState() {return _state;}
 Position& Layer::operator[](int pos) {assert(pos >= 0 && pos < size()); return _content[pos];}
 Position& Layer::at(int pos) {return (*this)[pos];}
+Position& Layer::last() {return (*this)[size()-1];}
 void Layer::consolidate() {
     int succ = 0;
     for (int pos = 0; pos < size(); pos++) {

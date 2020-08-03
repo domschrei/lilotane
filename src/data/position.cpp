@@ -105,6 +105,7 @@ bool Position::hasVariable(const USignature& sig) const {
 }
 
 int Position::getVariable(const USignature& sig) const {
+    assert(_variables.count(sig) || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
     return _variables.at(sig);
 }
 
@@ -155,22 +156,6 @@ const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecess
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 int Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
-void Position::clearAtPastLayer() {
-    _fact_changes.clear();
-    _fact_changes.reserve(0);
-    _true_facts.clear();
-    _true_facts.reserve(0);
-    _false_facts.clear();
-    _false_facts.reserve(0);
-
-    /*
-    NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
-    for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
-    for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
-    _variables = std::move(cleanedVars);
-    */
-}
-
 void Position::clearAtPastPosition() {
     _qfacts.clear();
     _qfacts.reserve(0);
@@ -190,4 +175,21 @@ void Position::clearAtPastPosition() {
     _forbidden_substitutions_per_op.reserve(0);
     _valid_substitutions_per_op.clear();
     _valid_substitutions_per_op.reserve(0);
+
+    for (const auto& r : _reductions) _fact_changes.erase(r.first);
+    _fact_changes.reserve(0);
+}
+
+void Position::clearAtPastLayer() {
+    _fact_changes.clear();
+    _fact_changes.reserve(0);
+    _true_facts.clear();
+    _true_facts.reserve(0);
+    _false_facts.clear();
+    _false_facts.reserve(0);
+
+    NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
+    for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
+    for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
+    _variables = std::move(cleanedVars);
 }

@@ -295,10 +295,11 @@ void Planner::createNextLayer() {
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            Log::d("  Instantiation done. (r=%i a=%i qf=%i)\n", 
+            Log::d("  Instantiation done. (r=%i a=%i qf=%i supp=%i)\n", 
                     (*_layers[_layer_idx])[_pos].getReductions().size(),
                     (*_layers[_layer_idx])[_pos].getActions().size(),
-                    (*_layers[_layer_idx])[_pos].getNumQFacts()
+                    (*_layers[_layer_idx])[_pos].getNumQFacts(),
+                    (*_layers[_layer_idx])[_pos].getPosFactSupports().size() + (*_layers[_layer_idx])[_pos].getNegFactSupports().size()
             );
             _enc.encode(_layer_idx, _pos++);
         }

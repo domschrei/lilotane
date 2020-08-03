@@ -30,9 +30,11 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
 
 void Encoding::encode(int layerIdx, int pos) {
     
-    Log::v("  Encoding ...\n");
+    Log::v("Encoding ...\n");
     int priorNumClauses = _num_cls;
     int priorNumLits = _num_lits;
+    _layer_idx = layerIdx;
+    _pos = pos;
 
     // Calculate relevant environment of the position
     Position NULL_POS;
@@ -41,15 +43,15 @@ void Encoding::encode(int layerIdx, int pos) {
     Position& newPos = newLayer[pos];
     bool hasLeft = pos > 0;
     Position& left = (hasLeft ? newLayer[pos-1] : NULL_POS);
-    int oldPos = 0, offset = 0;
     bool hasAbove = layerIdx > 0;
+    _offset = 0, _old_pos = 0;
     if (hasAbove) {
         const Layer& oldLayer = *_layers.at(layerIdx-1);
-        while (oldPos+1 < oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= pos) 
-            oldPos++;
-        offset = pos - oldLayer.getSuccessorPos(oldPos);
+        while (_old_pos+1 < oldLayer.size() && oldLayer.getSuccessorPos(_old_pos+1) <= pos) 
+            _old_pos++;
+        _offset = pos - oldLayer.getSuccessorPos(_old_pos);
     }
-    Position& above = (hasAbove ? (*_layers.at(layerIdx-1))[oldPos] : NULL_POS);
+    Position& above = (hasAbove ? (*_layers.at(layerIdx-1))[_old_pos] : NULL_POS);
 
     // Variable determining whether this is a primitive (i.e. action) position
     int varPrim = varPrimitive(layerIdx, pos);
@@ -83,7 +85,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
     // Encode true facts at this position and decide for each fact
     // whether to encode it or to reuse the previous variable
-    encodeFactVariables(newPos, left, above, oldPos, offset);
+    encodeFactVariables(newPos, left, above);
 
     // Init substitution vars where necessary
     stage("initsubstitutions");
@@ -114,8 +116,6 @@ void Encoding::encode(int layerIdx, int pos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            //if (!newPos.hasFact(decFactSig)) continue;
-
             // TODO Need to check if this fact decoding can occur here?
 
             if (_params.isNonzero("qcm")) {
@@ -407,23 +407,35 @@ void Encoding::encode(int layerIdx, int pos) {
     }
     stage("axiomaticops");
 
-    Log::v("Encoding done. (%i clauses, total of %i literals)\n", (_num_cls-priorNumClauses), (_num_lits-priorNumLits));
+    Log::v("Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
 
-    left.clearAtPastPosition();
+    clearDonePositions();
+}
 
-    if (layerIdx == 0 || offset != 0) return;
+void Encoding::clearDonePositions() {
+
+    Position* positionToClearLeft = nullptr;
+    if (_pos == 0 && _layer_idx > 0) {
+        positionToClearLeft = &_layers.at(_layer_idx-1)->last();
+    } else if (_pos > 0) positionToClearLeft = &_layers.at(_layer_idx)->at(_pos-1);
+    if (positionToClearLeft != nullptr) {
+        Log::v("Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
+        positionToClearLeft->clearAtPastPosition();
+    }
+
+    if (_layer_idx == 0 || _offset != 0) return;
     
-    Position* positionToClear = nullptr;
-    if (oldPos == 0) {
+    Position* positionToClearAbove = nullptr;
+    if (_old_pos == 0) {
         // Clear rightmost position of "above above" layer
-        if (layerIdx > 1) positionToClear = &_layers.at(layerIdx-2)->at(_layers.at(layerIdx-2)->size()-1);
+        if (_layer_idx > 1) positionToClearAbove = &_layers.at(_layer_idx-2)->at(_layers.at(_layer_idx-2)->size()-1);
     } else {
         // Clear previous parent position of "above" layer
-        positionToClear = &_layers.at(layerIdx-1)->at(oldPos-1);
+        positionToClearAbove = &_layers.at(_layer_idx-1)->at(_old_pos-1);
     }
-    if (positionToClear != nullptr) {
-        Log::v("  Freeing memory of (%i,%i) ...\n", positionToClear->getLayerIndex(), positionToClear->getPositionIndex());
-        positionToClear->clearAtPastLayer();
+    if (positionToClearAbove != nullptr) {
+        Log::v("Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
+        positionToClearAbove->clearAtPastLayer();
     }
 }
 
@@ -447,14 +459,14 @@ void Encoding::setTerminateCallback(void * state, int (*terminate)(void * state)
     ipasir_set_terminate(_solver, state, terminate);
 }
 
-void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above, int oldPos, int offset) {
+void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above) {
 
     _new_fact_vars.clear();
 
     stage("factvarencoding");
     // Reuse variables from above position
     int reusedFacts = 0;
-    if (newPos.getLayerIndex() > 0 && offset == 0) {
+    if (newPos.getLayerIndex() > 0 && _offset == 0) {
         for (const auto& [sig, var] : above.getVariableTable()) {
             if (_htn.isPredicate(sig._name_id)) {
                 // Fact variable
@@ -465,7 +477,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     }
     stage("factvarencoding");
 
-    if (newPos.getPositionIndex() == 0) {
+    if (_pos == 0) {
         // Initialize all facts
         for (const auto& fact : newPos.getTrueFacts()) _new_fact_vars.insert(encodeVariable(newPos, fact, false));
         for (const auto& fact : newPos.getFalseFacts()) _new_fact_vars.insert(encodeVariable(newPos, fact, false));

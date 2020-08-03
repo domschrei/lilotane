@@ -30,6 +30,7 @@ public:
     
     Position& at(int pos);
     Position& operator[](int pos);
+    Position& last();
     
     void consolidate();
 };

@@ -44,6 +44,11 @@ private:
     HtnInstance& _htn;
     std::vector<Layer*>& _layers;
     
+    int _layer_idx;
+    int _pos;
+    int _old_pos;
+    int _offset;
+
     NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
     FlatHashSet<int> _new_fact_vars;
@@ -102,7 +107,9 @@ public:
 
 private:
 
-    void encodeFactVariables(Position& pos, const Position& left, Position& above, int oldPos, int offset);
+    void clearDonePositions();
+
+    void encodeFactVariables(Position& pos, const Position& left, Position& above);
     void encodeFrameAxioms(Position& pos, const Position& left);
     void initSubstitutionVars(int opVar, int qconst, Position& pos);
 
