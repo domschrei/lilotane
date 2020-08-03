@@ -229,6 +229,7 @@ void Planner::createFirstLayer() {
             USignature sig = r.getSignature();
             
             initLayer[_pos].addReduction(sig);
+            initLayer[_pos].addAxiomaticOp(sig);
             initLayer[_pos].addExpansionSize(r.getSubtasks().size());
             // Add preconditions
             NodeHashSet<Substitution, Substitution::Hasher> badSubs;
@@ -243,7 +244,7 @@ void Planner::createFirstLayer() {
         }
     }
     addNewFalseFacts();
-    //_htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+    _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
     _enc.encode(_layer_idx, _pos++);
 
     /***** LAYER 0, POSITION 1 ******/
@@ -254,6 +255,7 @@ void Planner::createFirstLayer() {
     Action goalAction = _htn.getGoalAction();
     USignature goalSig = goalAction.getSignature();
     initLayer[_pos].addAction(goalSig);
+    initLayer[_pos].addAxiomaticOp(goalSig);
     
     // Extract primitive goals, add to preconds of goal action
     NodeHashSet<Substitution, Substitution::Hasher> badSubs;
@@ -293,8 +295,9 @@ void Planner::createNextLayer() {
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            Log::d("  Instantiation done. (r+a=%i qf=%i)\n", 
-                    (*_layers[_layer_idx])[_pos].getOps().size(),
+            Log::d("  Instantiation done. (r=%i a=%i qf=%i)\n", 
+                    (*_layers[_layer_idx])[_pos].getReductions().size(),
+                    (*_layers[_layer_idx])[_pos].getActions().size(),
                     (*_layers[_layer_idx])[_pos].getNumQFacts()
             );
             _enc.encode(_layer_idx, _pos++);
@@ -329,9 +332,9 @@ void Planner::createNextPosition() {
 
         // Use new q-constant conditions from this position to infer conditions 
         // of the respective parent ops at the layer above. 
-        //auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
-        //auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
-        //updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
+        auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
+        auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+        updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
 
         //pruneRetroactively(updatedOps);
 
@@ -394,12 +397,22 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     FlatHashSet<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
-    for (const auto& entry : left.getOps()) {
+    for (const auto& entry : left.getActions()) {
         const USignature& aSig = entry.first;
         for (const Signature& fact : left.getFactChanges(aSig)) {
             addEffect(aSig, fact);
         }
         for (const int& arg : aSig._args) {
+            if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
+        }
+    }
+    for (const auto& entry : left.getReductions()) {
+        const USignature& rSig = entry.first;
+        if (rSig == Position::NONE_SIG) continue;
+        for (const Signature& fact : left.getFactChanges(rSig)) {
+            addEffect(rSig, fact);
+        }
+        for (const int& arg : rSig._args) {
             if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
         }
     }
@@ -599,7 +612,8 @@ void Planner::propagateActions(int offset) {
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Propagate actions
-    for (const auto& [aSig, aId] : above.getOps()) if (above.isPrimitive(aId)) {
+    for (const auto& entry : above.getActions()) {
+        const USignature& aSig = entry.first;
         if (aSig == Position::NONE_SIG) continue;
         const Action& a = _htn.getAction(aSig);
 
@@ -609,8 +623,7 @@ void Planner::propagateActions(int offset) {
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
             Log::i("Forbidding action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
-            above.addExpansion(aSig, offset, Position::NONE_SIG);
-            newPos.addPredecessor(aSig, Position::NONE_SIG);
+            newPos.addExpansion(aSig, Position::NONE_SIG);
             continue;
         }
 
@@ -618,8 +631,7 @@ void Planner::propagateActions(int offset) {
             // proper action propagation
             assert(_instantiator.isFullyGround(aSig));
             newPos.addAction(aSig);
-            above.addExpansion(aSig, offset, aSig);
-            newPos.addPredecessor(aSig, aSig);
+            newPos.addExpansion(aSig, aSig);
             above.moveFactChanges(newPos, aSig);
             // Add preconditions of action
             NodeHashSet<Substitution, Substitution::Hasher> badSubs;
@@ -633,8 +645,7 @@ void Planner::propagateActions(int offset) {
             // action expands to "blank" at non-zero offsets
             USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
             newPos.addAction(blankSig);
-            above.addExpansion(aSig, offset, blankSig);
-            newPos.addPredecessor(aSig, blankSig);
+            newPos.addExpansion(aSig, blankSig);
         }
     }
 }
@@ -644,7 +655,8 @@ void Planner::propagateReductions(int offset) {
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Expand reductions
-    for (const auto& [rSig, rId] : above.getOps()) if (!above.isPrimitive(rId)) {
+    for (const auto& entry : above.getReductions()) {
+        const USignature& rSig = entry.first;
         if (rSig == Position::NONE_SIG) continue;
         const Reduction r = _htn.getReduction(rSig);
         const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
@@ -674,8 +686,7 @@ void Planner::propagateReductions(int offset) {
                 /*for (const auto& pre : subR.getPreconditions()) {
                     Log::d(" -- pre %s\n", TOSTR(pre));
                 }*/
-                above.addExpansion(rSig, offset, subRSig);
-                newPos.addPredecessor(rSig, subRSig);
+                newPos.addExpansion(rSig, subRSig);
                 //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
                 newPos.addExpansionSize(subR.getSubtasks().size());
                 // Add preconditions of reduction
@@ -697,8 +708,7 @@ void Planner::propagateReductions(int offset) {
                 numAdded++;
                 assert(_instantiator.isFullyGround(aSig));
                 newPos.addAction(aSig);
-                above.addExpansion(rSig, offset, aSig);
-                newPos.addPredecessor(rSig, aSig);
+                newPos.addExpansion(rSig, aSig);
                 // Add preconditions of action
                 const Action& a = _htn.getAction(aSig);
                 NodeHashSet<Substitution, Substitution::Hasher> badSubs;
@@ -716,16 +726,14 @@ void Planner::propagateReductions(int offset) {
             numAdded++;
             USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
             newPos.addAction(blankSig);
-            above.addExpansion(rSig, offset, blankSig);
-            newPos.addPredecessor(rSig, blankSig);
+            newPos.addExpansion(rSig, blankSig);
         }
 
         if (numAdded == 0) {
             // Explicitly forbid the parent!
             Log::i("Forbidding reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
-            above.addExpansion(rSig, offset, Position::NONE_SIG);
-            newPos.addPredecessor(rSig, Position::NONE_SIG);
+            newPos.addExpansion(rSig, Position::NONE_SIG);
         }
     }
 }
@@ -844,22 +852,43 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 void Planner::addNewFalseFacts() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     
-    // For each action and reduction:
-    for (const auto& [opSig, opId] : newPos.getOps()) {
-        if (opSig == Position::NONE_SIG) continue;
+    // For each action:
+    for (const auto& entry : newPos.getActions()) {
+        const USignature& aSig = entry.first;
 
-        for (const Signature& eff : newPos.getFactChanges(opSig)) {
+        for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig)) { // TODO
                 // New fact: set to false before the action may happen
                 introduceNewFalseFact(newPos, eff._usig);
             } else {
-                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, opSig);
+                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
                 for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
             }
+        }
+    }
+
+    // For each possible reduction effect: 
+    for (const auto& entry : newPos.getReductions()) {
+        const USignature& rSig = entry.first;
+        if (rSig == Position::NONE_SIG) continue;
+
+        for (const Signature& eff : newPos.getFactChanges(rSig)) {
+
+            if (!_htn.hasQConstants(eff._usig)) { // TODO
+                // New fact: set to false before the reduction may happen
+                introduceNewFalseFact(newPos, eff._usig);
+            } else {
+                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, rSig);
+                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
+                    // New fact: set to false before the action may happen
+                    introduceNewFalseFact(newPos, decEff);
+                }
+            }
+
         }
     }
 
@@ -891,7 +920,7 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), sig);
     
     // Does position to the left already have the encoded fact? -> not new!
-    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasFactVariable(fact)) return;
+    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(fact)) return;
     
     newPos.addDefinitiveFact(sig);
     
@@ -931,7 +960,11 @@ void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSi
             // Operation has become impossible to apply
             Log::d("Op %s became impossible!\n", TOSTR(sig));
 
-            // TODO COMPLETELY remove this op, disregarding witness counters.
+            // COMPLETELY remove this op, disregarding witness counters.
+
+            bool isReduction = _htn.isReduction(sig);
+            if (isReduction) (*_layers[layerIdx])[pos].removeReductionOccurrence(sig);
+            else (*_layers[layerIdx])[pos].removeActionOccurrence(sig);
         }
     }
 }

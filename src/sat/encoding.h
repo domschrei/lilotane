@@ -51,6 +51,7 @@ private:
     void* _solver;
     std::ofstream _out;
 
+    USignature _sig_primitive;
     USignature _sig_substitution;
     int _substitute_name_id;
 
@@ -104,7 +105,6 @@ private:
     void encodeFactVariables(Position& pos, const Position& left, Position& above, int oldPos, int offset);
     void encodeFrameAxioms(Position& pos, const Position& left);
     void initSubstitutionVars(int opVar, int qconst, Position& pos);
-    void encodeSubstitutionConstraints(Position& newPos, Position& above, const USignature& op);
 
     void setVariablePhases(const std::vector<int>& vars);
     
@@ -128,12 +128,19 @@ private:
     int varQConstEquality(int q1, int q2);
     const USignature& sigSubstitute(int qConstId, int trueConstId);
 
+    bool isEncoded(int layer, int pos, const USignature& sig);
+    bool isEncodedSubstitution(const USignature& sig);
+    
+    int getVariable(const Position& pos, const USignature& sig);
+    int getVariable(int layer, int pos, const USignature& sig);
+    int encodeVariable(Position& pos, const USignature& sig, bool decisionVar = true);
+
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);
 
-    bool factValue(int layer, int pos, const USignature& sig);
-    bool opValue(int layer, int pos, const USignature& sig);
+    bool value(int layer, int pos, const USignature& sig);
     USignature getDecodedQOp(int layer, int pos, const USignature& sig);
+    void checkAndApply(const Action& a, State& state, State& newState, int layer, int pos);
 
 };
 
