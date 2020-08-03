@@ -66,6 +66,7 @@ std::vector<std::vector<int>> LiteralTree::encode(const std::vector<int>& headLi
     std::vector<std::vector<int>> cls;
     std::vector<int> lits(headLits);
     _root.encode(cls, lits);
+    
     /*
     Log::d("TREE ENCODE ");
     for (const auto& c : cls) {
@@ -74,5 +75,6 @@ std::vector<std::vector<int>> LiteralTree::encode(const std::vector<int>& headLi
     }
     Log::log_notime(Log::V4_DEBUG, "\n");
     */
+
     return cls;
 }

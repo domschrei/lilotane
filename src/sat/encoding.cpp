@@ -144,6 +144,7 @@ void Encoding::encode(int layerIdx, int pos) {
     stage("qfactsemantics");
 
     // Effects of "old" actions to the left
+    bool treeConversion = _params.isNonzero("tc");
     stage("actioneffects");
     for (const auto& entry : left.getActions()) {
         const USignature& aSig = entry.first;
@@ -164,14 +165,14 @@ void Encoding::encode(int layerIdx, int pos) {
                 break;
             }
             
-            std::vector<int> unifiersDnf;
+            std::set<std::set<int>> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
                 for (const auto& posEff : _htn.getAction(aSig).getEffects()) {
                     if (posEff._negated) continue;
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
                     bool fits = true;
-                    std::vector<int> s;
+                    std::set<int> s;
                     for (int i = 0; i < eff._usig._args.size(); i++) {
                         const int& effArg = eff._usig._args[i];
                         const int& posEffArg = posEff._usig._args[i];
@@ -179,13 +180,13 @@ void Encoding::encode(int layerIdx, int pos) {
                             bool effIsQ = _q_constants.count(effArg);
                             bool posEffIsQ = _q_constants.count(posEffArg);
                             if (effIsQ && posEffIsQ) {
-                                s.push_back(varQConstEquality(effArg, posEffArg));
+                                s.insert(varQConstEquality(effArg, posEffArg));
                             } else if (effIsQ) {
                                 if (!_htn.getDomainOfQConstant(effArg).count(posEffArg)) fits = false;
-                                else s.push_back(varSubstitution(sigSubstitute(effArg, posEffArg)));
+                                else s.insert(varSubstitution(sigSubstitute(effArg, posEffArg)));
                             } else if (posEffIsQ) {
                                 if (!_htn.getDomainOfQConstant(posEffArg).count(effArg)) fits = false;
-                                else s.push_back(varSubstitution(sigSubstitute(posEffArg, effArg)));
+                                else s.insert(varSubstitution(sigSubstitute(posEffArg, effArg)));
                             } else fits = false;
                         }
                     }
@@ -194,8 +195,7 @@ void Encoding::encode(int layerIdx, int pos) {
                         unifiedUnconditionally = true;
                         break;
                     }
-                    s.push_back(0);
-                    if (fits) unifiersDnf.insert(unifiersDnf.end(), s.begin(), s.end());
+                    if (fits) unifiersDnf.insert(s);
                 }
             }
             if (unifiedUnconditionally) {
@@ -203,11 +203,25 @@ void Encoding::encode(int layerIdx, int pos) {
             } else if (unifiersDnf.empty()) {
                 addClause(-aVar, (eff._negated?-1:1)*getVariable(newPos, eff._usig));
             } else {
-                auto cnf = getCnf(unifiersDnf);
-                for (const auto& clause : cnf) {
-                    appendClause(-aVar, -getVariable(newPos, eff._usig));
-                    for (int lit : clause) appendClause(lit);
-                    endClause();
+                if (treeConversion) {
+                    LiteralTree tree;
+                    for (const auto& set : unifiersDnf) tree.insert(std::vector<int>(set.begin(), set.end()));
+                    std::vector<int> headerLits;
+                    headerLits.push_back(aVar);
+                    headerLits.push_back(getVariable(newPos, eff._usig));
+                    for (const auto& cls : tree.encode(headerLits)) addClause(cls);
+                } else {
+                    std::vector<int> dnf;
+                    for (const auto& set : unifiersDnf) {
+                        for (int lit : set) dnf.push_back(lit);
+                        dnf.push_back(0);
+                    }
+                    auto cnf = getCnf(dnf);
+                    for (const auto& clause : cnf) {
+                        appendClause(-aVar, -getVariable(newPos, eff._usig));
+                        for (int lit : clause) appendClause(lit);
+                        endClause();
+                    }
                 }
             }
         }
@@ -530,6 +544,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     stage("frameaxioms");
 
     bool nonprimFactSupport = _params.isNonzero("nps");
+    bool treeConversion = _params.isNonzero("tc");
 
     int layerIdx = newPos.getLayerIndex();
     int pos = newPos.getPositionIndex();
@@ -598,32 +613,54 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     
                     if (unconditionalEffect) continue;
 
-                    // Bring the found substitution sets to CNF and encode them
-                    for (const auto& set : substOptions) {
-                        dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
-                        dnfSubs.push_back(0);
+                    // Encode conditional effect
+
+                    // -- 1st part of each clause: "head literals"
+                    std::vector<int> headLits;
+                    // IF fact change AND the operation is applied,
+                    if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
+                    if (factVar == 0) {
+                        // Initialize fact variable, now that it is known 
+                        // that there is some support for it to change
+                        int v = encodeVariable(newPos, fact, false);
+                        _new_fact_vars.insert(v);
+                        factVar = sign*v;
                     }
-                    std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
-                    dnfSubs.clear();
-                    for (const std::set<int>& subsCls : cnfSubs) {
-                        // IF fact change AND the operation is applied,
-                        if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
-                        if (factVar == 0) {
-                            // Initialize fact variable, now that it is known 
-                            // that there is some support for it to change
-                            int v = encodeVariable(newPos, fact, false);
-                            _new_fact_vars.insert(v);
-                            factVar = sign*v;
+                    headLits.push_back(factVar);
+                    headLits.push_back(opVar);
+                    if (!nonprimFactSupport) {
+                        if (_implicit_primitiveness) {
+                            for (int var : _nonprimitive_ops) headLits.push_back(-var);
+                        } else headLits.push_back(prevVarPrim);
+                    } 
+                    
+                    // -- 2nd part: Convert found substitution sets to CNF
+                    if (treeConversion) {
+                        LiteralTree tree;
+                        for (const auto& set : substOptions) {
+                            tree.insert(std::vector<int>(set.begin(), set.end()));
                         }
-                        appendClause(-factVar, -opVar);
-                        if (!nonprimFactSupport) {
-                            if (_implicit_primitiveness) {
-                                for (int var : _nonprimitive_ops) appendClause(var);
-                            } else appendClause(-prevVarPrim);
-                        } 
-                        // THEN either of the valid substitution combinations
-                        for (int subVar : subsCls) appendClause(subVar); 
-                        endClause();
+                        for (const auto& cls : tree.encode(headLits)) addClause(cls);
+                    } else {
+                        dnfSubs.clear();
+                        for (const auto& set : substOptions) {
+                            dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
+                            dnfSubs.push_back(0);
+                        }
+                        std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
+                        for (const auto& cls : cnfSubs) {
+                            //Log::d("DNF ENCODE ");
+                            for (int lit : headLits) {
+                                appendClause(-lit);
+                                //Log::log_notime(Log::V4_DEBUG, "%i ", -lit);
+                            } 
+                            for (int lit : cls) {
+                                appendClause(lit);
+                                //Log::log_notime(Log::V4_DEBUG, "%i ", lit);
+                            }
+                            endClause();
+                            //Log::log_notime(Log::V4_DEBUG, "\n");
+                        }
                     }
                 }
             }

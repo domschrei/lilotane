@@ -60,6 +60,7 @@ void Parameters::setDefaults() {
     setParam("stl", "0"); // SAT time limit
     setParam("surr", "1"); // replace surrogate methods
     setParam("svp", "0"); // set variable phases
+    setParam("tc", "0"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
 }
 
@@ -91,6 +92,7 @@ void Parameters::printUsage() {
     Log::e(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
     Log::e(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");
     Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
+    Log::e(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     printParams(/*forcePrint=*/true);
 }
