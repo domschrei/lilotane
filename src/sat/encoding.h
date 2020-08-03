@@ -76,11 +76,31 @@ private:
     int _num_lits;
     int _num_asmpts;
 
-    int _prior_num_cls;
-    int _prior_num_lits;
-
-    std::map<std::string, int> _num_cls_per_stage;
-    std::map<std::string, int> _total_num_cls_per_stage;
+    int STAGE_ACTIONCONSTRAINTS = 0;
+    int STAGE_ACTIONEFFECTS = 1;
+    int STAGE_ATLEASTONEELEMENT = 2;
+    int STAGE_ATMOSTONEELEMENT = 3;
+    int STAGE_AXIOMATICOPS = 4;
+    int STAGE_EXPANSIONS = 5;
+    int STAGE_FACTVARENCODING = 6;
+    int STAGE_FORBIDDENPARENTS = 7;
+    int STAGE_FRAMEAXIOMS = 8;
+    int STAGE_INITSUBSTITUTIONS = 9;
+    int STAGE_PREDECESSORS = 10;
+    int STAGE_QCONSTEQUALITY = 11;
+    int STAGE_QFACTSEMANTICS = 12;
+    int STAGE_QTYPECONSTRAINTS = 13;
+    int STAGE_REDUCTIONCONSTRAINTS = 14;
+    int STAGE_SUBSTITUTIONCONSTRAINTS = 15;
+    int STAGE_TRUEFACTS = 16;
+    int STAGE_ASSUMPTIONS = 17;
+    const char* STAGES_NAMES[18] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
+        "axiomaticops","expansions","factvarencoding","forbiddenparents","frameaxioms","initsubstitutions",
+        "predecessors","qconstequality","qfactsemantics","qtypeconstraints","reductionconstraints",
+        "substitutionconstraints","truefacts","assumptions"};
+    std::map<int, int> _num_cls_per_stage;
+    std::vector<int> _current_stages;
+    int _num_cls_at_stage_start = 0; 
 
     float _sat_call_start_time;
 
@@ -95,7 +115,8 @@ public:
 
     float getTimeSinceSatCallStart();
 
-    void stage(std::string name);
+    void begin(int stage);
+    void end(int stage);
     void printStages();
 
     std::pair<std::vector<PlanItem>, std::vector<PlanItem>> extractPlan();
@@ -147,8 +168,7 @@ private:
 
     bool value(int layer, int pos, const USignature& sig);
     USignature getDecodedQOp(int layer, int pos, const USignature& sig);
-    void checkAndApply(const Action& a, State& state, State& newState, int layer, int pos);
-
+    
 };
 
 #endif
