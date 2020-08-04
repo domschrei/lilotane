@@ -91,6 +91,8 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
             _init_reduction = r;
         }
     }
+
+    if (_params.isNonzero("mp")) minePreconditions();
     
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
@@ -210,6 +212,24 @@ void HtnInstance::splitActionsWithConflictingEffects() {
     }
 
     _actions = newActions;
+}
+
+void HtnInstance::minePreconditions() {
+    
+    for (auto& [rId, r] : _reductions) {
+        // Mine additional preconditions, if possible
+        auto factFrame = _instantiator->getFactFrame(r.getSignature());
+        for (const auto& pre : factFrame.preconditions) {
+            if (!r.getPreconditions().count(pre)) {
+                bool hasFreeArgs = false;
+                for (int arg : pre._usig._args) hasFreeArgs |= arg == nameId("??_");
+                if (hasFreeArgs) continue;
+
+                Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
+                r.addPrecondition(pre);
+            }
+        }
+    }
 }
 
 int HtnInstance::nameId(const std::string& name, bool createQConstant) {
@@ -499,9 +519,9 @@ Reduction& HtnInstance::createReduction(method& method) {
                 _reductions[id].getSubtasks().size());
     Log::d("  PRE ");
     for (const Signature& sig : r.getPreconditions()) {
-        Log::d("%s ", TOSTR(sig));
+        Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(sig));
     }
-    Log::d("\n");
+    Log::log_notime(Log::V4_DEBUG, "\n");
 
     return _reductions[id];
 }

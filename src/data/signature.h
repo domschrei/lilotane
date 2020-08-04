@@ -99,6 +99,14 @@ struct SignatureHasher {
         return hash;
     }
 };
+struct SigVecHasher {
+    SignatureHasher _sig_hasher;
+    inline std::size_t operator()(const std::vector<Signature>& s) const {
+        size_t hash = s.size();
+        for (const Signature& sig : s) hash_combine(hash, _sig_hasher(sig));
+        return hash;
+    }
+};
 
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;
 typedef FlatHashSet<USignature, USignatureHasher> USigSet;

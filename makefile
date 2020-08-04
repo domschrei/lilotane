@@ -37,7 +37,7 @@ treerexx: $(patsubst src/%.cpp,build/%.o,$(wildcard src/data/*.cpp src/planner/*
 build/main.o: src/main.cpp
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 	
-build/%.o: src/%.cpp
+build/%.o: src/%.cpp src/%.h
 	mkdir -p $(@D)
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 

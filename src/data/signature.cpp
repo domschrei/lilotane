@@ -75,5 +75,3 @@ Signature& Signature::operator=(Signature&& sig) {
     _negated = sig._negated;
     return *this;
 }
-
-USignatureHasher SignatureHasher::_usig_hasher;
