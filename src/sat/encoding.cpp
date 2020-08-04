@@ -402,10 +402,6 @@ void Encoding::encode(int layerIdx, int pos) {
     clearDonePositions();
 }
 
-void Encoding::setTerminateCallback(void * state, int (*terminate)(void * state)) {
-    ipasir_set_terminate(_solver, state, terminate);
-}
-
 void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above) {
 
     _new_fact_vars.clear();
@@ -507,8 +503,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
                 // For each operation that supports some qfact abstraction of the fact:
                 for (const USignature& opSig : supports[i]->at(qsig)) {
-                    int opVar = getVariable(left, opSig);
-                    assert(opVar > 0);
                     
                     // Calculate and encode prerequisites for indirect support
 
@@ -540,6 +534,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     }
 
                     // Add operation to indirect support
+                    int opVar = getVariable(left, opSig);
                     indirectSupports[i].insert(opVar); 
                     
                     if (unconditionalEffect) continue;
@@ -733,6 +728,10 @@ void Encoding::setVariablePhases(const std::vector<int>& vars) {
     for (int i = 0; i < vars.size(); i++) {
         ipasir_set_phase(_solver, vars[i], i == randomIdx);
     }
+}
+
+void Encoding::setTerminateCallback(void * state, int (*terminate)(void * state)) {
+    ipasir_set_terminate(_solver, state, terminate);
 }
 
 std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
@@ -958,8 +957,10 @@ int Encoding::varQConstEquality(int q1, int q2) {
         } else {
             // If equality, then all "good" substitution vars are equivalent
             for (int c : good) {
-                addClause(-varEq, varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)));
-                addClause(-varEq, -varSubstitution(sigSubstitute(q1, c)), varSubstitution(sigSubstitute(q2, c)));
+                int v1 = varSubstitution(sigSubstitute(q1, c));
+                int v2 = varSubstitution(sigSubstitute(q2, c));
+                addClause(-varEq, v1, -v2);
+                addClause(-varEq, -v1, v2);
             }
             // Any of the GOOD ones
             for (int c : good) addClause(-varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)), varEq);
@@ -1293,7 +1294,7 @@ Encoding::~Encoding() {
     if (_params.isNonzero("of")) {
 
         // Append assumptions to written formula, close stream
-        if (_last_assumptions.empty()) {
+        if (!_params.isNonzero("cs") && _last_assumptions.empty()) {
             addAssumptions(_layers.size()-1);
         }
         for (int asmpt : _last_assumptions) {
