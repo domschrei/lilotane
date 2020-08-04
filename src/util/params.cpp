@@ -47,7 +47,7 @@ void Parameters::setDefaults() {
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
     setParam("ip", "0"); // implicit primitiveness
-    setParam("mp", "0"); // mine preconditions
+    setParam("mp", "1"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // output formula to f.cnf
     setParam("p", "1"); // encode predecessor operations
