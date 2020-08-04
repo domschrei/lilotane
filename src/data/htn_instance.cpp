@@ -236,8 +236,11 @@ void HtnInstance::minePreconditions() {
             }
         }
     }
-    Log::i("Mined %i new reduction preconditions (+%.1f%%).\n", minedPreconds, 
-            100.f*( (float)precondsBefore+minedPreconds) / precondsBefore - 1);
+
+    float newRatio = precondsBefore == 0 ? std::numeric_limits<float>::infinity() : 
+            100.f * (((float)precondsBefore+minedPreconds) / precondsBefore - 1);
+
+    Log::i("Mined %i new reduction preconditions (+%.1f%%).\n", minedPreconds, newRatio);
 }
 
 int HtnInstance::nameId(const std::string& name, bool createQConstant) {
