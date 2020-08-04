@@ -14,7 +14,7 @@ fi
 
 # Checkout correct commit (can be updated but must be manually checked to build cleanly)
 git config --global advice.detachedHead false
-git checkout 6725597e2a664747882f0a67d974d0a596238718
+git checkout 95bbe291c5bdb9fb517c1ad55f5136d45450c644
 
 # Patch pandaPIparser with adapted makefile and "library" header
 cp ../panda_makefile makefile

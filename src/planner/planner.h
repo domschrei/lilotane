@@ -25,9 +25,9 @@ private:
     Instantiator& _instantiator;
     Encoding _enc;
 
-    int _layer_idx;
-    int _pos;
-    int _old_pos;
+    size_t _layer_idx;
+    size_t _pos;
+    size_t _old_pos;
 
     float _sat_time_limit = 0;
 
@@ -55,12 +55,12 @@ private:
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
             NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
     void addEffect(const USignature& op, const Signature& fact);
-    bool addAction(Action& a, const USignature& task);
+    bool addAction(Action& a);
     bool addReduction(Reduction& r, const USignature& task);
 
     void propagateInitialState();
-    void propagateActions(int offset);
-    void propagateReductions(int offset);
+    void propagateActions(size_t offset);
+    void propagateReductions(size_t offset);
     std::vector<USignature> getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
     std::vector<USignature> getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
     void addNewFalseFacts();

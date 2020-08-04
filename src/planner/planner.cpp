@@ -5,6 +5,7 @@
 #include <string>
 
 #include "plan.hpp"
+#include "verify.hpp"
 
 #include "planner.h"
 #include "util/log.h"
@@ -113,7 +114,7 @@ void Planner::outputPlan() {
 
     FlatHashSet<int> surrogateIds;
     std::vector<PlanItem> decompsToInsert;
-    int decompsToInsertIdx = 0;
+    size_t decompsToInsertIdx = 0;
     
     for (PlanItem& item : planPair.first) {
 
@@ -157,7 +158,7 @@ void Planner::outputPlan() {
     }
     // -- decomposition part
     bool root = true;
-    for (int itemIdx = 0; itemIdx < planPair.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
+    for (size_t itemIdx = 0; itemIdx < planPair.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
 
         // Pick next plan item to print
         PlanItem item;
@@ -190,10 +191,24 @@ void Planner::outputPlan() {
     stream << "<==\n";
 
     // Feed plan into parser to convert it into a plan to the original problem
-    // (w.r.t. previous compilations the parser did) and output it
+    // (w.r.t. previous compilations the parser did)
     std::ostringstream outstream;
     convert_plan(stream, outstream);
-    Log::log_notime(Log::V0_ESSENTIAL, outstream.str().c_str());
+    std::string planStr = outstream.str();
+
+    if (_params.isNonzero("vp")) {
+        // Verify plan (by copying converted plan stream and putting it back into panda)
+        std::stringstream verifyStream;
+        verifyStream << planStr << std::endl;
+        bool ok = verify_plan(verifyStream, /*useOrderingInfo=*/true, /*lenientMode=*/false, /*debugMode=*/0);
+        if (!ok) {
+            Log::e("ERROR: Plan declared invalid by pandaPIparser! Exiting.\n");
+            exit(1);
+        }
+    }
+    
+    // Print plan
+    Log::log_notime(Log::V0_ESSENTIAL, planStr.c_str());
     Log::log_notime(Log::V0_ESSENTIAL, "<==\n");
     
     Log::i("End of solution plan.\n");
@@ -283,10 +298,10 @@ void Planner::createNextLayer() {
     _pos = 0;
 
     for (_old_pos = 0; _old_pos < oldLayer.size(); _old_pos++) {
-        int newPos = oldLayer.getSuccessorPos(_old_pos);
-        int maxOffset = oldLayer[_old_pos].getMaxExpansionSize();
+        size_t newPos = oldLayer.getSuccessorPos(_old_pos);
+        size_t maxOffset = oldLayer[_old_pos].getMaxExpansionSize();
 
-        for (int offset = 0; offset < maxOffset; offset++) {
+        for (size_t offset = 0; offset < maxOffset; offset++) {
             assert(_pos == newPos + offset);
             Log::v(" Position (%i,%i)\n", _layer_idx, _pos);
             Log::d("  Instantiating ...\n");
@@ -343,7 +358,7 @@ void Planner::createNextPosition() {
         for (const auto& entry : (*_layers[_layer_idx])[_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
 
             std::vector<int> qargs, qargIndices;
-            for (int i = 0; i < qfactSig._args.size(); i++) {
+            for (size_t i = 0; i < qfactSig._args.size(); i++) {
                 const int& arg = qfactSig._args[i];
                 if (_htn.isQConstant(arg)) {
                     qargs.push_back(arg);
@@ -488,7 +503,7 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     
     Position& newPos = _layers[_layer_idx]->at(_pos);
 
-    int goodSize = 0;
+    size_t goodSize = 0;
     for (const auto& subs : goodSubs) goodSize += subs.size();
 
     if (badSubs.size() <= goodSize) {
@@ -608,7 +623,7 @@ void Planner::propagateInitialState() {
     
 }
 
-void Planner::propagateActions(int offset) {
+void Planner::propagateActions(size_t offset) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
@@ -651,7 +666,7 @@ void Planner::propagateActions(int offset) {
     }
 }
 
-void Planner::propagateReductions(int offset) {
+void Planner::propagateReductions(size_t offset) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
@@ -749,7 +764,7 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
     std::vector<Action> actions = _instantiator.getApplicableInstantiations(a, state);
     for (Action& action : actions) {
         //Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
-        if (addAction(action, task)) result.push_back(action.getSignature());
+        if (addAction(action)) result.push_back(action.getSignature());
     }
     return result;
 }
@@ -799,7 +814,7 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     return result;
 }
 
-bool Planner::addAction(Action& action, const USignature& task) {
+bool Planner::addAction(Action& action) {
 
     USignature sig = action.getSignature();
 
@@ -814,7 +829,6 @@ bool Planner::addAction(Action& action, const USignature& task) {
     action.removeInconsistentEffects();
 
     // Check validity
-    //if (task._name_id >= 0 && action.getSignature() != task) return false;
     if (!_instantiator.isFullyGround(action.getSignature())) return false;
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;

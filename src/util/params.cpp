@@ -63,6 +63,7 @@ void Parameters::setDefaults() {
     setParam("svp", "0"); // set variable phases
     setParam("tc", "0"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
+    setParam("vp", "0"); // verify plan before printing it
 }
 
 void Parameters::printUsage() {
@@ -96,6 +97,7 @@ void Parameters::printUsage() {
     Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
     Log::e(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
+    Log::e(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     printParams(/*forcePrint=*/true);
 }
 

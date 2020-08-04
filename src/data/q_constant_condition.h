@@ -162,9 +162,9 @@ bool operator()(const QConstantCondition* left, const QConstantCondition* right)
 };
 
 struct PositionedUSig {
-    int layer; int pos; USignature usig;
+    size_t layer; size_t pos; USignature usig;
     PositionedUSig() : layer(-1), pos(-1) {}
-    PositionedUSig(int layer, int pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
+    PositionedUSig(size_t layer, size_t pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
     bool operator==(const PositionedUSig& other) const {
         return layer == other.layer && pos == other.pos && usig == other.usig;
     }
