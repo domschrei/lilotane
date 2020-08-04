@@ -14,22 +14,22 @@
 class Layer {
 
 private:
-    int _index;
+    size_t _index;
     std::vector<Position> _content;
     LayerState _state;
-    std::vector<int> _successor_positions;
+    std::vector<size_t> _successor_positions;
 
 public:
-    Layer(int index, int size);
+    Layer(size_t index, size_t size);
 
-    int size() const;
-    int index() const;
-    int getNextLayerSize() const;
-    int getSuccessorPos(int oldPos) const;
+    size_t size() const;
+    size_t index() const;
+    size_t getNextLayerSize() const;
+    size_t getSuccessorPos(size_t oldPos) const;
     LayerState& getState();
     
-    Position& at(int pos);
-    Position& operator[](int pos);
+    Position& at(size_t pos);
+    Position& operator[](size_t pos);
     Position& last();
     
     void consolidate();

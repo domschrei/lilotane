@@ -5,7 +5,7 @@
 #include "util/log.h"
 
 Position::Position() : _layer_idx(-1), _pos(-1) {}
-void Position::setPos(int layerIdx, int pos) {_layer_idx = layerIdx; _pos = pos;}
+void Position::setPos(size_t layerIdx, size_t pos) {_layer_idx = layerIdx; _pos = pos;}
 
 void Position::addQFact(const USignature& qfact) {
     auto& set = _qfacts[qfact._name_id];
@@ -54,7 +54,7 @@ void Position::addExpansion(const USignature& parent, const USignature& child) {
 void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
 }
-void Position::addExpansionSize(int size) {_max_expansion_size = std::max(_max_expansion_size, size);}
+void Position::addExpansionSize(size_t size) {_max_expansion_size = std::max(_max_expansion_size, size);}
 void Position::setFactChanges(const USignature& op, const SigSet& factChanges) {
     _fact_changes[op] = factChanges;
 }
@@ -92,8 +92,8 @@ bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}
 
-int Position::getLayerIndex() const {return _layer_idx;}
-int Position::getPositionIndex() const {return _pos;}
+size_t Position::getLayerIndex() const {return _layer_idx;}
+size_t Position::getPositionIndex() const {return _pos;}
 
 const NodeHashMap<int, USigSet>& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
@@ -123,7 +123,7 @@ const NodeHashMap<USignature, int, USignatureHasher>& Position::getReductions() 
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
-int Position::getMaxExpansionSize() const {return _max_expansion_size;}
+size_t Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
 void Position::clearAtPastPosition() {
     _qfacts.clear();

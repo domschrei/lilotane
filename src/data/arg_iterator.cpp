@@ -30,7 +30,7 @@ std::vector<USignature> ArgIterator::getFullInstantiation(const USignature& sig,
     
     std::vector<std::vector<int>> constantsPerArg;
 
-    for (int pos = 0; pos < sorts.size(); pos++) {
+    for (size_t pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
 
         if (_htn.isVariable(arg)) {
@@ -73,12 +73,12 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
     instantiation.reserve(numChoices);
 
     // Iterate over all possible assignments
-    std::vector<int> counter(constantsPerArg.size(), 0);
+    std::vector<size_t> counter(constantsPerArg.size(), 0);
     int numInstantiations = 0;
     std::vector<int> newArgs(counter.size());
     while (true) {
         // Assemble the next assignment
-        for (int argPos = 0; argPos < counter.size(); argPos++) {
+        for (size_t argPos = 0; argPos < counter.size(); argPos++) {
 
             assert(argPos < constantsPerArg.size());
             assert(counter[argPos] < constantsPerArg[argPos].size());
@@ -91,7 +91,7 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
         }
 
         // Increment exponential counter
-        int x = 0;
+        size_t x = 0;
         while (x < counter.size()) {
             if (counter[x]+1 == constantsPerArg[x].size()) {
                 // max value reached

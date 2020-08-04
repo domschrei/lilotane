@@ -55,7 +55,7 @@ bool Instantiator::hasSomeInstantiation(const USignature& sig) {
     const std::vector<int>& types = _htn->getSorts(sig._name_id);
     //log("%s , %i\n", TOSTR(sig), types.size());
     assert(types.size() == sig._args.size());
-    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+    for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = types[argPos];
         if (_htn->getConstantsOfSort(sort).empty()) {
             return false;
@@ -111,7 +111,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     FlatHashSet<int> argsToInstantiate;
 
     // a) All variable args according to the q-constant policy
-    for (int i = 0; i < op.getArguments().size(); i++) {
+    for (size_t i = 0; i < op.getArguments().size(); i++) {
         const int& arg = op.getArguments().at(i);
         if (!_htn->isVariable(arg)) continue;
 
@@ -143,7 +143,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
             log("%s -- %s : rating %.3f\n", TOSTR(op.getSignature()), TOSTR(entry.first), entry.second);
         }*/
         if (_inst_mode != INSTANTIATE_FULL)
-        for (int argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
+        for (size_t argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
             int arg = op.getArguments().at(argIdx);
             if (!_htn->isVariable(arg)) continue;
 
@@ -164,10 +164,10 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
 }
 
 USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
-            const std::vector<int>& argsByPriority, int limit, bool returnUnfinished) {
+            const std::vector<int>& argsByPriority, size_t limit, bool returnUnfinished) {
 
     USigSet instantiation;
-    int doneInstSize = argsByPriority.size();
+    size_t doneInstSize = argsByPriority.size();
     
     if (doneInstSize == 0) {
         if (hasValidPreconditions(op.getPreconditions(), state) 
@@ -179,8 +179,8 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
 
     // Create back transformation of argument positions
     FlatHashMap<int, int> argPosBackMapping;
-    for (int j = 0; j < argsByPriority.size(); j++) {
-        for (int i = 0; i < op.getArguments().size(); i++) {
+    for (size_t j = 0; j < argsByPriority.size(); j++) {
+        for (size_t i = 0; i < op.getArguments().size(); i++) {
             if (op.getArguments()[i] == argsByPriority[j]) {
                 argPosBackMapping[j] = i;
                 break;
@@ -206,7 +206,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bo
 
             // Create corresponding op
             Substitution s;
-            for (int i = 0; i < newAssignment.size(); i++) {
+            for (size_t i = 0; i < newAssignment.size(); i++) {
                 assert(i < argsByPriority.size());
                 s[argsByPriority[i]] = newAssignment[i];
             }
@@ -270,14 +270,14 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
                         (HtnOp)_htn->toReduction(nodeSig._name_id, nodeSig._args));
             int numPrecondArgs = 0;
             int occs = 0;
-            for (int i = 0; i < normSig._args.size(); i++) {
+            for (size_t i = 0; i < normSig._args.size(); i++) {
                 int opArg = opSig._args[i];
                 int normArg = normSig._args[i];
                 if (!_htn->isVariable(opArg)) continue;
                 
                 ratings[opArg];
                 numRatings[opArg];
-                while (depth >= ratings[opArg].size()) {
+                while ((size_t)depth >= ratings[opArg].size()) {
                     ratings[opArg].push_back(0);
                     numRatings[opArg].push_back(0);
                 }
@@ -296,7 +296,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
         for (const auto& entry : ratings) {
             const int& arg = entry.first;
             _precond_ratings[nameId][arg] = 0;
-            for (int depth = 0; depth < entry.second.size(); depth++) {
+            for (size_t depth = 0; depth < entry.second.size(); depth++) {
                 const float& r = entry.second[depth];
                 const int& numR = numRatings[arg][depth];
                 if (numR > 0) _precond_ratings[nameId][arg] += 1.0f/(1 << depth) * r/numR;
@@ -329,7 +329,7 @@ NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubsti
         Substitution s;
         std::vector<int> qargs, decargs;
         //log("  %s ?= %s ", TOSTR(eff), TOSTR(fact));
-        for (int argPos = 0; argPos < eff._usig._args.size(); argPos++) {
+        for (size_t argPos = 0; argPos < eff._usig._args.size(); argPos++) {
             int effArg = eff._usig._args[argPos];
             int substArg = fact._args[argPos];
             bool effIsQ = _htn->isQConstant(effArg);
@@ -385,7 +385,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
 
         _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
         NetworkTraversal::TRAVERSE_PREORDER,
-        [&](const USignature& nodeSig, int depth) {
+        [&](const USignature& nodeSig, int depth) { // NOLINT
             // If visited node is an action: add effects
             if (_htn->isAction(nodeSig)) {
                 Action a = _htn->toAction(nodeSig._name_id, nodeSig._args);
@@ -424,7 +424,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
         FactFrame result;
 
         std::vector<int> newArgs(sig._args.size());
-        for (int i = 0; i < sig._args.size(); i++) {
+        for (size_t i = 0; i < sig._args.size(); i++) {
             newArgs[i] = _htn->nameId("c" + std::to_string(i));
         }
         USignature op(sig._name_id, newArgs);
@@ -456,7 +456,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
             result.preconditions.insert(r.getPreconditions().begin(), r.getPreconditions().end());
             
             // For each subtask position ("offset")
-            for (int offset = 0; offset < r.getSubtasks().size(); offset++) {
+            for (size_t offset = 0; offset < r.getSubtasks().size(); offset++) {
                 
                 FactFrame frameOfOffset;
                 std::vector<USignature> children;
@@ -468,7 +468,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
 
                     // Assemble unified argument names
                     std::vector<int> newChildArgs(child._args);
-                    for (int i = 0; i < child._args.size(); i++) {
+                    for (size_t i = 0; i < child._args.size(); i++) {
                         if (_htn->isVariable(child._args[i])) newChildArgs[i] = _htn->nameId("??_");
                     }
 
@@ -553,7 +553,7 @@ bool Instantiator::isFullyGround(const USignature& sig) {
 
 std::vector<int> Instantiator::getFreeArgPositions(const std::vector<int>& sigArgs) {
     std::vector<int> argPositions;
-    for (int i = 0; i < sigArgs.size(); i++) {
+    for (size_t i = 0; i < sigArgs.size(); i++) {
         int arg = sigArgs[i];
         if (_htn->isVariable(arg)) argPositions.push_back(i);
     }
@@ -569,7 +569,7 @@ bool Instantiator::fits(const USignature& from, const USignature& to, FlatHashMa
     if (from._name_id != to._name_id) return false;
     if (from._args.size() != to._args.size()) return false;
 
-    for (int i = 0; i < from._args.size(); i++) {
+    for (size_t i = 0; i < from._args.size(); i++) {
 
         if (!_htn->isVariable(from._args[i])) {
             // Constant parameter: must be equal
@@ -593,7 +593,7 @@ bool Instantiator::fits(const USignature& from, const USignature& to, FlatHashMa
 
 bool Instantiator::hasConsistentlyTypedArgs(const USignature& sig) {
     const std::vector<int>& taskSorts = _htn->getSorts(sig._name_id);
-    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+    for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
         int sort = taskSorts[argPos];
         int arg = sig._args[argPos];
         if (_htn->isVariable(arg)) continue; // skip variable
@@ -623,7 +623,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
     std::vector<TypeConstraint> constraints;
 
     const std::vector<int>& taskSorts = _htn->getSorts(sig._name_id);
-    for (int argPos = 0; argPos < sig._args.size(); argPos++) {
+    for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
         int sigSort = taskSorts[argPos];
         int arg = sig._args[argPos];
         

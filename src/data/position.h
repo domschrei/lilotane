@@ -21,8 +21,8 @@ public:
     const static USigSet EMPTY_USIG_SET;
 
 private:
-    int _layer_idx;
-    int _pos;
+    size_t _layer_idx;
+    size_t _pos;
 
     NodeHashMap<USignature, int, USignatureHasher> _actions;
     NodeHashMap<USignature, int, USignatureHasher> _reductions;
@@ -50,7 +50,7 @@ private:
     NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
     NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher> _valid_substitutions_per_op;
 
-    int _max_expansion_size = 1;
+    size_t _max_expansion_size = 1;
 
     // Prop. variable for each occurring signature.
     NodeHashMap<USignature, int, USignatureHasher> _variables;
@@ -58,7 +58,7 @@ private:
 public:
 
     Position();
-    void setPos(int layerIdx, int pos);
+    void setPos(size_t layerIdx, size_t pos);
 
     void addQFact(const USignature& qfact);
     void addTrueFact(const USignature& fact);
@@ -76,7 +76,7 @@ public:
     void addReduction(const USignature& reduction);
     void addExpansion(const USignature& parent, const USignature& child);
     void addAxiomaticOp(const USignature& op);
-    void addExpansionSize(int size);
+    void addExpansionSize(size_t size);
     void setFactChanges(const USignature& op, const SigSet& factChanges);
     const SigSet& getFactChanges(const USignature& op) const;
     bool hasFactChanges(const USignature& op) const;
@@ -109,10 +109,10 @@ public:
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
     const USigSet& getAxiomaticOps() const;
-    int getMaxExpansionSize() const;
+    size_t getMaxExpansionSize() const;
 
-    int getLayerIndex() const;
-    int getPositionIndex() const;
+    size_t getLayerIndex() const;
+    size_t getPositionIndex() const;
     
     void clearAtPastPosition();
     void clearAtPastLayer();

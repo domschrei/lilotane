@@ -28,7 +28,7 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
     _num_asmpts = 0;
 }
 
-void Encoding::encode(int layerIdx, int pos) {
+void Encoding::encode(size_t layerIdx, size_t pos) {
     
     Log::v("Encoding ...\n");
     int priorNumClauses = _num_cls;
@@ -131,15 +131,15 @@ void Encoding::encode(int layerIdx, int pos) {
     }
 
     begin(STAGE_ATLEASTONEELEMENT);
-    int i = 0; 
+    size_t i = 0; 
     while (i < elementVars.size() && elementVars[i] != 0) 
         appendClause(elementVars[i++]);
     endClause();
     end(STAGE_ATLEASTONEELEMENT);
 
     begin(STAGE_ATMOSTONEELEMENT);
-    for (int i = 0; i < elementVars.size(); i++) {
-        for (int j = i+1; j < elementVars.size(); j++) {
+    for (size_t i = 0; i < elementVars.size(); i++) {
+        for (size_t j = i+1; j < elementVars.size(); j++) {
             addClause(-elementVars[i], -elementVars[j]);
         }
     }
@@ -159,7 +159,7 @@ void Encoding::encode(int layerIdx, int pos) {
 
         std::vector<int> qargs, qargIndices; 
         if (useMutexes) {
-            for (int aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
+            for (size_t aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
                 qargs.push_back(qfactSig._args[aIdx]);
                 qargIndices.push_back(aIdx);
             } 
@@ -210,7 +210,7 @@ void Encoding::encode(int layerIdx, int pos) {
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
                     bool fits = true;
                     std::set<int> s;
-                    for (int i = 0; i < eff._usig._args.size(); i++) {
+                    for (size_t i = 0; i < eff._usig._args.size(); i++) {
                         const int& effArg = eff._usig._args[i];
                         const int& posEffArg = posEff._usig._args[i];
                         if (effArg != posEffArg) {
@@ -708,14 +708,14 @@ void Encoding::addAssumptions(int layerIdx) {
     Layer& l = *_layers.at(layerIdx);
     if (_implicit_primitiveness) {
         begin(STAGE_ASSUMPTIONS);
-        for (int pos = 0; pos < l.size(); pos++) {
+        for (size_t pos = 0; pos < l.size(); pos++) {
             appendClause(-varPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
             endClause();
         }
         end(STAGE_ASSUMPTIONS);
     }
-    for (int pos = 0; pos < l.size(); pos++) {
+    for (size_t pos = 0; pos < l.size(); pos++) {
         assume(varPrimitive(layerIdx, pos));
     }
 }
@@ -723,9 +723,9 @@ void Encoding::addAssumptions(int layerIdx) {
 void Encoding::setVariablePhases(const std::vector<int>& vars) {
     // Choose one positive phase variable at random, set negative phase for all others
     std::default_random_engine generator;
-    std::uniform_int_distribution<int> distribution(0, vars.size()-1);
-    int randomIdx = distribution(generator);
-    for (int i = 0; i < vars.size(); i++) {
+    std::uniform_int_distribution<size_t> distribution(0, vars.size()-1);
+    size_t randomIdx = distribution(generator);
+    for (size_t i = 0; i < vars.size(); i++) {
         ipasir_set_phase(_solver, vars[i], i == randomIdx);
     }
 }
@@ -742,7 +742,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     int size = 1;
     int clsSize = 0;
     std::vector<int> clsStarts;
-    for (int i = 0; i < dnf.size(); i++) {
+    for (size_t i = 0; i < dnf.size(); i++) {
         if (dnf[i] == 0) {
             size *= clsSize;
             clsSize = 0;
@@ -758,7 +758,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     while (true) {
         // Assemble the combination
         std::set<int> newCls;
-        for (int pos = 0; pos < counter.size(); pos++) {
+        for (size_t pos = 0; pos < counter.size(); pos++) {
             const int& lit = dnf[clsStarts[pos]+counter[pos]];
             assert(lit != 0);
             newCls.insert(lit);
@@ -766,7 +766,7 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
         cnf.insert(newCls);            
 
         // Increment exponential counter
-        int x = 0;
+        size_t x = 0;
         while (x < counter.size()) {
             if (dnf[clsStarts[x]+counter[x]+1] == 0) {
                 // max value reached
@@ -999,7 +999,7 @@ int Encoding::varPrimitive(int layer, int pos) {
 
 void Encoding::printFailedVars(Layer& layer) {
     Log::d("FAILED ");
-    for (int pos = 0; pos < layer.size(); pos++) {
+    for (size_t pos = 0; pos < layer.size(); pos++) {
         int v = varPrimitive(layer.index(), pos);
         if (ipasir_failed(_solver, v)) Log::d("%i ", v);
     }
@@ -1014,7 +1014,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
     std::vector<PlanItem> plan(finalLayer.size());
     //log("(actions at layer %i)\n", li);
-    for (int pos = 0; pos < finalLayer.size(); pos++) {
+    for (size_t pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
         if (!_implicit_primitiveness) assert(value(li, pos, _sig_primitive) || Log::e("Plan error: Position %i is not primitive!\n", pos));
 
@@ -1074,15 +1074,15 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
     
     std::vector<PlanItem> itemsOldLayer, itemsNewLayer;
 
-    for (int layerIdx = 0; layerIdx < _layers.size(); layerIdx++) {
+    for (size_t layerIdx = 0; layerIdx < _layers.size(); layerIdx++) {
         Layer& l = *_layers.at(layerIdx);
         //log("(decomps at layer %i)\n", l.index());
 
         itemsNewLayer.resize(l.size());
         
-        for (int pos = 0; pos < l.size(); pos++) {
+        for (size_t pos = 0; pos < l.size(); pos++) {
 
-            int predPos = 0;
+            size_t predPos = 0;
             if (layerIdx > 0) {
                 Layer& lastLayer = *_layers.at(layerIdx-1);
                 while (predPos+1 < lastLayer.size() && lastLayer.getSuccessorPos(predPos+1) <= pos) 
@@ -1123,7 +1123,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                     // Lookup parent reduction
                     Reduction parentRed;
-                    int offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
+                    size_t offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
                     PlanItem& parent = itemsOldLayer[predPos];
                     assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
                     assert(_htn.isReduction(parent.reduction) || 
@@ -1165,7 +1165,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                     Log::d("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
 
                     // Find the actual action variable at the final layer, not at this (inner) layer
-                    int l = layerIdx;
+                    size_t l = layerIdx;
                     int aPos = pos;
                     while (l+1 < _layers.size()) {
                         //log("(%i,%i) => ", l, aPos);

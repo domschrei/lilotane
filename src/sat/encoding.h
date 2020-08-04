@@ -44,10 +44,10 @@ private:
     HtnInstance& _htn;
     std::vector<Layer*>& _layers;
     
-    int _layer_idx;
-    int _pos;
-    int _old_pos;
-    int _offset;
+    size_t _layer_idx;
+    size_t _pos;
+    size_t _old_pos;
+    size_t _offset;
 
     NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
@@ -108,7 +108,7 @@ public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
     ~Encoding();
 
-    void encode(int layerIdx, int pos);
+    void encode(size_t layerIdx, size_t pos);
     void addAssumptions(int layerIdx);
     void setTerminateCallback(void * state, int (*terminate)(void * state));
     int solve();
