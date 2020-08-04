@@ -377,7 +377,8 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
     USignature normSig = _htn->getNormalizedLifted(sig, placeholderArgs);
     Substitution sFromPlaceholder(placeholderArgs, sig._args);
 
-    if (!_fact_changes.count(nameId)) {
+    auto& factChanges = fullyInstantiate ? _fact_changes : _lifted_fact_changes;
+    if (!factChanges.count(nameId)) {
         // Compute fact changes for origSig
         
         NodeHashSet<Signature, SignatureHasher> facts;
@@ -395,8 +396,10 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
         });
 
         // Convert result to vector
+        SigSet& liftedResult = _lifted_fact_changes[nameId];
         SigSet& result = _fact_changes[nameId];
         for (const Signature& sig : facts) {
+            liftedResult.insert(sig);
             for (const Signature& sigGround : ArgIterator::getFullInstantiation(sig, *_htn)) {
                 result.insert(sigGround);
             }
@@ -404,7 +407,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
     }
 
     // Get fact changes, substitute arguments
-    SigSet out = _fact_changes[nameId];
+    SigSet out = factChanges.at(nameId);
     for (Signature& sig : out) {
         sig = sig.substitute(sFromPlaceholder);
     }
@@ -418,7 +421,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
     int nameId = sig._name_id;
     if (!_fact_frames.count(nameId)) {
 
-        FactFrame& result = _fact_frames[nameId];
+        FactFrame result;
 
         std::vector<int> newArgs(sig._args.size());
         for (int i = 0; i < sig._args.size(); i++) {
@@ -426,8 +429,6 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
         }
         USignature op(sig._name_id, newArgs);
         result.sig = op;
-        int placeholderVar = _htn->nameId("??_");
-        currentOps.insert(op);
 
         if (_htn->isAction(op)) {
 
@@ -443,12 +444,13 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
             // without recursing on subtasks
             const Reduction& r = _htn->toReduction(op._name_id, op._args);
             result.preconditions = r.getPreconditions();
-            result.flatEffects = getPossibleFactChanges(r.getSignature());
-            Log::d("RECURSIVE_FACTFRAME %s\n", TOSTR(result.flatEffects));
+            result.flatEffects = getPossibleFactChanges(r.getSignature(), /*fullyInstantiate=*/false);
+            Log::d("RECURSIVE_FACT_FRAME %s\n", TOSTR(result.flatEffects));
             if (!simpleMode) result.causalEffects[std::vector<Signature>()] = result.flatEffects;
 
         } else {
 
+            currentOps.insert(op);
             const Reduction& r = _htn->toReduction(op._name_id, op._args);
             result.sig = op;
             result.preconditions.insert(r.getPreconditions().begin(), r.getPreconditions().end());
@@ -467,7 +469,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
                     // Assemble unified argument names
                     std::vector<int> newChildArgs(child._args);
                     for (int i = 0; i < child._args.size(); i++) {
-                        if (_htn->isVariable(child._args[i])) newChildArgs[i] = placeholderVar;
+                        if (_htn->isVariable(child._args[i])) newChildArgs[i] = _htn->nameId("??_");
                     }
 
                     // Recursively get child frame of the child
@@ -478,7 +480,11 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
                         for (const auto& pre : childFrame.preconditions) {
                             bool isNew = true;
                             for (const auto& eff : result.flatEffects) {
-                                if (fits(eff, pre) || fits(pre, eff)) isNew = false;
+                                if (fits(eff, pre) || fits(pre, eff)) {
+                                    isNew = false;
+                                    Log::d("FACT_FRAME Precondition %s absorbed by effect %s of %s\n", TOSTR(pre), TOSTR(eff), TOSTR(child));
+                                    break;
+                                } 
                             }
                             if (isNew) frameOfOffset.preconditions.insert(pre);
                         }
@@ -528,9 +534,10 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
             }
         }
 
+        _fact_frames[nameId] = std::move(result);
         currentOps.erase(sig);
 
-        Log::d("FACT_FRAME %s\n", TOSTR(result));
+        Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
     }
 
     const FactFrame& f = _fact_frames[nameId];

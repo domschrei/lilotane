@@ -60,7 +60,8 @@ private:
     // Maps an (action|reduction) name 
     // to the set of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    NodeHashMap<int, SigSet> _fact_changes;
+    NodeHashMap<int, SigSet> _fact_changes; 
+    NodeHashMap<int, SigSet> _lifted_fact_changes;
 
     NodeHashMap<int, FactFrame> _fact_frames;
 
