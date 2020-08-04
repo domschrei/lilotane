@@ -83,6 +83,9 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     // in positive AND negative form: create two new actions in these cases
     if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
 
+    // Mine additional preconditions for reductions from their subtasks
+    if (_params.isNonzero("mp")) minePreconditions();
+
     // Instantiate possible "root" / "top" methods
     for (const auto& rPair : _reductions) {
         const Reduction& r = rPair.second;
@@ -92,8 +95,6 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         }
     }
 
-    if (_params.isNonzero("mp")) minePreconditions();
-    
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
 
@@ -218,7 +219,7 @@ void HtnInstance::minePreconditions() {
     
     for (auto& [rId, r] : _reductions) {
         // Mine additional preconditions, if possible
-        auto factFrame = _instantiator->getFactFrame(r.getSignature());
+        auto factFrame = _instantiator->getFactFrame(r.getSignature(), /*simpleMode=*/true);
         for (const auto& pre : factFrame.preconditions) {
             if (!r.getPreconditions().count(pre)) {
                 bool hasFreeArgs = false;

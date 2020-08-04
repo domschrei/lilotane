@@ -79,18 +79,40 @@ namespace Names {
         return out + "}";
     }
 
+    std::string to_string(const USigSet& set) {
+        std::string out = "{ ";
+        for (const USignature& sig : set) {
+            out += to_string(sig) + " ";
+        }
+        return out + "}";
+    }
+    std::string to_string(const SigSet& set) {
+        std::string out = "{ ";
+        for (const Signature& sig : set) {
+            out += to_string(sig) + " ";
+        }
+        return out + "}";
+    }
+
     std::string to_string(const FactFrame& f) {
         std::string out = "{\n";
         for (const Signature& pre : f.preconditions) {
             out += "  " + to_string(pre) + "\n";
         }
         out += "} " + to_string(f.sig) + " {\n";
-        for (const auto& [pres, effs] : f.causalEffects) {
-            out += "  (\n";
-            for (const auto& pre : pres) out += "    " + to_string(pre) + "\n";
-            out += "  ) => (\n";
-            for (const auto& eff : effs) out += "    " + to_string(eff) + "\n";
-            out += "  )\n";
+        if (f.causalEffects.empty() && !f.flatEffects.empty()) {
+            // Simple mode
+            for (const auto& pre : f.flatEffects) {
+                out += "  " + to_string(pre) + "\n";
+            }
+        } else {
+            for (const auto& [pres, effs] : f.causalEffects) {
+                out += "  (\n";
+                for (const auto& pre : pres) out += "    " + to_string(pre) + "\n";
+                out += "  ) => (\n";
+                for (const auto& eff : effs) out += "    " + to_string(eff) + "\n";
+                out += "  )\n";
+            }
         }
         return out + "}";
     }

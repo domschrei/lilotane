@@ -823,7 +823,7 @@ bool Planner::addAction(Action& action, const USignature& task) {
     _htn.addAction(action);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     //Log::d("ADDACTION -- added\n");
     return true;
@@ -845,7 +845,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     _htn.addReduction(red);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getAllFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     return true;
 }

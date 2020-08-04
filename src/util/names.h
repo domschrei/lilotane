@@ -19,6 +19,8 @@ namespace Names {
     std::string to_string_nobrackets(const USignature& sig);
     std::string to_string(const FlatHashMap<int, int>& s);
     std::string to_string(const Action& a);
+    std::string to_string(const SigSet& set);
+    std::string to_string(const USigSet& set);
     std::string to_string(const FactFrame& f);
 }
 

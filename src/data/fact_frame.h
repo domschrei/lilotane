@@ -22,11 +22,12 @@ struct FactFrame {
             SigSet fEffs;
             for (const auto& pre : pres) fPres.push_back(pre.substitute(s));
             for (const auto& eff : effs) {
-                Signature effS = eff.substitute(s);
-                fEffs.insert(effS);
-                f.flatEffects.insert(effS);
+                fEffs.insert(eff.substitute(s));
             }
             f.causalEffects[fPres] = fEffs;
+        }
+        for (const auto& eff : flatEffects) {
+            f.flatEffects.insert(eff.substitute(s));
         }
         return f;
     }

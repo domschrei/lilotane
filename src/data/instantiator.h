@@ -45,6 +45,8 @@ const int INSTANTIATE_FULL = 2;
 class Instantiator {
 
 private:
+    static USigSet EMPTY_USIG_SET;
+
     Parameters& _params;
     HtnInstance* _htn;
     NetworkTraversal _traversal;
@@ -89,19 +91,18 @@ public:
     NodeHashSet<Substitution, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
             const SigSet& factChanges, const USignature& fact, bool negated);
 
-    SigSet getAllFactChanges(const USignature& sig);
-
     // Maps a (action|reduction) signature of any grounding state
     // to a corresponding list of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
-    SigSet getPossibleFactChanges(const USignature& sig);
+    SigSet getPossibleFactChanges(const USignature& sig, bool fullyInstantiate = true);
 
-    FactFrame getFactFrame(const USignature& sig);
+    FactFrame getFactFrame(const USignature& sig, bool simpleMode = false, USigSet& currentOps = EMPTY_USIG_SET);
 
 
     bool isFullyGround(const USignature& sig);
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
-    bool fits(USignature& sig, USignature& groundSig, FlatHashMap<int, int>* substitution);
+    bool fits(const USignature& from, const USignature& to, FlatHashMap<int, int>* substitution = nullptr);
+    bool fits(const Signature& from, const Signature& to, FlatHashMap<int, int>* substitution = nullptr);
     bool hasSomeInstantiation(const USignature& sig);
 
     bool hasConsistentlyTypedArgs(const USignature& sig);
