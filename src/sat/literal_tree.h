@@ -2,6 +2,8 @@
 #ifndef DOMPASCH_TREEREXX_LITERAL_TREE_H
 #define DOMPASCH_TREEREXX_LITERAL_TREE_H
 
+#include <vector>
+
 #include <data/hashmap.h>
 #include <util/log.h>
 

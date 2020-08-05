@@ -15,8 +15,8 @@ INCLUDES=-Isrc -Isrc/pandaPIparser/src
 
 .PHONY = release debug parser clean
 
-release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable -O3
-release: LINKERFLAGS += -O3
+release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable -O3 -flto
+release: LINKERFLAGS += -O3 -flto
 release: parser
 release: treerexx
 

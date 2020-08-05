@@ -39,7 +39,7 @@ const NodeHashSet<QConstantCondition*, QConstCondHasher, QConstCondEquals>& QCon
     return std::get<1>(_q_const_map[qconst]);
 }
 
-int QConstantDatabase::addOp(const HtnOp& op, int layer, int pos, const PositionedUSig& parent, int offset) {
+int QConstantDatabase::addOp(const HtnOp& op, size_t layer, size_t pos, const PositionedUSig& parent, size_t offset) {
     
     USignature opSig = op.getSignature();
     const PositionedUSig opPSig{layer, pos, opSig};
@@ -67,10 +67,10 @@ int QConstantDatabase::addOp(const HtnOp& op, int layer, int pos, const Position
     _op_possible_parents.back().push_back(parentId);
     _op_children_at_offset.emplace_back();
     _conditions_per_op.emplace_back();
-    assert(_op_sigs.size()               == opId+1);
-    assert(_op_possible_parents.size()   == opId+1);
-    assert(_op_children_at_offset.size() == opId+1);
-    assert(_conditions_per_op.size()     == opId+1);
+    assert(_op_sigs.size()               == (size_t)opId+1);
+    assert(_op_possible_parents.size()   == (size_t)opId+1);
+    assert(_op_children_at_offset.size() == (size_t)opId+1);
+    assert(_conditions_per_op.size()     == (size_t)opId+1);
 
     while (offset >= _op_children_at_offset[parentId].size()) {
         _op_children_at_offset[parentId].emplace_back();
@@ -151,7 +151,7 @@ bool QConstantDatabase::test(const std::vector<int>& refQConsts, const std::vect
         bool validReference = true;
         std::vector<int> v; v.reserve(cond->reference.size());
         for (int ref : cond->reference) {
-            int i = 0; for (; i < refQConsts.size(); i++) if (refQConsts[i] == ref) break;
+            size_t i = 0; for (; i < refQConsts.size(); i++) if (refQConsts[i] == ref) break;
             if (i == refQConsts.size()) {
                 validReference = false;
                 break;
@@ -199,7 +199,7 @@ NodeHashSet<PositionedUSig, PositionedUSigHasher> QConstantDatabase::backpropaga
         if (parentOp == 0) continue;
         Log::d("??%s\n", TOSTR(_op_sigs[parentOp].usig));
         const auto& children = _op_children_at_offset[parentOp];
-        for (int offset = 0; offset < children.size(); offset++) {
+        for (size_t offset = 0; offset < children.size(); offset++) {
 
             NodeHashSet<QConstantCondition*, QConstCondHasher, QConstCondEqualsNoOpCheck> isect;
             bool first = true;

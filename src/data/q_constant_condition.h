@@ -198,7 +198,7 @@ public:
 
     QConstantDatabase(const std::function<bool(int)>& isQConstant);
 
-    int addOp(const HtnOp& op, int layer, int pos, const PositionedUSig& parent, int offset);
+    int addOp(const HtnOp& op, size_t layer, size_t pos, const PositionedUSig& parent, size_t offset);
 
     /*
     Adds a new q-constant condition to the database (except if it already exists).

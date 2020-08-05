@@ -18,8 +18,6 @@ extern "C" {
 #include "data/action.h"
 #include "sat/variable_domain.h"
 
-#define PRINT_TO_FILE true
-
 typedef NodeHashMap<int, SigSet> State;
 
 struct PlanItem {
@@ -128,13 +126,18 @@ public:
 
 private:
 
-    void clearDonePositions();
-
+    void encodeOperationVariables(Position& pos);
     void encodeFactVariables(Position& pos, const Position& left, Position& above);
-    void encodeFrameAxioms(Position& pos, const Position& left);
-    void initSubstitutionVars(int opVar, int qconst, Position& pos);
+    void encodeFrameAxioms(Position& pos, const Position& left, Position& above);
+    void encodeOperationConstraints(Position& pos);
+    void encodeSubstitutionVars(int opVar, int qconst, Position& pos);
+    void encodeQFactSemantics(Position& pos);
+    void encodeActionEffects(Position& pos, Position& left);
+    void encodeQConstraints(Position& pos);
+    void encodeSubtaskRelationships(Position& pos, Position& above);
 
     void setVariablePhases(const std::vector<int>& vars);
+    void clearDonePositions();
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
