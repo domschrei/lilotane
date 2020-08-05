@@ -22,6 +22,9 @@ void Position::addFactSupport(const Signature& fact, const USignature& operation
 void Position::touchFactSupport(const Signature& fact) {
     (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
 }
+void Position::addIndirectFactSupport(const Signature& fact, const USignature& op, const Substitution& s) {
+    (fact._negated ? _neg_indirect_fact_supports : _pos_indirect_fact_supports)[fact._usig][op].insert(s);
+}
 void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);
@@ -106,6 +109,8 @@ const USigSet& Position::getTrueFacts() const {return _true_facts;}
 const USigSet& Position::getFalseFacts() const {return _false_facts;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() const {return _pos_fact_supports;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSupports() const {return _neg_fact_supports;}
+const NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher>& Position::getPosIndirectFactSupports() const {return _pos_indirect_fact_supports;}
+const NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher>& Position::getNegIndirectFactSupports() const {return _neg_indirect_fact_supports;}
 const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Position::getQConstantsTypeConstraints() const {
     return _q_constants_type_constraints;
 }
@@ -138,6 +143,10 @@ void Position::clearAtPastPosition() {
     _pos_fact_supports.reserve(0);
     _neg_fact_supports.clear();
     _neg_fact_supports.reserve(0);
+    _pos_indirect_fact_supports.clear();
+    _pos_indirect_fact_supports.reserve(0);
+    _neg_indirect_fact_supports.clear();
+    _neg_indirect_fact_supports.reserve(0);
     _q_constants_type_constraints.clear();
     _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
