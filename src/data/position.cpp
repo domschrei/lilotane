@@ -8,8 +8,7 @@ Position::Position() : _layer_idx(-1), _pos(-1) {}
 void Position::setPos(size_t layerIdx, size_t pos) {_layer_idx = layerIdx; _pos = pos;}
 
 void Position::addQFact(const USignature& qfact) {
-    auto& set = _qfacts[qfact._name_id];
-    set.insert(qfact);
+    _qfacts.insert(qfact);
 }
 void Position::addTrueFact(const USignature& fact) {_true_facts.insert(fact);}
 void Position::addFalseFact(const USignature& fact) {_false_facts.insert(fact);}
@@ -88,20 +87,14 @@ const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable
     return _variables;
 }
 
-bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact._name_id) && _qfacts.at(fact._name_id).count(fact);}
+bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact);}
 bool Position::hasAction(const USignature& action) const {return _actions.count(action);}
 bool Position::hasReduction(const USignature& red) const {return _reductions.count(red);}
 
 size_t Position::getLayerIndex() const {return _layer_idx;}
 size_t Position::getPositionIndex() const {return _pos;}
 
-const NodeHashMap<int, USigSet>& Position::getQFacts() const {return _qfacts;}
-const USigSet& Position::getQFacts(int predId) const {return _qfacts.count(predId) ? _qfacts.at(predId) : EMPTY_USIG_SET;}
-int Position::getNumQFacts() const {
-    int sum = 0;
-    for (const auto& entry : _qfacts) sum += entry.second.size();
-    return sum;
-}
+const USigSet& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getTrueFacts() const {return _true_facts;}
 const USigSet& Position::getFalseFacts() const {return _false_facts;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() const {return _pos_fact_supports;}

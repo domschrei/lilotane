@@ -186,7 +186,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
             Reduction& r = rPair.second;
             bool change = false;
             std::vector<USignature> newSubtasks;
-            for (int i = 0; i < r.getSubtasks().size(); i++) {
+            for (size_t i = 0; i < r.getSubtasks().size(); i++) {
                 const USignature& subtask = r.getSubtasks()[i];
                 if (subtask._name_id == aId) {
                     // Replace
@@ -426,7 +426,7 @@ Reduction& HtnInstance::createReduction(method& method) {
     }
 
     // Go through expansion of the method
-    std::map<std::string, int> subtaskTagToIndex;   
+    std::map<std::string, size_t> subtaskTagToIndex;   
     for (const plan_step& st : method.ps) {
         
         // Normalize task name
@@ -442,7 +442,7 @@ Reduction& HtnInstance::createReduction(method& method) {
             
             // Find primitive task belonging to this method precondition
             task precTask;
-            int maxSize = 0;
+            size_t maxSize = 0;
             int numFound = 0;
             for (const task& t : primitive_tasks) {
                 
@@ -456,7 +456,7 @@ Reduction& HtnInstance::createReduction(method& method) {
                 //Log::d(" ~~~ %s\n", taskName.c_str());
                 if (subtaskName.rfind(taskName) != std::string::npos) {
 
-                    int size = t.name.size();
+                    size_t size = t.name.size();
                     if (size < maxSize) continue;
                     maxSize = size;
 
@@ -515,10 +515,10 @@ Reduction& HtnInstance::createReduction(method& method) {
     if (!method.ordering.empty()) {
         std::map<int, std::vector<int>> orderingNodelist;
         for (const auto& order : method.ordering) {
-            int indexLeft = subtaskTagToIndex[order.first];
-            int indexRight = subtaskTagToIndex[order.second];
-            assert(indexLeft >= 0 && indexLeft < _reductions[id].getSubtasks().size());
-            assert(indexRight >= 0 && indexRight < _reductions[id].getSubtasks().size());
+            size_t indexLeft = subtaskTagToIndex[order.first];
+            size_t indexRight = subtaskTagToIndex[order.second];
+            assert(indexLeft < _reductions[id].getSubtasks().size());
+            assert(indexRight < _reductions[id].getSubtasks().size());
             orderingNodelist[indexLeft];
             orderingNodelist[indexLeft].push_back(indexRight);
         }
@@ -581,7 +581,7 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
             std::string arg2Str = lit.arguments[1];
             //Log::d("%s,%s :: ", arg1Str.c_str(), arg2Str.c_str());
             int sort1 = -1, sort2 = -1;
-            for (int argPos = 0; argPos < vars.size(); argPos++) {
+            for (size_t argPos = 0; argPos < vars.size(); argPos++) {
                 //Log::d("(%s,%s) ", method.vars[argPos].first.c_str(), method.vars[argPos].second.c_str());
                 if (arg1Str == vars[argPos].first)
                     sort1 = nameId(vars[argPos].second);
@@ -685,9 +685,9 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
     std::vector<int> args = op.getArguments();
     const std::vector<int>& sorts = _signature_sorts_table[op.getSignature()._name_id];
     std::vector<int> varargIndices;
-    for (int i = 0; i < op.getArguments().size(); i++) {
+    for (size_t i = 0; i < op.getArguments().size(); i++) {
         const int& arg = op.getArguments()[i];
-        if (_var_ids.count(arg)) varargIndices.push_back(i);
+        if (isVariable(arg)) varargIndices.push_back(i);
     }
     std::vector<bool> occursInPreconditions(op.getArguments().size(), false);
     std::vector<FlatHashSet<int>> domainPerVariable(op.getArguments().size());
@@ -700,9 +700,9 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
 
         // Find mapping from precond args to op args
         std::vector<int> opArgIndices(preSig._usig._args.size(), -1);
-        for (int preIdx = 0; preIdx < preSig._usig._args.size(); preIdx++) {
+        for (size_t preIdx = 0; preIdx < preSig._usig._args.size(); preIdx++) {
             const int& arg = preSig._usig._args[preIdx];
-            for (int i = 0; i < args.size(); i++) {
+            for (size_t i = 0; i < args.size(); i++) {
                 if (args[i] == arg) {
                     opArgIndices[preIdx] = i;
                     occursInPreconditions[i] = true;
@@ -713,25 +713,24 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
 
         // Compute sorts of the condition's args w.r.t. op signature
         std::vector<int> preSorts(preSig._usig._args.size());
-        for (int i = 0; i < preSorts.size(); i++) {
+        for (size_t i = 0; i < preSorts.size(); i++) {
             preSorts[i] = sorts[opArgIndices[i]];
         }
 
         // Check possible decodings of precondition
-        std::vector<USignature> usigs = decodeObjects(preSig._usig, /*checkQConstConds=*/true, /*restrictiveSorts=*/preSorts);
+        const std::vector<USignature>& usigs = decodeObjects(preSig._usig, /*checkQConstConds=*/true, /*restrictiveSorts=*/preSorts);
         bool anyValid = usigs.empty();
         for (const auto& decUSig : usigs) {
-            Signature decSig(decUSig, preSig._negated);
             //Log::d("------%s\n", TOSTR(decSig));
 
             // Valid?
-            if (!_instantiator->test(decSig, state)) continue;
+            if (!_instantiator->test(decUSig, preSig._negated, state)) continue;
             
             // Valid precondition decoding found: Increase domain of concerned variables
             anyValid = true;
-            for (int i = 0; i < opArgIndices.size(); i++) {
+            for (size_t i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
-                const int& arg = decSig._usig._args[i];
+                const int& arg = decUSig._args[i];
                 if (opArgIdx >= 0) {
                     domainPerVariable[opArgIdx].insert(arg);
                 }
@@ -833,7 +832,7 @@ const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig
     checkQConstConds &= _use_q_constant_mutexes;
 
     Substitution s;
-    for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
+    for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
         if (!checkQConstConds && isQConstant(arg) && !s.count(arg)) {
             s[arg] = nameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
@@ -848,7 +847,7 @@ const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig
 
         std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
         std::vector<int> qconsts, qconstIndices;
-        for (int argPos = 0; argPos < qSig._args.size(); argPos++) {
+        for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
             int arg = qSig._args[argPos];
             if (isQConstant(arg)) {
                 // q constant
@@ -909,8 +908,8 @@ const FlatHashSet<int>& HtnInstance::getSortsOfQConstant(int qconst) {
 std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, const USignature& op) {
     std::vector<int> sigSorts(sig._args.size());
     const auto& opSorts = _signature_sorts_table[op._name_id];
-    for (int sigIdx = 0; sigIdx < sigSorts.size(); sigIdx++) {
-        for (int opIdx = 0; opIdx < op._args.size(); opIdx++) {
+    for (size_t sigIdx = 0; sigIdx < sigSorts.size(); sigIdx++) {
+        for (size_t opIdx = 0; opIdx < op._args.size(); opIdx++) {
             if (sig._args[sigIdx] == op._args[opIdx]) {
                 // Found
                 sigSorts[sigIdx] = opSorts[opIdx];
@@ -974,7 +973,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         
         std::vector<int> ref;
         std::vector<int> qConstIndices;
-        for (int i = 0; i < pre._usig._args.size(); i++) {
+        for (size_t i = 0; i < pre._usig._args.size(); i++) {
             const int& arg = pre._usig._args[i];
             if (isQConstant(arg)) {
                 ref.push_back(arg);
@@ -996,7 +995,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
             set.insert(toAdd);
         }
 
-        if (bad.empty() || std::min(good.size(), bad.size()) > _params.getIntParam("qcm")) continue;
+        if (bad.empty() || std::min(good.size(), bad.size()) > (size_t)_params.getIntParam("qcm")) continue;
 
         if (good.size() <= bad.size()) {
             _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);
@@ -1034,7 +1033,7 @@ USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector
     }
 
     // Substitution mapping
-    for (int i = 0; i < opSig._args.size(); i++) {
+    for (size_t i = 0; i < opSig._args.size(); i++) {
         placeholderArgs.push_back(-i-1);
     }
 

@@ -33,9 +33,8 @@ private:
 
     USigSet _axiomatic_ops;
 
-    // All VIRTUAL facts potentially occurring at this position,
-    // partitioned by their predicate name ID.
-    NodeHashMap<int, USigSet> _qfacts;
+    // All VIRTUAL facts potentially occurring at this position.
+    USigSet _qfacts;
 
     // All facts that are definitely true at this position.
     USigSet _true_facts;
@@ -92,8 +91,7 @@ public:
     bool hasAction(const USignature& action) const;
     bool hasReduction(const USignature& red) const;
 
-    const NodeHashMap<int, USigSet>& getQFacts() const;
-    const USigSet& getQFacts(int predId) const;
+    const USigSet& getQFacts() const;
     int getNumQFacts() const;
     const USigSet& getTrueFacts() const;
     const USigSet& getFalseFacts() const;

@@ -313,7 +313,7 @@ void Planner::createNextLayer() {
             Log::d("  Instantiation done. (r=%i a=%i qf=%i supp=%i)\n", 
                     (*_layers[_layer_idx])[_pos].getReductions().size(),
                     (*_layers[_layer_idx])[_pos].getActions().size(),
-                    (*_layers[_layer_idx])[_pos].getNumQFacts(),
+                    (*_layers[_layer_idx])[_pos].getQFacts().size(),
                     (*_layers[_layer_idx])[_pos].getPosFactSupports().size() + (*_layers[_layer_idx])[_pos].getNegFactSupports().size()
             );
             _enc.encode(_layer_idx, _pos++);
@@ -355,7 +355,7 @@ void Planner::createNextPosition() {
         //pruneRetroactively(updatedOps);
 
         // Remove all q fact decodings which have become invalid
-        for (const auto& entry : (*_layers[_layer_idx])[_pos].getQFacts()) for (const auto& qfactSig : entry.second) {
+        for (const auto& qfactSig : (*_layers[_layer_idx])[_pos].getQFacts()) {
 
             std::vector<int> qargs, qargIndices;
             for (size_t i = 0; i < qfactSig._args.size(); i++) {
@@ -392,7 +392,7 @@ void Planner::createNextPositionFromAbove(const Position& above) {
     int offset = _pos - (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos);
     if (offset == 0) {
         // Propagate facts
-        for (const auto& entry : above.getQFacts()) for (const USignature& fact : entry.second) {
+        for (const auto& fact : above.getQFacts()) {
             newPos.addQFact(fact);
         }
     }
@@ -434,7 +434,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     }
 
     // Propagate occurring facts
-    for (const auto& entry : left.getQFacts()) for (const USignature& fact : entry.second) {
+    for (const auto& fact : left.getQFacts()) {
         bool add = true;
         for (const int& arg : fact._args) {
             if (_htn.isQConstant(arg) && !relevantQConstants.count(arg)) add = false;
@@ -589,7 +589,7 @@ void Planner::propagateInitialState() {
     Position& above = (*_layers[_layer_idx-1])[0];
 
     // Propagate occurring facts
-    for (const auto& entry : above.getQFacts()) for (const USignature& fact : entry.second) {
+    for (const auto& fact : above.getQFacts()) {
         newPos.addQFact(fact);
     }
     // Propagate TRUE facts
@@ -914,11 +914,9 @@ void Planner::addNewFalseFacts() {
 
         // TODO Propagation of facts from above to new layer ~> add as new false facts?
 
-        for (const auto& entry : newAbove.getQFacts()) for (const USignature& fact : entry.second) {
+        for (const auto& fact : newAbove.getQFacts()) {
             // If fact was not seen here before
-            if (!newPos.hasQFact(fact)) {
-                newPos.addQFact(fact);
-            }
+            newPos.addQFact(fact);
         }
     }
 }

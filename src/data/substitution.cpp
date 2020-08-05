@@ -19,7 +19,7 @@ Substitution::Substitution(const Substitution& other) : _entries(other._entries)
 
 Substitution::Substitution(const std::vector<int>& src, const std::vector<int>& dest) {
     assert(src.size() == dest.size());
-    for (int i = 0; i < src.size(); i++) {
+    for (size_t i = 0; i < src.size(); i++) {
         if (src[i] != dest[i]) {
             assert(!count(src[i]) || (*this)[src[i]] == dest[i]);
             add(src[i], dest[i]);
@@ -96,7 +96,7 @@ std::vector<Substitution> Substitution::getAll(const std::vector<int>& src, cons
     std::vector<Substitution> ss;
     ss.emplace_back(); // start with empty substitution
     assert(src.size() == dest.size());
-    for (int i = 0; i < src.size(); i++) {
+    for (size_t i = 0; i < src.size(); i++) {
         assert(src[i] != 0 && dest[i] != 0);
         if (src[i] != dest[i]) {
 

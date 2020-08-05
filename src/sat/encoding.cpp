@@ -106,8 +106,8 @@ void Encoding::encodeOperationVariables(Position& newPos) {
         int aVar = encodeVariable(newPos, aSig, true);
 
         // If the action occurs, the position is primitive
-        if (_implicit_primitiveness) _primitive_ops.push_back(aVar);
-        else addClause(-aVar, varPrim);
+        _primitive_ops.push_back(aVar);
+        if (!_implicit_primitiveness) addClause(-aVar, varPrim);
     }
     end(STAGE_ACTIONCONSTRAINTS);
 
@@ -120,12 +120,12 @@ void Encoding::encodeOperationVariables(Position& newPos) {
         bool trivialReduction = _htn.getReduction(rSig).getSubtasks().size() == 0;
         if (trivialReduction) {
             // If a trivial reduction occurs, the position is primitive
-            if (_implicit_primitiveness) _primitive_ops.push_back(rVar);
-            else addClause(-rVar, varPrim);
+            _primitive_ops.push_back(rVar);
+            if (!_implicit_primitiveness) addClause(-rVar, varPrim);
         } else {
             // If a non-trivial reduction occurs, the position is non-primitive
-            if (_implicit_primitiveness) _nonprimitive_ops.push_back(rVar);
-            addClause(-rVar, -varPrim);
+            _nonprimitive_ops.push_back(rVar);
+            if (!_implicit_primitiveness) addClause(-rVar, -varPrim);
         }
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
@@ -160,7 +160,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     }
 
     // Encode q-facts that are not encoded yet
-    for ([[maybe_unused]] const auto& [nameId, qfacts] : newPos.getQFacts()) for (const auto& qfact : qfacts) {
+    for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
         if (newPos.hasVariable(qfact)) continue;
 
         // Reuse from left?
@@ -210,6 +210,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     begin(STAGE_FRAMEAXIOMS);
 
     bool nonprimFactSupport = _params.isNonzero("nps");
+    bool hasPrimitiveOps = !_primitive_ops.empty();
 
     int layerIdx = newPos.getLayerIndex();
     int pos = newPos.getPositionIndex();
@@ -238,17 +239,24 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 // Skip if the operation is already a DIRECT support for the fact
                 if (support.count(decEff) && support.at(decEff).count(op)) continue;
                 
-                // Convert into a vector of substitution variables
-                Substitution s(eff._usig._args, decEff._args);
-                std::vector<int> sVars(s.size());
-                size_t i = 0;
-                for (const auto& [src, dest] : s) {
-                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                }
-                std::sort(sVars.begin(), sVars.end());
+                // Are there any primitive ops at this position?
+                if (hasPrimitiveOps) {
+                    // Convert into a vector of substitution variables
+                    Substitution s(eff._usig._args, decEff._args);
+                    std::vector<int> sVars(s.size());
+                    size_t i = 0;
+                    for (const auto& [src, dest] : s) {
+                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
+                    }
+                    std::sort(sVars.begin(), sVars.end());
 
-                // Insert into according support tree
-                indirectSupport[decEff][opVar].insert(sVars);
+                    // Insert into according support tree
+                    indirectSupport[decEff][opVar].insert(sVars);
+                } else {
+                    // No frame axioms will be encoded: 
+                    // Just remember that there is some support for this fact
+                    indirectSupport[decEff];
+                }
             }
         }
     }
@@ -281,6 +289,9 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             }
         }
         if (oldFactVars[1] == factVar) continue; // Skip frame axiom encoding
+        
+        // No primitive ops at this position: No need for encoding frame axioms
+        if (!hasPrimitiveOps) continue;
 
         // Encode general frame axioms for this fact
         int i = -1;
@@ -446,7 +457,7 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
     begin(STAGE_QFACTSEMANTICS);
     bool useMutexes = _params.isNonzero("qcm");
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
-    for (const auto& entry : newPos.getQFacts()) for (const auto& qfactSig : entry.second) {
+    for (const auto& qfactSig : newPos.getQFacts()) {
         assert(_htn.hasQConstants(qfactSig));
 
         int qfactVar = getVariable(newPos, qfactSig);
