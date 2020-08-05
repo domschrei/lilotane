@@ -44,8 +44,6 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _pos_fact_supports;
     NodeHashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
-    NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher> _pos_indirect_fact_supports;
-    NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher> _neg_indirect_fact_supports;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 
@@ -101,8 +99,6 @@ public:
     const USigSet& getFalseFacts() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports() const;
-    const NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher>& getPosIndirectFactSupports() const;
-    const NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher>& getNegIndirectFactSupports() const;
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
     const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const;

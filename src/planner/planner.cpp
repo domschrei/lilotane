@@ -574,7 +574,6 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
         numValid++;
 
         pos.touchFactSupport(decFact);
-        pos.addIndirectFactSupport(decFact, opSig, Substitution(factAbs._args, decFactAbs._args));
     }
 
     if (numValid == 0) {

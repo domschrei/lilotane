@@ -204,7 +204,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
-    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>, USignatureHasher>;
+    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>;
 
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
     begin(STAGE_FRAMEAXIOMS);
@@ -216,27 +216,26 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     int pos = newPos.getPositionIndex();
     int prevVarPrim = varPrimitive(layerIdx, pos-1);
 
-    /*
     // Maps each fact to a map of operation variables to the set of substitutions 
     // which make the operation (possibly) change the variable.
     IndirectSupport indirectPosSupport, indirectNegSupport;
     for (const auto& [op, occ] : left.getActions()) {
         int opVar = getVariable(left, op);
-        for (const auto& eff : _htn.getInstantiator().getPossibleFactChanges(op)) {
+        for (const auto& eff : _htn.getAction(op).getEffects()) {
             if (!_htn.hasQConstants(eff._usig)) continue;
+            auto& support = eff._negated ? indirectNegSupport : indirectPosSupport;
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
                 Substitution s(eff._usig._args, decEff._args);
-                (eff._negated ? indirectNegSupport : indirectPosSupport)[decEff][opVar].insert(s);
+                support[decEff][opVar].insert(s);
             }
         }
-    }*/
+    }
 
     // Direct and indirect supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
     const IndirectSupport* indirectSupports[2] 
-            //= {&indirectNegSupport, &indirectPosSupport};
-            = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
+            = {&indirectNegSupport, &indirectPosSupport};
 
     // Find and encode frame axioms for each applicable fact from the left
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
@@ -289,7 +288,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 }
                 // INDIRECT support
                 if (indirectSupports[i]->count(fact)) 
-                    for (const auto& [opSig, subs] : indirectSupports[i]->at(fact)) appendClause(getVariable(left, opSig));
+                    for (const auto& [opVar, subs] : indirectSupports[i]->at(fact)) appendClause(opVar);
             }
             endClause();
         }
@@ -302,7 +301,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             if (!indirectSupports[i]->count(fact)) continue;
 
             // Encode indirect support constraints
-            for (const auto& [opSig, subs] : indirectSupports[i]->at(fact)) {
+            for (const auto& [opVar, subs] : indirectSupports[i]->at(fact)) {
                 
                 // Assemble possible substitution options to get the desired fact support
                 std::set<std::set<int>> substOptions;
@@ -337,7 +336,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     factVar = sign*v;
                 }
                 headLits.push_back(factVar);
-                headLits.push_back(getVariable(left, opSig));
+                headLits.push_back(opVar);
                 if (!nonprimFactSupport) {
                     if (_implicit_primitiveness) {
                         for (int var : _nonprimitive_ops) headLits.push_back(-var);
