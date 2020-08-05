@@ -80,20 +80,21 @@ private:
     int STAGE_ATMOSTONEELEMENT = 3;
     int STAGE_AXIOMATICOPS = 4;
     int STAGE_EXPANSIONS = 5;
-    int STAGE_FACTVARENCODING = 6;
-    int STAGE_FORBIDDENPARENTS = 7;
-    int STAGE_FRAMEAXIOMS = 8;
-    int STAGE_INITSUBSTITUTIONS = 9;
-    int STAGE_PREDECESSORS = 10;
-    int STAGE_QCONSTEQUALITY = 11;
-    int STAGE_QFACTSEMANTICS = 12;
-    int STAGE_QTYPECONSTRAINTS = 13;
-    int STAGE_REDUCTIONCONSTRAINTS = 14;
-    int STAGE_SUBSTITUTIONCONSTRAINTS = 15;
-    int STAGE_TRUEFACTS = 16;
-    int STAGE_ASSUMPTIONS = 17;
-    const char* STAGES_NAMES[18] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
-        "axiomaticops","expansions","factvarencoding","forbiddenparents","frameaxioms","initsubstitutions",
+    int STAGE_FACTPROPAGATION = 6;
+    int STAGE_FACTVARENCODING = 7;
+    int STAGE_FORBIDDENPARENTS = 8;
+    int STAGE_FRAMEAXIOMS = 9;
+    int STAGE_INITSUBSTITUTIONS = 10;
+    int STAGE_PREDECESSORS = 11;
+    int STAGE_QCONSTEQUALITY = 12;
+    int STAGE_QFACTSEMANTICS = 13;
+    int STAGE_QTYPECONSTRAINTS = 14;
+    int STAGE_REDUCTIONCONSTRAINTS = 15;
+    int STAGE_SUBSTITUTIONCONSTRAINTS = 16;
+    int STAGE_TRUEFACTS = 17;
+    int STAGE_ASSUMPTIONS = 18;
+    const char* STAGES_NAMES[19] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
+        "axiomaticops","expansions","factpropagation","factvarencoding","forbiddenparents","frameaxioms","initsubstitutions",
         "predecessors","qconstequality","qfactsemantics","qtypeconstraints","reductionconstraints",
         "substitutionconstraints","truefacts","assumptions"};
     std::map<int, int> _num_cls_per_stage;
@@ -128,7 +129,7 @@ private:
 
     void encodeOperationVariables(Position& pos);
     void encodeFactVariables(Position& pos, const Position& left, Position& above);
-    void encodeFrameAxioms(Position& pos, const Position& left, Position& above);
+    void encodeFrameAxioms(Position& pos, const Position& left);
     void encodeOperationConstraints(Position& pos);
     void encodeSubstitutionVars(int opVar, int qconst, Position& pos);
     void encodeQFactSemantics(Position& pos);
