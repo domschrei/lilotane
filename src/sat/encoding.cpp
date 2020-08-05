@@ -244,8 +244,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 size_t i = 0;
                 for (const auto& [src, dest] : s) {
                     sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                    if (i > 1) assert(sVars[i-1] >= sVars[i-2]);
                 }
+                std::sort(sVars.begin(), sVars.end());
 
                 // Insert into according support tree
                 indirectSupport[decEff][opVar].insert(sVars);
