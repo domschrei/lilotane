@@ -17,6 +17,9 @@
 
 class Planner {
 
+public:
+    typedef std::function<bool(const USignature&, bool)> StateEvaluator;
+
 private:
     Parameters& _params;
     HtnInstance _htn;
@@ -61,8 +64,8 @@ private:
     void propagateInitialState();
     void propagateActions(size_t offset);
     void propagateReductions(size_t offset);
-    std::vector<USignature> getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
-    std::vector<USignature> getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state);
+    std::vector<USignature> getAllActionsOfTask(const USignature& task, const StateEvaluator& state);
+    std::vector<USignature> getAllReductionsOfTask(const USignature& task, const StateEvaluator& state);
     void addNewFalseFacts();
     void introduceNewFalseFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
@@ -70,7 +73,7 @@ private:
     void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);
 
     LayerState& getLayerState(int layer = -1);
-    std::function<bool(const Signature&)> getStateEvaluator(int layer = -1, int pos = -1);
+    StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.
 
 };

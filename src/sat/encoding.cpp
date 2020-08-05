@@ -253,7 +253,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         }
     }
 
-
     // Find and encode frame axioms for each applicable fact from the left
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
         if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
@@ -317,24 +316,25 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             factVar *= -1;
             if (!indirectSupports[i]->count(fact)) continue;
 
+            // -- 1st part of each clause: "head literals"
+            std::vector<int> headLits;
+            // IF fact change AND the operation is applied,
+            headLits.push_back(0); // operation var goes here
+            if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
+            headLits.push_back(factVar);
+            if (!nonprimFactSupport) {
+                if (_implicit_primitiveness) {
+                    for (int var : _nonprimitive_ops) headLits.push_back(-var);
+                } else headLits.push_back(prevVarPrim);
+            } 
+
             // Encode indirect support constraints
             for (const auto& [opVar, tree] : indirectSupports[i]->at(fact)) {
                 
-                bool unconditionalEffect = tree.contains(std::vector<int>());
-                if (unconditionalEffect) continue;
+                // Unconditional effect?
+                if (tree.containsEmpty()) continue;
 
-                // -- 1st part of each clause: "head literals"
-                std::vector<int> headLits;
-                // IF fact change AND the operation is applied,
-                if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
-                headLits.push_back(factVar);
-                headLits.push_back(opVar);
-                if (!nonprimFactSupport) {
-                    if (_implicit_primitiveness) {
-                        for (int var : _nonprimitive_ops) headLits.push_back(-var);
-                    } else headLits.push_back(prevVarPrim);
-                } 
-                
+                headLits[0] = opVar;                
                 for (const auto& cls : tree.encode(headLits)) addClause(cls);
             }
         }

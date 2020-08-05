@@ -476,10 +476,10 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
     NodeHashSet<Substitution, Substitution::Hasher> goods;
+    const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
-        Signature decFact(decFactAbs, fact._negated);
         
-        if (!_instantiator.test(decFact, getStateEvaluator())) {
+        if (!_instantiator.test(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
             badSubs.emplace(factAbs._args, decFactAbs._args);
             continue;
@@ -487,7 +487,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
             goods.emplace(factAbs._args, decFactAbs._args);
         }
 
-        if (decFact._negated) { // TODO
+        if (fact._negated) {
             // Decoded fact did not occur before.
             introduceNewFalseFact(pos, decFactAbs);
         }
@@ -754,7 +754,7 @@ void Planner::propagateReductions(size_t offset) {
     }
 }
 
-std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
+std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, const StateEvaluator& state) {
     std::vector<USignature> result;
 
     if (!_htn.isAction(task)) return result;
@@ -769,7 +769,7 @@ std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, std
     return result;
 }
 
-std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, std::function<bool(const Signature&)> state) {
+std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, const StateEvaluator& state) {
     std::vector<USignature> result;
 
     if (!_htn.hasReductions(task._name_id)) return result;
@@ -990,11 +990,11 @@ LayerState& Planner::getLayerState(int layer) {
     return (*_layers[layer]).getState();
 }
 
-std::function<bool(const Signature&)> Planner::getStateEvaluator(int layer, int pos) {
+Planner::StateEvaluator Planner::getStateEvaluator(int layer, int pos) {
     if (layer == -1) layer = _layer_idx;
     if (pos == -1) pos = _pos;
-    return [this,layer,pos](const Signature& sig) {
-        bool holds = getLayerState(layer).contains(pos, sig);
+    return [this,layer,pos](const USignature& sig, bool negated) {
+        bool holds = getLayerState(layer).contains(pos, sig, negated);
         //log("STATEEVAL@(%i,%i) %s : %i\n", layer, pos, TOSTR(sig), holds);
         return holds;
     };

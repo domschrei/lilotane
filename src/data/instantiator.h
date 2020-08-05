@@ -45,6 +45,7 @@ const int INSTANTIATE_FULL = 2;
 class Instantiator {
 
 private:
+    typedef std::function<bool(const USignature&, bool)> StateEvaluator;
     static USigSet EMPTY_USIG_SET;
 
     Parameters& _params;
@@ -79,12 +80,12 @@ public:
     }
 
     std::vector<Reduction> getApplicableInstantiations(const Reduction& r,
-            const std::function<bool(const Signature&)>& state, int mode = -1);
+            const StateEvaluator& state, int mode = -1);
     std::vector<Action> getApplicableInstantiations(const Action& a,
-            const std::function<bool(const Signature&)>& state, int mode = -1);
+            const StateEvaluator& state, int mode = -1);
 
-    USigSet instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state);
-    USigSet instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
+    USigSet instantiate(const HtnOp& op, const StateEvaluator& state);
+    USigSet instantiateLimited(const HtnOp& op, const StateEvaluator& state, 
             const std::vector<int>& argsByPriority, size_t limit, bool returnUnfinished);
 
     const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);
@@ -109,8 +110,9 @@ public:
     bool hasConsistentlyTypedArgs(const USignature& sig);
     std::vector<TypeConstraint> getQConstantTypeConstraints(const USignature& sig);
 
-    bool test(const Signature& sig, const std::function<bool(const Signature&)>& state);
-    bool hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state);
+    bool test(const Signature& sig, const StateEvaluator& state);
+    bool test(const USignature& sig, bool negated, const StateEvaluator& state);
+    bool hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state);
 };
 
 

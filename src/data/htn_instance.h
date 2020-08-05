@@ -21,6 +21,9 @@
 
 class HtnInstance {
 
+public:
+    typedef std::function<bool(const USignature&, bool)> StateEvaluator;
+
 private:
 
     Parameters& _params;
@@ -148,11 +151,11 @@ public:
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
     void clearForbiddenSubstitutions();
 
-    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
-    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);    
+    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state);
+    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const StateEvaluator& state);    
     
     void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const std::function<bool(const Signature&)>& state);
+            int offset, const StateEvaluator& state);
 
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
     
@@ -247,7 +250,7 @@ private:
     Reduction& createReduction(method& method);
     Action& createAction(const task& task);
 
-    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state);
+    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state);
     int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
 
 };

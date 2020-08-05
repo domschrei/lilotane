@@ -62,6 +62,10 @@ bool LiteralTree::contains(const std::vector<int>& lits) const {
     return _root.contains(lits, 0);
 }
 
+bool LiteralTree::containsEmpty() const {
+    return _root.validLeaf;
+}
+
 std::vector<std::vector<int>> LiteralTree::encode(const std::vector<int>& headLits) const {
     std::vector<std::vector<int>> cls;
     std::vector<int> lits(headLits);

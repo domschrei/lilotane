@@ -11,7 +11,7 @@
 USigSet Instantiator::EMPTY_USIG_SET;
 
 std::vector<Reduction> Instantiator::getApplicableInstantiations(
-    const Reduction& r, const std::function<bool(const Signature&)>& state, int mode) {
+    const Reduction& r, const StateEvaluator& state, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
@@ -30,7 +30,7 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 }
 
 std::vector<Action> Instantiator::getApplicableInstantiations(
-    const Action& a, const std::function<bool(const Signature&)>& state, int mode) {
+    const Action& a, const StateEvaluator& state, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
@@ -85,7 +85,7 @@ struct CompArgs {
     }
 };
 
-USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(const Signature&)>& state) {
+USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) {
     __op = &op;
 
     // First try to naively ground the operation up to some limit
@@ -163,7 +163,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const std::function<bool(cons
     return instantiateLimited(op, state, argsByPriority, 0, false);
 }
 
-USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::function<bool(const Signature&)>& state, 
+USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& state, 
             const std::vector<int>& argsByPriority, size_t limit, bool returnUnfinished) {
 
     USigSet instantiation;
@@ -660,17 +660,17 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
     return constraints;
 }
 
-bool Instantiator::test(const Signature& sig, const std::function<bool(const Signature&)>& state) {
+bool Instantiator::test(const USignature& sig, bool negated, const StateEvaluator& state) {
     
-    if (!isFullyGround(sig._usig)) return true;
+    if (!isFullyGround(sig)) return true;
 
-    bool positive = !sig._negated;
+    bool positive = !negated;
     
     // Q-Fact:
-    if (_htn->hasQConstants(sig._usig)) {
+    if (_htn->hasQConstants(sig)) {
         //log("QTEST %s\n", TOSTR(sig));
-        for (const auto& decSig : _htn->decodeObjects(sig._usig, true)) {
-            bool result = test(Signature(decSig, sig._negated), state);
+        for (const auto& decSig : _htn->decodeObjects(sig, true)) {
+            bool result = test(decSig, negated, state);
             //log("QTEST -- %s : %s\n", TOSTR(decSig), result ? "TRUE" : "FALSE");    
             if (result) return true;
         }
@@ -678,19 +678,23 @@ bool Instantiator::test(const Signature& sig, const std::function<bool(const Sig
     }
 
     // fact positive : true iff contained in facts
-    if (positive) return state(sig);
+    if (positive) return state(sig, negated);
     
     // fact negative.
 
     // if contained in facts : return true
     //   (fact occurred negative)
-    if (state(sig)) return true;
+    if (state(sig, negated)) return true;
     
     // else: return true iff fact does NOT occur in positive form
-    return !state(sig.opposite());
+    return !state(sig, !negated);
 }
 
-bool Instantiator::hasValidPreconditions(const SigSet& preconds, const std::function<bool(const Signature&)>& state) {
+bool Instantiator::test(const Signature& sig, const StateEvaluator& state) {
+    return test(sig._usig, sig._negated, state);
+}
+
+bool Instantiator::hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state) {
 
     for (const Signature& pre : preconds) {
         //Log::d("   %s ? ", TOSTR(pre));

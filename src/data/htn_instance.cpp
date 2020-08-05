@@ -661,7 +661,7 @@ const Action& HtnInstance::getSurrogate(int reductionId) const {
     return _actions.at(_reduction_to_surrogate.at(reductionId));
 }
 
-Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
+Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state) {
     std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)a, layerIdx, pos, state);
     if (newArgs.size() == 1 && newArgs[0] == -1) {
         // No valid substitution.
@@ -669,7 +669,7 @@ Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx
     }
     return Action(a.substitute(Substitution(a.getArguments(), newArgs)));
 }
-Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
+Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const StateEvaluator& state) {
     std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)red, layerIdx, pos, state);
     if (newArgs.size() == 1 && newArgs[0] == -1) {
         // No valid substitution.
@@ -678,7 +678,7 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
     return red.substituteRed(Substitution(red.getArguments(), newArgs));
 }
 
-std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const std::function<bool(const Signature&)>& state) {
+std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
 
     std::vector<int> vecFailure(1, -1);
 
@@ -961,7 +961,7 @@ Reduction HtnInstance::toReduction(int reductionName, const std::vector<int>& ar
 }
 
 void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const std::function<bool(const Signature&)>& state) {
+            int offset, const StateEvaluator& state) {
 
     //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
 
