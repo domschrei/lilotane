@@ -61,7 +61,7 @@ void Parameters::setDefaults() {
     setParam("stl", "0"); // SAT time limit
     setParam("surr", "1"); // replace surrogate methods
     setParam("svp", "0"); // set variable phases
-    setParam("tc", "0"); // tree conversion for DNF2CNF
+    setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
     setParam("vp", "0"); // verify plan before printing it
 }

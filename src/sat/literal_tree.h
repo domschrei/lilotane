@@ -15,9 +15,9 @@ struct Node {
     bool validLeaf = false;
 
     ~Node();
-    void insert(const std::vector<int>& lits, int idx);
-    bool contains(const std::vector<int>& lits, int idx);
-    void encode(std::vector<std::vector<int>>& cls, std::vector<int>& path);
+    void insert(const std::vector<int>& lits, size_t idx);
+    bool contains(const std::vector<int>& lits, size_t idx) const;
+    void encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) const;
 };
 
 private:
@@ -25,8 +25,8 @@ private:
 
 public:
     void insert(const std::vector<int>& lits);
-    bool contains(const std::vector<int>& lits, int idx);
-    std::vector<std::vector<int>> encode(const std::vector<int>& headLits = std::vector<int>());
+    bool contains(const std::vector<int>& lits) const;
+    std::vector<std::vector<int>> encode(const std::vector<int>& headLits = std::vector<int>()) const;
 };
 
 

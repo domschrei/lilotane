@@ -8,7 +8,7 @@ LiteralTree::Node::~Node() {
     }
 }
 
-void LiteralTree::Node::insert(const std::vector<int>& lits, int idx) {
+void LiteralTree::Node::insert(const std::vector<int>& lits, size_t idx) {
     if (idx == lits.size()) {
         validLeaf = true;
         return;
@@ -24,18 +24,18 @@ void LiteralTree::Node::insert(const std::vector<int>& lits, int idx) {
     validLeaf = false;
 }
 
-bool LiteralTree::Node::contains(const std::vector<int>& lits, int idx) {
-    if (idx == lits.size()) return true;
+bool LiteralTree::Node::contains(const std::vector<int>& lits, size_t idx) const {
+    if (idx == lits.size()) return validLeaf;
     if (!children.count(lits[idx])) return false;
-    return children[lits[idx]]->contains(lits, idx+1);
+    return children.at(lits[idx])->contains(lits, idx+1);
 }
 
-void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) {
+void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) const {
     // orClause: IF the current path, THEN either of the children.
     std::vector<int> orClause(path.size() + children.size());
     // newPath: current path plus one of the children of this node.
     std::vector<int> newPath(path.size()+1);
-    int i = 0;
+    size_t i = 0;
     for (; i < path.size(); i++) {
         orClause[i] = -path[i];
         newPath[i] = path[i];
@@ -58,23 +58,22 @@ void LiteralTree::insert(const std::vector<int>& lits) {
     _root.insert(lits, 0);
 }
 
-bool LiteralTree::contains(const std::vector<int>& lits, int idx) {
+bool LiteralTree::contains(const std::vector<int>& lits) const {
     return _root.contains(lits, 0);
 }
 
-std::vector<std::vector<int>> LiteralTree::encode(const std::vector<int>& headLits) {
+std::vector<std::vector<int>> LiteralTree::encode(const std::vector<int>& headLits) const {
     std::vector<std::vector<int>> cls;
     std::vector<int> lits(headLits);
     _root.encode(cls, lits);
     
-    /*
     Log::d("TREE ENCODE ");
     for (const auto& c : cls) {
         for (int lit : c) Log::log_notime(Log::V4_DEBUG, "%i ", lit);
         Log::log_notime(Log::V4_DEBUG, "0 ");
     }
     Log::log_notime(Log::V4_DEBUG, "\n");
-    */
+    
 
     return cls;
 }

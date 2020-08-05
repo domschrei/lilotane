@@ -204,38 +204,55 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
 
 void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
-    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>;
+    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher>;
 
     // Fact supports, frame axioms (only for non-new facts free of q-constants)
     begin(STAGE_FRAMEAXIOMS);
 
     bool nonprimFactSupport = _params.isNonzero("nps");
-    bool treeConversion = _params.isNonzero("tc");
 
     int layerIdx = newPos.getLayerIndex();
     int pos = newPos.getPositionIndex();
     int prevVarPrim = varPrimitive(layerIdx, pos-1);
 
-    // Maps each fact to a map of operation variables to the set of substitutions 
+    // Direct supports
+    const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
+            = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
+
+    // Indirect supports:
+    // Maps each fact to a map of operation variables to a tree of substitutions 
     // which make the operation (possibly) change the variable.
     IndirectSupport indirectPosSupport, indirectNegSupport;
+    const IndirectSupport* indirectSupports[2] 
+            = {&indirectNegSupport, &indirectPosSupport};
     for (const auto& [op, occ] : left.getActions()) {
         int opVar = getVariable(left, op);
         for (const auto& eff : _htn.getAction(op).getEffects()) {
             if (!_htn.hasQConstants(eff._usig)) continue;
-            auto& support = eff._negated ? indirectNegSupport : indirectPosSupport;
+            
+            auto& support = eff._negated ? *supports[0] : *supports[1];
+            auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
+
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
+                
+                // Skip if the operation is already a DIRECT support for the fact
+                if (support.count(decEff) && support.at(decEff).count(op)) continue;
+                
+                // Convert into a vector of substitution variables
                 Substitution s(eff._usig._args, decEff._args);
-                support[decEff][opVar].insert(s);
+                std::vector<int> sVars(s.size());
+                size_t i = 0;
+                for (const auto& [src, dest] : s) {
+                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
+                    if (i > 1) assert(sVars[i-1] >= sVars[i-2]);
+                }
+
+                // Insert into according support tree
+                indirectSupport[decEff][opVar].insert(sVars);
             }
         }
     }
 
-    // Direct and indirect supports
-    const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
-            = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
-    const IndirectSupport* indirectSupports[2] 
-            = {&indirectNegSupport, &indirectPosSupport};
 
     // Find and encode frame axioms for each applicable fact from the left
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
@@ -301,40 +318,15 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             if (!indirectSupports[i]->count(fact)) continue;
 
             // Encode indirect support constraints
-            for (const auto& [opVar, subs] : indirectSupports[i]->at(fact)) {
+            for (const auto& [opVar, tree] : indirectSupports[i]->at(fact)) {
                 
-                // Assemble possible substitution options to get the desired fact support
-                std::set<std::set<int>> substOptions;
-                bool unconditionalEffect = false;
-                for (const Substitution& s : subs) {
-                    if (s.empty()) {
-                        // Empty substitution does the job
-                        unconditionalEffect = true;
-                        break;
-                    }
-                    // An actual substitution is necessary
-                    std::set<int> substOpt;
-                    for (const auto& entry : s) {
-                        int substVar = varSubstitution(sigSubstitute(entry.first, entry.second));
-                        substOpt.insert(substVar);
-                    }
-                    substOptions.insert(substOpt);
-                }
-
+                bool unconditionalEffect = tree.contains(std::vector<int>());
                 if (unconditionalEffect) continue;
 
                 // -- 1st part of each clause: "head literals"
                 std::vector<int> headLits;
                 // IF fact change AND the operation is applied,
                 if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
-                // Initialize fact variable, now that it is known 
-                // that there is some support for it to change
-                if (factVar == 0) {
-                    // Encode new variable
-                    int v = encodeVariable(newPos, fact, false);
-                    _new_fact_vars.insert(v);
-                    factVar = sign*v;
-                }
                 headLits.push_back(factVar);
                 headLits.push_back(opVar);
                 if (!nonprimFactSupport) {
@@ -343,34 +335,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     } else headLits.push_back(prevVarPrim);
                 } 
                 
-                // -- 2nd part: Convert found substitution sets to CNF
-                if (treeConversion) {
-                    LiteralTree tree;
-                    for (const auto& set : substOptions) {
-                        tree.insert(std::vector<int>(set.begin(), set.end()));
-                    }
-                    for (const auto& cls : tree.encode(headLits)) addClause(cls);
-                } else {
-                    std::vector<int> dnfSubs;
-                    for (const auto& set : substOptions) {
-                        dnfSubs.insert(dnfSubs.end(), set.begin(), set.end());
-                        dnfSubs.push_back(0);
-                    }
-                    std::set<std::set<int>> cnfSubs = getCnf(dnfSubs);
-                    for (const auto& cls : cnfSubs) {
-                        //Log::d("DNF ENCODE ");
-                        for (int lit : headLits) {
-                            appendClause(-lit);
-                            //Log::log_notime(Log::V4_DEBUG, "%i ", -lit);
-                        } 
-                        for (int lit : cls) {
-                            appendClause(lit);
-                            //Log::log_notime(Log::V4_DEBUG, "%i ", lit);
-                        }
-                        endClause();
-                        //Log::log_notime(Log::V4_DEBUG, "\n");
-                    }
-                }
+                for (const auto& cls : tree.encode(headLits)) addClause(cls);
             }
         }
     }
