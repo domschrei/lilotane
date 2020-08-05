@@ -35,13 +35,11 @@ void Position::addValidSubstitutions(const USignature& op, const NodeHashSet<Sub
 }
 
 void Position::addAction(const USignature& action) {
-    auto& entry = _actions[action];
-    entry++;
+    _actions.insert(action);
     Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
 void Position::addReduction(const USignature& reduction) {
-    auto& entry = _reductions[reduction];
-    entry++;
+    _reductions.insert(reduction);
     Log::d("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
 }
 void Position::addExpansion(const USignature& parent, const USignature& child) {
@@ -70,17 +68,11 @@ void Position::moveFactChanges(Position& dest, const USignature& op) {
 
 void Position::removeActionOccurrence(const USignature& action) {
     assert(_actions.count(action));
-    _actions[action]--;
-    if (_actions[action] == 0) {
-        _actions.erase(action);
-    }
+     _actions.erase(action);
 }
 void Position::removeReductionOccurrence(const USignature& reduction) {
     assert(_reductions.count(reduction));
-    _reductions[reduction]--;
-    if (_reductions[reduction] == 0) {
-        _reductions.erase(reduction);
-    }
+    _reductions.erase(reduction);
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable() const {
@@ -111,8 +103,8 @@ Position::getValidSubstitutions() const {
     return _valid_substitutions_per_op;
 }
 
-const NodeHashMap<USignature, int, USignatureHasher>& Position::getActions() const {return _actions;}
-const NodeHashMap<USignature, int, USignatureHasher>& Position::getReductions() const {return _reductions;}
+const USigSet& Position::getActions() const {return _actions;}
+const USigSet& Position::getReductions() const {return _reductions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
@@ -138,7 +130,7 @@ void Position::clearAtPastPosition() {
     _valid_substitutions_per_op.clear();
     _valid_substitutions_per_op.reserve(0);
 
-    for (const auto& r : _reductions) _fact_changes.erase(r.first);
+    for (const auto& r : _reductions) _fact_changes.erase(r);
     _fact_changes.reserve(0);
 }
 
@@ -151,7 +143,7 @@ void Position::clearAtPastLayer() {
     _false_facts.reserve(0);
 
     NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
-    for (const auto& r : _reductions) cleanedVars[r.first] = _variables[r.first];
-    for (const auto& a : _actions) cleanedVars[a.first] = _variables[a.first];
+    for (const auto& r : _reductions) cleanedVars[r] = _variables[r];
+    for (const auto& a : _actions) cleanedVars[a] = _variables[a];
     _variables = std::move(cleanedVars);
 }

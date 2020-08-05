@@ -62,6 +62,7 @@ private:
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
     std::vector<int> _primitive_ops;
     std::vector<int> _nonprimitive_ops;
+    bool _nonprimitive_only_at_prior_pos;
 
     std::vector<int> _last_assumptions;
     std::vector<int> _no_decision_variables;
@@ -155,7 +156,8 @@ private:
     inline void endClause();
     inline void assume(int lit);
 
-    int varPrimitive(int layer, int pos);
+    int encodeVarPrimitive(int layer, int pos);
+    int getVarPrimitiveOrZero(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
     int varQConstEquality(int q1, int q2);
     const USignature& sigSubstitute(int qConstId, int trueConstId);

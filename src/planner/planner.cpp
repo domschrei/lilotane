@@ -259,7 +259,7 @@ void Planner::createFirstLayer() {
         }
     }
     addNewFalseFacts();
-    _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+    //_htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
     _enc.encode(_layer_idx, _pos++);
 
     /***** LAYER 0, POSITION 1 ******/
@@ -348,9 +348,9 @@ void Planner::createNextPosition() {
 
         // Use new q-constant conditions from this position to infer conditions 
         // of the respective parent ops at the layer above. 
-        auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
-        auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
-        updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
+        //auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
+        //auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+        //updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
 
         //pruneRetroactively(updatedOps);
 
@@ -413,8 +413,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
     FlatHashSet<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
-    for (const auto& entry : left.getActions()) {
-        const USignature& aSig = entry.first;
+    for (const auto& aSig : left.getActions()) {
         for (const Signature& fact : left.getFactChanges(aSig)) {
             addEffect(aSig, fact);
         }
@@ -422,8 +421,7 @@ void Planner::createNextPositionFromLeft(const Position& left) {
             if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
         }
     }
-    for (const auto& entry : left.getReductions()) {
-        const USignature& rSig = entry.first;
+    for (const auto& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : left.getFactChanges(rSig)) {
             addEffect(rSig, fact);
@@ -628,8 +626,7 @@ void Planner::propagateActions(size_t offset) {
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Propagate actions
-    for (const auto& entry : above.getActions()) {
-        const USignature& aSig = entry.first;
+    for (const auto& aSig : above.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
         const Action& a = _htn.getAction(aSig);
 
@@ -671,8 +668,7 @@ void Planner::propagateReductions(size_t offset) {
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
     // Expand reductions
-    for (const auto& entry : above.getReductions()) {
-        const USignature& rSig = entry.first;
+    for (const auto& rSig : above.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         const Reduction r = _htn.getReduction(rSig);
         const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
@@ -867,10 +863,8 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 void Planner::addNewFalseFacts() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     
-    // For each action:
-    for (const auto& entry : newPos.getActions()) {
-        const USignature& aSig = entry.first;
-
+    // For each action and each of its effects:
+    for (const auto& aSig : newPos.getActions()) { 
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig)) { // TODO
@@ -887,8 +881,7 @@ void Planner::addNewFalseFacts() {
     }
 
     // For each possible reduction effect: 
-    for (const auto& entry : newPos.getReductions()) {
-        const USignature& rSig = entry.first;
+    for (const auto& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
 
         for (const Signature& eff : newPos.getFactChanges(rSig)) {

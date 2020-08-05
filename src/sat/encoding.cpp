@@ -97,23 +97,22 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
 
 void Encoding::encodeOperationVariables(Position& newPos) {
 
-    int varPrim = varPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
+    _nonprimitive_only_at_prior_pos = _primitive_ops.empty();
+    _primitive_ops.clear();
+    _nonprimitive_ops.clear();
 
     begin(STAGE_ACTIONCONSTRAINTS);
-    for (const auto& entry : newPos.getActions()) {
-        const USignature& aSig = entry.first;
+    for (const auto& aSig : newPos.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
         int aVar = encodeVariable(newPos, aSig, true);
 
         // If the action occurs, the position is primitive
         _primitive_ops.push_back(aVar);
-        if (!_implicit_primitiveness) addClause(-aVar, varPrim);
     }
     end(STAGE_ACTIONCONSTRAINTS);
 
     begin(STAGE_REDUCTIONCONSTRAINTS);
-    for (const auto& entry : newPos.getReductions()) {
-        const USignature& rSig = entry.first;
+    for (const auto& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         int rVar = encodeVariable(newPos, rSig, true);
 
@@ -121,14 +120,33 @@ void Encoding::encodeOperationVariables(Position& newPos) {
         if (trivialReduction) {
             // If a trivial reduction occurs, the position is primitive
             _primitive_ops.push_back(rVar);
-            if (!_implicit_primitiveness) addClause(-rVar, varPrim);
         } else {
             // If a non-trivial reduction occurs, the position is non-primitive
             _nonprimitive_ops.push_back(rVar);
-            if (!_implicit_primitiveness) addClause(-rVar, -varPrim);
         }
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
+
+    // Implicit primitiveness?
+    if (_implicit_primitiveness) return;
+
+    // Only primitive ops here? -> No primitiveness definition necessary
+    if (_nonprimitive_ops.empty()) {
+        // Workaround for "x-1" ID assignment of surrogate actions
+        VariableDomain::nextVar(); 
+        return;
+    }
+
+    int varPrim = encodeVarPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
+
+    if (_primitive_ops.empty()) {
+        // Only non-primitive ops here
+        addClause(-varPrim);
+    } else {
+        // Mix of primitive and non-primitive ops (default)
+        for (int aVar : _primitive_ops) addClause(-aVar, varPrim);
+        for (int rVar : _nonprimitive_ops) addClause(-rVar, -varPrim);
+    }
 }
 
 void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above) {
@@ -210,11 +228,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     begin(STAGE_FRAMEAXIOMS);
 
     bool nonprimFactSupport = _params.isNonzero("nps");
-    bool hasPrimitiveOps = !_primitive_ops.empty();
 
     int layerIdx = newPos.getLayerIndex();
     int pos = newPos.getPositionIndex();
-    int prevVarPrim = varPrimitive(layerIdx, pos-1);
+    int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
+    bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
 
     // Direct supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
@@ -226,7 +244,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     IndirectSupport indirectPosSupport, indirectNegSupport;
     const IndirectSupport* indirectSupports[2] 
             = {&indirectNegSupport, &indirectPosSupport};
-    for (const auto& [op, occ] : left.getActions()) {
+    for (const auto& op : left.getActions()) {
         int opVar = getVariable(left, op);
         for (const auto& eff : _htn.getAction(op).getEffects()) {
             if (!_htn.hasQConstants(eff._usig)) continue;
@@ -305,7 +323,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 if (!nonprimFactSupport) {
                     if (_implicit_primitiveness) {
                         for (int var : _nonprimitive_ops) appendClause(var);
-                    } else appendClause(-prevVarPrim);
+                    } else if (prevVarPrim != 0) appendClause(-prevVarPrim);
                 }
                 // DIRECT support
                 if (supports[i]->count(fact)) for (const USignature& opSig : supports[i]->at(fact)) {
@@ -336,7 +354,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             if (!nonprimFactSupport) {
                 if (_implicit_primitiveness) {
                     for (int var : _nonprimitive_ops) headLits.push_back(-var);
-                } else headLits.push_back(prevVarPrim);
+                } else if (prevVarPrim != 0) headLits.push_back(prevVarPrim);
             } 
 
             // Encode indirect support constraints
@@ -364,8 +382,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
     int numOccurringOps = 0;
 
     begin(STAGE_ACTIONCONSTRAINTS);
-    for (const auto& entry : newPos.getActions()) {
-        const USignature& aSig = entry.first;
+    for (const auto& aSig : newPos.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
 
         int aVar = getVariable(newPos, aSig);
@@ -379,8 +396,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
     }
     end(STAGE_ACTIONCONSTRAINTS);
     begin(STAGE_REDUCTIONCONSTRAINTS);
-    for (const auto& entry : newPos.getReductions()) {
-        const USignature& rSig = entry.first;
+    for (const auto& rSig : newPos.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
 
         int rVar = getVariable(newPos, rSig);
@@ -505,8 +521,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
 
     bool treeConversion = _params.isNonzero("tc");
     begin(STAGE_ACTIONEFFECTS);
-    for (const auto& entry : left.getActions()) {
-        const USignature& aSig = entry.first;
+    for (const auto& aSig : left.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
         int aVar = getVariable(left, aSig);
 
@@ -733,14 +748,15 @@ void Encoding::addAssumptions(int layerIdx) {
     if (_implicit_primitiveness) {
         begin(STAGE_ASSUMPTIONS);
         for (size_t pos = 0; pos < l.size(); pos++) {
-            appendClause(-varPrimitive(layerIdx, pos));
+            appendClause(-encodeVarPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
             endClause();
         }
         end(STAGE_ASSUMPTIONS);
     }
     for (size_t pos = 0; pos < l.size(); pos++) {
-        assume(varPrimitive(layerIdx, pos));
+        int v = getVarPrimitiveOrZero(layerIdx, pos);
+        if (v != 0) assume(v);
     }
 }
 
@@ -917,8 +933,6 @@ int Encoding::solve() {
 
     //for (const int& v: _no_decision_variables) ipasir_set_decision_var(_solver, v, false);
     _no_decision_variables.clear();
-    _primitive_ops.clear();
-    _nonprimitive_ops.clear();
 
     _sat_call_start_time = Timer::elapsedSeconds();
     int result = ipasir_solve(_solver);
@@ -1029,14 +1043,18 @@ void Encoding::printVar(int layer, int pos, const USignature& sig) {
     Log::d("%s\n", VariableDomain::varName(layer, pos, sig).c_str());
 }
 
-int Encoding::varPrimitive(int layer, int pos) {
+int Encoding::encodeVarPrimitive(int layer, int pos) {
     return encodeVariable(_layers.at(layer)->at(pos), _sig_primitive, false);
+}
+int Encoding::getVarPrimitiveOrZero(int layer, int pos) {
+    return _layers.at(layer)->at(pos).getVariableOrZero(_sig_primitive);
 }
 
 void Encoding::printFailedVars(Layer& layer) {
     Log::d("FAILED ");
     for (size_t pos = 0; pos < layer.size(); pos++) {
-        int v = varPrimitive(layer.index(), pos);
+        int v = getVarPrimitiveOrZero(layer.index(), pos);
+        if (v == 0) continue;
         if (ipasir_failed(_solver, v)) Log::d("%i ", v);
     }
     Log::d("\n");
@@ -1052,14 +1070,17 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     //log("(actions at layer %i)\n", li);
     for (size_t pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
-        if (!_implicit_primitiveness) assert(value(li, pos, _sig_primitive) || Log::e("Plan error: Position %i is not primitive!\n", pos));
+        if (!_implicit_primitiveness) assert(
+            getVarPrimitiveOrZero(li, pos) == 0 || 
+            value(li, pos, _sig_primitive) || 
+            Log::e("Plan error: Position %i is not primitive!\n", pos)
+        );
 
         int chosenActions = 0;
         //State newState = state;
         SigSet effects;
-        for (const auto& entry : finalLayer[pos].getActions()) {
-            const USignature& aSig = entry.first;
-
+        for (const auto& aSig : finalLayer[pos].getActions()) {
+            
             if (!isEncoded(li, pos, aSig)) continue;
             //log("  %s ?\n", TOSTR(aSig));
 
@@ -1129,8 +1150,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             int actionsThisPos = 0;
             int reductionsThisPos = 0;
 
-            for (const auto& entry : l[pos].getReductions()) {
-                const USignature& rSig = entry.first;
+            for (const auto& rSig : l[pos].getReductions()) {
                 if (!isEncoded(layerIdx, pos, rSig) || rSig == Position::NONE_SIG) continue;
 
                 //log("? %s @ (%i,%i)\n", TOSTR(rSig), i, pos);
@@ -1184,8 +1204,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                 }
             }
 
-            for (const auto& entry : l[pos].getActions()) {
-                const USignature& aSig = entry.first;
+            for (const auto& aSig : l[pos].getActions()) {
                 if (!isEncoded(layerIdx, pos, aSig)) continue;
 
                 if (value(layerIdx, pos, aSig)) {
