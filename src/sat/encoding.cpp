@@ -254,6 +254,9 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
                 
+                // TODO Check if this is a valid effect decoding indeed.
+                // (Might happen that it isn't.) 
+
                 // Are there any primitive ops at this position?
                 if (hasPrimitiveOps) {
                     // Skip if the operation is already a DIRECT support for the fact
@@ -629,39 +632,57 @@ void Encoding::encodeQConstraints(Position& newPos) {
 
     // Forbidden substitutions per operator
     begin(STAGE_SUBSTITUTIONCONSTRAINTS);
-    for (const auto& [opSig, subs] : newPos.getForbiddenSubstitutions()) {
-        for (const Substitution& s : subs) {
-            appendClause(-getVariable(newPos, opSig));
-            for (const auto& [src, dest] : s) {
-                appendClause(-varSubstitution(sigSubstitute(src, dest)));
+    // Check which set to use per operator: valid or invalid substitutions?
+    const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
+    for (const auto& set : ops) for (auto opSig : *set) {
+
+        // Get number of "good" and "bad" substitution options
+        size_t goodSize = 0;
+        if (newPos.getValidSubstitutions().count(opSig)) {
+            for (const auto& s : newPos.getValidSubstitutions().at(opSig)) {
+                goodSize += s.size();
             }
-            endClause();
         }
-    }
-    for (const auto& [opSig, subsVec] : newPos.getValidSubstitutions()) {
-        // For each set of valid substitution options
-        for (const auto& subs : subsVec) {
-            // Build literal tree from this set of valid substitution options for this op
-            LiteralTree tree;
-            // For each substitution option:
-            for (const auto& s : subs) {
-                std::vector<int> sVars(s.size()); 
-                size_t i = 0;
-                // For each atomic substitution:
+        size_t badSize = newPos.getForbiddenSubstitutions().count(opSig) ? newPos.getForbiddenSubstitutions().at(opSig).size() : 0;
+        if (badSize == 0) continue;
+
+        if (badSize <= goodSize) {
+            // Use forbidden substitutions
+            for (const Substitution& s : newPos.getForbiddenSubstitutions().at(opSig)) {
+                appendClause(-getVariable(newPos, opSig));
                 for (const auto& [src, dest] : s) {
-                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
+                    appendClause(-varSubstitution(sigSubstitute(src, dest)));
                 }
-                tree.insert(sVars);
+                endClause();
             }
-            // Encode set of valid substitution options into CNF
-            std::vector<std::vector<int>> cls = tree.encode(
-                std::vector<int>(1, getVariable(newPos, opSig))
-            );
-            for (const auto& c : cls) {
-                addClause(c);
+        } else {
+            // Use valid substitutions
+            
+            // For each set of valid substitution options
+            for (const auto& subs : newPos.getValidSubstitutions().at(opSig)) {
+                // Build literal tree from this set of valid substitution options for this op
+                LiteralTree tree;
+                // For each substitution option:
+                for (const auto& s : subs) {
+                    std::vector<int> sVars(s.size()); 
+                    size_t i = 0;
+                    // For each atomic substitution:
+                    for (const auto& [src, dest] : s) {
+                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
+                    }
+                    tree.insert(sVars);
+                }
+                // Encode set of valid substitution options into CNF
+                std::vector<std::vector<int>> cls = tree.encode(
+                    std::vector<int>(1, getVariable(newPos, opSig))
+                );
+                for (const auto& c : cls) {
+                    addClause(c);
+                }
             }
         }
     }
+    // Globally forbidden substitutions
     for (const auto& sub : _htn.getForbiddenSubstitutions()) {
         assert(!sub.empty());
         if (_forbidden_substitutions.count(sub)) continue;

@@ -21,6 +21,9 @@ void Position::addFactSupport(const Signature& fact, const USignature& operation
 void Position::touchFactSupport(const Signature& fact) {
     (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
 }
+void Position::touchFactSupport(const USignature& fact, bool negated) {
+    (negated ? _neg_fact_supports : _pos_fact_supports)[fact];
+}
 void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);

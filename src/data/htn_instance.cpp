@@ -934,8 +934,12 @@ void HtnInstance::removeQFactDecoding(const USignature& qFact, const USignature&
     _qfact_decodings[qFact].erase(decFact);
 }
 
+bool HtnInstance::hasQFactDecodings(const USignature& qFact) {
+    return _qfact_decodings.count(qFact);
+}
+
 const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
-    return _qfact_decodings[qFact];
+    return _qfact_decodings.at(qFact);
 }
 
 void HtnInstance::addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs) {

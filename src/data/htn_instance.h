@@ -144,6 +144,7 @@ public:
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
     const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    bool hasQFactDecodings(const USignature& qFact);
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
     const USigSet& getQFactDecodings(const USignature& qfact);

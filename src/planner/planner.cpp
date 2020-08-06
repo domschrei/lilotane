@@ -504,25 +504,25 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     size_t goodSize = 0;
     for (const auto& subs : goodSubs) goodSize += subs.size();
 
-    if (badSubs.size() <= goodSize) {
+    //if (badSubs.size() <= goodSize) {
         for (const auto& s : badSubs) {
             //Log::d("(%i,%i) FORBIDDEN_SUBST NOR %s\n", _layer_idx, _pos, TOSTR(op));
             newPos.addForbiddenSubstitution(op, s);
         }
-    } else {
+    //} else {
         // More bad subs than there are good ones:
         // Remember good ones instead (although encoding them can be more complex)
         for (const auto& subs : goodSubs) {
             //Log::d("(%i,%i) VALID_SUBST OR %s\n", _layer_idx, _pos, TOSTR(op));
             newPos.addValidSubstitutions(op, subs);
         }
-    }
+    //}
 }
 
 void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     Position& pos = (*_layers[_layer_idx])[_pos];
     assert(_pos > 0);
-    //Position& left = (*_layers[_layer_idx])[_pos-1];
+    Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
     if (isQFact) pos.addQFact(factAbs);
@@ -540,42 +540,20 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     if (!isQFact) return;
 
-    //log("Calc decoded effects for %s:%s\n", TOSTR(opSig), TOSTR(fact));
+    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? &left.getForbiddenSubstitutions().at(opSig) : nullptr;
 
-    //HtnOp& op = _htn.getOp(opSig);
-    //assert(!_htn.getDecodedObjects(factAbs, true).empty());
-    int numValid = 0;
-
-    /*
-    // Assemble reference list of contained q-constants for decodings validity check
-    std::vector<int> qconsts, qconstIndices;
-    for (int i = 0; i < fact._usig._args.size(); i++) {
-        if (_htn.isQConstant(fact._usig._args[i])) {
-            qconsts.push_back(fact._usig._args[i]);
-            qconstIndices.push_back(i);
-        }
-    }*/
-
+    // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
+
+        // Check if this decoding is known to be invalid    
+        Substitution s(factAbs._args, decFactAbs._args);
+        if (invalids != nullptr && invalids->count(s)) continue;
         
-        /*
-        // Test if this q constant substitution is valid
-        std::vector<int> vals;
-        for (const int& i : qconstIndices) vals.push_back(decFactAbs._args[i]);
-        if (!_htn._q_db.test(qconsts, vals)) continue;
-        */
-
-        Signature decFact(decFactAbs, fact._negated);
+        // Valid effect decoding
         _htn.addQFactDecoding(factAbs, decFactAbs);
-        getLayerState().add(_pos, decFact);
-        numValid++;
-
-        pos.touchFactSupport(decFact);
-    }
-
-    if (numValid == 0) {
-        //log("No valid decoded effects for %s!\n", TOSTR(opSig));
+        getLayerState().add(_pos, decFactAbs, fact._negated);
+        pos.touchFactSupport(decFactAbs, fact._negated);
     }
 }
 
