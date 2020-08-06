@@ -307,66 +307,6 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
     return _precond_ratings.at(nameId);
 }
 
-
-
-
-
-// Given an unsigned ground fact signature and (a set of operations effects containing q constants),
-// compute the possible sets of substitutions that are necessary to let the operation
-// have the specified fact in its support.
-NodeHashSet<Substitution, Substitution::Hasher> Instantiator::getOperationSubstitutionsCausingEffect(
-            const SigSet& effects, const USignature& fact, bool negated) {
-
-    //log("?= can %s be produced by %s ?\n", TOSTR(fact), TOSTR(opSig));
-    NodeHashSet<Substitution, Substitution::Hasher> substitutions;
-
-    // For each such effect: check if it is a valid result
-    // of some series of q const substitutions
-    for (const Signature& eff : effects) {
-        if (eff._usig._name_id != fact._name_id) continue;
-        if (eff._negated != negated) continue;
-        bool matches = true;
-        Substitution s;
-        std::vector<int> qargs, decargs;
-        //log("  %s ?= %s ", TOSTR(eff), TOSTR(fact));
-        for (size_t argPos = 0; argPos < eff._usig._args.size(); argPos++) {
-            int effArg = eff._usig._args[argPos];
-            int substArg = fact._args[argPos];
-            bool effIsQ = _htn->isQConstant(effArg);
-            if (!effIsQ) {
-                // If the effect fact has no q const here, the arg must be left unchanged
-                matches &= effArg == substArg;
-            } else {
-                // If the effect fact has a q const here, the substituted arg must be in the q const's domain
-                matches &= _htn->getDomainOfQConstant(effArg).count(substArg);
-            }
-            if (!matches) break;
-            if (substArg != effArg) {
-                // No two different substitution values for one arg!
-                matches &= (!s.count(effArg) || s[effArg] == substArg);
-                if (!matches) break;
-                s[effArg] = substArg;
-                if (effIsQ) {
-                    qargs.push_back(effArg);
-                    decargs.push_back(substArg);
-                }
-            }
-        }
-        if (matches) {
-            // Matching substitution found. Valid?
-            if (!_htn->getQConstantDatabase().test(qargs, decargs)) continue;
-
-            // Matching, valid substitution
-            if (!substitutions.count(s)) substitutions.insert(s);
-            //log(" -- yes\n");
-        } else {
-            //log(" -- no\n");
-        }
-    }
-
-    return substitutions;
-}
-
 SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyInstantiate) {
     if (sig == Position::NONE_SIG) return SigSet();
 
@@ -544,13 +484,6 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
     return f.substitute(Substitution(f.sig._args, sig._args));
 }
 
-bool Instantiator::isFullyGround(const USignature& sig) {
-    for (int arg : sig._args) {
-        if (_htn->isVariable(arg)) return false;
-    }
-    return true;
-}
-
 std::vector<int> Instantiator::getFreeArgPositions(const std::vector<int>& sigArgs) {
     std::vector<int> argPositions;
     for (size_t i = 0; i < sigArgs.size(); i++) {
@@ -658,51 +591,4 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
     }
 
     return constraints;
-}
-
-bool Instantiator::test(const USignature& sig, bool negated, const StateEvaluator& state) {
-    
-    if (!isFullyGround(sig)) return true;
-
-    bool positive = !negated;
-    
-    // Q-Fact:
-    if (_htn->hasQConstants(sig)) {
-        //log("QTEST %s\n", TOSTR(sig));
-        for (const auto& decSig : _htn->decodeObjects(sig, true)) {
-            bool result = test(decSig, negated, state);
-            //log("QTEST -- %s : %s\n", TOSTR(decSig), result ? "TRUE" : "FALSE");    
-            if (result) return true;
-        }
-        return false;
-    }
-
-    // fact positive : true iff contained in facts
-    if (positive) return state(sig, negated);
-    
-    // fact negative.
-
-    // if contained in facts : return true
-    //   (fact occurred negative)
-    if (state(sig, negated)) return true;
-    
-    // else: return true iff fact does NOT occur in positive form
-    return !state(sig, !negated);
-}
-
-bool Instantiator::test(const Signature& sig, const StateEvaluator& state) {
-    return test(sig._usig, sig._negated, state);
-}
-
-bool Instantiator::hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state) {
-
-    for (const Signature& pre : preconds) {
-        //Log::d("   %s ? ", TOSTR(pre));
-        if (!test(pre, state)) {
-            //Log::d("FALSE\n");
-            return false;
-        }
-        //Log::d("TRUE\n");
-    }
-    return true;
 }

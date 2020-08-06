@@ -477,7 +477,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
         
-        if (!_instantiator.test(decFactAbs, fact._negated, state)) {
+        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
             badSubs.emplace(factAbs._args, decFactAbs._args);
             continue;

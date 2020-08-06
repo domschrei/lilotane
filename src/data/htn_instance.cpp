@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 
 #include "data/htn_instance.h"
+#include "data/instantiator.h"
 
 Action HtnInstance::BLANK_ACTION;
 
@@ -724,7 +725,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             //Log::d("------%s\n", TOSTR(decSig));
 
             // Valid?
-            if (!_instantiator->test(decUSig, preSig._negated, state)) continue;
+            if (!_instantiator->testWithNoVarsNoQConstants(decUSig, preSig._negated, state)) continue;
             
             // Valid precondition decoding found: Increase domain of concerned variables
             anyValid = true;
@@ -987,7 +988,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         //log("QQ %s\n", TOSTR(pre._usig));
         std::vector<int> sorts = getOpSortsForCondition(pre._usig, op.getSignature());
         for (const auto& decPre : decodeObjects(pre._usig, true, sorts)) {
-            bool holds = _instantiator->test(Signature(decPre, pre._negated), state);
+            bool holds = _instantiator->testWithNoVarsNoQConstants(decPre, pre._negated, state);
             //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
             auto& set = holds ? good : bad;
             std::vector<int> toAdd;

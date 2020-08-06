@@ -15,9 +15,10 @@
 #include "util/params.h"
 #include "data/hashmap.h"
 
-#include "data/instantiator.h"
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
+
+class Instantiator; // forward def
 
 class HtnInstance {
 

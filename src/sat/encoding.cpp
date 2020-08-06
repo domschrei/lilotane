@@ -254,11 +254,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
 
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
                 
-                // Skip if the operation is already a DIRECT support for the fact
-                if (support.count(decEff) && support.at(decEff).count(op)) continue;
-                
                 // Are there any primitive ops at this position?
                 if (hasPrimitiveOps) {
+                    // Skip if the operation is already a DIRECT support for the fact
+                    if (support.count(decEff) && support.at(decEff).count(op)) continue;
+                
                     // Convert into a vector of substitution variables
                     Substitution s(eff._usig._args, decEff._args);
                     std::vector<int> sVars(s.size());
@@ -497,9 +497,13 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
                 if (!_htn.getQConstantDatabase().test(qargs, decArgs)) continue;
             }
 
+            // Assemble list of substitution variables
             int decFactVar = getVariable(newPos, decFactSig);
-            for (const auto& [src, dest] : Substitution(qfactSig._args, decFactSig._args)) {
-                substitutionVars.push_back(varSubstitution(sigSubstitute(src, dest)));
+            for (size_t i = 0; i < qfactSig._args.size(); i++) {
+                if (qfactSig._args[i] != decFactSig._args[i])
+                    substitutionVars.push_back(
+                        varSubstitution(sigSubstitute(qfactSig._args[i], decFactSig._args[i]))
+                    );
             }
             
             // If the substitution is chosen,

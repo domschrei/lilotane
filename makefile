@@ -2,8 +2,6 @@
 # Options: lingeling glucose4 cadical cryptominisat
 IPASIRSOLVER?=glucose4
 
-TREEREXX_VERSION:=dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
-
 SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a
 CC=g++
 CWARN=-Wno-unused-parameter -Wno-sign-compare -Wno-format -Wno-format-security
@@ -15,11 +13,13 @@ INCLUDES=-Isrc -Isrc/pandaPIparser/src
 
 .PHONY = release debug parser clean
 
+release: TREEREXX_VERSION:=rls-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
 release: COMPILEFLAGS += -DNDEBUG -Wno-unused-variable -O3 -flto
 release: LINKERFLAGS += -O3 -flto
 release: parser
 release: treerexx
 
+debug: TREEREXX_VERSION:=dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
 debug: COMPILEFLAGS += -O3 -g -ggdb
 debug: LINKERFLAGS += -O3 -g -ggdb
 debug: parser

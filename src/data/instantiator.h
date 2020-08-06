@@ -12,8 +12,7 @@
 #include "data/network_traversal.h"
 #include "data/fact_frame.h"
 #include "util/params.h"
-
-class HtnInstance; // incomplete forward def
+#include "data/htn_instance.h"
 
 struct ArgComparator {
     HtnOp& op;
@@ -90,9 +89,6 @@ public:
 
     const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);
 
-    NodeHashSet<Substitution, Substitution::Hasher> getOperationSubstitutionsCausingEffect(
-            const SigSet& factChanges, const USignature& fact, bool negated);
-
     // Maps a (action|reduction) signature of any grounding state
     // to a corresponding list of (partially lifted) fact signatures
     // that might be added to the state due to this operator. 
@@ -100,8 +96,6 @@ public:
 
     FactFrame getFactFrame(const USignature& sig, bool simpleMode = false, USigSet& currentOps = EMPTY_USIG_SET);
 
-
-    bool isFullyGround(const USignature& sig);
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
     bool fits(const USignature& from, const USignature& to, FlatHashMap<int, int>* substitution = nullptr);
     bool fits(const Signature& from, const Signature& to, FlatHashMap<int, int>* substitution = nullptr);
@@ -110,9 +104,44 @@ public:
     bool hasConsistentlyTypedArgs(const USignature& sig);
     std::vector<TypeConstraint> getQConstantTypeConstraints(const USignature& sig);
 
-    bool test(const Signature& sig, const StateEvaluator& state);
-    bool test(const USignature& sig, bool negated, const StateEvaluator& state);
-    bool hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state);
+    inline bool isFullyGround(const USignature& sig) {
+        for (int arg : sig._args) if (_htn->isVariable(arg)) return false;
+        return true;
+    }
+
+    inline bool testWithNoVarsNoQConstants(const USignature& sig, bool negated, const StateEvaluator& state) {
+        // fact positive : true iff contained in facts
+        if (!negated) return state(sig, negated);
+        // fact negative.
+        // if contained in facts : return true
+        //   (fact occurred negative)
+        if (state(sig, negated)) return true;
+        // else: return true iff fact does NOT occur in positive form
+        return !state(sig, !negated);
+    }
+
+    inline bool test(const USignature& sig, bool negated, const StateEvaluator& state) {
+        if (!isFullyGround(sig)) return true;
+        
+        // Q-Fact:
+        if (_htn->hasQConstants(sig)) {
+            for (const auto& decSig : _htn->decodeObjects(sig, true)) {
+                if (testWithNoVarsNoQConstants(decSig, negated, state)) return true;
+            }
+            return false;
+        }
+
+        return testWithNoVarsNoQConstants(sig, negated, state);
+    }
+
+    inline bool test(const Signature& sig, const StateEvaluator& state) {
+        return test(sig._usig, sig._negated, state);
+    }
+
+    inline bool hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state) {
+        for (const Signature& pre : preconds) if (!test(pre, state)) return false;
+        return true;
+    }
 };
 
 
