@@ -435,8 +435,8 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
 
 void Encoding::encodeSubstitutionVars(int opVar, int arg, Position& pos) {
 
-    if (_q_constants.count(arg)) return;
     if (!_htn.isQConstant(arg)) return;
+    if (_q_constants.count(arg)) return;
     // arg is a *new* q-constant: initialize substitution logic
 
     _q_constants.insert(arg);

@@ -22,23 +22,6 @@
 #define IPASIRSOLVER "(unknown)"
 #endif
 
-void handleAbort(int sig) {
-    void *array[20];
-    size_t size;
-
-    // get void*'s for all entries on the stack
-    size = backtrace(array, 20);
-
-    // print out all the frames
-    Log::e("Error: signal %d. Backtrace:\n", sig);
-    char** bt = backtrace_symbols(array, size);
-    for (int i = 0; i < size; i++) {
-        Log::e("- %s\n", bt[i]);
-    }
-
-    exit(sig);
-}
-
 void run(Parameters& params) {
 
     ParsedProblem p;
@@ -51,6 +34,7 @@ void run(Parameters& params) {
     int result = planner.findPlan();
 
     if (result == 0) {
+        // Exit directly -- avoid to clean up :)
         Log::i("Exiting happily.\n");
         exit(result);
     }
@@ -59,26 +43,21 @@ void run(Parameters& params) {
 
 int main(int argc, char** argv) {
 
-    //signal(SIGSEGV, handleAbort);
-    //signal(SIGABRT, handleAbort);
-
     Timer::init();
 
     Parameters params;
     params.init(argc, argv);
 
-    Log::init(params.getIntParam("v"), params.isNonzero("co"));
+    int verbosity = params.getIntParam("v");
+    Log::init(verbosity, /*coloredOutput=*/params.isNonzero("co"));
 
-    Log::i("\n");
-    Log::i("Welcome to  t r e e r e x x ,  a SAT-based planner for totally ordered HTN problems\n");
-    Log::i("- Version %s\n", TREEREXX_VERSION);
-    Log::i("- Developed and designed by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
-    Log::i("- Partially based on works by D. Schreiber, D. Pellier, H. Fiorino, and T. Balyo, 2018-2019\n");
-    Log::i("- Using pandaPIparser, the parser of the pandaPI planning system,\n");
-    Log::i("    by G. Behnke, D. Höller, P. Bercher et al.\n");
-    Log::i("- Using SAT solver %s\n", IPASIRSOLVER);
-    Log::i("- Freely usable, modifiable and redistributable via GPLv3 licence\n");
-    Log::i("\n");
+    if (verbosity >= Log::V2_INFORMATION) {
+        Log::e("\n");
+        Log::e("Hello from  t r e e r e x x  %s\n", TREEREXX_VERSION);
+        Log::e("by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
+        Log::e("using SAT solver %s\n", IPASIRSOLVER);
+        Log::e("\n");
+    }
 
     run(params);
     return 1; // something went wrong if run() returns

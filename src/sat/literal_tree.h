@@ -27,7 +27,7 @@ public:
     void insert(const std::vector<int>& lits);
     bool contains(const std::vector<int>& lits) const;
     bool containsEmpty() const;
-    std::vector<std::vector<int>> encode(const std::vector<int>& headLits = std::vector<int>()) const;
+    std::vector<std::vector<int>> encode(std::vector<int> headLits = std::vector<int>()) const;
 };
 
 
