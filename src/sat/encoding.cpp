@@ -632,7 +632,8 @@ void Encoding::encodeQConstraints(Position& newPos) {
 
     // Forbidden substitutions per operator
     begin(STAGE_SUBSTITUTIONCONSTRAINTS);
-    // Check which set to use per operator: valid or invalid substitutions?
+
+    // For each operation (action or reduction)
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     for (const auto& set : ops) for (auto opSig : *set) {
 
@@ -646,6 +647,7 @@ void Encoding::encodeQConstraints(Position& newPos) {
         size_t badSize = newPos.getForbiddenSubstitutions().count(opSig) ? newPos.getForbiddenSubstitutions().at(opSig).size() : 0;
         if (badSize == 0) continue;
 
+        // Which one to encode?
         if (badSize <= goodSize) {
             // Use forbidden substitutions
             for (const Substitution& s : newPos.getForbiddenSubstitutions().at(opSig)) {

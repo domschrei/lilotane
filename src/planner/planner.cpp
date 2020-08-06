@@ -540,7 +540,9 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     if (!isQFact) return;
 
-    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? &left.getForbiddenSubstitutions().at(opSig) : nullptr;
+    // Get forbidden substitutions for this operation
+    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
+            &left.getForbiddenSubstitutions().at(opSig) : nullptr;
 
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
@@ -575,8 +577,7 @@ void Planner::propagateInitialState() {
         newPos.addFalseFact(fact);
 
     // Propagate state: initial position and all q-facts
-    getLayerState(_layer_idx) = //LayerState(getLayerState(_layer_idx-1), (*_layers[_layer_idx-1]).getOffsets());
-    LayerState();
+    getLayerState(_layer_idx) = LayerState();
     const auto& oldState = getLayerState(_layer_idx-1);
     auto& newState = getLayerState(_layer_idx);
     for (bool neg : {true, false}) {
