@@ -72,8 +72,8 @@ void LayerState::withdraw(int pos, const USignature& fact, bool negated) {
 bool LayerState::contains(int pos, const USignature& fact, bool negated) const {
     auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
     if (!occ.count(fact)) return false;
-    const auto& pair = occ.at(fact);
-    return pos >= pair.first && pos < pair.second;
+    const auto& [first, last] = occ.at(fact);
+    return pos >= first && pos < last;
 }
 bool LayerState::contains(int pos, const Signature& fact) const {
     return contains(pos, fact._usig, fact._negated);  
