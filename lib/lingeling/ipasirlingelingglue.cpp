@@ -55,4 +55,7 @@ void ipasir_set_terminate(void * solver,  void * state, int (*terminate)(void * 
 void ipasir_set_learn (void * solver, void * state, int max_length, void (*learn)(void * state, int * clause)) {
 	//not implemented
 }
- 
+
+void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var) { /*Not implemented.*/ }
+void ipasir_set_phase (void * s, unsigned int v, bool phase) { /*Not implemented.*/ }
+void ipasir_set_seed (void * s, int seed) { /*Not implemented.*/ }

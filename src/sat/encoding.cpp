@@ -7,10 +7,6 @@
 #include "util/timer.h"
 
 
-/*
-encodePosition ()
-*/
-
 bool beganLine = false;
 
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
@@ -18,6 +14,7 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
             _implicit_primitiveness(params.isNonzero("ip")) {
     _solver = ipasir_init();
+    ipasir_set_seed(_solver, _params.getIntParam("s"));
     _sig_primitive = USignature(_htn.nameId("__PRIMITIVE___"), std::vector<int>());
     _substitute_name_id = _htn.nameId("__SUBSTITUTE___");
     _sig_substitution = USignature(_substitute_name_id, std::vector<int>(2));

@@ -111,7 +111,19 @@ void ipasir_set_terminate (void * solver, void * state, int (*terminate)(void * 
 
 void ipasir_set_learn (void * solver, void * state, int max_length, void (*learn)(void * state, int * clause));
 
+// NON STANDARD FUNCTIONS.
+
+/**
+ * Set the random seed of the solver. May be ignored.
+ */
+void ipasir_set_seed (void * s, int seed);
+/**
+ * Set a phase for the given variable.
+ */
 void ipasir_set_phase (void * s, unsigned int v, bool phase);
+/**
+ * Set the given variable to be a decision variable or not.
+ */
 void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var);
 
 #endif

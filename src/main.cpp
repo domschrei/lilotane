@@ -52,11 +52,13 @@ int main(int argc, char** argv) {
     Log::init(verbosity, /*coloredOutput=*/params.isNonzero("co"));
 
     if (verbosity >= Log::V2_INFORMATION) {
-        Log::e("\n");
-        Log::e("Hello from  t r e e r e x x  %s\n", LILOTANE_VERSION);
-        Log::e("by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
-        Log::e("using SAT solver %s\n", IPASIRSOLVER);
-        Log::e("\n");
+        Log::i("\n");
+        Log::i("Hello from  ");
+        Log::log_notime(Log::V0_ESSENTIAL, "L i l o t a n e");
+        Log::log_notime(Log::V2_INFORMATION, "  version %s\n", LILOTANE_VERSION);
+        Log::i("by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
+        Log::i("using SAT solver %s\n", IPASIRSOLVER);
+        Log::i("\n");
     }
 
     run(params);

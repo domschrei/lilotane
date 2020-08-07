@@ -155,4 +155,5 @@ void ipasir_set_terminate (void * s, void * state, int (*callback)(void * state)
 void ipasir_set_learn (void * s, void * state, int max_length, void (*learn)(void * state, int * clause)) { import(s)->setLearnCallback(state, max_length, learn); }
 void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var) { import(s)->setDecisionVar(var(import(s)->import(v)), decision_var); }
 void ipasir_set_phase (void * s, unsigned int v, bool phase) { import(s)->setPolarity(var(import(s)->import(v)), phase); }
+void ipasir_set_seed (void * s, int seed) { import(s)->random_seed = seed; }
 };
