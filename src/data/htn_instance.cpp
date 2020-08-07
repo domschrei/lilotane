@@ -559,8 +559,7 @@ Action& HtnInstance::createAction(const task& task) {
     return _actions[id];
 }
 
-SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars) {
-    
+SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars) { 
     SigSet result;
 
     for (const literal& lit : lits) {
@@ -670,7 +669,7 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
         // No valid substitution.
         return red;
     }
-    return toReduction(red.getNameId(), newArgs);
+    return red.substituteRed(Substitution(red.getArguments(), newArgs));
 }
 
 std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
