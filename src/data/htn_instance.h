@@ -139,11 +139,12 @@ public:
     const std::vector<int>& getSorts(int nameId) const;
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
-    const FlatHashSet<int>& getDomainOfQConstant(int qconst);
+    const FlatHashSet<int>& getDomainOfQConstant(int qconst) const;
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
     const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    
     bool hasQFactDecodings(const USignature& qFact);
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
     void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
@@ -171,15 +172,15 @@ public:
     int nameId(const std::string& name, bool createQConstant = false);
     std::string toString(int id) const;
 
-    inline bool isVariable(int c) {
+    inline bool isVariable(int c) const {
         return _var_ids.count(c);
     }
 
-    inline bool isQConstant(int c) {
+    inline bool isQConstant(int c) const {
         return c > _name_table_running_id;
     }
 
-    inline bool hasQConstants(const USignature& sig) {
+    inline bool hasQConstants(const USignature& sig) const {
         for (const int& arg : sig._args) if (isQConstant(arg)) return true;
         return false;
     }
@@ -227,6 +228,15 @@ public:
 
     inline bool isReduction(const USignature& sig) const {
         return _reductions.count(sig._name_id);
+    }
+
+    inline bool isValidQConstDecoding(const std::vector<int>& origArgs, const std::vector<int>& groundArgs) const {
+        for (size_t i = 0; i < origArgs.size(); i++) {
+            if (origArgs[i] != groundArgs[i]) {
+                if (!isVariable(origArgs[i]) && !getDomainOfQConstant(origArgs[i]).count(groundArgs[i])) return false;
+            }
+        }
+        return true;
     }
 
 

@@ -15,14 +15,20 @@ void Position::addFalseFact(const USignature& fact) {_false_facts.insert(fact);}
 void Position::addDefinitiveFact(const Signature& fact) {(fact._negated ? _false_facts : _true_facts).insert(fact._usig);}
 
 void Position::addFactSupport(const Signature& fact, const USignature& operation) {
-    auto& set = (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
+    auto& supp = fact._negated ? _neg_fact_supports : _pos_fact_supports;
+    if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
+    auto& set = (*supp)[fact._usig];
     set.insert(operation);
 }
 void Position::touchFactSupport(const Signature& fact) {
-    (fact._negated ? _neg_fact_supports : _pos_fact_supports)[fact._usig];
+    auto& supp = fact._negated ? _neg_fact_supports : _pos_fact_supports;
+    if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
+    (*supp)[fact._usig];
 }
 void Position::touchFactSupport(const USignature& fact, bool negated) {
-    (negated ? _neg_fact_supports : _pos_fact_supports)[fact];
+    auto& supp = negated ? _neg_fact_supports : _pos_fact_supports;
+    if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
+    (*supp)[fact];
 }
 void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
     auto& vec = _q_constants_type_constraints[op];
@@ -92,8 +98,14 @@ size_t Position::getPositionIndex() const {return _pos;}
 const USigSet& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getTrueFacts() const {return _true_facts;}
 const USigSet& Position::getFalseFacts() const {return _false_facts;}
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() const {return _pos_fact_supports;}
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSupports() const {return _neg_fact_supports;}
+const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() const {
+    if (_pos_fact_supports == nullptr) return EMPTY_USIG_TO_USIG_SET_MAP;
+    return *_pos_fact_supports;
+}
+const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSupports() const {
+    if (_neg_fact_supports == nullptr) return EMPTY_USIG_TO_USIG_SET_MAP;
+    return *_neg_fact_supports;
+}
 const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Position::getQConstantsTypeConstraints() const {
     return _q_constants_type_constraints;
 }
@@ -122,10 +134,8 @@ void Position::clearAtPastPosition() {
     _predecessors.reserve(0);
     _axiomatic_ops.clear();
     _axiomatic_ops.reserve(0);
-    _pos_fact_supports.clear();
-    _pos_fact_supports.reserve(0);
-    _neg_fact_supports.clear();
-    _neg_fact_supports.reserve(0);
+    if (_pos_fact_supports != nullptr) delete _pos_fact_supports;
+    if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
     _q_constants_type_constraints.clear();
     _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
@@ -148,5 +158,6 @@ void Position::clearAtPastLayer() {
     NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
     for (const auto& r : _reductions) cleanedVars[r] = _variables[r];
     for (const auto& a : _actions) cleanedVars[a] = _variables[a];
+    cleanedVars.reserve(0);
     _variables = std::move(cleanedVars);
 }

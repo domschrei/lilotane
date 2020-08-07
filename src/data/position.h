@@ -19,6 +19,7 @@ public:
     const static USignature NONE_SIG;
     const static SigSet EMPTY_SIG_SET;
     const static USigSet EMPTY_USIG_SET;
+    const static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
 
 private:
     size_t _layer_idx;
@@ -41,8 +42,8 @@ private:
     // All facts that are definitely false at this position.
     USigSet _false_facts;
 
-    NodeHashMap<USignature, USigSet, USignatureHasher> _pos_fact_supports;
-    NodeHashMap<USignature, USigSet, USignatureHasher> _neg_fact_supports;
+    NodeHashMap<USignature, USigSet, USignatureHasher>* _pos_fact_supports = nullptr;
+    NodeHashMap<USignature, USigSet, USignatureHasher>* _neg_fact_supports = nullptr;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 

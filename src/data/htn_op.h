@@ -20,10 +20,13 @@ public:
     HtnOp();
     HtnOp(int id, const std::vector<int>& args);
     HtnOp(const HtnOp& op);
+    HtnOp(HtnOp&& op);
 
     void setPreconditions(const SigSet& set);
     void addPrecondition(const Signature& sig);
+    void addPrecondition(Signature&& sig);
     void addEffect(const Signature& sig);
+    void addEffect(Signature&& sig);
     void addArgument(int arg);
     void removeInconsistentEffects();
 

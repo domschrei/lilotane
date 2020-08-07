@@ -476,6 +476,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     NodeHashSet<Substitution, Substitution::Hasher> goods;
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
+        if (!_htn.isValidQConstDecoding(factAbs._args, decFactAbs._args)) continue;
         
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
@@ -547,6 +548,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
+        if (!_htn.isValidQConstDecoding(factAbs._args, decFactAbs._args)) continue;
 
         // Check if this decoding is known to be invalid    
         Substitution s(factAbs._args, decFactAbs._args);
@@ -842,8 +844,10 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 void Planner::addNewFalseFacts() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     
-    // For each action and each of its effects:
-    for (const auto& aSig : newPos.getActions()) { 
+    // For each possible operation effect:
+    const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
+    for (const auto& set : ops) for (const auto& aSig : *set) { 
+        if (aSig == Position::NONE_SIG) continue;
         for (const Signature& eff : newPos.getFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig)) { // TODO
@@ -852,30 +856,12 @@ void Planner::addNewFalseFacts() {
             } else {
                 std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
                 for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
+                    if (!_htn.isValidQConstDecoding(eff._usig._args, decEff._args)) continue;
+                    
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
             }
-        }
-    }
-
-    // For each possible reduction effect: 
-    for (const auto& rSig : newPos.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
-
-        for (const Signature& eff : newPos.getFactChanges(rSig)) {
-
-            if (!_htn.hasQConstants(eff._usig)) { // TODO
-                // New fact: set to false before the reduction may happen
-                introduceNewFalseFact(newPos, eff._usig);
-            } else {
-                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, rSig);
-                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
-                    // New fact: set to false before the action may happen
-                    introduceNewFalseFact(newPos, decEff);
-                }
-            }
-
         }
     }
 

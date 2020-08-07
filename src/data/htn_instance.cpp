@@ -224,7 +224,7 @@ void HtnInstance::minePreconditions() {
         precondsBefore += r.getPreconditions().size();
         // Mine additional preconditions, if possible
         auto factFrame = _instantiator->getFactFrame(r.getSignature(), /*simpleMode=*/true);
-        for (const auto& pre : factFrame.preconditions) {
+        for (auto& pre : factFrame.preconditions) {
             if (!r.getPreconditions().count(pre)) {
                 
                 bool hasFreeArgs = false;
@@ -232,7 +232,7 @@ void HtnInstance::minePreconditions() {
                 if (hasFreeArgs) continue;
 
                 Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
-                r.addPrecondition(pre);
+                r.addPrecondition(std::move(pre));
                 minedPreconds++;
             }
         }
@@ -346,8 +346,8 @@ Action HtnInstance::getGoalAction() {
     USignature goalSig = goalAction.getSignature();
     
     // Extract primitive goals, add to preconds of goal action
-    for (const Signature& fact : extractGoals()) {
-        goalAction.addPrecondition(fact);
+    for (Signature& fact : extractGoals()) {
+        goalAction.addPrecondition(std::move(fact));
     }
     _actions_by_sig[goalSig] = goalAction;
     _actions[goalSig._name_id] = goalAction;
@@ -500,16 +500,15 @@ Reduction& HtnInstance::createReduction(method& method) {
     }
 
     // Process constraints of the method
-    for (const auto& pre : extractEqualityConstraints(id, condLiterals, method.vars))
-        _reductions[id].addPrecondition(pre);
+    for (auto& pre : extractEqualityConstraints(id, condLiterals, method.vars))
+        _reductions[id].addPrecondition(std::move(pre));
 
     // Process preconditions of the method
     for (const literal& lit : condLiterals) {
         if (lit.predicate == dummy_equal_literal) continue;
 
         // Normal precondition
-        Signature sig = convertSignature(id, lit);
-        _reductions[id].addPrecondition(sig);
+        _reductions[id].addPrecondition(convertSignature(id, lit));
     }
 
     // Order subtasks
@@ -546,19 +545,17 @@ Action& HtnInstance::createAction(const task& task) {
     _actions[id] = Action(id, args);
 
     // Process (equality) constraints
-    for (const auto& pre : extractEqualityConstraints(id, task.constraints, task.vars))
-        _actions[id].addPrecondition(pre);
-    for (const auto& pre : extractEqualityConstraints(id, task.prec, task.vars))
-        _actions[id].addPrecondition(pre);
+    for (auto& pre : extractEqualityConstraints(id, task.constraints, task.vars))
+        _actions[id].addPrecondition(std::move(pre));
+    for (auto& pre : extractEqualityConstraints(id, task.prec, task.vars))
+        _actions[id].addPrecondition(std::move(pre));
 
     // Process preconditions
     for (const auto& p : task.prec) {
-        Signature sig = convertSignature(id, p);
-        _actions[id].addPrecondition(sig);
+        _actions[id].addPrecondition(convertSignature(id, p));
     }
     for (const auto& p : task.eff) {
-        Signature sig = convertSignature(id, p);
-        _actions[id].addEffect(sig);
+        _actions[id].addEffect(convertSignature(id, p));
     }
     _actions[id].removeInconsistentEffects();
     return _actions[id];
@@ -725,6 +722,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             //Log::d("------%s\n", TOSTR(decSig));
 
             // Valid?
+            if (!isValidQConstDecoding(preSig._usig._args, decUSig._args)) continue;
             if (!_instantiator->testWithNoVarsNoQConstants(decUSig, preSig._negated, state)) continue;
             
             // Valid precondition decoding found: Increase domain of concerned variables
@@ -921,8 +919,8 @@ std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, cons
     return sigSorts;
 }
 
-const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) {
-    return _constants_by_sort[_primary_sort_of_q_constants[qconst]];
+const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) const {
+    return _constants_by_sort.at(_primary_sort_of_q_constants.at(qconst));
 }
 
 void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
@@ -992,6 +990,7 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         //log("QQ %s\n", TOSTR(pre._usig));
         std::vector<int> sorts = getOpSortsForCondition(pre._usig, op.getSignature());
         for (const auto& decPre : decodeObjects(pre._usig, true, sorts)) {
+            if (!isValidQConstDecoding(pre._usig._args, decPre._args)) continue;
             bool holds = _instantiator->testWithNoVarsNoQConstants(decPre, pre._negated, state);
             //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
             auto& set = holds ? good : bad;

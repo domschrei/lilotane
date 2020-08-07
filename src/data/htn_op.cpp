@@ -4,6 +4,8 @@
 HtnOp::HtnOp() {}
 HtnOp::HtnOp(int id, const std::vector<int>& args) : _id(id), _args(args) {}
 HtnOp::HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
+HtnOp::HtnOp(HtnOp&& op) : _id(op._id), _args(std::move(op._args)), 
+        _preconditions(std::move(op._preconditions)), _effects(std::move(op._effects)) {}
 
 void HtnOp::setPreconditions(const SigSet& set) {
     _preconditions = set;
@@ -11,8 +13,14 @@ void HtnOp::setPreconditions(const SigSet& set) {
 void HtnOp::addPrecondition(const Signature& sig) {
     _preconditions.insert(sig);
 }
+void HtnOp::addPrecondition(Signature&& sig) {
+    _preconditions.insert(std::move(sig));
+}
 void HtnOp::addEffect(const Signature& sig) {
     _effects.insert(sig);
+}
+void HtnOp::addEffect(Signature&& sig) {
+    _effects.insert(std::move(sig));
 }
 void HtnOp::addArgument(int arg) {
     _args.push_back(arg);
@@ -35,17 +43,15 @@ HtnOp HtnOp::substitute(const Substitution& s) const {
     HtnOp op;
     op._id = _id;
     op._args.resize(_args.size());
-    for (int i = 0; i < _args.size(); i++) {
+    for (size_t i = 0; i < _args.size(); i++) {
         if (s.count(_args[i])) op._args[i] = s.at(_args[i]);
         else op._args[i] = _args[i];
     }
     for (const Signature& sig : _preconditions) {
-        Signature sigSubst = sig.substitute(s);
-        op.addPrecondition(sigSubst);
+        op.addPrecondition(sig.substitute(s));
     }
     for (const Signature& sig : _effects) {
-        Signature sigSubst = sig.substitute(s);
-        op.addEffect(sigSubst);
+        op.addEffect(sig.substitute(s));
     }
     return op;
 }
