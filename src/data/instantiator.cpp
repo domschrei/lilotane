@@ -23,7 +23,6 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
         //log("%s\n", TOSTR(sig));
         result.push_back(r.substituteRed(Substitution(r.getArguments(), sig._args)));
     }
-
     _inst_mode = oldMode;
 
     return result;

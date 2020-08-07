@@ -34,13 +34,13 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);
 }
-void Position::addForbiddenSubstitution(const USignature& op, Substitution&& s) {
+void Position::addForbiddenSubstitution(const USignature& op, Substitution& s) {
     auto& set = _forbidden_substitutions_per_op[op];
-    set.insert(s);
+    set.insert(std::move(s));
 }
-void Position::addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>&& subs) {
+void Position::addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs) {
     auto& set = _valid_substitutions_per_op[op];
-    set.push_back(subs);
+    set.push_back(std::move(subs));
 }
 
 void Position::addAction(const USignature& action) {

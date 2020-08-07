@@ -11,7 +11,7 @@
 class LayerState {
 
 public:
-    typedef FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> RangedSigMap;
+    typedef NodeHashMap<USignature, std::pair<int, int>, USignatureHasher> RangedSigMap;
     class Iterable {
         private:
             RangedSigMap::iterator _begin;
@@ -42,27 +42,57 @@ public:
     };
 
 private:
-    FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> _pos_fact_occurrences;
-    FlatHashMap<USignature, std::pair<int, int>, USignatureHasher> _neg_fact_occurrences;
+    NodeHashMap<USignature, std::pair<int, int>, USignatureHasher> _pos_fact_occurrences;
+    NodeHashMap<USignature, std::pair<int, int>, USignatureHasher> _neg_fact_occurrences;
 
 public:
     LayerState();
     LayerState(const LayerState& other);
     LayerState(const LayerState& other, std::vector<int> offsets);
 
-    void add(int pos, const Signature& fact);
-    void add(int pos, const USignature& fact, bool negated);
-    void withdraw(int pos, const Signature& fact);
-    void withdraw(int pos, const USignature& fact, bool negated);
-
-    bool contains(int pos, const USignature& fact, bool negated) const;
-    bool contains(int pos, const Signature& fact) const;
-
     const RangedSigMap& getPosFactOccurrences() const;
     const RangedSigMap& getNegFactOccurrences() const;
 
-    Iterator at(int pos, bool negated);
     LayerState& operator=(const LayerState& other);
+
+    inline void add(int pos, const Signature& fact) {
+        add(pos, fact._usig, fact._negated);
+    }
+
+    inline void add(int pos, const USignature& fact, bool negated) {
+        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
+        if (!occ.count(fact)) {
+            occ[fact] = std::pair<int, int>(pos, INT32_MAX);
+        }
+        occ[fact].first = std::min(occ[fact].first, pos);
+    }
+
+    inline void withdraw(int pos, const Signature& fact) {
+        withdraw(pos, fact._usig, fact._negated);
+    }
+
+    inline void withdraw(int pos, const USignature& fact, bool negated) {
+        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
+        auto it = occ.find(fact);
+        if (it == occ.end()) return;
+        it->second.second = pos;
+    }
+
+    inline bool contains(int pos, const USignature& fact, bool negated) const {
+        auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
+        auto it = occ.find(fact);
+        if (it == occ.end()) return false;
+        auto [first, last] = it->second;
+        return pos >= first && pos < last;
+    }
+
+    inline bool contains(int pos, const Signature& fact) const {
+        return contains(pos, fact._usig, fact._negated);  
+    }
+    
+    inline LayerState::Iterator at(int pos, bool negated) {
+        return Iterator(negated ? _neg_fact_occurrences : _pos_fact_occurrences, pos);
+    }
 };
 
 #endif

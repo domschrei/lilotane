@@ -71,8 +71,8 @@ public:
     void addIndirectFactSupport(const Signature& fact, const USignature& op, const Substitution& s);
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
 
-    void addForbiddenSubstitution(const USignature& op, Substitution&& s);
-    void addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>&& subs);
+    void addForbiddenSubstitution(const USignature& op, Substitution& s);
+    void addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs);
     void clearForbiddenSubstitutions(const USignature& op);
     void clearValidSubstitutions(const USignature& op);
 

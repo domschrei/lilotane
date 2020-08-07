@@ -251,7 +251,7 @@ void Planner::createFirstLayer() {
             for (const Signature& fact : r.getPreconditions()) {
                 addPrecondition(sig, fact, goodSubs, badSubs);
             }
-            addSubstitutionConstraints(sig, std::move(goodSubs), std::move(badSubs));
+            addSubstitutionConstraints(sig, goodSubs, badSubs);
             addQConstantTypeConstraints(sig);
             const PositionedUSig psig{_layer_idx,_pos,sig};
             _htn.addQConstantConditions(r, psig, QConstantDatabase::PSIG_ROOT, 0, getStateEvaluator());
@@ -495,8 +495,8 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 }
 
 void Planner::addSubstitutionConstraints(const USignature& op, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>&& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>&& badSubs) {
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
     
     Position& newPos = _layers[_layer_idx]->at(_pos);
 
@@ -506,14 +506,14 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     //if (badSubs.size() <= goodSize) {
         for (auto& s : badSubs) {
             //Log::d("(%i,%i) FORBIDDEN_SUBST NOR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addForbiddenSubstitution(op, std::move(s));
+            newPos.addForbiddenSubstitution(op, s);
         }
     //} else {
         // More bad subs than there are good ones:
         // Remember good ones instead (although encoding them can be more complex)
         for (auto& subs : goodSubs) {
             //Log::d("(%i,%i) VALID_SUBST OR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addValidSubstitutions(op, std::move(subs));
+            newPos.addValidSubstitutions(op, subs);
         }
     //}
 }
@@ -687,7 +687,7 @@ void Planner::propagateReductions(size_t offset) {
                     addPrecondition(subRSig, fact, goodSubs, badSubs);
                     //log("%s ", TOSTR(fact));
                 }
-                addSubstitutionConstraints(subRSig, std::move(goodSubs), std::move(badSubs));
+                addSubstitutionConstraints(subRSig, goodSubs, badSubs);
                 addQConstantTypeConstraints(subRSig);
                 _htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
                                         parentPSig, offset, getStateEvaluator());
@@ -706,7 +706,7 @@ void Planner::propagateReductions(size_t offset) {
                 for (const Signature& fact : a.getPreconditions()) {
                     addPrecondition(aSig, fact, goodSubs, badSubs);
                 }
-                addSubstitutionConstraints(aSig, std::move(goodSubs), std::move(badSubs));
+                addSubstitutionConstraints(aSig, goodSubs, badSubs);
                 addQConstantTypeConstraints(aSig);
                 _htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
                                         parentPSig, offset, getStateEvaluator());
@@ -822,7 +822,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 
     // Rename any remaining variables in each action as new, unique q-constants 
     red = _htn.replaceVariablesWithQConstants(red, _layer_idx, _pos, getStateEvaluator());
-    
+
     // Check validity
     if (task._name_id >= 0 && red.getTaskSignature() != task) return false;
     if (!_instantiator.isFullyGround(red.getSignature())) return false;

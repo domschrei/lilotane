@@ -3,7 +3,7 @@
 
 USignature::USignature() : _name_id(-1) {}
 USignature::USignature(int nameId, const std::vector<int>& args) : _name_id(nameId), _args(args) {}
-USignature::USignature(int nameId, std::vector<int>&& args) : _name_id(nameId), _args(args) {}
+USignature::USignature(int nameId, std::vector<int>&& args) : _name_id(nameId), _args(std::move(args)) {}
 USignature::USignature(const USignature& sig) : _name_id(sig._name_id), _args(sig._args) {}
 USignature::USignature(USignature&& sig) {
     _name_id = sig._name_id;
@@ -40,7 +40,7 @@ USignature& USignature::operator=(USignature&& sig) {
 
 Signature::Signature() {}
 Signature::Signature(int nameId, const std::vector<int>& args, bool negated) : _usig(nameId, args), _negated(negated) {}
-Signature::Signature(int nameId, std::vector<int>&& args, bool negated) : _usig(nameId, args), _negated(negated) {}
+Signature::Signature(int nameId, std::vector<int>&& args, bool negated) : _usig(nameId, std::move(args)), _negated(negated) {}
 Signature::Signature(const USignature& usig, bool negated) : _usig(usig), _negated(negated) {}
 Signature::Signature(const Signature& sig) : _usig(sig._usig), _negated(sig._negated) {}
 Signature::Signature(Signature&& sig) {

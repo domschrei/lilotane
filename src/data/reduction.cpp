@@ -96,10 +96,10 @@ void Reduction::addSubtask(const USignature& subtask) {
     _subtasks.push_back(subtask);
 }
 void Reduction::addSubtask(USignature&& subtask) {
-    _subtasks.push_back(subtask);
+    _subtasks.push_back(std::move(subtask));
 }
 void Reduction::setSubtasks(std::vector<USignature>&& subtasks) {
-    _subtasks = subtasks;
+    _subtasks = std::move(subtasks);
 }
 
 USignature Reduction::getTaskSignature() const {

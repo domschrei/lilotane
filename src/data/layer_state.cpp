@@ -50,44 +50,11 @@ LayerState::LayerState(const LayerState& other, std::vector<int> offsets) {
     }
 }
 
-void LayerState::add(int pos, const Signature& fact) {
-    add(pos, fact._usig, fact._negated);
-}
-void LayerState::add(int pos, const USignature& fact, bool negated) {
-    auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-    if (!occ.count(fact)) {
-        occ[fact] = std::pair<int, int>(pos, INT32_MAX);
-    }
-    occ[fact].first = std::min(occ[fact].first, pos);
-}
-void LayerState::withdraw(int pos, const Signature& fact) {
-    withdraw(pos, fact._usig, fact._negated);
-}
-void LayerState::withdraw(int pos, const USignature& fact, bool negated) {
-    auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-    if (!occ.count(fact)) return;
-    occ[fact].second = pos;
-}
-
-bool LayerState::contains(int pos, const USignature& fact, bool negated) const {
-    auto& occ = negated ? _neg_fact_occurrences : _pos_fact_occurrences;
-    if (!occ.count(fact)) return false;
-    const auto& [first, last] = occ.at(fact);
-    return pos >= first && pos < last;
-}
-bool LayerState::contains(int pos, const Signature& fact) const {
-    return contains(pos, fact._usig, fact._negated);  
-}
-
 const LayerState::RangedSigMap& LayerState::getPosFactOccurrences() const {
     return _pos_fact_occurrences;
 }
 const LayerState::RangedSigMap& LayerState::getNegFactOccurrences() const {
     return _neg_fact_occurrences;
-}
-
-LayerState::Iterator LayerState::at(int pos, bool negated) {
-    return Iterator(negated ? _neg_fact_occurrences : _pos_fact_occurrences, pos);
 }
 
 LayerState& LayerState::operator=(const LayerState& other) {
