@@ -16,6 +16,8 @@ struct TypeConstraint {
     std::vector<int> constants;
     TypeConstraint(int qconstant, bool sign, const std::vector<int>& constants) : 
         qconstant(qconstant), sign(sign), constants(constants) {}
+    TypeConstraint(int qconstant, bool sign, std::vector<int>&& constants) : 
+        qconstant(qconstant), sign(sign), constants(constants) {}
     TypeConstraint(const TypeConstraint& other) : qconstant(other.qconstant), 
             sign(other.sign), constants(other.constants) {}
     TypeConstraint(TypeConstraint&& other) : qconstant(other.qconstant), 
@@ -31,6 +33,7 @@ struct USignature {
 
     USignature();
     USignature(int nameId, const std::vector<int>& args);
+    USignature(int nameId, std::vector<int>&& args);
     USignature(const USignature& sig);
     USignature(USignature&& sig);
 
@@ -58,6 +61,7 @@ struct Signature {
 
     Signature();
     Signature(int nameId, const std::vector<int>& args, bool negated = false);
+    Signature(int nameId, std::vector<int>&& args, bool negated = false);
     Signature(const USignature& usig, bool negated);
     Signature(const Signature& sig);
     Signature(Signature&& sig);

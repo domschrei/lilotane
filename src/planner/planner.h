@@ -55,8 +55,8 @@ private:
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
             NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
     void addSubstitutionConstraints(const USignature& op, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>&& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>&& badSubs);
     void addEffect(const USignature& op, const Signature& fact);
     bool addAction(Action& a);
     bool addReduction(Reduction& r, const USignature& task);

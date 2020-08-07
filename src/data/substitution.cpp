@@ -9,6 +9,7 @@ Substitution::Entry::Entry(const Entry& other) : first(other.first), second(othe
 Substitution::Substitution() {}
 
 Substitution::Substitution(const Substitution& other) : _entries(other._entries) {}
+Substitution::Substitution(Substitution&& old) : _entries(std::move(old._entries)) {}
 
 Substitution::Substitution(const std::vector<int>& src, const std::vector<int>& dest) {
     assert(src.size() == dest.size());

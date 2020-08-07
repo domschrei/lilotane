@@ -27,7 +27,7 @@ void NetworkTraversal::traverse(const USignature& opSig, TraverseOrder order, st
 
         // Normalize node signature arguments to compare to seen signatures
         Substitution s;
-        for (int argPos = 0; argPos < nodeSig._args.size(); argPos++) {
+        for (size_t argPos = 0; argPos < nodeSig._args.size(); argPos++) {
             int arg = nodeSig._args[argPos];
             if (arg > 0 && _htn->isVariable(arg)) {
                 // Variable
@@ -75,7 +75,7 @@ std::vector<USignature> NetworkTraversal::getPossibleChildren(const USignature& 
     Reduction r = _htn->toReduction(nameId, opSig._args);
 
     const std::vector<USignature>& subtasks = r.getSubtasks();
-    for (int i = 0; i < subtasks.size(); i++) getPossibleChildren(subtasks, i, result);    
+    for (size_t i = 0; i < subtasks.size(); i++) getPossibleChildren(subtasks, i, result);    
 
     return result;
 }
@@ -99,8 +99,7 @@ void NetworkTraversal::getPossibleChildren(const std::vector<USignature>& subtas
             // When substituting task args of a reduction, there may be multiple possibilities
             std::vector<Substitution> ss = Substitution::getAll(origArgs, sig._args);
             for (const Substitution& s : ss) {
-                USignature substSig = subred.getSignature().substitute(s);
-                result.push_back(substSig);
+                result.push_back(subred.getSignature().substitute(s));
             }
         }
     }

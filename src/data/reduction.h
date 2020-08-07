@@ -25,13 +25,15 @@ public:
     Reduction(HtnOp& op);
     Reduction(const Reduction& r);
     Reduction(int nameId, const std::vector<int>& args, const USignature& task);
+    Reduction(int nameId, const std::vector<int>& args, USignature&& task);
 
     void orderSubtasks(const std::map<int, std::vector<int>>& orderingNodelist);
 
     Reduction substituteRed(const Substitution& s) const;
 
-    void addSubtask(USignature subtask);
-    void setSubtasks(const std::vector<USignature>& subtasks);
+    void addSubtask(const USignature& subtask);
+    void addSubtask(USignature&& subtask);
+    void setSubtasks(std::vector<USignature>&& subtasks);
 
     USignature getTaskSignature() const;
     const std::vector<int>& getTaskArguments() const;

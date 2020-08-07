@@ -230,15 +230,6 @@ public:
         return _reductions.count(sig._name_id);
     }
 
-    inline bool isValidQConstDecoding(const std::vector<int>& origArgs, const std::vector<int>& groundArgs) const {
-        for (size_t i = 0; i < origArgs.size(); i++) {
-            if (origArgs[i] != groundArgs[i]) {
-                if (!isVariable(origArgs[i]) && !getDomainOfQConstant(origArgs[i]).count(groundArgs[i])) return false;
-            }
-        }
-        return true;
-    }
-
 
 private:
 

@@ -3,6 +3,7 @@
 
 HtnOp::HtnOp() {}
 HtnOp::HtnOp(int id, const std::vector<int>& args) : _id(id), _args(args) {}
+HtnOp::HtnOp(int id, std::vector<int>&& args) : _id(id), _args(args) {}
 HtnOp::HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
 HtnOp::HtnOp(HtnOp&& op) : _id(op._id), _args(std::move(op._args)), 
         _preconditions(std::move(op._preconditions)), _effects(std::move(op._effects)) {}
@@ -67,6 +68,9 @@ const std::vector<int>& HtnOp::getArguments() const {
 }
 USignature HtnOp::getSignature() const {
     return USignature(_id, _args);
+}
+int HtnOp::getNameId() const {
+    return _id;
 }
 
 HtnOp& HtnOp::operator=(const HtnOp& op) {

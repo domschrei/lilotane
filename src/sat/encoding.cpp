@@ -269,7 +269,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     std::sort(sVars.begin(), sVars.end());
 
                     // Insert into according support tree
-                    indirectSupport[decEff][opVar].insert(sVars);
+                    indirectSupport[decEff][opVar].insert(std::move(sVars));
                 } else {
                     // No frame axioms will be encoded: 
                     // Just remember that there is some support for this fact

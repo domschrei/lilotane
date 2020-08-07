@@ -24,7 +24,7 @@ struct FactFrame {
             for (const auto& eff : effs) {
                 fEffs.insert(eff.substitute(s));
             }
-            f.causalEffects[fPres] = fEffs;
+            f.causalEffects[std::move(fPres)] = fEffs;
         }
         for (const auto& eff : flatEffects) {
             f.flatEffects.insert(eff.substitute(s));

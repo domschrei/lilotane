@@ -8,8 +8,9 @@ Reduction::Reduction(const Reduction& r) : HtnOp(r._id, r._args), _task_name_id(
     for (auto eff : r.getEffects()) addEffect(eff);
 }
 Reduction::Reduction(int nameId, const std::vector<int>& args, const USignature& task) : 
-        HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {
-}
+        HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(task._args) {}
+Reduction::Reduction(int nameId, const std::vector<int>& args, USignature&& task) : 
+        HtnOp(nameId, args), _task_name_id(task._name_id), _task_args(std::move(task._args)) {}
 
 void Reduction::orderSubtasks(const std::map<int, std::vector<int>>& orderingNodelist) {
 
@@ -65,7 +66,7 @@ void Reduction::orderSubtasks(const std::map<int, std::vector<int>>& orderingNod
     // Reorder subtasks
     std::vector<USignature> newSubtasks;
     newSubtasks.resize(_subtasks.size());
-    for (int i = 0; i < _subtasks.size(); i++) {
+    for (size_t i = 0; i < _subtasks.size(); i++) {
         newSubtasks[i] = _subtasks[sortedNodes[i]];
     }
     _subtasks = newSubtasks;
@@ -78,23 +79,26 @@ Reduction Reduction::substituteRed(const Substitution& s) const {
     r._task_name_id = _task_name_id;
     
     r._task_args.resize(_task_args.size());
-    for (int i = 0; i < _task_args.size(); i++) {
+    for (size_t i = 0; i < _task_args.size(); i++) {
         if (s.count(_task_args[i])) r._task_args[i] = s.at(_task_args[i]);
         else r._task_args[i] = _task_args[i];
     }
     
     r._subtasks.resize(_subtasks.size());
-    for (int i = 0; i < _subtasks.size(); i++) {
+    for (size_t i = 0; i < _subtasks.size(); i++) {
         r._subtasks[i] = _subtasks[i].substitute(s);
     }
 
     return r;
 }
 
-void Reduction::addSubtask(USignature subtask) {
+void Reduction::addSubtask(const USignature& subtask) {
     _subtasks.push_back(subtask);
 }
-void Reduction::setSubtasks(const std::vector<USignature>& subtasks) {
+void Reduction::addSubtask(USignature&& subtask) {
+    _subtasks.push_back(subtask);
+}
+void Reduction::setSubtasks(std::vector<USignature>&& subtasks) {
     _subtasks = subtasks;
 }
 

@@ -126,7 +126,6 @@ public:
         // Q-Fact:
         if (_htn->hasQConstants(sig)) {
             for (const auto& decSig : _htn->decodeObjects(sig, true)) {
-                if (!_htn->isValidQConstDecoding(sig._args, decSig._args)) continue;
                 if (testWithNoVarsNoQConstants(decSig, negated, state)) return true;
             }
             return false;
@@ -140,7 +139,9 @@ public:
     }
 
     inline bool hasValidPreconditions(const SigSet& preconds, const StateEvaluator& state) {
-        for (const Signature& pre : preconds) if (!test(pre, state)) return false;
+        for (const Signature& pre : preconds) if (!test(pre, state)) {
+            return false;
+        } 
         return true;
     }
 };

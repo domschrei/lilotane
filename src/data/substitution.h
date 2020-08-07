@@ -28,6 +28,7 @@ private:
 public:
     Substitution();
     Substitution(const Substitution& other);
+    Substitution(Substitution&& old);
     Substitution(const std::vector<int>& src, const std::vector<int>& dest);
 
     void clear();

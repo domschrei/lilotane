@@ -42,7 +42,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
         //log("%s\n", TOSTR(sig));
         //assert(isFullyGround(sig) || Log::e("%s is not fully ground!\n", TOSTR(sig)));
         HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
-        result.push_back((Action) newOp);
+        result.push_back((Action&&) std::move(newOp));
     }
 
     _inst_mode = oldMode;
@@ -147,7 +147,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
             int arg = op.getArguments().at(argIdx);
             if (!_htn->isVariable(arg)) continue;
 
-            int sort = _htn->getSorts(op.getSignature()._name_id).at(argIdx);
+            int sort = _htn->getSorts(op.getNameId()).at(argIdx);
             int domainSize = _htn->getConstantsOfSort(sort).size();
             float r = ratings.at(arg);
             if (_q_const_rating_factor*r > domainSize) {
@@ -197,11 +197,11 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
 
         // Loop over possible choices for the next argument position
         int argPos = argPosBackMapping[assignment.size()];
-        int sort = _htn->getSorts(op.getSignature()._name_id).at(argPos);
+        int sort = _htn->getSorts(op.getNameId()).at(argPos);
         for (int c : _htn->getConstantsOfSort(sort)) {
 
             // Create new assignment
-            std::vector<int> newAssignment = assignment;
+            std::vector<int> newAssignment = std::move(assignment);
             newAssignment.push_back(c);
 
             // Create corresponding op
@@ -367,7 +367,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
         for (size_t i = 0; i < sig._args.size(); i++) {
             newArgs[i] = _htn->nameId("c" + std::to_string(i));
         }
-        USignature op(sig._name_id, newArgs);
+        USignature op(sig._name_id, std::move(newArgs));
         result.sig = op;
 
         if (_htn->isAction(op)) {
@@ -413,7 +413,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
                     }
 
                     // Recursively get child frame of the child
-                    FactFrame childFrame = getFactFrame(USignature(child._name_id, newChildArgs), simpleMode);
+                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), simpleMode);
                     
                     if (firstChild) {
                         // Add all preconditions of child that are not yet part of the parent's effects
@@ -426,15 +426,15 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
                                     break;
                                 } 
                             }
-                            if (isNew) frameOfOffset.preconditions.insert(pre);
+                            if (isNew) frameOfOffset.preconditions.insert(std::move(pre));
                         }
                         firstChild = false;
                     } else {
                         // Intersect preconditions
                         SigSet newPrec;
-                        for (const auto& pre : childFrame.preconditions) {
+                        for (auto& pre : childFrame.preconditions) {
                             if (frameOfOffset.preconditions.count(pre)) {
-                                newPrec.insert(pre);
+                                newPrec.insert(std::move(pre));
                             }
                         }
                         frameOfOffset.preconditions = std::move(newPrec);
@@ -583,10 +583,10 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
 
         if (good.size() >= bad.size()) {
             // arg must be EITHER of the GOOD ones
-            constraints.emplace_back(arg, true, good);
+            constraints.emplace_back(arg, true, std::move(good));
         } else {
             // arg must be NEITHER of the BAD ones
-            constraints.emplace_back(arg, false, bad);
+            constraints.emplace_back(arg, false, std::move(bad));
         }
     }
 

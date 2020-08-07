@@ -87,7 +87,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     // Instantiate possible "root" / "top" methods
     for (const auto& rPair : _reductions) {
         const Reduction& r = rPair.second;
-        if (_name_back_table[r.getSignature()._name_id].rfind("__top_method") == 0) {
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
             // Initial "top" method
             _init_reduction = r;
         }
@@ -170,7 +170,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
         Action aFirst = Action(idFirst, aSig._args);
         aFirst.setPreconditions(a.getPreconditions());
         for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
-        _signature_sorts_table[aFirst.getSignature()._name_id] = aSorts;
+        _signature_sorts_table[aFirst.getNameId()] = aSorts;
         newActions[idFirst] = aFirst;
 
         // Second action: no preconditions, all other effects
@@ -179,7 +179,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
         for (const Signature& eff : a.getEffects()) {
             if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
         }
-        _signature_sorts_table[aSecond.getSignature()._name_id] = aSorts;
+        _signature_sorts_table[aSecond.getNameId()] = aSorts;
         newActions[idSecond] = aSecond;
 
         // Replace all occurrences of the action with BOTH new actions in correct order
@@ -200,7 +200,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
                 }
             }
             if (change) {
-                r.setSubtasks(newSubtasks);
+                r.setSubtasks(std::move(newSubtasks));
             } 
         }
 
@@ -319,9 +319,8 @@ SigSet HtnInstance::getInitState() {
                 if (c1 != c2) continue;
                 std::vector<int> args;
                 args.push_back(c1); args.push_back(c2);
-                Signature sig(eqPredId, args);
-                result.insert(sig);
-                Log::d("EQUALITY %s\n", TOSTR(sig));
+                Log::d("EQUALITY %s\n", TOSTR(args));
+                result.emplace(eqPredId, std::move(args));
             }
         }
     }
@@ -367,7 +366,7 @@ void HtnInstance::extractPredSorts(const predicate_definition& p) {
         sorts.push_back(nameId(var));
     }
     assert(!_signature_sorts_table.count(pId));
-    _signature_sorts_table[pId] = sorts;
+    _signature_sorts_table[pId] = std::move(sorts);
 }
 
 void HtnInstance::extractTaskSorts(const task& t) {
@@ -378,7 +377,7 @@ void HtnInstance::extractTaskSorts(const task& t) {
     }
     int tId = nameId(t.name);
     assert(!_signature_sorts_table.count(tId));
-    _signature_sorts_table[tId] = sorts;
+    _signature_sorts_table[tId] = std::move(sorts);
     _original_n_taskvars[tId] = t.number_of_original_vars;
 }
 
@@ -390,7 +389,7 @@ void HtnInstance::extractMethodSorts(const method& m) {
     }
     int mId = nameId(m.name);
     assert(!_signature_sorts_table.count(mId));
-    _signature_sorts_table[mId] = sorts;
+    _signature_sorts_table[mId] = std::move(sorts);
 }
 
 void HtnInstance::extractConstants() {
@@ -410,12 +409,13 @@ Reduction& HtnInstance::createReduction(method& method) {
     std::vector<int> args = convertArguments(id, method.vars);
     
     int taskId = nameId(method.at);
-    std::vector<int> taskArgs = convertArguments(id, method.atargs);
     _task_id_to_reduction_ids[taskId];
     _task_id_to_reduction_ids[taskId].push_back(id);
-
-    assert(_reductions.count(id) == 0);
-    _reductions[id] = Reduction(id, args, USignature(taskId, taskArgs));
+    {
+        std::vector<int> taskArgs = convertArguments(id, method.atargs);
+        assert(_reductions.count(id) == 0);
+        _reductions[id] = Reduction(id, args, USignature(taskId, std::move(taskArgs)));
+    }
     Reduction& r = _reductions[id];
 
     std::vector<literal> condLiterals;
@@ -491,10 +491,8 @@ Reduction& HtnInstance::createReduction(method& method) {
             // (Do not add the task to the method's subtasks)
 
         } else {
-            
             // Actual subtask
-            USignature sig(nameId(st.task), convertArguments(id, st.args));
-            _reductions[id].addSubtask(sig);
+            _reductions[id].addSubtask(USignature(nameId(st.task), convertArguments(id, st.args)));
             subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
         }
     }
@@ -542,7 +540,7 @@ Action& HtnInstance::createAction(const task& task) {
     std::vector<int> args = convertArguments(id, task.vars);
 
     assert(_actions.count(id) == 0);
-    _actions[id] = Action(id, args);
+    _actions[id] = Action(id, std::move(args));
 
     // Process (equality) constraints
     for (auto& pre : extractEqualityConstraints(id, task.constraints, task.vars))
@@ -596,8 +594,7 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
             int newPredId = nameId(newPredicate);
             if (!_signature_sorts_table.count(newPredId)) {
                 // Predicate is new: remember sorts
-                std::vector<int> sorts(2, eqSort);
-                _signature_sorts_table[newPredId] = sorts;
+                _signature_sorts_table[newPredId] = std::vector<int>(2, eqSort);
                 _equality_predicates.insert(newPredId);
                 _predicate_ids.insert(newPredId);
             }
@@ -606,7 +603,7 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
             std::vector<int> args(2); 
             args[0] = nameId(arg1Str + "_" + std::to_string(opId)); 
             args[1] = nameId(arg2Str + "_" + std::to_string(opId));
-            result.emplace(newPredId, args, !lit.positive);
+            result.emplace(newPredId, std::move(args), !lit.positive);
         }
     }
 
@@ -665,7 +662,7 @@ Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx
         // No valid substitution.
         return a;
     }
-    return Action(a.substitute(Substitution(a.getArguments(), newArgs)));
+    return toAction(a.getNameId(), newArgs);
 }
 Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const StateEvaluator& state) {
     std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)red, layerIdx, pos, state);
@@ -673,7 +670,7 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
         // No valid substitution.
         return red;
     }
-    return red.substituteRed(Substitution(red.getArguments(), newArgs));
+    return toReduction(red.getNameId(), newArgs);
 }
 
 std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
@@ -681,7 +678,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
     std::vector<int> vecFailure(1, -1);
 
     std::vector<int> args = op.getArguments();
-    const std::vector<int>& sorts = _signature_sorts_table[op.getSignature()._name_id];
+    const std::vector<int>& sorts = _signature_sorts_table[op.getNameId()];
     std::vector<int> varargIndices;
     for (size_t i = 0; i < op.getArguments().size(); i++) {
         const int& arg = op.getArguments()[i];
@@ -722,7 +719,6 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             //Log::d("------%s\n", TOSTR(decSig));
 
             // Valid?
-            if (!isValidQConstDecoding(preSig._usig._args, decUSig._args)) continue;
             if (!_instantiator->testWithNoVarsNoQConstants(decUSig, preSig._negated, state)) continue;
             
             // Valid precondition decoding found: Increase domain of concerned variables
@@ -990,7 +986,6 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
         //log("QQ %s\n", TOSTR(pre._usig));
         std::vector<int> sorts = getOpSortsForCondition(pre._usig, op.getSignature());
         for (const auto& decPre : decodeObjects(pre._usig, true, sorts)) {
-            if (!isValidQConstDecoding(pre._usig._args, decPre._args)) continue;
             bool holds = _instantiator->testWithNoVarsNoQConstants(decPre, pre._negated, state);
             //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
             auto& set = holds ? good : bad;

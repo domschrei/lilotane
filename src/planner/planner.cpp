@@ -240,7 +240,6 @@ void Planner::createFirstLayer() {
     for (Reduction& r : roots) {
 
         if (addReduction(r, USignature())) {
-
             USignature sig = r.getSignature();
             
             initLayer[_pos].addReduction(sig);
@@ -252,7 +251,7 @@ void Planner::createFirstLayer() {
             for (const Signature& fact : r.getPreconditions()) {
                 addPrecondition(sig, fact, goodSubs, badSubs);
             }
-            addSubstitutionConstraints(sig, goodSubs, badSubs);
+            addSubstitutionConstraints(sig, std::move(goodSubs), std::move(badSubs));
             addQConstantTypeConstraints(sig);
             const PositionedUSig psig{_layer_idx,_pos,sig};
             _htn.addQConstantConditions(r, psig, QConstantDatabase::PSIG_ROOT, 0, getStateEvaluator());
@@ -476,7 +475,6 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     NodeHashSet<Substitution, Substitution::Hasher> goods;
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
-        if (!_htn.isValidQConstDecoding(factAbs._args, decFactAbs._args)) continue;
         
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
@@ -497,8 +495,8 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 }
 
 void Planner::addSubstitutionConstraints(const USignature& op, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>&& goodSubs, 
+            NodeHashSet<Substitution, Substitution::Hasher>&& badSubs) {
     
     Position& newPos = _layers[_layer_idx]->at(_pos);
 
@@ -506,16 +504,16 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     for (const auto& subs : goodSubs) goodSize += subs.size();
 
     //if (badSubs.size() <= goodSize) {
-        for (const auto& s : badSubs) {
+        for (auto& s : badSubs) {
             //Log::d("(%i,%i) FORBIDDEN_SUBST NOR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addForbiddenSubstitution(op, s);
+            newPos.addForbiddenSubstitution(op, std::move(s));
         }
     //} else {
         // More bad subs than there are good ones:
         // Remember good ones instead (although encoding them can be more complex)
-        for (const auto& subs : goodSubs) {
+        for (auto& subs : goodSubs) {
             //Log::d("(%i,%i) VALID_SUBST OR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addValidSubstitutions(op, subs);
+            newPos.addValidSubstitutions(op, std::move(subs));
         }
     //}
 }
@@ -548,7 +546,6 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
-        if (!_htn.isValidQConstDecoding(factAbs._args, decFactAbs._args)) continue;
 
         // Check if this decoding is known to be invalid    
         Substitution s(factAbs._args, decFactAbs._args);
@@ -690,7 +687,7 @@ void Planner::propagateReductions(size_t offset) {
                     addPrecondition(subRSig, fact, goodSubs, badSubs);
                     //log("%s ", TOSTR(fact));
                 }
-                addSubstitutionConstraints(subRSig, goodSubs, badSubs);
+                addSubstitutionConstraints(subRSig, std::move(goodSubs), std::move(badSubs));
                 addQConstantTypeConstraints(subRSig);
                 _htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
                                         parentPSig, offset, getStateEvaluator());
@@ -709,7 +706,7 @@ void Planner::propagateReductions(size_t offset) {
                 for (const Signature& fact : a.getPreconditions()) {
                     addPrecondition(aSig, fact, goodSubs, badSubs);
                 }
-                addSubstitutionConstraints(aSig, goodSubs, badSubs);
+                addSubstitutionConstraints(aSig, std::move(goodSubs), std::move(badSubs));
                 addQConstantTypeConstraints(aSig);
                 _htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
                                         parentPSig, offset, getStateEvaluator());
@@ -855,9 +852,7 @@ void Planner::addNewFalseFacts() {
                 introduceNewFalseFact(newPos, eff._usig);
             } else {
                 std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {
-                    if (!_htn.isValidQConstDecoding(eff._usig._args, decEff._args)) continue;
-                    
+                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {                    
                     // New fact: set to false before the action may happen
                     introduceNewFalseFact(newPos, decEff);
                 }
