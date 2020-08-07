@@ -21,8 +21,8 @@ outfile="$logdir/OUT"
 timefile="$logdir/TIME"
 verifile="$logdir/VERIFY"
 
-echo -ne "Running treerexx on ${blue}$pfile${reset} ... "
-/usr/bin/time -o "$timefile" /usr/bin/timeout $timeout ./treerexx $dfile $pfile $@ > "$outfile"
+echo -ne "Running lilotane on ${blue}$pfile${reset} ... "
+/usr/bin/time -o "$timefile" /usr/bin/timeout $timeout ./lilotane $dfile $pfile $@ > "$outfile"
 
 retval="0"
 if grep -q non-zero "$timefile"; then

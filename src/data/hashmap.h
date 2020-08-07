@@ -1,6 +1,6 @@
 
-#ifndef DOMPASCH_TREEREXX_HASHMAP_H
-#define DOMPASCH_TREEREXX_HASHMAP_H
+#ifndef DOMPASCH_LILOTANE_HASHMAP_H
+#define DOMPASCH_LILOTANE_HASHMAP_H
 
 //#include "../../lib/DySECT/include/cuckoo_dysect.h"
 //#define FlatHashMap dysect::cuckoo_dysect_inplace

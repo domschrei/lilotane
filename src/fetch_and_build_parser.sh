@@ -28,4 +28,4 @@ echo "Copied libpandaPIparser.a into lib/ directory."
 # Build standalone executable for debugging purposes
 make executable
 cp pandaPIparser ../../
-echo "Copied pandaPIparser executable into treerexx root directory."
+echo "Copied pandaPIparser executable into lilotane root directory."

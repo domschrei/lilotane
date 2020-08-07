@@ -68,7 +68,7 @@ void Parameters::setDefaults() {
 
 void Parameters::printUsage() {
 
-    Log::e("Usage: treerexx <domainfile> <problemfile> [options]\n");
+    Log::e("Usage: lilotane <domainfile> <problemfile> [options]\n");
     Log::e("  <domainfile>  Path to domain file in HDDL format.\n");
     Log::e("  <problemfile> Path to problem file in HDDL format.\n");
     Log::e("\n");

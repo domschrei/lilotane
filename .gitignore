@@ -1,7 +1,7 @@
 *.o
 *.a
 lib/*
-treerexx
+lilotane
 .vscode
 OUT
 *.cnf

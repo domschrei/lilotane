@@ -59,8 +59,8 @@ for domain in $domains ; do
     done
 done
 
-# Output chosen parameters of treerexx
-echo "${blue}$(./treerexx $@|tail -1)${reset}"
+# Output chosen parameters of lilotane
+echo "${blue}$(./lilotane $@|tail -1)${reset}"
 
 # Attempt to solve each instance
 for domain in $domains ; do
@@ -77,7 +77,7 @@ for domain in $domains ; do
         header
         echo -ne "${blue}$pfile${reset} ... "
 
-        command="./treerexx $dfile $pfile $@"
+        command="./lilotane $dfile $pfile $@"
 
         start=$(date +%s.%N)
         /usr/bin/timeout $timeout $command > "$outfile" & wait -n

@@ -14,8 +14,8 @@
 #include "planner/planner.h"
 #include "util/timer.h"
 
-#ifndef TREEREXX_VERSION
-#define TREEREXX_VERSION "(dbg)"
+#ifndef LILOTANE_VERSION
+#define LILOTANE_VERSION "(dbg)"
 #endif
 
 #ifndef IPASIRSOLVER
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 
     if (verbosity >= Log::V2_INFORMATION) {
         Log::e("\n");
-        Log::e("Hello from  t r e e r e x x  %s\n", TREEREXX_VERSION);
+        Log::e("Hello from  t r e e r e x x  %s\n", LILOTANE_VERSION);
         Log::e("by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
         Log::e("using SAT solver %s\n", IPASIRSOLVER);
         Log::e("\n");
