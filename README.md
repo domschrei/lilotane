@@ -3,18 +3,22 @@ SAT-driven Planning for Totally-ordered Hierarchical Task Networks (HTN)
 
 ## Overview
 
-This planner for totally-ordered HTN planning problems makes use of incremental Satisfiability (SAT) solving. 
-In short, it reads a given planning problem and encodes a small portion of it into propositional logic.
-If an internally launched SAT solver reports that the formula is unsatisfiable, the next layer of the problem is encoded and added to the existing formula.
-This procedure is repeated until a plan is found or the problem is deemed to be overall unsatisfiable.
+This planner for totally-ordered HTN planning problems makes use of incremental Satisfiability (SAT) solving. In short, it reads a given planning problem and encodes a small portion of it into propositional logic. If an internally launched SAT solver reports that the formula is unsatisfiable, the next layer of the problem is encoded and added to the existing formula. This procedure is repeated until a plan is found or the problem is deemed to be overall unsatisfiable.
+
+Lilotane introduces new techniques to the field of SAT-based HTN planning, namely lazy instantiation and a lifted encoding that enables it to skip the full grounding of the problem. More information is provided in the `lilotane.pdf` short paper in this directory.
 
 ### Valid Inputs
 
 Lilotane operates on totally-ordered HTN planning problems given as HDDL files [1]. The provided HTN domain may be recursive or non-recursive.
 
-Lilotane can handle STRIPS-style actions with positive and negative conditions. It also handles method preconditions as well as equality and "sort-of" constraints and universal quantifications in preconditions and effects.
+In short, Lilotane supports exactly the HDDL specification from the International Planning Competition (IPC) 2020 provided in [2] and [3].
+It handles type systems, STRIPS-style actions with positive and negative conditions, method preconditions, equality and "sort-of" constraints, and universal quantifications in preconditions and effects.
+Lilotane _cannot_ handle conditional effects, existential quantifications, or any other extended formalisms going beyond the mentioned concepts.
 
-Lilotane _cannot_ handle conditional effects, existential quantifications, or any other extended formalisms going beyond STRIPS and basic HTNs.
+### Output
+
+Lilotane outputs a plan in accordance to [4]. Basically everything in between "`==>`" and "`<==`" is the found plan, and everything inside that plan in front of the word `root` is the sequence of classical actions to execute. 
+(Don't worry about the weird IDs which are assigned to the actions and reductions – they correspond (more or less) to the Boolean variables they were encoded with.)
 
 ## Building
 
@@ -28,41 +32,42 @@ Lilotane uses the HDDL file format.
 
 Execute the planner executable like this:
 ```
-./lilotane path/to/domain.hddl path/to/problem.hddl
+./lilotane path/to/domain.hddl path/to/problem.hddl [options]
 ```
 
-Interesting options:
+The full options can be seen by running Lilotane without any arguments.
+Please note that some of the options for instantiation and encoding are experimental: Some combinations of options may be invalid and/or some options may be completely disfunctional. 
+Here are the more interesting options for normal general purpose usage of the planner which should all function properly:
 
-* `-qq`: Use this option to introduce "q-constants" during instantiation and encoding. 
-Intuitively, if an action or a reduction has free arguments, normally the operator is instantiated with _all possible argument combinations_, which may become huge. For example, a reduction `(transport ?truck pkg ?loc1 x)` would normally ground `truck` and `?loc1`, introducing a new reduction for each truck-location combination. 
-Instead, `-qq` makes Lilotane preserve these parameters as free arguments: `?truck` and `?loc1` will be dynamically introduced to the problem as new constants ("question mark constants", or q-constants). Depending on the domain, this technique may dramatically outperform the normal variant because no grounding is required and the encoding can be much smaller. However, some types of clauses of the encoding become much more complicated and some additional overhead is needed, so for some domains it is not worth it.
-* `-aamo`: Add ALL at-most-one constraints: Introduce pairwise at-most-one constraints not only for actions, but also for reductions. When using `-qq`, you should usually also use `-aamo` as there is virtually no overhead due to the very small number of reductions.
-* `-of`: Output the generated formula to `./f.cnf`. As Lilotane works incrementally, the formula will consist of all clauses added during program execution. Additionally, when the program exits, the assumptions used in the final SAT call will be added to the formula as well.
+* `-v=<verb>`: Verbosity of the planner. Use 0 if you absolutely only care about the plan. Use 1 for warnings, 2 for general information, 3 for verbose output and 4 for full debug messages.
+* `-co=0`: Disable colored output. Use this when the call to the planner is part of some workflow and the plan is automatically extracted.
 * `-d=<depth>`: The **minimum** depth for which Lilotane will attempt to solve the generated formula. 
 * `-D=<depth>`: Limit the **maximum** depth to explore. After the specified amount of layers, if no solution was found Lilotane will report unsatisfiability (for this amount of layers) and exit. Useful together with `-of` if you want to generate a CNF file for some specific number of layers.
-* `-cs`: Check solvability. When this option is set and Lilotane finds unsatisfiability at layer k, it will re-run the SAT solver, this time without assumptions. If this SAT call returns unsatisfiability, too, then the formula is generally unsatisfiable and it will always remain unsatisfiable no matter the following iterations. In that case, something is wrong either with the internals of Lilotane, the provided parameters or the provided planning problem; Lilotane exits. If the SAT call returns satisfiability, Lilotane proceeds to instantiate the next layer.
-
-From experiments so far, the arguments `-qq -aamo` and nothing else seem to work best for overall good performance. 
+* `-cs`: Check solvability. When this option is set and Lilotane finds unsatisfiability at layer k, it will re-run the SAT solver, this time without assumptions. If this SAT call returns unsatisfiability, too, then the formula is generally unsatisfiable and it will always remain unsatisfiable no matter the following iterations. In that case, wither something is wrong with the internals of the used Lilotane configuration, or the provided planning problem is unsolvable. Lilotane exits in that case. If the SAT call returns satisfiability, Lilotane proceeds to instantiate the next layer.
+* `-of`: Output the generated formula to `./f.cnf`. As Lilotane works incrementally, the formula will consist of all clauses added during program execution. Additionally, when the program exits, the assumptions used in the final SAT call will be added to the formula as well.
+* `-pvn` Print variable names – prints one line `VARMAP <int> <Signature>` for each encoded propositional variable. Remember to set verbosity to DEBUG (`-v=4`). Useful for debugging together with `-cs -of`: You can use a SAT solver such as picosat to extract the UNSAT core of an unsolvable problem formula (`./picosat f.cnf -c <core-output>`) and then translate the core back into the original variable names with `python3 get_failed_reason.py <core-output> <planner-output-file>`.
+* `-qq=0`: Use this option to turn off pseudo-constants ("q-constants") during instantiation and encoding. Lilotane then does a full instantiation of all actions and reductions (but still lazily whenever needed). On complex domains this may lead to significant performance degradation and potentially huge memory footprints, but for some simpler domains it saves the overhead of a structurally more complex encoding.
 
 ## License
 
-**Until the submission deadline of the [HTN IPC 2020](http://gki.informatik.uni-freiburg.de/competition.html), this repository and this code are private. Do not share.**
+**Until the submission deadline of the [HTN IPC 2020](http://gki.informatik.uni-freiburg.de/competition.html), this repository and this code are private. Do not share until then.**
 
 The code of the planner is published under the GNU GPLv3. Consult the LICENSE file for details.  
-The planner uses (slightly adapted) code from the [pandaPIparser project](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
+The planner uses the [pandaPIparser project](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
 
 Note that depending on the SAT solver compiled into the planner, usage and redistribution rights may be subject to their licensing.
 If you want to make sure that everything is Free and Open Source, I suggest to use MIT-licensed lingeling as the solver.
 
 ## Background and References
 
-This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>.  
-Its direct predecessor is Tree-REX by D. Schreiber, D. Pellier, H. Fiorino and T. Balyo [2]. 
-However, Lilotane incorporates various conceptual and practical ideas that enable its performance gains. Most prominently, the prior grounding engine was dropped; instead, lazy "just-in-time" grounding and partially lifted encodings are employed.  
-Lilotane is written from scratch in C++.
+This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>. Its direct predecessor is Tree-REX by D. Schreiber, D. Pellier, H. Fiorino and T. Balyo [5]. Lilotane is an entirely new codebase, written from scratch in C++ (in contrast to Tree-REX which was partially written in Java).
 
-[1] Behnke, G., Höller, D., Schmid, A., Bercher, P., & Biundo, S. (2020). **On succinct groundings of HTN planning problems.** In Proceedings of the 34th AAAI Conference on Artificial Intelligence (AAAI). AAAI Press.
+[1] Behnke, G., Höller, D., Schmid, A., Bercher, P., & Biundo, S. (2020). [**On Succinct Groundings of HTN Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2019/Behnke2019Grounding.pdf) In AAAI (pp. 9775-9784).
 
-[2] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. 2019. 
-**Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.** 
-In Proceedings of the International Conference on Automated Planning and Scheduling, volume 29. No. 1. 2019.
+[2] Höller, D., Behnke, G., Bercher, P., Biundo, S., Fiorino, H., Pellier, D., & Alford, R. (2020). [**HDDL: An Extension to PDDL for Expressing Hierarchical Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2020/Hoeller2020HDDL.pdf) In AAAI (pp. 9883-9891).
+
+[3] [HDDL - Addendum.](http://gki.informatik.uni-freiburg.de/competition/hddl.pdf) Universität Freiburg 2020.
+
+[4] [Plan verification.](http://gki.informatik.uni-freiburg.de/ipc2020/format.pdf) Universität Freiburg 2020.
+
+[5] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. 2019. [**Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.**](https://algo2.iti.kit.edu/balyo/papers/treerex.pdf) In ICAPS, volume 29. No. 1. 2019.
