@@ -1,7 +1,8 @@
 # Lilotane
 
 Lifted Logic for Task Networks: SAT-driven Planning for Totally-ordered Hierarchical Task Networks (HTN)  
-Location of main (development) repository: github.com/domschrei/lilotane
+
+NOTE: The main (development) repository of this project is [located here on Github](github.com/domschrei/lilotane).
 
 ## Overview
 
