@@ -28,7 +28,7 @@ struct Signature;
 
 struct USignature {
 
-    int _name_id;
+    int _name_id = -1;
     std::vector<int> _args;
 
     USignature();
