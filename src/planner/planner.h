@@ -33,10 +33,12 @@ private:
     size_t _old_pos;
 
     float _sat_time_limit = 0;
+    bool _nonprimitive_support;
 
 public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
-            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers) {}
+            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers), 
+            _nonprimitive_support(_params.isNonzero("nps")) {}
     int findPlan();
     friend int terminateSatCall(void* state);
 

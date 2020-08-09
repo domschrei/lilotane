@@ -528,7 +528,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
-    if (_params.isNonzero("nps") || _htn.isAction(opSig)) {
+    if (_nonprimitive_support || _htn.isAction(opSig)) {
         pos.addFactSupport(fact, opSig);
     } else {
         // Remember that there is some (unspecified) support for this fact
