@@ -279,6 +279,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         }
     }
 
+    // Remember which of the (potentially large) support structures are empty
+    // such that no hashing will be done at all for these
+    const bool indirEmpty[2] = {indirectSupports[0]->empty(), indirectSupports[1]->empty()};
+    const bool dirEmpty[2] = {supports[0]->empty(), supports[1]->empty()};
+    
     // Find and encode frame axioms for each applicable fact from the left
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
         if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
@@ -286,19 +291,35 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         int oldFactVars[2] = {-getVariable(left, fact), 0};
         oldFactVars[1] = -oldFactVars[0];
 
+        const USigSet* dir[2] = {nullptr, nullptr};
+        const NodeHashMap<int, LiteralTree>* indir[2] = {nullptr, nullptr};
+
+        // Retrieve direct and indirect support for this fact
+        bool reuse = true;
+        for (int i = 0; i < 2; i++) {
+            if (!indirEmpty[i]) {
+                auto it = indirectSupports[i]->find(fact);
+                if (it != indirectSupports[i]->end()) {
+                    indir[i] = &(it->second);
+                    reuse = false;
+                } 
+            }
+            if (!dirEmpty[i]) {
+                auto it = supports[i]->find(fact);
+                if (it != supports[i]->end()) {
+                    dir[i] = &(it->second);
+                    reuse = false;
+                }
+            }
+        }
+
         // Decide on the fact variable to use (reuse or encode)
         int factVar = newPos.getVariableOrZero(fact);
         if (factVar == 0) {
-            int leftVar = left.getVariableOrZero(fact);
-            bool reuse = leftVar != 0;
-            reuse = reuse && !indirectSupports[0]->count(fact);
-            reuse = reuse && !indirectSupports[1]->count(fact);
-            reuse = reuse && !supports[0]->count(fact);
-            reuse = reuse && !supports[1]->count(fact);
             if (reuse) {
                 // No support for this fact -- variable can be reused
-                factVar = leftVar;
-                newPos.setVariable(fact, leftVar);
+                factVar = oldFactVars[1];
+                newPos.setVariable(fact, oldFactVars[1]);
             } else {
                 // There is some support for this fact -- need to encode new var
                 int v = encodeVariable(newPos, fact, false);
@@ -318,7 +339,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);
-            if (supports[i]->count(fact) || indirectSupports[i]->count(fact)) {
+            if (dir[i] != nullptr || indir[i] != nullptr) {
                 // Non-primitiveness wildcard
                 if (!nonprimFactSupport) {
                     if (_implicit_primitiveness) {
@@ -326,14 +347,15 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                     } else if (prevVarPrim != 0) appendClause(-prevVarPrim);
                 }
                 // DIRECT support
-                if (supports[i]->count(fact)) for (const USignature& opSig : supports[i]->at(fact)) {
+                if (dir[i] != nullptr) for (const USignature& opSig : *dir[i]) {
                     int opVar = getVariable(left, opSig);
                     assert(opVar > 0);
                     appendClause(opVar);
                 }
                 // INDIRECT support
-                if (indirectSupports[i]->count(fact)) 
-                    for (const auto& [opVar, subs] : indirectSupports[i]->at(fact)) appendClause(opVar);
+                if (indir[i] != nullptr) 
+                    for (const auto& [opVar, subs] : *indir[i]) 
+                        appendClause(opVar);
             }
             endClause();
         }
@@ -343,7 +365,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
             factVar *= -1;
-            if (!indirectSupports[i]->count(fact)) continue;
+            if (indir[i] == nullptr) continue;
 
             // -- 1st part of each clause: "head literals"
             std::vector<int> headLits;
@@ -358,7 +380,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
             } 
 
             // Encode indirect support constraints
-            for (const auto& [opVar, tree] : indirectSupports[i]->at(fact)) {
+            for (const auto& [opVar, tree] : *indir[i]) {
                 
                 // Unconditional effect?
                 if (tree.containsEmpty()) continue;
