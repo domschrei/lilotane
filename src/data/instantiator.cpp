@@ -103,7 +103,10 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
         USigSet inst = instantiateLimited(op, state, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
         if (!inst.empty()) return inst;
     }
+    
+    return instantiateLimited(op, state, argsByPriority, 0, false);
 
+    /*
     // Collect all arguments which should be instantiated
     FlatHashSet<int> argsToInstantiate;
 
@@ -136,9 +139,6 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
     // b) All variable args whose domain is below the specified q constant threshold
     if (_q_const_rating_factor > 0) {
         const auto& ratings = getPreconditionRatings(op.getSignature());
-        /*for (const auto& entry : ratings) {
-            log("%s -- %s : rating %.3f\n", TOSTR(op.getSignature()), TOSTR(entry.first), entry.second);
-        }*/
         if (_inst_mode != INSTANTIATE_FULL)
         for (size_t argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
             int arg = op.getArguments().at(argIdx);
@@ -158,6 +158,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
 
     return instantiateLimited(op, state, argsByPriority, 0, false);
+    */
 }
 
 USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& state, 
@@ -198,7 +199,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
         for (int c : _htn->getConstantsOfSort(sort)) {
 
             // Create new assignment
-            std::vector<int> newAssignment = std::move(assignment);
+            std::vector<int> newAssignment(assignment);
             newAssignment.push_back(c);
 
             // Create corresponding op
