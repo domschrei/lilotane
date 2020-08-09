@@ -87,10 +87,12 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
 
     // First try to naively ground the operation up to some limit
     std::vector<int> argsByPriority;
-    for (const int& arg : op.getArguments()) {
-        if (_htn->isVariable(arg)) argsByPriority.push_back(arg);
+    if (_inst_mode == INSTANTIATE_FULL) {
+        for (int arg : op.getArguments()) {
+            if (_htn->isVariable(arg)) argsByPriority.push_back(arg);
+        }
+        std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
     }
-    std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
     
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
@@ -104,6 +106,9 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
         if (!inst.empty()) return inst;
     }
 
+    return instantiateLimited(op, state, argsByPriority, 0, false);
+
+    /*
     // Collect all arguments which should be instantiated
     FlatHashSet<int> argsToInstantiate;
 
@@ -136,9 +141,6 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
     // b) All variable args whose domain is below the specified q constant threshold
     if (_q_const_rating_factor > 0) {
         const auto& ratings = getPreconditionRatings(op.getSignature());
-        /*for (const auto& entry : ratings) {
-            log("%s -- %s : rating %.3f\n", TOSTR(op.getSignature()), TOSTR(entry.first), entry.second);
-        }*/
         if (_inst_mode != INSTANTIATE_FULL)
         for (size_t argIdx = 0; argIdx < op.getArguments().size(); argIdx++) {
             int arg = op.getArguments().at(argIdx);
@@ -158,6 +160,7 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
 
     return instantiateLimited(op, state, argsByPriority, 0, false);
+    */
 }
 
 USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& state, 
@@ -165,11 +168,13 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
 
     USigSet instantiation;
     size_t doneInstSize = argsByPriority.size();
+    USignature opSig = op.getSignature();
+    const std::vector<int>& opSorts = _htn->getSorts(op.getNameId());
     
     if (doneInstSize == 0) {
         if (hasValidPreconditions(op.getPreconditions(), state) 
-            && hasSomeInstantiation(op.getSignature())) 
-            instantiation.insert(op.getSignature());
+            && hasSomeInstantiation(opSig)) 
+            instantiation.insert(opSig);
         //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
         return instantiation;
     }
@@ -185,42 +190,47 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
         }   
     }
 
-    std::vector<std::vector<int>> assignmentsStack;
-    assignmentsStack.push_back(std::vector<int>()); // begin with empty assignment
+    std::vector<Substitution> assignmentsStack;
+    std::vector<size_t> indexStack;
+    assignmentsStack.emplace_back(); // begin with empty assignment
+    indexStack.push_back(0); // no args instantiated yet
     while (!assignmentsStack.empty()) {
-        const std::vector<int> assignment = assignmentsStack.back();
+        auto sub = assignmentsStack.back();
         assignmentsStack.pop_back();
+        size_t index = indexStack.back();
+        indexStack.pop_back();
         //for (int a : assignment) log("%i ", a); log("\n");
 
         // Loop over possible choices for the next argument position
-        int argPos = argPosBackMapping[assignment.size()];
-        int sort = _htn->getSorts(op.getNameId()).at(argPos);
+        int argPos = argPosBackMapping[index];
+        int sort = opSorts.at(argPos);
         for (int c : _htn->getConstantsOfSort(sort)) {
 
             // Create new assignment
-            std::vector<int> newAssignment = std::move(assignment);
-            newAssignment.push_back(c);
-
-            // Create corresponding op
-            Substitution s;
-            for (size_t i = 0; i < newAssignment.size(); i++) {
-                assert(i < argsByPriority.size());
-                s[argsByPriority[i]] = newAssignment[i];
-            }
-            HtnOp newOp = op.substitute(s);
+            Substitution newSub(sub);
+            newSub[argsByPriority[index]] = c;
 
             // Test validity
-            if (!hasValidPreconditions(newOp.getPreconditions(), state)) continue;
+            bool valid = true;
+            for (const auto& pre : op.getPreconditions()) {
+                if (!test(pre.substitute(newSub), state)) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) continue;
 
             // All ok -- add to stack
-            if (newAssignment.size() == doneInstSize) {
+            if (index+1 == doneInstSize) {
+                USignature newOpSig = opSig.substitute(newSub);
+
                 // If there are remaining variables: 
                 // is there some valid constant for each of them?
-                if (!hasSomeInstantiation(newOp.getSignature())) continue;
+                if (!hasSomeInstantiation(newOpSig)) continue;
 
                 // This instantiation is finished:
                 // Assemble instantiated signature
-                instantiation.insert(newOp.getSignature());
+                instantiation.insert(newOpSig);
 
                 if (limit > 0) {
                     if (returnUnfinished && instantiation.size() == limit) {
@@ -235,7 +245,8 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
 
             } else {
                 // Unfinished instantiation
-                assignmentsStack.push_back(newAssignment);
+                assignmentsStack.push_back(newSub);
+                indexStack.push_back(index+1);
             }
         }
     }
