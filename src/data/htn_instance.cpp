@@ -610,7 +610,8 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
 }
 
 HtnOp& HtnInstance::getOp(const USignature& opSig) {
-    if (_actions.count(opSig._name_id)) return (HtnOp&)_actions.at(opSig._name_id);
+    auto it = _actions.find(opSig._name_id);
+    if (it != _actions.end()) return (HtnOp&)it->second;
     else return (HtnOp&)_reductions.at(opSig._name_id);
 }
 
@@ -851,7 +852,7 @@ const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig
                 }
                 const auto& domain = getDomainOfQConstant(arg);
                 eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
-            } else if (_var_ids.count(arg)) {
+            } else if (isVariable(arg)) {
                 // Variable
                 int sort = _signature_sorts_table[normSig._name_id][argPos];
                 const auto& domain = _constants_by_sort[sort];

@@ -22,7 +22,8 @@ USignature USignature::substitute(const Substitution& s) const {
 
 void USignature::apply(const Substitution& s) {
     for (size_t i = 0; i < _args.size(); i++) {
-        if (s.count(_args[i])) _args[i] = s.at(_args[i]);
+        auto it = s.find(_args[i]);
+        if (it != s.end()) _args[i] = it->second;
         assert(_args[i] != 0);
     }
 }

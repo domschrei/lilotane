@@ -98,6 +98,18 @@ public:
         return it->second;
     }
 
+    inline std::forward_list<Substitution::Entry>::const_iterator find(int key) const {
+        auto it = _entries.begin();
+        while (it != _entries.end() && it->first != key) ++it;
+        return it;
+    }
+
+    inline std::forward_list<Substitution::Entry>::iterator find(int key) {
+        std::forward_list<Substitution::Entry>::iterator it = _entries.begin();
+        while (it != _entries.end() && it->first != key) ++it;
+        return it;
+    }
+
     inline int count(const int& key) const {
         auto it = _entries.begin();
         while (it != _entries.end() && it->first != key) ++it;

@@ -80,7 +80,8 @@ Reduction Reduction::substituteRed(const Substitution& s) const {
     
     r._task_args.resize(_task_args.size());
     for (size_t i = 0; i < _task_args.size(); i++) {
-        if (s.count(_task_args[i])) r._task_args[i] = s.at(_task_args[i]);
+        auto it = s.find(_task_args[i]);
+        if (it != s.end()) r._task_args[i] = it->second;
         else r._task_args[i] = _task_args[i];
     }
     

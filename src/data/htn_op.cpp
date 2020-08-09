@@ -45,7 +45,8 @@ HtnOp HtnOp::substitute(const Substitution& s) const {
     op._id = _id;
     op._args.resize(_args.size());
     for (size_t i = 0; i < _args.size(); i++) {
-        if (s.count(_args[i])) op._args[i] = s.at(_args[i]);
+        auto it = s.find(_args[i]);
+        if (it != s.end()) op._args[i] = it->second;
         else op._args[i] = _args[i];
     }
     for (const Signature& sig : _preconditions) {

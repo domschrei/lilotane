@@ -257,7 +257,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 // Are there any primitive ops at this position?
                 if (hasPrimitiveOps) {
                     // Skip if the operation is already a DIRECT support for the fact
-                    if (support.count(decEff) && support.at(decEff).count(op)) continue;
+                    auto it = support.find(decEff);
+                    if (it != support.end() && it->second.count(op)) continue;
                 
                     // Convert into a vector of substitution variables
                     Substitution s(eff._usig._args, decEff._args);
@@ -280,7 +281,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     }
 
     // Remember which of the (potentially large) support structures are empty
-    // such that no hashing will be done at all for these
+    // such that no hash map retrieval will be attempted at all for these
     const bool indirEmpty[2] = {indirectSupports[0]->empty(), indirectSupports[1]->empty()};
     const bool dirEmpty[2] = {supports[0]->empty(), supports[1]->empty()};
     
@@ -657,18 +658,20 @@ void Encoding::encodeQConstraints(Position& newPos) {
 
         // Get number of "good" and "bad" substitution options
         size_t goodSize = 0;
-        if (newPos.getValidSubstitutions().count(opSig)) {
-            for (const auto& s : newPos.getValidSubstitutions().at(opSig)) {
+        auto itValid = newPos.getValidSubstitutions().find(opSig);
+        if (itValid != newPos.getValidSubstitutions().end()) {
+            for (const auto& s : itValid->second) {
                 goodSize += s.size();
             }
         }
-        size_t badSize = newPos.getForbiddenSubstitutions().count(opSig) ? newPos.getForbiddenSubstitutions().at(opSig).size() : 0;
+        auto itForb = newPos.getForbiddenSubstitutions().find(opSig);
+        size_t badSize = itForb != newPos.getForbiddenSubstitutions().end() ? itForb->second.size() : 0;
         if (badSize == 0) continue;
 
         // Which one to encode?
         if (badSize <= goodSize) {
             // Use forbidden substitutions
-            for (const Substitution& s : newPos.getForbiddenSubstitutions().at(opSig)) {
+            for (const Substitution& s : itForb->second) {
                 appendClause(-getVariable(newPos, opSig));
                 for (const auto& [src, dest] : s) {
                     appendClause(-varSubstitution(sigSubstitute(src, dest)));
@@ -679,7 +682,7 @@ void Encoding::encodeQConstraints(Position& newPos) {
             // Use valid substitutions
             
             // For each set of valid substitution options
-            for (const auto& subs : newPos.getValidSubstitutions().at(opSig)) {
+            for (const auto& subs : itValid->second) {
                 // Build literal tree from this set of valid substitution options for this op
                 LiteralTree tree;
                 // For each substitution option:

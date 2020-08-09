@@ -572,7 +572,7 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
         // Type is NOT fine, at least for some substitutions
         std::vector<int> good;
         std::vector<int> bad;
-        FlatHashSet<int> validConstants = _htn->getConstantsOfSort(sigSort);
+        const FlatHashSet<int>& validConstants = _htn->getConstantsOfSort(sigSort);
         // For each value the qconstant can assume:
         for (int c : _htn->getDomainOfQConstant(arg)) {
             // Is that constant of correct type?

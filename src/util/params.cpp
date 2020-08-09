@@ -24,7 +24,8 @@ void Parameters::init(int argc, char** argv) {
         char* eq = strchr(arg, '=');
         if (eq == NULL) {
             char* left = arg+1;
-            if (_params.count(left) && _params[left] == "0") _params[left] = "1";
+            auto it = _params.find(left);
+            if (it != _params.end() && it->second == "0") it->second = "1";
             else _params[left];
         } else {
             *eq = 0;

@@ -50,7 +50,8 @@ std::vector<Substitution> Substitution::getAll(const std::vector<int>& src, cons
                 Substitution& s = ss[j];
                 
                 // Does the substitution already have such a key but with a different value?
-                if (s.count(src[i]) && s[src[i]] != dest[i]) {
+                auto it = s.find(src[i]);
+                if (it != s.end() && it->second != dest[i]) {
                     // yes -- branch: keep original substitution, add alternative
 
                     Substitution s1(s);
