@@ -70,6 +70,7 @@ struct Signature {
     const USignature& getUnsigned() const;
     Signature opposite() const;
     Signature substitute(const Substitution& s) const;
+    void apply(const Substitution& s);
 
     Signature& operator=(const Signature& sig);
     Signature& operator=(Signature&& sig);

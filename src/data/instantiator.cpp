@@ -18,8 +18,7 @@ std::vector<Reduction> Instantiator::getApplicableInstantiations(
 
     std::vector<Reduction> result;
 
-    USigSet inst = instantiate(r, state);
-    for (const USignature& sig : inst) {
+    for (const USignature& sig : instantiate(r, state)) {
         //log("%s\n", TOSTR(sig));
         result.push_back(r.substituteRed(Substitution(r.getArguments(), sig._args)));
     }
@@ -36,8 +35,7 @@ std::vector<Action> Instantiator::getApplicableInstantiations(
 
     std::vector<Action> result;
 
-    USigSet inst = instantiate(a, state);
-    for (const USignature& sig : inst) {
+    for (const USignature& sig : instantiate(a, state)) {
         //log("%s\n", TOSTR(sig));
         //assert(isFullyGround(sig) || Log::e("%s is not fully ground!\n", TOSTR(sig)));
         HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
@@ -348,7 +346,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
     // Get fact changes, substitute arguments
     SigSet out = factChanges.at(nameId);
     for (Signature& sig : out) {
-        sig = sig.substitute(sFromPlaceholder);
+        sig.apply(sFromPlaceholder);
     }
     return out;
 }

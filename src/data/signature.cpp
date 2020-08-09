@@ -1,14 +1,11 @@
 
 #include "data/signature.h"
 
-USignature::USignature() : _name_id(-1) {}
+USignature::USignature() = default;
 USignature::USignature(int nameId, const std::vector<int>& args) : _name_id(nameId), _args(args) {}
 USignature::USignature(int nameId, std::vector<int>&& args) : _name_id(nameId), _args(std::move(args)) {}
 USignature::USignature(const USignature& sig) : _name_id(sig._name_id), _args(sig._args) {}
-USignature::USignature(USignature&& sig) {
-    _name_id = sig._name_id;
-    _args = std::move(sig._args);
-}
+USignature::USignature(USignature&& sig) : _name_id(sig._name_id), _args(std::move(sig._args)) {}
 
 Signature USignature::toSignature(bool negated) const {
     return Signature(*this, negated);
@@ -39,7 +36,7 @@ USignature& USignature::operator=(USignature&& sig) {
     return *this;
 }
 
-Signature::Signature() {}
+Signature::Signature() = default;
 Signature::Signature(int nameId, const std::vector<int>& args, bool negated) : _usig(nameId, args), _negated(negated) {}
 Signature::Signature(int nameId, std::vector<int>&& args, bool negated) : _usig(nameId, std::move(args)), _negated(negated) {}
 Signature::Signature(const USignature& usig, bool negated) : _usig(usig), _negated(negated) {}
@@ -65,6 +62,10 @@ Signature Signature::Signature::opposite() const {
 
 Signature Signature::substitute(const Substitution& s) const {
     return Signature(_usig.substitute(s), _negated);
+}
+
+void Signature::apply(const Substitution& s) {
+    _usig.apply(s);
 }
 
 Signature& Signature::operator=(const Signature& sig) {

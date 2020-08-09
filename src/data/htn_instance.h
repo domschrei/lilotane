@@ -98,7 +98,7 @@ private:
     FlatHashMap<int, int> _reduction_to_surrogate;
     // Maps a surrogate action name ID to its original reduction name ID
     // and the replaced child name ID.
-    NodeHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
+    FlatHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
 
     // The initial reduction of the problem.
     Reduction _init_reduction;
