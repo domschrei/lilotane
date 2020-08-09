@@ -46,6 +46,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     BLANK_ACTION = Action(blankId, std::vector<int>());
     _actions[blankId] = BLANK_ACTION;
     addAction(BLANK_ACTION);
+    _blank_action_sig = BLANK_ACTION.getSignature();
 
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
@@ -356,6 +357,10 @@ Action HtnInstance::getGoalAction() {
 
 const Reduction& HtnInstance::getInitReduction() {
     return _init_reduction;
+}
+
+const USignature& HtnInstance::getBlankActionSig() {
+    return _blank_action_sig;
 }
 
 void HtnInstance::extractPredSorts(const predicate_definition& p) {

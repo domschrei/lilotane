@@ -129,8 +129,8 @@ public:
 private:
 
     void encodeOperationVariables(Position& pos);
-    void encodeFactVariables(Position& pos, const Position& left, Position& above);
-    void encodeFrameAxioms(Position& pos, const Position& left);
+    void encodeFactVariables(Position& pos, Position& left, Position& above);
+    void encodeFrameAxioms(Position& pos, Position& left);
     void encodeOperationConstraints(Position& pos);
     void encodeSubstitutionVars(int opVar, int qconst, Position& pos);
     void encodeQFactSemantics(Position& pos);

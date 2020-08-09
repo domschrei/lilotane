@@ -151,7 +151,7 @@ void Planner::outputPlan() {
         actionIds.insert(item.id);
 
         // Do not write blank actions or the virtual goal action
-        if (item.abstractTask == HtnInstance::BLANK_ACTION.getSignature()) continue;
+        if (item.abstractTask == _htn.getBlankActionSig()) continue;
         if (item.abstractTask._name_id == _htn.nameId("_GOAL_ACTION_")) continue;
 
         stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
@@ -400,7 +400,7 @@ void Planner::createNextPositionFromAbove(const Position& above) {
     propagateReductions(offset);
 }
 
-void Planner::createNextPositionFromLeft(const Position& left) {
+void Planner::createNextPositionFromLeft(Position& left) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
     assert(left.getLayerIndex() == _layer_idx);
@@ -634,7 +634,7 @@ void Planner::propagateActions(size_t offset) {
             //addSubstitutionConstraints(aSig, goodSubs, badSubs);
         } else {
             // action expands to "blank" at non-zero offsets
-            USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
+            const USignature& blankSig = _htn.getBlankActionSig();
             newPos.addAction(blankSig);
             newPos.addExpansion(aSig, blankSig);
         }
@@ -714,7 +714,7 @@ void Planner::propagateReductions(size_t offset) {
         } else {
             // Blank
             numAdded++;
-            USignature blankSig = HtnInstance::BLANK_ACTION.getSignature();
+            const USignature& blankSig = _htn.getBlankActionSig();
             newPos.addAction(blankSig);
             newPos.addExpansion(rSig, blankSig);
         }
@@ -875,22 +875,18 @@ void Planner::addNewFalseFacts() {
 }
 
 void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
-
     assert(!_htn.hasQConstants(fact));
-    Signature sig(fact, /*negated=*/true);
     
     // Already a definitive fact? => Do not re-add false fact
     if ((*_layers[_layer_idx])[_pos].getTrueFacts().count(fact)) return;
     if ((*_layers[_layer_idx])[_pos].getFalseFacts().count(fact)) return;
 
-    getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), sig);
+    getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), fact, /*negated=*/true);
     
     // Does position to the left already have the encoded fact? -> not new!
     if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(VarType::FACT, fact)) return;
     
-    newPos.addDefinitiveFact(sig);
-    
-    //Log::d("FALSE_FACT %s @(%i,%i)\n", TOSTR(fact), newPos.getLayerIndex(), newPos.getPositionIndex());
+    newPos.addFalseFact(fact);
 }
 
 void Planner::addQConstantTypeConstraints(const USignature& op) {

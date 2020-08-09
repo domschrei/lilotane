@@ -102,6 +102,8 @@ private:
 
     // The initial reduction of the problem.
     Reduction _init_reduction;
+    // Signature of the BLANK virtual action.
+    USignature _blank_action_sig;
     
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
@@ -118,6 +120,7 @@ public:
 
     SigSet getInitState();
     const Reduction& getInitReduction();
+    const USignature& getBlankActionSig();
     Action getGoalAction();
     
     Action toAction(int actionName, const std::vector<int>& args) const;

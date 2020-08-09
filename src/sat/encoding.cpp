@@ -146,7 +146,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     }
 }
 
-void Encoding::encodeFactVariables(Position& newPos, const Position& left, Position& above) {
+void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& above) {
 
     _new_fact_vars.clear();
 
@@ -213,7 +213,7 @@ void Encoding::encodeFactVariables(Position& newPos, const Position& left, Posit
     end(STAGE_TRUEFACTS);
 }
 
-void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
+void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
     using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher>;
 
@@ -283,7 +283,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     
     // Find and encode frame axioms for each applicable fact from the left
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable(VarType::FACT)) {
-        if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
+        if (_htn.hasQConstants(fact)) continue;
         
         int oldFactVars[2] = {-var, var};
 
@@ -1101,15 +1101,12 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
         int chosenActions = 0;
         //State newState = state;
-        SigSet effects;
-        for (const auto& aSig : finalLayer[pos].getActions()) {
-            
-            if (!isEncoded(VarType::OP, li, pos, aSig)) continue;
+        for (const auto& [aSig, aVar] : finalLayer[pos].getVariableTable(VarType::OP)) {
+            if (!_htn.isAction(aSig)) continue;
             //log("  %s ?\n", TOSTR(aSig));
 
-            if (value(VarType::OP, li, pos, aSig)) {
+            if (ipasir_val(_solver, aVar) > 0) {
                 chosenActions++;
-                int aVar = getVariable(VarType::OP, finalLayer[pos], aSig);
 
                 // Decode q constants
                 USignature aDec = getDecodedQOp(li, pos, aSig);
@@ -1173,89 +1170,86 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
             int actionsThisPos = 0;
             int reductionsThisPos = 0;
 
-            for (const auto& rSig : l[pos].getReductions()) {
-                if (!isEncoded(VarType::OP, layerIdx, pos, rSig) || rSig == Position::NONE_SIG) continue;
+            for (const auto& [opSig, v] : l[pos].getVariableTable(VarType::OP)) {
 
-                //log("? %s @ (%i,%i)\n", TOSTR(rSig), i, pos);
+                if (ipasir_val(_solver, v) > 0) {
 
-                if (value(VarType::OP, layerIdx, pos, rSig)) {
+                    if (_htn.isAction(opSig)) {
+                        // Action
+                        actionsThisPos++;
+                        const USignature& aSig = opSig;
 
-                    int v = getVariable(VarType::OP, layerIdx, pos, rSig);
-                    const Reduction& r = _htn.getReduction(rSig);
+                        if (aSig == _htn.getBlankActionSig()) continue;
+                        
+                        int v = getVariable(VarType::OP, layerIdx, pos, aSig);
+                        Action a = _htn.getAction(aSig);
 
-                    //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
-                    USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
-                    if (decRSig == Position::NONE_SIG) continue;
+                        // TODO check this is a valid subtask relationship
 
-                    Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
-                    Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
+                        Log::d("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
 
-                    if (layerIdx == 0) {
-                        // Initial reduction
-                        PlanItem root(0, 
-                            USignature(_htn.nameId("root"), std::vector<int>()), 
-                            decRSig, std::vector<int>());
-                        itemsNewLayer[0] = root;
-                        reductionsThisPos++;
-                        continue;
-                    }
+                        // Find the actual action variable at the final layer, not at this (inner) layer
+                        size_t l = layerIdx;
+                        int aPos = pos;
+                        while (l+1 < _layers.size()) {
+                            //log("(%i,%i) => ", l, aPos);
+                            aPos = _layers.at(l)->getSuccessorPos(aPos);
+                            l++;
+                            //log("(%i,%i)\n", l, aPos);
+                        }
+                        v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
+                        assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
 
-                    // Lookup parent reduction
-                    Reduction parentRed;
-                    size_t offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
-                    PlanItem& parent = itemsOldLayer[predPos];
-                    assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
-                    assert(_htn.isReduction(parent.reduction) || 
-                        Log::e("Plan error: Invalid reduction id=%i at %i,%i!\n", parent.reduction._name_id, layerIdx-1, predPos));
+                        //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
+                        if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
 
-                    parentRed = _htn.toReduction(parent.reduction._name_id, parent.reduction._args);
+                    } else if (_htn.isReduction(opSig)) {
+                        // Reduction
+                        const USignature& rSig = opSig;
+                        const Reduction& r = _htn.getReduction(rSig);
 
-                    // Is the current reduction a proper subtask?
-                    assert(offset < parentRed.getSubtasks().size());
-                    if (parentRed.getSubtasks()[offset] == rDecoded.getTaskSignature()) {
-                        if (itemsOldLayer[predPos].subtaskIds.size() > offset) {
-                            // This subtask has already been written!
-                            Log::d(" -- is a redundant child -> dismiss\n");
+                        //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
+                        USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
+                        if (decRSig == Position::NONE_SIG) continue;
+
+                        Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
+                        Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
+
+                        if (layerIdx == 0) {
+                            // Initial reduction
+                            PlanItem root(0, 
+                                USignature(_htn.nameId("root"), std::vector<int>()), 
+                                decRSig, std::vector<int>());
+                            itemsNewLayer[0] = root;
+                            reductionsThisPos++;
                             continue;
                         }
-                        itemsNewLayer[pos] = PlanItem(v, rDecoded.getTaskSignature(), decRSig, std::vector<int>());
-                        itemsOldLayer[predPos].subtaskIds.push_back(v);
-                        reductionsThisPos++;
-                    } else {
-                        Log::d(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
-                    } 
-                }
-            }
 
-            for (const auto& aSig : l[pos].getActions()) {
-                if (!isEncoded(VarType::OP, layerIdx, pos, aSig)) continue;
+                        // Lookup parent reduction
+                        Reduction parentRed;
+                        size_t offset = pos - _layers.at(layerIdx-1)->getSuccessorPos(predPos);
+                        PlanItem& parent = itemsOldLayer[predPos];
+                        assert(parent.id >= 0 || Log::e("Plan error: No parent at %i,%i!\n", layerIdx-1, predPos));
+                        assert(_htn.isReduction(parent.reduction) || 
+                            Log::e("Plan error: Invalid reduction id=%i at %i,%i!\n", parent.reduction._name_id, layerIdx-1, predPos));
 
-                if (value(VarType::OP, layerIdx, pos, aSig)) {
-                    actionsThisPos++;
+                        parentRed = _htn.toReduction(parent.reduction._name_id, parent.reduction._args);
 
-                    if (aSig == HtnInstance::BLANK_ACTION.getSignature()) continue;
-                    
-                    int v = getVariable(VarType::OP, layerIdx, pos, aSig);
-                    Action a = _htn.getAction(aSig);
-
-                    // TODO check this is a valid subtask relationship
-
-                    Log::d("[%i] %s @ (%i,%i)\n", v, TOSTR(aSig), layerIdx, pos);                    
-
-                    // Find the actual action variable at the final layer, not at this (inner) layer
-                    size_t l = layerIdx;
-                    int aPos = pos;
-                    while (l+1 < _layers.size()) {
-                        //log("(%i,%i) => ", l, aPos);
-                        aPos = _layers.at(l)->getSuccessorPos(aPos);
-                        l++;
-                        //log("(%i,%i)\n", l, aPos);
+                        // Is the current reduction a proper subtask?
+                        assert(offset < parentRed.getSubtasks().size());
+                        if (parentRed.getSubtasks()[offset] == rDecoded.getTaskSignature()) {
+                            if (itemsOldLayer[predPos].subtaskIds.size() > offset) {
+                                // This subtask has already been written!
+                                Log::d(" -- is a redundant child -> dismiss\n");
+                                continue;
+                            }
+                            itemsNewLayer[pos] = PlanItem(v, rDecoded.getTaskSignature(), decRSig, std::vector<int>());
+                            itemsOldLayer[predPos].subtaskIds.push_back(v);
+                            reductionsThisPos++;
+                        } else {
+                            Log::d(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
+                        } 
                     }
-                    v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
-                    assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
-
-                    //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
-                    if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
                 }
             }
 

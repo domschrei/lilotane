@@ -49,7 +49,7 @@ private:
     
     void createNextPosition();
     void createNextPositionFromAbove(const Position& above);
-    void createNextPositionFromLeft(const Position& left);
+    void createNextPositionFromLeft(Position& left);
 
     void addPrecondition(const USignature& op, const Signature& fact, 
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 

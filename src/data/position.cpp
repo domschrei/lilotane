@@ -47,6 +47,10 @@ void Position::addAction(const USignature& action) {
     _actions.insert(action);
     Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
 }
+void Position::addAction(USignature&& action) {
+    Log::d("+ACTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(action));
+    _actions.insert(std::move(action));
+}
 void Position::addReduction(const USignature& reduction) {
     _reductions.insert(reduction);
     Log::d("+REDUCTION@(%i,%i) %s\n", _layer_idx, _pos, TOSTR(reduction));
@@ -91,6 +95,8 @@ void Position::moveVariableTable(VarType type, Position& destination) {
     auto& src = type == OP ? _op_variables : _fact_variables;
     auto& dest = type == OP ? destination._op_variables : destination._fact_variables;
     dest = std::move(src);
+    src.clear();
+    src.reserve(0);
 }
 
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact);}
@@ -123,7 +129,7 @@ Position::getValidSubstitutions() const {
     return _valid_substitutions_per_op;
 }
 
-const USigSet& Position::getActions() const {return _actions;}
+USigSet& Position::getActions() {return _actions;}
 const USigSet& Position::getReductions() const {return _reductions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
@@ -161,4 +167,8 @@ void Position::clearAtPastLayer() {
     _false_facts.reserve(0);
     _fact_variables.clear();
     _fact_variables.reserve(0);
+    _actions.clear();
+    _actions.reserve(0);
+    _reductions.clear();
+    _reductions.reserve(0);
 }

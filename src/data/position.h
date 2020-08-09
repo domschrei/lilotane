@@ -80,6 +80,7 @@ public:
     void clearValidSubstitutions(const USignature& op);
 
     void addAction(const USignature& action);
+    void addAction(USignature&& action);
     void addReduction(const USignature& reduction);
     void addExpansion(const USignature& parent, const USignature& child);
     void addAxiomaticOp(const USignature& op);
@@ -111,7 +112,7 @@ public:
     const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
     getValidSubstitutions() const;
 
-    const USigSet& getActions() const;
+    USigSet& getActions();
     const USigSet& getReductions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
