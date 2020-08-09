@@ -288,8 +288,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable()) {
         if (!_htn.isPredicate(fact._name_id) || _htn.hasQConstants(fact)) continue;
         
-        int oldFactVars[2] = {-getVariable(left, fact), 0};
-        oldFactVars[1] = -oldFactVars[0];
+        int oldFactVars[2] = {-var, var};
 
         const USigSet* dir[2] = {nullptr, nullptr};
         const NodeHashMap<int, LiteralTree>* indir[2] = {nullptr, nullptr};
@@ -318,8 +317,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
         if (factVar == 0) {
             if (reuse) {
                 // No support for this fact -- variable can be reused
-                factVar = oldFactVars[1];
-                newPos.setVariable(fact, oldFactVars[1]);
+                factVar = var;
+                newPos.setVariable(fact, var);
             } else {
                 // There is some support for this fact -- need to encode new var
                 int v = encodeVariable(newPos, fact, false);
@@ -327,7 +326,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, const Position& left) {
                 factVar = v;
             }
         }
-        if (oldFactVars[1] == factVar) continue; // Skip frame axiom encoding
+        if (var == factVar) continue; // Skip frame axiom encoding
         
         // No primitive ops at this position: No need for encoding frame axioms
         if (!hasPrimitiveOps) continue;
