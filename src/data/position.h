@@ -13,6 +13,8 @@
 
 typedef std::pair<int, int> IntPair;
 
+enum VarType { FACT, OP };
+
 struct Position {
 
 public:
@@ -53,7 +55,8 @@ private:
     size_t _max_expansion_size = 1;
 
     // Prop. variable for each occurring signature.
-    NodeHashMap<USignature, int, USignatureHasher> _variables;
+    NodeHashMap<USignature, int, USignatureHasher> _op_variables;
+    NodeHashMap<USignature, int, USignatureHasher> _fact_variables;
 
 public:
 
@@ -89,7 +92,8 @@ public:
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);
 
-    const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable() const;
+    const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable(VarType type) const;
+    void moveVariableTable(VarType type, Position& destination);
 
     bool hasQFact(const USignature& fact) const;
     bool hasAction(const USignature& action) const;
@@ -120,34 +124,40 @@ public:
     void clearAtPastPosition();
     void clearAtPastLayer();
 
-    inline int encode(const USignature& sig) {
-        if (!_variables.count(sig)) {
+    inline int encode(VarType type, const USignature& sig) {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        auto it = vars.find(sig);
+        if (it == vars.end()) {
             // introduce a new variable
             assert(!VariableDomain::isLocked() || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-            _variables[sig] = VariableDomain::nextVar();
-            VariableDomain::printVar(_variables[sig], _layer_idx, _pos, sig);
-        }
-        return _variables[sig];
+            int var = VariableDomain::nextVar();
+            vars[sig] = var;
+            VariableDomain::printVar(var, _layer_idx, _pos, sig);
+            return var;
+        } else return it->second;
     }
 
-    inline int setVariable(const USignature& sig, int var) {
-        assert(!_variables.count(sig));
-        _variables[sig] = var;
+    inline int setVariable(VarType type, const USignature& sig, int var) {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        assert(!vars.count(sig));
+        vars[sig] = var;
         return var;
     }
 
-    inline bool hasVariable(const USignature& sig) const {
-        return _variables.count(sig);
+    inline bool hasVariable(VarType type, const USignature& sig) const {
+        return (type == OP ? _op_variables : _fact_variables).count(sig);
     }
 
-    inline int getVariable(const USignature& sig) const {
-        assert(_variables.count(sig) || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
-        return _variables.at(sig);
+    inline int getVariable(VarType type, const USignature& sig) const {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        assert(vars.count(sig) || Log::e("Unknown variable %s queried!\n", VariableDomain::varName(_layer_idx, _pos, sig).c_str()));
+        return vars.at(sig);
     }
 
-    inline int getVariableOrZero(const USignature& sig) const {
-        const auto& it = _variables.find(sig);
-        if (it == _variables.end()) return 0;
+    inline int getVariableOrZero(VarType type, const USignature& sig) const {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        const auto& it = vars.find(sig);
+        if (it == vars.end()) return 0;
         return it->second;
     }
 };

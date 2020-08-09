@@ -161,20 +161,35 @@ private:
     int varSubstitution(const USignature& sigSubst);
     int varQConstEquality(int q1, int q2);
     const USignature& sigSubstitute(int qConstId, int trueConstId);
-
-    bool isEncoded(int layer, int pos, const USignature& sig);
     bool isEncodedSubstitution(const USignature& sig);
-    
-    inline int getVariable(const Position& pos, const USignature& sig);
-    inline int getVariable(int layer, int pos, const USignature& sig);
-    inline int encodeVariable(Position& pos, const USignature& sig, bool decisionVar = true);
 
+    bool value(VarType type, int layer, int pos, const USignature& sig);
+    
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);
 
-    bool value(int layer, int pos, const USignature& sig);
     USignature getDecodedQOp(int layer, int pos, const USignature& sig);
     
+    inline bool isEncoded(VarType type, int layer, int pos, const USignature& sig) {
+        return _layers.at(layer)->at(pos).hasVariable(type, sig);
+    }
+
+    inline int getVariable(VarType type, int layer, int pos, const USignature& sig) {
+        return getVariable(type, _layers[layer]->at(pos), sig);
+    }
+
+    inline int getVariable(VarType type, const Position& pos, const USignature& sig) {
+        return pos.getVariable(type, sig);
+    }
+
+    inline int encodeVariable(VarType type, Position& pos, const USignature& sig, bool decisionVar) {
+        int var = pos.getVariableOrZero(type, sig);
+        if (var == 0) {
+            var = pos.encode(type, sig);
+            if (!decisionVar) _no_decision_variables.push_back(var);
+        }
+        return var;
+    }
 };
 
 #endif

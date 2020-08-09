@@ -886,7 +886,7 @@ void Planner::introduceNewFalseFact(Position& newPos, const USignature& fact) {
     getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), sig);
     
     // Does position to the left already have the encoded fact? -> not new!
-    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(fact)) return;
+    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(VarType::FACT, fact)) return;
     
     newPos.addDefinitiveFact(sig);
     

@@ -84,8 +84,13 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
     _reductions.erase(reduction);
 }
 
-const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable() const {
-    return _variables;
+const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable(VarType type) const {
+    return type == OP ? _op_variables : _fact_variables;
+}
+void Position::moveVariableTable(VarType type, Position& destination) {
+    auto& src = type == OP ? _op_variables : _fact_variables;
+    auto& dest = type == OP ? destination._op_variables : destination._fact_variables;
+    dest = std::move(src);
 }
 
 bool Position::hasQFact(const USignature& fact) const {return _qfacts.count(fact);}
@@ -154,10 +159,6 @@ void Position::clearAtPastLayer() {
     _true_facts.reserve(0);
     _false_facts.clear();
     _false_facts.reserve(0);
-
-    NodeHashMap<USignature, int, USignatureHasher> cleanedVars;
-    for (const auto& r : _reductions) cleanedVars[r] = _variables[r];
-    for (const auto& a : _actions) cleanedVars[a] = _variables[a];
-    cleanedVars.reserve(0);
-    _variables = std::move(cleanedVars);
+    _fact_variables.clear();
+    _fact_variables.reserve(0);
 }
