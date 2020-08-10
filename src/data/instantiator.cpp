@@ -87,8 +87,10 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
 
     // First try to naively ground the operation up to some limit
     FlatHashSet<int> argsToInstantiate;
-    for (const int& arg : op.getArguments()) {
-        if (_htn->isVariable(arg)) argsToInstantiate.insert(arg);
+    if (_inst_mode == INSTANTIATE_FULL) {
+        for (const int& arg : op.getArguments()) {
+            if (_htn->isVariable(arg)) argsToInstantiate.insert(arg);
+        }
     }
     std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
