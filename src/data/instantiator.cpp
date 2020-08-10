@@ -85,6 +85,7 @@ struct CompArgs {
 USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) {
     __op = &op;
 
+    /*
     // First try to naively ground the operation up to some limit
     FlatHashSet<int> argsToInstantiate;
     if (_inst_mode == INSTANTIATE_FULL) {
@@ -94,7 +95,9 @@ USigSet Instantiator::instantiate(const HtnOp& op, const StateEvaluator& state) 
     }
     std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
-    
+    */
+    std::vector<int> argsByPriority;
+
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
     USigSet inst = instantiateLimited(op, state, argsByPriority, 1, /*returnUnfinished=*/true);
