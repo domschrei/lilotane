@@ -7,8 +7,6 @@
 #include "util/timer.h"
 
 
-bool beganLine = false;
-
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
             _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
@@ -874,95 +872,6 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     //else Log::d("CNF of size %i generated\n", cnf.size());
 
     return cnf;
-}
-
-void Encoding::addClause(int lit) {
-    assert(lit != 0);
-    ipasir_add(_solver, lit); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit << " 0\n";
-    _num_lits++; _num_cls++;
-}
-void Encoding::addClause(int lit1, int lit2) {
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit1 << " " << lit2 << " 0\n";
-    _num_lits += 2; _num_cls++;
-}
-void Encoding::addClause(int lit1, int lit2, int lit3) {
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    assert(lit3 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, lit3); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit1 << " " << lit2 << " " << lit3 << " 0\n";
-    _num_lits += 3; _num_cls++;
-}
-void Encoding::addClause(const std::initializer_list<int>& lits) {
-    for (int lit : lits) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-    } 
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    _num_cls++;
-    _num_lits += lits.size();
-}
-void Encoding::addClause(const std::vector<int>& cls) {
-    for (int lit : cls) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-    } 
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    _num_cls++;
-    _num_lits += cls.size();
-}
-void Encoding::appendClause(int lit) {
-    if (!beganLine) beganLine = true;
-    assert(lit != 0);
-    ipasir_add(_solver, lit);
-    if (_print_formula) _out << lit << " ";
-    _num_lits++;
-}
-void Encoding::appendClause(int lit1, int lit2) {
-    if (!beganLine) beganLine = true;
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2);
-    if (_print_formula) _out << lit1 << " " << lit2 << " ";
-    _num_lits += 2;
-}
-void Encoding::appendClause(const std::initializer_list<int>& lits) {
-    if (!beganLine) {
-        //log("CNF ");
-        beganLine = true;
-    }
-    for (int lit : lits) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-        //log("%i ", lit);
-    } 
-
-    _num_lits += lits.size();
-}
-void Encoding::endClause() {
-    assert(beganLine);
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    //log("0\n");
-    beganLine = false;
-
-    _num_cls++;
-}
-void Encoding::assume(int lit) {
-    if (_num_asmpts == 0) _last_assumptions.clear();
-    ipasir_assume(_solver, lit);
-    //log("CNF !%i\n", lit);
-    _last_assumptions.push_back(lit);
-    _num_asmpts++;
 }
 
 void onClauseLearnt(void* state, int* cls) {

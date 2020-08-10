@@ -30,6 +30,7 @@ bool LiteralTree::Node::contains(const std::vector<int>& lits, size_t idx) const
 }
 
 void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) const {
+    if (validLeaf) return;
     // orClause: IF the current path, THEN either of the children.
     int pathSize = path.size();
     std::vector<int> orClause(pathSize + children.size());
@@ -43,7 +44,7 @@ void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<i
         path.back() = lit;
         child->encode(cls, path);
     }
-    if (!validLeaf) cls.push_back(orClause);
+    cls.push_back(orClause);
 }
 
 
