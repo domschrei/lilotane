@@ -491,6 +491,7 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
     begin(STAGE_QFACTSEMANTICS);
     bool useMutexes = _params.isNonzero("qcm");
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
+    std::vector<int> qargs, qargIndices; 
     for (const auto& qfactSig : newPos.getQFacts()) {
         assert(_htn.hasQConstants(qfactSig));
 
@@ -499,8 +500,9 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
         // Already encoded earlier?
         if (!_new_fact_vars.count(qfactVar)) continue;
 
-        std::vector<int> qargs, qargIndices; 
         if (useMutexes) {
+            qargs.clear();
+            qargIndices.clear();
             for (size_t aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
                 qargs.push_back(qfactSig._args[aIdx]);
                 qargIndices.push_back(aIdx);
