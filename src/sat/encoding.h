@@ -103,7 +103,6 @@ private:
     int _num_cls_at_stage_start = 0; 
 
     float _sat_call_start_time;
-    bool _began_line = false;
 
 public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
@@ -144,6 +143,19 @@ private:
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
+    inline void addClause(int lit);
+    inline void addClause(int lit1, int lit2);
+    inline void addClause(int lit1, int lit2, int lit3);
+    inline void addClause(const std::initializer_list<int>& lits);
+    inline void addClause(const std::vector<int>& cls);
+
+    inline void appendClause(int lit);
+    inline void appendClause(int lit1, int lit2);
+    inline void appendClause(const std::initializer_list<int>& lits);
+    
+    inline void endClause();
+    inline void assume(int lit);
+
     int encodeVarPrimitive(int layer, int pos);
     int getVarPrimitiveOrZero(int layer, int pos);
     int varSubstitution(const USignature& sigSubst);
@@ -158,9 +170,6 @@ private:
 
     USignature getDecodedQOp(int layer, int pos, const USignature& sig);
     
-
-
-
     inline bool isEncoded(VarType type, int layer, int pos, const USignature& sig) {
         return _layers.at(layer)->at(pos).hasVariable(type, sig);
     }
@@ -180,117 +189,6 @@ private:
             if (!decisionVar) _no_decision_variables.push_back(var);
         }
         return var;
-    }
-
-
-    inline void addClause(int lit) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit); ipasir_add(_solver, 0);
-        if (_print_formula) _out << lit << " 0\n";
-        _num_lits++; _num_cls++;
-    }
-
-    inline void addClause(int lit1, int lit2) {
-        assert(lit1 != 0);
-        assert(lit2 != 0);
-        ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, 0);
-        if (_print_formula) _out << lit1 << " " << lit2 << " 0\n";
-        _num_lits += 2; _num_cls++;
-    }
-
-    inline void addClause(int lit1, int lit2, int lit3) {
-        assert(lit1 != 0);
-        assert(lit2 != 0);
-        assert(lit3 != 0);
-        ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, lit3); ipasir_add(_solver, 0);
-        if (_print_formula) _out << lit1 << " " << lit2 << " " << lit3 << " 0\n";
-        _num_lits += 3; _num_cls++;
-    }
-
-    inline void addClause(const std::initializer_list<int>& lits) {
-        for (int lit : lits) {
-            assert(lit != 0);
-            ipasir_add(_solver, lit);
-            if (_print_formula) _out << lit << " ";
-        } 
-        ipasir_add(_solver, 0);
-        if (_print_formula) _out << "0\n";
-        _num_cls++;
-        _num_lits += lits.size();
-    }
-
-    inline void addClause(const std::vector<int>& cls) {
-        for (int lit : cls) {
-            assert(lit != 0);
-            ipasir_add(_solver, lit);
-            if (_print_formula) _out << lit << " ";
-        } 
-        ipasir_add(_solver, 0);
-        if (_print_formula) _out << "0\n";
-        _num_cls++;
-        _num_lits += cls.size();
-    }
-
-    inline void addZeroSepClauses(const std::vector<int>& cls) {
-        for (int lit : cls) {
-            ipasir_add(_solver, lit);
-            if (lit == 0) _num_cls++;
-            else _num_lits++;
-            if (_print_formula) {
-                if (lit == 0) _out << "0\n";
-                else _out << lit << " ";
-            }
-        }
-    }
-
-    inline void appendClause(int lit) {
-        _began_line = true;
-
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-        _num_lits++;
-    }
-
-    inline void appendClause(int lit1, int lit2) {
-        _began_line = true;
-        
-        assert(lit1 != 0);
-        assert(lit2 != 0);
-        ipasir_add(_solver, lit1); ipasir_add(_solver, lit2);
-        if (_print_formula) _out << lit1 << " " << lit2 << " ";
-        _num_lits += 2;
-    }
-
-    inline void appendClause(const std::initializer_list<int>& lits) {
-        _began_line = true;
-
-        for (int lit : lits) {
-            assert(lit != 0);
-            ipasir_add(_solver, lit);
-            if (_print_formula) _out << lit << " ";
-            //log("%i ", lit);
-        } 
-
-        _num_lits += lits.size();
-    }
-
-    inline void endClause() {
-        assert(_began_line);
-        ipasir_add(_solver, 0);
-        if (_print_formula) _out << "0\n";
-        //log("0\n");
-        _began_line = false;
-
-        _num_cls++;
-    }
-
-    inline void assume(int lit) {
-        if (_num_asmpts == 0) _last_assumptions.clear();
-        ipasir_assume(_solver, lit);
-        //log("CNF !%i\n", lit);
-        _last_assumptions.push_back(lit);
-        _num_asmpts++;
     }
 };
 
