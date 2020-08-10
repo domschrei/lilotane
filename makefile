@@ -20,8 +20,8 @@ release: parser
 release: lilotane
 
 debug: LILOTANE_VERSION:=dbg-$(shell date --iso-8601=seconds)-${IPASIRSOLVER}
-debug: COMPILEFLAGS += -O3 -g -ggdb
-debug: LINKERFLAGS += -O3 -g -ggdb
+debug: COMPILEFLAGS += -O3 -g 
+debug: LINKERFLAGS += -O3 -g 
 debug: parser
 debug: lilotane
 
