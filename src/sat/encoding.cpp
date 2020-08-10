@@ -236,6 +236,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     const IndirectSupport* indirectSupports[2] 
             = {&indirectNegSupport, &indirectPosSupport};
     for (const auto& op : left.getActions()) {
+        if (!_htn.hasQConstants(op)) continue;
         int opVar = getVariable(VarType::OP, left, op);
         for (const auto& eff : _htn.getAction(op).getEffects()) {
             if (!_htn.hasQConstants(eff._usig)) continue;
@@ -347,9 +348,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                     appendClause(opVar);
                 }
                 // INDIRECT support
-                if (indir[i] != nullptr) 
-                    for (const auto& [opVar, subs] : *indir[i]) 
-                        appendClause(opVar);
+                if (indir[i] != nullptr) for (const auto& [opVar, subs] : *indir[i]) 
+                    appendClause(opVar);
             }
             endClause();
         }
