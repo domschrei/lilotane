@@ -29,19 +29,18 @@ bool LiteralTree::Node::contains(const std::vector<int>& lits, size_t idx) const
     return children.at(lits[idx])->contains(lits, idx+1);
 }
 
-void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) const {
+void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path, size_t pathSize) const {
     // orClause: IF the current path, THEN either of the children.
-    int pathSize = path.size();
     std::vector<int> orClause(pathSize + children.size());
     size_t i = 0;
-    for (; i < path.size(); i++) {
+    for (; i < pathSize; i++) {
         orClause[i] = -path[i];
     }
     for (const auto& [lit, child] : children) {
         orClause[i++] = lit;
-        path.resize(pathSize+1);
-        path.back() = lit;
-        child->encode(cls, path);
+        if (pathSize >= path.size()) path.resize(2*pathSize+1);
+        path[pathSize] = lit;
+        child->encode(cls, path, pathSize+1);
     }
     if (!validLeaf) cls.push_back(orClause);
 }
@@ -66,7 +65,9 @@ bool LiteralTree::containsEmpty() const {
 
 std::vector<std::vector<int>> LiteralTree::encode(std::vector<int> headLits) const {
     std::vector<std::vector<int>> cls;
-    _root.encode(cls, headLits);
+    size_t initPathSize = headLits.size();
+    headLits.resize(std::max(32ul, headLits.size()));
+    _root.encode(cls, headLits, initPathSize);
     /*
     Log::d("TREE ENCODE ");
     for (const auto& c : cls) {
