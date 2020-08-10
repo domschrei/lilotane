@@ -17,7 +17,7 @@ struct Node {
     ~Node();
     void insert(const std::vector<int>& lits, size_t idx);
     bool contains(const std::vector<int>& lits, size_t idx) const;
-    void encode(std::vector<std::vector<int>>& cls, std::vector<int>& path, size_t pathSize) const;
+    void encode(std::vector<std::vector<int>>& cls, std::vector<int>& path) const;
 };
 
 private:
