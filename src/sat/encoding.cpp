@@ -7,8 +7,6 @@
 #include "util/timer.h"
 
 
-bool beganLine = false;
-
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
             _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
@@ -367,12 +365,12 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             std::vector<int> headLits;
             // IF fact change AND the operation is applied,
             headLits.push_back(0); // operation var goes here
-            if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
-            headLits.push_back(factVar);
+            if (oldFactVars[i] != 0) headLits.push_back(oldFactVars[i]);
+            headLits.push_back(-factVar);
             if (!nonprimFactSupport) {
                 if (_implicit_primitiveness) {
-                    for (int var : _nonprimitive_ops) headLits.push_back(-var);
-                } else if (prevVarPrim != 0) headLits.push_back(prevVarPrim);
+                    for (int var : _nonprimitive_ops) headLits.push_back(var);
+                } else if (prevVarPrim != 0) headLits.push_back(-prevVarPrim);
             } 
 
             // Encode indirect support constraints
@@ -381,8 +379,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 // Unconditional effect?
                 if (tree.containsEmpty()) continue;
 
-                headLits[0] = opVar;                
-                for (const auto& cls : tree.encode(headLits)) addClause(cls);
+                headLits[0] = -opVar;                
+                addZeroSepClauses(tree.encode(headLits));
             }
         }
     }
@@ -593,9 +591,9 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
                     LiteralTree tree;
                     for (const auto& set : unifiersDnf) tree.insert(std::vector<int>(set.begin(), set.end()));
                     std::vector<int> headerLits;
-                    headerLits.push_back(aVar);
-                    headerLits.push_back(getVariable(VarType::FACT, newPos, eff._usig));
-                    for (const auto& cls : tree.encode(headerLits)) addClause(cls);
+                    headerLits.push_back(-aVar);
+                    headerLits.push_back(-getVariable(VarType::FACT, newPos, eff._usig));
+                    addZeroSepClauses(tree.encode(headerLits));
                 } else {
                     std::vector<int> dnf;
                     for (const auto& set : unifiersDnf) {
@@ -694,12 +692,10 @@ void Encoding::encodeQConstraints(Position& newPos) {
                     tree.insert(sVars);
                 }
                 // Encode set of valid substitution options into CNF
-                std::vector<std::vector<int>> cls = tree.encode(
-                    std::vector<int>(1, getVariable(VarType::OP, newPos, opSig))
+                std::vector<int> cls = tree.encode(
+                    std::vector<int>(1, -getVariable(VarType::OP, newPos, opSig))
                 );
-                for (const auto& c : cls) {
-                    addClause(c);
-                }
+                addZeroSepClauses(cls);
             }
         }
     }
@@ -876,94 +872,6 @@ std::set<std::set<int>> Encoding::getCnf(const std::vector<int>& dnf) {
     return cnf;
 }
 
-void Encoding::addClause(int lit) {
-    assert(lit != 0);
-    ipasir_add(_solver, lit); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit << " 0\n";
-    _num_lits++; _num_cls++;
-}
-void Encoding::addClause(int lit1, int lit2) {
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit1 << " " << lit2 << " 0\n";
-    _num_lits += 2; _num_cls++;
-}
-void Encoding::addClause(int lit1, int lit2, int lit3) {
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    assert(lit3 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, lit3); ipasir_add(_solver, 0);
-    if (_print_formula) _out << lit1 << " " << lit2 << " " << lit3 << " 0\n";
-    _num_lits += 3; _num_cls++;
-}
-void Encoding::addClause(const std::initializer_list<int>& lits) {
-    for (int lit : lits) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-    } 
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    _num_cls++;
-    _num_lits += lits.size();
-}
-void Encoding::addClause(const std::vector<int>& cls) {
-    for (int lit : cls) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-    } 
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    _num_cls++;
-    _num_lits += cls.size();
-}
-void Encoding::appendClause(int lit) {
-    if (!beganLine) beganLine = true;
-    assert(lit != 0);
-    ipasir_add(_solver, lit);
-    if (_print_formula) _out << lit << " ";
-    _num_lits++;
-}
-void Encoding::appendClause(int lit1, int lit2) {
-    if (!beganLine) beganLine = true;
-    assert(lit1 != 0);
-    assert(lit2 != 0);
-    ipasir_add(_solver, lit1); ipasir_add(_solver, lit2);
-    if (_print_formula) _out << lit1 << " " << lit2 << " ";
-    _num_lits += 2;
-}
-void Encoding::appendClause(const std::initializer_list<int>& lits) {
-    if (!beganLine) {
-        //log("CNF ");
-        beganLine = true;
-    }
-    for (int lit : lits) {
-        assert(lit != 0);
-        ipasir_add(_solver, lit);
-        if (_print_formula) _out << lit << " ";
-        //log("%i ", lit);
-    } 
-
-    _num_lits += lits.size();
-}
-void Encoding::endClause() {
-    assert(beganLine);
-    ipasir_add(_solver, 0);
-    if (_print_formula) _out << "0\n";
-    //log("0\n");
-    beganLine = false;
-
-    _num_cls++;
-}
-void Encoding::assume(int lit) {
-    if (_num_asmpts == 0) _last_assumptions.clear();
-    ipasir_assume(_solver, lit);
-    //log("CNF !%i\n", lit);
-    _last_assumptions.push_back(lit);
-    _num_asmpts++;
-}
 
 void onClauseLearnt(void* state, int* cls) {
     std::string str = "";

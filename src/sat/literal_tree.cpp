@@ -29,22 +29,27 @@ bool LiteralTree::Node::contains(const std::vector<int>& lits, size_t idx) const
     return children.at(lits[idx])->contains(lits, idx+1);
 }
 
-void LiteralTree::Node::encode(std::vector<std::vector<int>>& cls, std::vector<int>& path, size_t pathSize) const {
-    // orClause: IF the current path, THEN either of the children.
-    std::vector<int> orClause(pathSize + children.size());
-    size_t i = 0;
-    for (; i < pathSize; i++) {
-        orClause[i] = -path[i];
-    }
-    for (const auto& [lit, child] : children) {
-        orClause[i++] = lit;
-        if (pathSize >= path.size()) path.resize(2*pathSize+1);
-        path[pathSize] = lit;
-        child->encode(cls, path, pathSize+1);
-    }
-    if (!validLeaf) cls.push_back(orClause);
-}
+void LiteralTree::Node::encode(std::vector<int>& cls, std::vector<int>& path, size_t pathSize) const {
+    
+    int insertionIdx = 0;
+    if (pathSize >= path.size()) path.resize(2*pathSize+1);
+    
+    if (!validLeaf) {
+        // Insert new clause: IF the current path, THEN either of the children.
+        cls.reserve(cls.size()+pathSize+children.size()+1);
+        cls.insert(cls.end(), path.begin(), path.begin()+pathSize);
+        insertionIdx = cls.size(); // upcoming zeros will be overwritten inside the loop
+        cls.insert(cls.end(), children.size()+1, 0);
 
+        // Set correct literals for children and recursively encode children
+        for (const auto& [lit, child] : children) {
+            cls[insertionIdx++] = lit;
+            path[pathSize] = -lit;
+            child->encode(cls, path, pathSize+1);
+        }
+
+    } // else: No need to encode children as this node is already valid.
+}
 
 void LiteralTree::insert(const std::vector<int>& lits) {
     /*
@@ -63,18 +68,16 @@ bool LiteralTree::containsEmpty() const {
     return _root.validLeaf;
 }
 
-std::vector<std::vector<int>> LiteralTree::encode(std::vector<int> headLits) const {
-    std::vector<std::vector<int>> cls;
+std::vector<int> LiteralTree::encode(std::vector<int> headLits) const {
+    std::vector<int> cls;
     size_t initPathSize = headLits.size();
-    headLits.resize(std::max(32ul, headLits.size()));
     _root.encode(cls, headLits, initPathSize);
-    /*
+    
     Log::d("TREE ENCODE ");
-    for (const auto& c : cls) {
-        for (int lit : c) Log::log_notime(Log::V4_DEBUG, "%i ", lit);
-        Log::log_notime(Log::V4_DEBUG, "0 ");
+    for (const auto& lit : cls) {
+        Log::log_notime(Log::V4_DEBUG, "%i ", lit);
     }
     Log::log_notime(Log::V4_DEBUG, "\n");
-    */
+    
     return cls;
 }

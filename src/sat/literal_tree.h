@@ -17,7 +17,7 @@ struct Node {
     ~Node();
     void insert(const std::vector<int>& lits, size_t idx);
     bool contains(const std::vector<int>& lits, size_t idx) const;
-    void encode(std::vector<std::vector<int>>& cls, std::vector<int>& path, size_t pathSize) const;
+    void encode(std::vector<int>& cls, std::vector<int>& path, size_t pathSize) const;
 };
 
 private:
@@ -27,7 +27,7 @@ public:
     void insert(const std::vector<int>& lits);
     bool contains(const std::vector<int>& lits) const;
     bool containsEmpty() const;
-    std::vector<std::vector<int>> encode(std::vector<int> headLits = std::vector<int>()) const;
+    std::vector<int> encode(std::vector<int> headLits = std::vector<int>()) const;
 };
 
 
