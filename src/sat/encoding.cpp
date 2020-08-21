@@ -1108,10 +1108,11 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                             //log("(%i,%i)\n", l, aPos);
                         }
                         v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
-                        assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
-
-                        //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
-                        if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
+                        assert(v > 0 || Log::e("%s @ (%i,%i) : v=%i\n", TOSTR(aSig), l, aPos, v));
+                        if (v > 0) {
+                            //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
+                            if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
+                        }
 
                     } else if (_htn.isReduction(opSig)) {
                         // Reduction

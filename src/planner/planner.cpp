@@ -414,7 +414,9 @@ void Planner::createNextPositionFromLeft(Position& left) {
     // Propagate fact changes from operations from previous position
     for (const auto& aSig : left.getActions()) {
         for (const Signature& fact : left.getFactChanges(aSig)) {
-            addEffect(aSig, fact);
+            if (!addEffect(aSig, fact)) {
+                // TODO impossible effect: forbid action.
+            }
         }
         for (const int& arg : aSig._args) {
             if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
@@ -423,7 +425,9 @@ void Planner::createNextPositionFromLeft(Position& left) {
     for (const auto& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : left.getFactChanges(rSig)) {
-            addEffect(rSig, fact);
+            if (!addEffect(rSig, fact)) {
+                // TODO impossible effect
+            }
         }
         for (const int& arg : rSig._args) {
             if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
@@ -518,13 +522,38 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     //}
 }
 
-void Planner::addEffect(const USignature& opSig, const Signature& fact) {
+bool Planner::addEffect(const USignature& opSig, const Signature& fact) {
     Position& pos = (*_layers[_layer_idx])[_pos];
     assert(_pos > 0);
     Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
-    if (isQFact) pos.addQFact(factAbs);
+
+    if (isQFact) {
+        // Get forbidden substitutions for this operation
+        const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
+                &left.getForbiddenSubstitutions().at(opSig) : nullptr;
+
+        // Create the full set of valid decodings for this qfact
+        std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
+        bool anyGood = false;
+        for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
+
+            // Check if this decoding is known to be invalid    
+            Substitution s(factAbs._args, decFactAbs._args);
+            if (invalids != nullptr && invalids->count(s)) continue;
+            
+            // Valid effect decoding
+            _htn.addQFactDecoding(factAbs, decFactAbs);
+            getLayerState().add(_pos, decFactAbs, fact._negated);
+            pos.touchFactSupport(decFactAbs, fact._negated);
+            anyGood = true;
+        }
+        // Not a single valid decoding of the effect? -> Invalid effect.
+        if (!anyGood) return false;
+
+        pos.addQFact(factAbs);
+    }
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
@@ -536,26 +565,7 @@ void Planner::addEffect(const USignature& opSig, const Signature& fact) {
     }
     
     getLayerState().add(_pos, fact);
-
-    if (!isQFact) return;
-
-    // Get forbidden substitutions for this operation
-    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
-            &left.getForbiddenSubstitutions().at(opSig) : nullptr;
-
-    // Create the full set of valid decodings for this qfact
-    std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
-    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
-
-        // Check if this decoding is known to be invalid    
-        Substitution s(factAbs._args, decFactAbs._args);
-        if (invalids != nullptr && invalids->count(s)) continue;
-        
-        // Valid effect decoding
-        _htn.addQFactDecoding(factAbs, decFactAbs);
-        getLayerState().add(_pos, decFactAbs, fact._negated);
-        pos.touchFactSupport(decFactAbs, fact._negated);
-    }
+    return true;
 }
 
 void Planner::propagateInitialState() {
@@ -645,81 +655,102 @@ void Planner::propagateReductions(size_t offset) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
-    // Expand reductions
+    NodeHashMap<USignature, USigSet, USignatureHasher> subtaskToParents;
+    NodeHashSet<USignature, USignatureHasher> reductionsWithChildren;
+
+    // Collect all possible subtasks and remember their possible parents
     for (const auto& rSig : above.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         const Reduction r = _htn.getReduction(rSig);
-        const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
         
-        int numAdded = 0;
         if (offset < r.getSubtasks().size()) {
             // Proper expansion
             const USignature& subtask = r.getSubtasks()[offset];
-            auto allActions = getAllActionsOfTask(subtask, getStateEvaluator());
-            // reduction(s)?
-            for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
-                
-                if (_htn.isAction(subRSig)) {
-                    // Actually an action, not a reduction
-                    allActions.push_back(subRSig);
-                    continue;
-                }
-
-                numAdded++;
-                assert(_htn.isReduction(subRSig));
-                const Reduction& subR = _htn.getReduction(subRSig);
-
-                assert(subRSig == subR.getSignature());
-                assert(_instantiator.isFullyGround(subRSig));
-                
-                newPos.addReduction(subRSig);
-                /*for (const auto& pre : subR.getPreconditions()) {
-                    Log::d(" -- pre %s\n", TOSTR(pre));
-                }*/
-                newPos.addExpansion(rSig, subRSig);
-                //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
-                newPos.addExpansionSize(subR.getSubtasks().size());
-                // Add preconditions of reduction
-                //log("PRECONDS %s ", TOSTR(subRSig));
-                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
-                for (const Signature& fact : subR.getPreconditions()) {
-                    addPrecondition(subRSig, fact, goodSubs, badSubs);
-                    //log("%s ", TOSTR(fact));
-                }
-                addSubstitutionConstraints(subRSig, goodSubs, badSubs);
-                addQConstantTypeConstraints(subRSig);
-                _htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
-                                        parentPSig, offset, getStateEvaluator());
-                //log("\n");
-            }
-            // action(s)?
-            for (const USignature& aSig : allActions) {
-                numAdded++;
-                assert(_instantiator.isFullyGround(aSig));
-                newPos.addAction(aSig);
-                newPos.addExpansion(rSig, aSig);
-                // Add preconditions of action
-                const Action& a = _htn.getAction(aSig);
-                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
-                for (const Signature& fact : a.getPreconditions()) {
-                    addPrecondition(aSig, fact, goodSubs, badSubs);
-                }
-                addSubstitutionConstraints(aSig, goodSubs, badSubs);
-                addQConstantTypeConstraints(aSig);
-                _htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
-                                        parentPSig, offset, getStateEvaluator());
-            }
+            subtaskToParents[subtask].insert(rSig);
         } else {
             // Blank
-            numAdded++;
+            reductionsWithChildren.insert(rSig);
             const USignature& blankSig = _htn.getBlankActionSig();
             newPos.addAction(blankSig);
             newPos.addExpansion(rSig, blankSig);
         }
+    }
 
-        if (numAdded == 0) {
+    // Iterate over all possible subtasks
+    for (const auto& [subtask, parents] : subtaskToParents) {
+
+        // Calculate all possible actions fitting the subtask.
+        auto allActions = getAllActionsOfTask(subtask, getStateEvaluator());
+
+        // Any reduction(s) fitting the subtask?
+        for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
+            
+            if (_htn.isAction(subRSig)) {
+                // Actually an action, not a reduction: remember for later
+                allActions.push_back(subRSig);
+                continue;
+            }
+
+            assert(_htn.isReduction(subRSig));
+            const Reduction& subR = _htn.getReduction(subRSig);
+
+            assert(subRSig == subR.getSignature());
+            assert(_instantiator.isFullyGround(subRSig));
+            
+            newPos.addReduction(subRSig);
+            /*for (const auto& pre : subR.getPreconditions()) {
+                Log::d(" -- pre %s\n", TOSTR(pre));
+            }*/
+            //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
+            newPos.addExpansionSize(subR.getSubtasks().size());
+            // Add preconditions of reduction
+            //log("PRECONDS %s ", TOSTR(subRSig));
+            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            for (const Signature& fact : subR.getPreconditions()) {
+                addPrecondition(subRSig, fact, goodSubs, badSubs);
+                //log("%s ", TOSTR(fact));
+            }
+            addSubstitutionConstraints(subRSig, goodSubs, badSubs);
+            addQConstantTypeConstraints(subRSig);
+
+            for (const auto& rSig : parents) {
+                reductionsWithChildren.insert(rSig);
+                newPos.addExpansion(rSig, subRSig);
+                //const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
+                //_htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
+                //                        parentPSig, offset, getStateEvaluator());
+            }
+            //log("\n");
+        }
+
+        // Any action(s) fitting the subtask?
+        for (const USignature& aSig : allActions) {
+            assert(_instantiator.isFullyGround(aSig));
+            newPos.addAction(aSig);
+            // Add preconditions of action
+            const Action& a = _htn.getAction(aSig);
+            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            for (const Signature& fact : a.getPreconditions()) {
+                addPrecondition(aSig, fact, goodSubs, badSubs);
+            }
+            addSubstitutionConstraints(aSig, goodSubs, badSubs);
+            addQConstantTypeConstraints(aSig);
+
+            for (const auto& rSig : parents) {
+                reductionsWithChildren.insert(rSig);
+                newPos.addExpansion(rSig, aSig);
+                //const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
+                //_htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
+                //                        parentPSig, offset, getStateEvaluator());
+            }
+        }
+    }
+
+    // Check if any reduction has no valid children at all
+    for (const auto& rSig : above.getReductions()) {
+        if (!reductionsWithChildren.count(rSig)) {
             // Explicitly forbid the parent!
             Log::i("Forbidding reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
@@ -807,11 +838,11 @@ bool Planner::addAction(Action& action) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
     
-    sig = action.getSignature();
+    USignature newSig = action.getSignature();
     _htn.addAction(action);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(newSig, _instantiator.getPossibleFactChanges(newSig));
     
     //Log::d("ADDACTION -- added\n");
     return true;
@@ -829,11 +860,11 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
     
-    sig = red.getSignature();
+    USignature newSig = red.getSignature();
     _htn.addReduction(red);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(newSig, _instantiator.getPossibleFactChanges(newSig));
     
     return true;
 }

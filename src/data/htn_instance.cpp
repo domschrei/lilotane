@@ -938,6 +938,7 @@ bool HtnInstance::hasQFactDecodings(const USignature& qFact) {
 }
 
 const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
+    assert(_qfact_decodings.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
     return _qfact_decodings.at(qFact);
 }
 
