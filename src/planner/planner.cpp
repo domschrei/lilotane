@@ -415,7 +415,8 @@ void Planner::createNextPositionFromLeft(Position& left) {
     for (const auto& aSig : left.getActions()) {
         for (const Signature& fact : left.getFactChanges(aSig)) {
             if (!addEffect(aSig, fact)) {
-                // TODO impossible effect: forbid action.
+                // Impossible direct effect: forbid action retroactively.
+                _enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
             }
         }
         for (const int& arg : aSig._args) {
@@ -426,7 +427,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : left.getFactChanges(rSig)) {
             if (!addEffect(rSig, fact)) {
-                // TODO impossible effect
+                // Impossible indirect effect: ignore.
             }
         }
         for (const int& arg : rSig._args) {

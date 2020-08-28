@@ -114,6 +114,8 @@ public:
     void setTerminateCallback(void * state, int (*terminate)(void * state));
     int solve();
 
+    void addUnitConstraint(int lit);
+
     float getTimeSinceSatCallStart();
 
     void begin(int stage);

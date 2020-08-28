@@ -897,6 +897,10 @@ int Encoding::solve() {
     return result;
 }
 
+void Encoding::addUnitConstraint(int lit) {
+    addClause(lit);
+}
+
 float Encoding::getTimeSinceSatCallStart() {
     if (_sat_call_start_time == 0) return 0;
     return Timer::elapsedSeconds() - _sat_call_start_time;
