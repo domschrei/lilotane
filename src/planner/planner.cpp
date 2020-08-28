@@ -839,11 +839,11 @@ bool Planner::addAction(Action& action) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
     
-    USignature newSig = action.getSignature();
+    sig = action.getSignature();
     _htn.addAction(action);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(newSig, _instantiator.getPossibleFactChanges(newSig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     //Log::d("ADDACTION -- added\n");
     return true;
@@ -861,11 +861,11 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
     
-    USignature newSig = red.getSignature();
+    sig = red.getSignature();
     _htn.addReduction(red);
 
     // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(newSig, _instantiator.getPossibleFactChanges(newSig));
+    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     return true;
 }
