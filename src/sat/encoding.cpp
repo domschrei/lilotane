@@ -10,7 +10,7 @@
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
             _params(params), _htn(htn), _layers(layers), 
             _termination_callback(terminationCallback), 
-            _print_formula(params.isNonzero("wf")), 
+            _print_formula(params.isNonzero("wf")),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
             _implicit_primitiveness(params.isNonzero("ip")) {
     _solver = ipasir_init();
@@ -789,16 +789,12 @@ void Encoding::clearDonePositions() {
     }
 }
 
-void Encoding::optimizePlan(Plan& plan) {
+void Encoding::optimizePlan(int upperBound, Plan& plan) {
 
     int layerIdx = _layers.size()-1;
     Layer& l = *_layers.at(layerIdx);
-    plan = extractPlan();
-
-    // Count initial found plan
-    int currentPlanLength = getPlanLength(std::get<0>(plan));
-    Log::i("Initial plan length: %i\n", currentPlanLength);
-
+    int currentPlanLength = upperBound;
+    
     // Add counting mechanism
     begin(STAGE_PLANLENGTHCOUNTING);
     int minPlanLength = 0;
@@ -1175,7 +1171,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
     Layer& finalLayer = *_layers.back();
     int li = finalLayer.index();
-    VariableDomain::lock();
+    //VariableDomain::lock();
 
     std::vector<PlanItem> plan(finalLayer.size());
     //log("(actions at layer %i)\n", li);

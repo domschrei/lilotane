@@ -47,6 +47,7 @@ void Parameters::setDefaults() {
     setParam("cs", "0"); // check solvability (without assumptions)
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
+    setParam("el", "0"); // extra layers after initial solution
     setParam("ip", "0"); // implicit primitiveness
     setParam("mp", "1"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports
@@ -83,6 +84,7 @@ void Parameters::printUsage() {
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
     Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
     Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
+    Log::e(" -el=<int>           Number of extra layers to encode after an initial solution was found (use with -of=...)\n");
     Log::e(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
     Log::e(" -mp=<0|1>           Mine preconditions for reductions from their (recursive) subtasks\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");

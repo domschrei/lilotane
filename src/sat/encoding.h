@@ -130,7 +130,8 @@ public:
     std::vector<PlanItem> extractClassicalPlan();
     std::vector<PlanItem> extractDecompositionPlan();
 
-    void optimizePlan(Plan& plan);
+    void optimizePlan(int upperBound, Plan& plan);
+    int getPlanLength(const std::vector<PlanItem>& classicalPlan);
 
     void printFailedVars(Layer& layer);
     void printSatisfyingAssignment();
@@ -149,7 +150,6 @@ private:
 
     void setVariablePhases(const std::vector<int>& vars);
     void clearDonePositions();
-
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
@@ -161,7 +161,6 @@ private:
     bool isEncodedSubstitution(const USignature& sig);
 
     bool value(VarType type, int layer, int pos, const USignature& sig);
-    int getPlanLength(const std::vector<PlanItem>& classicalPlan);
     
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);

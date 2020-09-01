@@ -52,7 +52,7 @@ void Planner::checkTermination() {
 
 bool Planner::cancelOptimization() {
     return _time_at_first_plan > 0 &&
-            _optimization_factor > 0 &&
+            _optimization_factor != 0 &&
             Timer::elapsedSeconds() > (1+_optimization_factor) * _time_at_first_plan;
 }
 
@@ -129,10 +129,46 @@ int Planner::findPlan() {
     Log::i("Found a solution at layer %i.\n", _layers.size()-1);
     _time_at_first_plan = Timer::elapsedSeconds();
 
-    if (_optimization_factor != 0) {
+    // Compute extra layers after initial solution as desired
+    int extraLayers = _params.getIntParam("el");
+    int upperBound = _layers.back()->size()-1;
+    if (extraLayers > 0) {
+
+        // Extract initial plan (for anytime purposes)
+        _plan = _enc.extractPlan();
         _has_plan = true;
-        _enc.optimizePlan(_plan);
+        upperBound = _enc.getPlanLength(std::get<0>(_plan));
+        Log::i("Initial plan at most shallow layer has length %i\n", upperBound);
+
+        // Extra layers without solving
+        for (int x = 0; x < extraLayers; x++) {
+            iteration++;      
+            Log::i("Iteration %i. (extra)\n", iteration);
+            createNextLayer();
+        }
+
+        // Solve again (to get another plan)
+        _enc.addAssumptions(_layer_idx);
+        int result = _enc.solve();
+        assert(result == 10);
+    }
+
+    if (_optimization_factor != 0) {
+        // Extract plan at final layer, update bound
+        auto finalLayerPlan = _enc.extractPlan();
+        int newLength = _enc.getPlanLength(std::get<0>(finalLayerPlan));
+        // Update plan only if it is better than any previous plan
+        if (newLength < upperBound || !_has_plan) {
+            upperBound = newLength;
+            _plan = finalLayerPlan;
+            _has_plan = true;
+        }
+        Log::i("Initial plan at final layer has length %i\n", newLength);
+        // Optimize
+        _enc.optimizePlan(upperBound, _plan);
+
     } else {
+        // Just extract plan
         _plan = _enc.extractPlan();
         _has_plan = true;
     }
