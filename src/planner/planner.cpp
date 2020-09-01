@@ -69,7 +69,7 @@ int Planner::findPlan() {
     _sat_time_limit = _params.getFloatParam("stl");
 
     bool solved = false;
-    if (_sat_time_limit > 0 || _optimization_factor != 0) _enc.setTerminateCallback(this, terminateSatCall);
+    _enc.setTerminateCallback(this, terminateSatCall);
     if (iteration >= firstSatCallIteration) {
         _enc.addAssumptions(_layer_idx);
         int result = _enc.solve();
