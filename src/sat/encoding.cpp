@@ -801,8 +801,8 @@ void Encoding::optimizePlan(Plan& plan) {
 
     // Add counting mechanism
     begin(STAGE_PLANLENGTHCOUNTING);
-    int minPlanLengthSoFar = 0;
-    int maxPlanLengthSoFar = 0;
+    int minPlanLength = 0;
+    int maxPlanLength = 0;
     std::vector<int> planLengthVars(1, VariableDomain::nextVar());
     Log::d("VARNAME %i (plan_length_equals %i %i)\n", planLengthVars[0], 0, 0);
     // At position zero, the plan length is always equal to zero
@@ -830,18 +830,26 @@ void Encoding::optimizePlan(Plan& plan) {
 
         if (emptyActions.empty()) {
             // Only actual actions here: Increment lower and upper bound, keep all variables.
-            minPlanLengthSoFar++;
-            maxPlanLengthSoFar++;
+            minPlanLength++;
+            bool increaseUpperBound = maxPlanLength < currentPlanLength;
+            if (increaseUpperBound) maxPlanLength++;
+            else {
+                // Upper bound hit!
+                // Cut counter variables by one, forbid topmost one
+                addClause(-planLengthVars.back());
+                planLengthVars.resize(planLengthVars.size()-1);
+            }
             Log::d("[no empty actions]\n");
         } else if (actualActions.empty()) {
             // Only empty actions here: Keep current bounds, keep all variables.
             Log::d("[only empty actions]\n");
         } else {
             // Mix of actual and empty actions here: Increment upper bound, 
-            maxPlanLengthSoFar++;
+            bool increaseUpperBound = maxPlanLength < currentPlanLength;
+            if (increaseUpperBound) maxPlanLength++;
             // create new variables and constraints.
             int emptySpotVar = VariableDomain::nextVar();
-            std::vector<int> newPlanLengthVars(planLengthVars.size()+1);
+            std::vector<int> newPlanLengthVars(planLengthVars.size()+(increaseUpperBound?1:0));
             for (size_t i = 0; i < newPlanLengthVars.size(); i++) {
                 newPlanLengthVars[i] = VariableDomain::nextVar();
             }
@@ -860,21 +868,35 @@ void Encoding::optimizePlan(Plan& plan) {
             for (size_t i = 0; i < planLengthVars.size(); i++) {
                 int prevVar = planLengthVars[i];
                 int keptPlanLengthVar = newPlanLengthVars[i];
-                int incrPlanLengthVar = newPlanLengthVars[i+1];
-                // IF previous plan length is X, THEN
-                // (the plan length increases IFF the spot is not empty). 
-                addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
-                addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
+
+                if (i+1 < newPlanLengthVars.size()) {
+                    // IF previous plan length is X THEN
+                    // (here is an empty spot IFF the plan length stays X) 
+                    addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
+                    addClause(-prevVar, emptySpotVar, -keptPlanLengthVar);
+
+                    // IF previous plan length is X THEN
+                    // (here is a non-empty spot IFF the plan length becomes X+1)
+                    int incrPlanLengthVar = newPlanLengthVars[i+1];
+                    addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
+                    addClause(-prevVar, -emptySpotVar, -incrPlanLengthVar);
+                } else {
+                    // Limit hit -- no more actions are admitted
+                    // IF previous plan length is X THEN this spot must be empty
+                    addClause(-prevVar, emptySpotVar);
+                    // IF previous plan length is X THEN the plan length stays X
+                    addClause(-prevVar, keptPlanLengthVar);
+                }
             }
             planLengthVars = newPlanLengthVars;
         }
 
-        Log::v("Position %i: Plan length bounds [%i,%i]\n", pos, minPlanLengthSoFar, maxPlanLengthSoFar);
+        Log::v("Position %i: Plan length bounds [%i,%i]\n", pos, minPlanLength, maxPlanLength);
     }
 
-    Log::i("Initial plan length bounds at layer %i: [%i,%i]\n",
-            layerIdx, minPlanLengthSoFar, maxPlanLengthSoFar);
-    //assert(planLengthVars.size() == maxPlanLengthSoFar-minPlanLengthSoFar+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLengthSoFar, minPlanLengthSoFar));
+    Log::i("Tightened initial plan length bounds at layer %i: [0,%i] => [%i,%i]\n",
+            layerIdx, l.size()-1, minPlanLength, maxPlanLength);
+    assert(planLengthVars.size() == maxPlanLength-minPlanLength+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLength, minPlanLength));
     
     // Add primitiveness of all positions at the final layer
     // as unit literals (instead of assumptions)
@@ -887,8 +909,8 @@ void Encoding::optimizePlan(Plan& plan) {
     // Solving iterations
     while (true) {
         // Hit lower bound of possible plan lengths? 
-        if (currentPlanLength == minPlanLengthSoFar) {
-            Log::i("Length of current plan is at lower bound (%i): finished\n", minPlanLengthSoFar);
+        if (currentPlanLength == minPlanLength) {
+            Log::i("Length of current plan is at lower bound (%i): finished\n", minPlanLength);
             break;
         }
 
@@ -896,23 +918,23 @@ void Encoding::optimizePlan(Plan& plan) {
         begin(STAGE_PLANLENGTHCOUNTING);
 
         // Permanently forbid any plan lengths greater than / equal to the last found plan
-        while (maxPlanLengthSoFar > currentPlanLength) {
-            Log::d("GUARANTEE PL!=%i\n", maxPlanLengthSoFar);
-            int probedVar = planLengthVars[maxPlanLengthSoFar-minPlanLengthSoFar];
+        while (maxPlanLength > currentPlanLength) {
+            Log::d("GUARANTEE PL!=%i\n", maxPlanLength);
+            int probedVar = planLengthVars[maxPlanLength-minPlanLength];
             addClause(-probedVar);
-            maxPlanLengthSoFar--;
+            maxPlanLength--;
         }
-        assert(maxPlanLengthSoFar == currentPlanLength);
+        assert(maxPlanLength == currentPlanLength);
         //assert(solve() != 20 || Log::e("Problem became unsolvable through plan counter!\n"));
 
         // Assume a plan length shorter than the last found plan
-        Log::d("ASSUME PL!=%i\n", maxPlanLengthSoFar);
-        int probedVar = planLengthVars[maxPlanLengthSoFar-minPlanLengthSoFar];
+        Log::d("GUARANTEE PL!=%i\n", maxPlanLength);
+        int probedVar = planLengthVars[maxPlanLength-minPlanLength];
         addClause(-probedVar);
-        
+
         end(STAGE_PLANLENGTHCOUNTING);
 
-        Log::i("Searching for a plan of length < %i\n", maxPlanLengthSoFar);
+        Log::i("Searching for a plan of length < %i\n", maxPlanLength);
         int result = solve();
 
         // Check result
@@ -920,7 +942,7 @@ void Encoding::optimizePlan(Plan& plan) {
             // SAT: Shorter plan found!
             plan = extractPlan();
             int newPlanLength = getPlanLength(std::get<0>(plan));
-            assert(newPlanLength < currentPlanLength);
+            assert(newPlanLength < currentPlanLength || Log::e("New found plan has length %i!\n", newPlanLength));
             Log::i("Shorter plan (length %i) found\n", newPlanLength);
             currentPlanLength = newPlanLength;
         } else if (result == 20) {
