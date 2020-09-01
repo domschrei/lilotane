@@ -18,8 +18,6 @@ extern "C" {
 #include "data/action.h"
 #include "sat/variable_domain.h"
 
-typedef NodeHashMap<int, SigSet> State;
-
 struct PlanItem {
     PlanItem() {
         id = -1;
@@ -35,12 +33,17 @@ struct PlanItem {
     std::vector<int> subtaskIds;
 };
 
+typedef NodeHashMap<int, SigSet> State;
+typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
+
 class Encoding {
 
 private:
     Parameters& _params;
     HtnInstance& _htn;
     std::vector<Layer*>& _layers;
+
+    std::function<void()> _termination_callback;
     
     size_t _layer_idx;
     size_t _pos;
@@ -94,10 +97,11 @@ private:
     int STAGE_SUBSTITUTIONCONSTRAINTS = 16;
     int STAGE_TRUEFACTS = 17;
     int STAGE_ASSUMPTIONS = 18;
-    const char* STAGES_NAMES[19] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
+    int STAGE_PLANLENGTHCOUNTING = 19;
+    const char* STAGES_NAMES[20] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
         "axiomaticops","expansions","factpropagation","factvarencoding","forbiddenparents","frameaxioms","initsubstitutions",
         "predecessors","qconstequality","qfactsemantics","qtypeconstraints","reductionconstraints",
-        "substitutionconstraints","truefacts","assumptions"};
+        "substitutionconstraints","truefacts","assumptions","planlengthcounting"};
     std::map<int, int> _num_cls_per_stage;
     std::vector<int> _current_stages;
     int _num_cls_at_stage_start = 0; 
@@ -106,7 +110,7 @@ private:
     bool _began_line = false;
 
 public:
-    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers);
+    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback);
     ~Encoding();
 
     void encode(size_t layerIdx, size_t pos);
@@ -122,9 +126,11 @@ public:
     void end(int stage);
     void printStages();
 
-    std::pair<std::vector<PlanItem>, std::vector<PlanItem>> extractPlan();
+    Plan extractPlan();
     std::vector<PlanItem> extractClassicalPlan();
     std::vector<PlanItem> extractDecompositionPlan();
+
+    void optimizePlan(Plan& plan);
 
     void printFailedVars(Layer& layer);
     void printSatisfyingAssignment();
@@ -143,6 +149,7 @@ private:
 
     void setVariablePhases(const std::vector<int>& vars);
     void clearDonePositions();
+
     
     std::set<std::set<int>> getCnf(const std::vector<int>& dnf);
 
@@ -154,6 +161,7 @@ private:
     bool isEncodedSubstitution(const USignature& sig);
 
     bool value(VarType type, int layer, int pos, const USignature& sig);
+    int getPlanLength(const std::vector<PlanItem>& classicalPlan);
     
     std::string varName(int layer, int pos, const USignature& sig);
     void printVar(int layer, int pos, const USignature& sig);

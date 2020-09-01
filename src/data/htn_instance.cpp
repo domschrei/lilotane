@@ -175,7 +175,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
         newActions[idFirst] = aFirst;
 
         // Second action: no preconditions, all other effects
-        int idSecond = nameId(oldName + "_SECOND");
+        int idSecond = nameId(oldName + "__LLT_SECOND");
         Action aSecond = Action(idSecond, aSig._args);
         for (const Signature& eff : a.getEffects()) {
             if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);

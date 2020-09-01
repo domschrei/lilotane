@@ -15,6 +15,8 @@
 
 #include "sat/encoding.h"
 
+typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
+
 class Planner {
 
 public:
@@ -34,13 +36,21 @@ private:
 
     float _sat_time_limit = 0;
     bool _nonprimitive_support;
+    float _optimization_factor;
+    float _time_at_first_plan = 0;
+
+    bool _has_plan;
+    Plan _plan;
 
 public:
-    Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem), 
-            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers), 
-            _nonprimitive_support(_params.isNonzero("nps")) {}
+    Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem),
+            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers, [this](){checkTermination();}), 
+            _nonprimitive_support(_params.isNonzero("nps")), _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {}
     int findPlan();
+
     friend int terminateSatCall(void* state);
+    void checkTermination();
+    bool cancelOptimization();
 
 private:
 

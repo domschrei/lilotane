@@ -7,8 +7,10 @@
 #include "util/timer.h"
 
 
-Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
-            _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
+Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
+            _params(params), _htn(htn), _layers(layers), 
+            _termination_callback(terminationCallback), 
+            _print_formula(params.isNonzero("wf")), 
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
             _implicit_primitiveness(params.isNonzero("ip")) {
     _solver = ipasir_init();
@@ -24,7 +26,8 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
 }
 
 void Encoding::encode(size_t layerIdx, size_t pos) {
-    
+    _termination_callback();
+
     Log::v("Encoding ...\n");
     int priorNumClauses = _num_cls;
     int priorNumLits = _num_lits;
@@ -786,6 +789,152 @@ void Encoding::clearDonePositions() {
     }
 }
 
+void Encoding::optimizePlan(Plan& plan) {
+
+    int layerIdx = _layers.size()-1;
+    Layer& l = *_layers.at(layerIdx);
+    plan = extractPlan();
+
+    // Count initial found plan
+    int currentPlanLength = getPlanLength(std::get<0>(plan));
+    Log::i("Initial plan length: %i\n", currentPlanLength);
+
+    // Add counting mechanism
+    begin(STAGE_PLANLENGTHCOUNTING);
+    int minPlanLengthSoFar = 0;
+    int maxPlanLengthSoFar = 0;
+    std::vector<int> planLengthVars(1, VariableDomain::nextVar());
+    Log::d("VARNAME %i (plan_length_equals %i %i)\n", planLengthVars[0], 0, 0);
+    // At position zero, the plan length is always equal to zero
+    addClause(planLengthVars[0]);
+    for (size_t pos = 0; pos+1 < l.size(); pos++) {
+
+        // Collect sets of potential operations
+        USigSet emptyActions, actualActions;
+        for (const auto& aSig : l.at(pos).getActions()) {
+            if (aSig == Position::NONE_SIG) continue;
+            if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig) {
+                // Empty reduction or blank action or second part of a split action
+                emptyActions.insert(aSig);
+            } else {
+                actualActions.insert(aSig);
+            }
+        }
+        for (const auto& rSig : l.at(pos).getReductions()) {
+            if (rSig == Position::NONE_SIG) continue;
+            if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
+                // Empty reduction
+                emptyActions.insert(rSig);
+            }
+        }
+
+        if (emptyActions.empty()) {
+            // Only actual actions here: Increment lower and upper bound, keep all variables.
+            minPlanLengthSoFar++;
+            maxPlanLengthSoFar++;
+            Log::d("[no empty actions]\n");
+        } else if (actualActions.empty()) {
+            // Only empty actions here: Keep current bounds, keep all variables.
+            Log::d("[only empty actions]\n");
+        } else {
+            // Mix of actual and empty actions here: Increment upper bound, 
+            maxPlanLengthSoFar++;
+            // create new variables and constraints.
+            int emptySpotVar = VariableDomain::nextVar();
+            std::vector<int> newPlanLengthVars(planLengthVars.size()+1);
+            for (size_t i = 0; i < newPlanLengthVars.size(); i++) {
+                newPlanLengthVars[i] = VariableDomain::nextVar();
+            }
+
+            // Define for each action var whether it implies an empty spot or not
+            for (const auto& aSig : emptyActions) {
+                // IF the empty action occurs, THEN the spot is empty.
+                addClause(-l.at(pos).getVariable(VarType::OP, aSig), emptySpotVar);
+            }
+            for (const auto& aSig : actualActions) {
+                // IF the actual action occurs, THEN the spot is not empty.
+                addClause(-l.at(pos).getVariable(VarType::OP, aSig), -emptySpotVar);
+            }
+
+            // Propagate plan length from previous position to new position
+            for (size_t i = 0; i < planLengthVars.size(); i++) {
+                int prevVar = planLengthVars[i];
+                int keptPlanLengthVar = newPlanLengthVars[i];
+                int incrPlanLengthVar = newPlanLengthVars[i+1];
+                // IF previous plan length is X, THEN
+                // (the plan length increases IFF the spot is not empty). 
+                addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
+                addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
+            }
+            planLengthVars = newPlanLengthVars;
+        }
+
+        Log::v("Position %i: Plan length bounds [%i,%i]\n", pos, minPlanLengthSoFar, maxPlanLengthSoFar);
+    }
+
+    Log::i("Initial plan length bounds at layer %i: [%i,%i]\n",
+            layerIdx, minPlanLengthSoFar, maxPlanLengthSoFar);
+    //assert(planLengthVars.size() == maxPlanLengthSoFar-minPlanLengthSoFar+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLengthSoFar, minPlanLengthSoFar));
+    
+    // Add primitiveness of all positions at the final layer
+    // as unit literals (instead of assumptions)
+    for (size_t pos = 0; pos < l.size(); pos++) {
+        int v = getVarPrimitiveOrZero(layerIdx, pos);
+        if (v != 0) addClause(v);
+    }
+    end(STAGE_PLANLENGTHCOUNTING);
+
+    // Solving iterations
+    while (true) {
+        // Hit lower bound of possible plan lengths? 
+        if (currentPlanLength == minPlanLengthSoFar) {
+            Log::i("Length of current plan is at lower bound (%i): finished\n", minPlanLengthSoFar);
+            break;
+        }
+
+        // Assume a shorter plan by one
+        begin(STAGE_PLANLENGTHCOUNTING);
+
+        // Permanently forbid any plan lengths greater than / equal to the last found plan
+        while (maxPlanLengthSoFar > currentPlanLength) {
+            Log::d("GUARANTEE PL!=%i\n", maxPlanLengthSoFar);
+            int probedVar = planLengthVars[maxPlanLengthSoFar-minPlanLengthSoFar];
+            addClause(-probedVar);
+            maxPlanLengthSoFar--;
+        }
+        assert(maxPlanLengthSoFar == currentPlanLength);
+        //assert(solve() != 20 || Log::e("Problem became unsolvable through plan counter!\n"));
+
+        // Assume a plan length shorter than the last found plan
+        Log::d("ASSUME PL!=%i\n", maxPlanLengthSoFar);
+        int probedVar = planLengthVars[maxPlanLengthSoFar-minPlanLengthSoFar];
+        addClause(-probedVar);
+        
+        end(STAGE_PLANLENGTHCOUNTING);
+
+        Log::i("Searching for a plan of length < %i\n", maxPlanLengthSoFar);
+        int result = solve();
+
+        // Check result
+        if (result == 10) {
+            // SAT: Shorter plan found!
+            plan = extractPlan();
+            int newPlanLength = getPlanLength(std::get<0>(plan));
+            assert(newPlanLength < currentPlanLength);
+            Log::i("Shorter plan (length %i) found\n", newPlanLength);
+            currentPlanLength = newPlanLength;
+        } else if (result == 20) {
+            // UNSAT
+            Log::i("No plan of length < %i exists at this layer\n", currentPlanLength);
+            break;
+        } else {
+            // UNKNOWN
+            break;
+        }
+    }
+
+}
+
 void Encoding::addAssumptions(int layerIdx) {
     Layer& l = *_layers.at(layerIdx);
     if (_implicit_primitiveness) {
@@ -894,6 +1043,9 @@ int Encoding::solve() {
 
     if (_num_asmpts == 0) _last_assumptions.clear();
     _num_asmpts = 0;
+
+    _termination_callback();
+
     return result;
 }
 
@@ -1057,9 +1209,9 @@ bool holds(State& state, const Signature& fact) {
     return state[fact._usig._name_id].count(fact) || !state[fact._usig._name_id].count(fact.opposite());
 }
 
-std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() {
+Plan Encoding::extractPlan() {
 
-    auto result = std::pair<std::vector<PlanItem>, std::vector<PlanItem>>();
+    auto result = Plan();
     auto& [classicalPlan, plan] = result;
     classicalPlan = extractClassicalPlan();
     
@@ -1195,6 +1347,21 @@ bool Encoding::value(VarType type, int layer, int pos, const USignature& sig) {
     return (ipasir_val(_solver, v) > 0);
 }
 
+int Encoding::getPlanLength(const std::vector<PlanItem>& classicalPlan) {
+    int currentPlanLength = 0;
+    for (size_t pos = 0; pos+1 < classicalPlan.size(); pos++) {
+        const auto& aSig = classicalPlan[pos].abstractTask;
+        Log::d("%s\n", TOSTR(aSig));
+        // Reduction with an empty expansion?
+        if (aSig._name_id < 0) continue;
+        // No blank action, no second part of a split action?
+        else if (!_htn.isSecondPartOfSplitAction(aSig) && _htn.getBlankActionSig() != aSig) {
+            currentPlanLength++;
+        }
+    }
+    return currentPlanLength;
+}
+
 void Encoding::printSatisfyingAssignment() {
     Log::d("SOLUTION_VALS ");
     for (int v = 1; v <= VariableDomain::getMaxVar(); v++) {
@@ -1277,7 +1444,7 @@ Encoding::~Encoding() {
 
     if (!_num_cls_per_stage.empty()) printStages();
 
-    if (_params.isNonzero("of")) {
+    if (_params.isNonzero("wf")) {
 
         // Append assumptions to written formula, close stream
         if (!_params.isNonzero("cs") && _last_assumptions.empty()) {

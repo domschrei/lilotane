@@ -9,14 +9,51 @@
 
 #include "planner.h"
 #include "util/log.h"
+#include "util/signal_manager.h"
+#include "util/timer.h"
 
 int terminateSatCall(void* state) {
     Planner* planner = (Planner*) state;
+
+    // Breaking out of first SAT call after some time
     if (planner->_sat_time_limit > 0 &&
         planner->_enc.getTimeSinceSatCallStart() > planner->_sat_time_limit) {
         return 1;
     }
+    // Plan length optimization limit hit
+    if (planner->cancelOptimization()) {
+        return 1;
+    }
+    // Termination by interruption signal
+    if (SignalManager::isExitSet()) return 1;
     return 0;
+}
+
+void Planner::checkTermination() {
+    bool exitSet = SignalManager::isExitSet();
+    bool cancelOpt = cancelOptimization();
+    if (exitSet) {
+        if (_has_plan) {
+            Log::i("Termination signal caught - printing last found plan.\n");
+            outputPlan();
+        } else {
+            Log::i("Termination signal caught.\n");
+        }
+    } else if (cancelOpt) {
+        Log::i("Cancelling optimization according to provided limit.\n");
+        outputPlan();
+    }
+    if (exitSet || cancelOpt) {
+        _enc.printStages();
+        Log::i("Exiting happily.\n");
+        exit(0);
+    }
+}
+
+bool Planner::cancelOptimization() {
+    return _time_at_first_plan > 0 &&
+            _optimization_factor > 0 &&
+            Timer::elapsedSeconds() > (1+_optimization_factor) * _time_at_first_plan;
 }
 
 int Planner::findPlan() {
@@ -32,7 +69,7 @@ int Planner::findPlan() {
     _sat_time_limit = _params.getFloatParam("stl");
 
     bool solved = false;
-    if (_sat_time_limit > 0) _enc.setTerminateCallback(this, terminateSatCall);
+    if (_sat_time_limit > 0 || _optimization_factor != 0) _enc.setTerminateCallback(this, terminateSatCall);
     if (iteration >= firstSatCallIteration) {
         _enc.addAssumptions(_layer_idx);
         int result = _enc.solve();
@@ -90,17 +127,23 @@ int Planner::findPlan() {
     }
 
     Log::i("Found a solution at layer %i.\n", _layers.size()-1);
+    _time_at_first_plan = Timer::elapsedSeconds();
 
+    if (_optimization_factor != 0) {
+        _has_plan = true;
+        _enc.optimizePlan(_plan);
+    } else {
+        _plan = _enc.extractPlan();
+        _has_plan = true;
+    }
     outputPlan();
+
     _enc.printStages();
     
     return 0;
 }
 
 void Planner::outputPlan() {
-
-    // Extract solution
-    auto planPair = _enc.extractPlan();
 
     // Create stringstream which is being fed the plan
     std::stringstream stream;
@@ -115,12 +158,13 @@ void Planner::outputPlan() {
     FlatHashSet<int> surrogateIds;
     std::vector<PlanItem> decompsToInsert;
     size_t decompsToInsertIdx = 0;
+    size_t length = 0;
     
-    for (PlanItem& item : planPair.first) {
+    for (PlanItem& item : std::get<0>(_plan)) {
 
         if (item.id < 0) continue;
         
-        if (_htn.toString(item.abstractTask._name_id).rfind("_SECOND") != std::string::npos) {
+        if (_htn.toString(item.abstractTask._name_id).rfind("__LLT_SECOND") != std::string::npos) {
             // Second part of a split action: discard
             idsToRemove.insert(item.id);
             continue;
@@ -155,21 +199,22 @@ void Planner::outputPlan() {
         if (item.abstractTask._name_id == _htn.nameId("_GOAL_ACTION_")) continue;
 
         stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
+        length++;
     }
     // -- decomposition part
     bool root = true;
-    for (size_t itemIdx = 0; itemIdx < planPair.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
+    for (size_t itemIdx = 0; itemIdx < _plan.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
 
         // Pick next plan item to print
         PlanItem item;
-        if (decompsToInsertIdx < decompsToInsert.size() && (itemIdx >= planPair.second.size() || decompsToInsert[decompsToInsertIdx].id < planPair.second[itemIdx].id)) {
+        if (decompsToInsertIdx < decompsToInsert.size() && (itemIdx >= _plan.second.size() || decompsToInsert[decompsToInsertIdx].id < _plan.second[itemIdx].id)) {
             // Pick plan item from surrogate decompositions
             item = decompsToInsert[decompsToInsertIdx];
             decompsToInsertIdx++;
             itemIdx--;
         } else {
             // Pick plan item from "normal" plan list
-            item = planPair.second[itemIdx];
+            item = _plan.second[itemIdx];
         }
         if (item.id < 0) continue;
 
@@ -211,7 +256,7 @@ void Planner::outputPlan() {
     Log::log_notime(Log::V0_ESSENTIAL, planStr.c_str());
     Log::log_notime(Log::V0_ESSENTIAL, "<==\n");
     
-    Log::i("End of solution plan.\n");
+    Log::i("End of solution plan. (counted length of %i)\n", length);
 }
 
 void Planner::createFirstLayer() {

@@ -50,7 +50,7 @@ void Parameters::setDefaults() {
     setParam("ip", "0"); // implicit primitiveness
     setParam("mp", "1"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports
-    setParam("of", "0"); // output formula to f.cnf
+    setParam("of", "0"); // optimization factor
     setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
     setParam("qcm", "0"); // q-constant mutexes: size threshold
@@ -66,6 +66,7 @@ void Parameters::setDefaults() {
     setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
     setParam("vp", "0"); // verify plan before printing it
+    setParam("wf", "0"); // output formula to f.cnf
 }
 
 void Parameters::printUsage() {
@@ -85,7 +86,8 @@ void Parameters::printUsage() {
     Log::e(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
     Log::e(" -mp=<0|1>           Mine preconditions for reductions from their (recursive) subtasks\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
-    Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::e(" -of=<factor>        Plan length optimization factor: spend up to <factor> * <original solving time> for optimization\n");
+    Log::e("                     (-1 for exhaustive optimization)\n");
     Log::e(" -p=<0|1>            Encode predecessor operations\n");
     Log::e(" -pvn=<0|1>          Print variable names\n");
     Log::e(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
@@ -101,6 +103,7 @@ void Parameters::printUsage() {
     Log::e(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
     Log::e(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
+    Log::e(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     printParams(/*forcePrint=*/true);
 }
 

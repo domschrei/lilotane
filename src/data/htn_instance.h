@@ -233,6 +233,10 @@ public:
         return _reductions.count(sig._name_id);
     }
 
+    inline bool isSecondPartOfSplitAction(const USignature& sig) const {
+        return toString(sig._name_id).rfind("__LLT_SECOND") != std::string::npos;
+    }
+
 
 private:
 

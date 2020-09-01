@@ -13,6 +13,7 @@
 #include "data/htn_instance.h"
 #include "planner/planner.h"
 #include "util/timer.h"
+#include "util/signal_manager.h"
 
 #ifndef LILOTANE_VERSION
 #define LILOTANE_VERSION "(dbg)"
@@ -21,6 +22,10 @@
 #ifndef IPASIRSOLVER
 #define IPASIRSOLVER "(unknown)"
 #endif
+
+void handleSignal(int signum) {
+    SignalManager::signalExit();
+}
 
 void run(Parameters& params) {
 
@@ -42,6 +47,9 @@ void run(Parameters& params) {
 }
 
 int main(int argc, char** argv) {
+    
+    signal(SIGTERM, handleSignal);
+    signal(SIGINT, handleSignal);
 
     Timer::init();
 
