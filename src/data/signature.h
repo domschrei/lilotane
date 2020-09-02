@@ -89,15 +89,19 @@ struct Signature {
 struct USignatureHasher {
     inline std::size_t operator()(const USignature& s) const {
         size_t hash = s._args.size();
+        int sum = hash;
         for (const int& arg : s._args) {
             hash_combine(hash, arg);
+            sum += arg;
         }
         hash_combine(hash, s._name_id);
+        sum += s._name_id;
+        hash_combine(hash, sum);
         return hash;
     }
 };
 struct SignatureHasher {
-    static USignatureHasher _usig_hasher;
+    USignatureHasher _usig_hasher;
     inline std::size_t operator()(const Signature& s) const {
         size_t hash = _usig_hasher(s._usig);
         hash_combine(hash, s._negated);
