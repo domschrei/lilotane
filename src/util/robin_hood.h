@@ -2138,7 +2138,7 @@ private:
                                            (static_cast<double>(mMask) + 1)));
         // it seems we have a really bad hash function! don't try to resize again
         if (mNumElements * 2 < calcMaxNumElementsAllowed(mMask + 1)) {
-            throwOverflowError();
+            printf("ROBIN_HOOD OVERFLOW\n");
         }
 
         rehashPowerOfTwo((mMask + 1) * 2);
