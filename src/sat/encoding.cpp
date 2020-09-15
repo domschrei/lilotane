@@ -3,6 +3,7 @@
 
 #include "sat/encoding.h"
 #include "sat/literal_tree.h"
+#include "sat/binary_amo.h"
 #include "util/log.h"
 #include "util/timer.h"
 
@@ -433,20 +434,32 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
         exit(1);
     }
 
-    begin(STAGE_ATLEASTONEELEMENT);
-    size_t i = 0; 
-    while (i < elementVars.size() && elementVars[i] != 0) 
-        appendClause(elementVars[i++]);
-    endClause();
-    end(STAGE_ATLEASTONEELEMENT);
+    if ((int)elementVars.size() >= _params.getIntParam("bamot")) {
+        // Binary exactly-one
 
-    begin(STAGE_ATMOSTONEELEMENT);
-    for (size_t i = 0; i < elementVars.size(); i++) {
-        for (size_t j = i+1; j < elementVars.size(); j++) {
-            addClause(-elementVars[i], -elementVars[j]);
+        begin(STAGE_ATMOSTONEELEMENT);
+        auto bamo = BinaryAtMostOne(elementVars, elementVars.size());
+        for (const auto& c : bamo.encode()) addClause(c);
+        end(STAGE_ATMOSTONEELEMENT);
+
+    } else {
+        // Naive exactly-one
+
+        begin(STAGE_ATLEASTONEELEMENT);
+        size_t i = 0; 
+        while (i < elementVars.size() && elementVars[i] != 0) 
+            appendClause(elementVars[i++]);
+        endClause();
+        end(STAGE_ATLEASTONEELEMENT);
+
+        begin(STAGE_ATMOSTONEELEMENT);
+        for (size_t i = 0; i < elementVars.size(); i++) {
+            for (size_t j = i+1; j < elementVars.size(); j++) {
+                addClause(-elementVars[i], -elementVars[j]);
+            }
         }
+        end(STAGE_ATMOSTONEELEMENT);
     }
-    end(STAGE_ATMOSTONEELEMENT);
 
     if (_params.isNonzero("svp")) setVariablePhases(elementVars);
 }
@@ -477,9 +490,16 @@ void Encoding::encodeSubstitutionVars(int opVar, int arg, Position& pos) {
     endClause();
 
     // AT MOST ONE substitution
-    for (int vSub1 : substitutionVars) {
-        for (int vSub2 : substitutionVars) {
-            if (vSub1 < vSub2) addClause(-vSub1, -vSub2);
+    if ((int)substitutionVars.size() >= _params.getIntParam("bamot")) {
+        // Binary at-most-one
+        auto bamo = BinaryAtMostOne(substitutionVars, substitutionVars.size()+1);
+        for (const auto& c : bamo.encode()) addClause(c);
+    } else {
+        // Naive at-most-one
+        for (int vSub1 : substitutionVars) {
+            for (int vSub2 : substitutionVars) {
+                if (vSub1 < vSub2) addClause(-vSub1, -vSub2);
+            }
         }
     }
 

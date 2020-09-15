@@ -42,7 +42,7 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
-    setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
+    setParam("bamot", "50"); // Binary at-most-one threshold
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
     setParam("d", "0"); // min depth to start SAT solving at
