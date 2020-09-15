@@ -911,20 +911,13 @@ void Planner::introduceNewFacts() {
 void Planner::introduceNewFact(Position& newPos, const USignature& fact) {
     assert(!_htn.hasQConstants(fact));
 
-    auto layerState = getLayerState(newPos.getLayerIndex());
-    bool containedPos = layerState.contains(_pos, fact, /*negated=*/false);
-    bool containedNeg = layerState.contains(_pos, fact, /*negated=*/true);
-    if (containedPos && containedNeg) {
-        // Occurs both in positive and negative form.
-        // TODO encode as a variable without any constraint on its polarity
-        return;
-    }
+    auto& layerState = getLayerState(newPos.getLayerIndex());
 
     // New fact is to be introduce as initially FALSE
     // if its positive form is not contained in the initial state
     bool initiallyFalse = !_init_state.contains(fact);
-    if (initiallyFalse && !containedNeg)
-        getLayerState(newPos.getLayerIndex()).add(newPos.getPositionIndex(), fact, /*negated=*/true);
+    if (initiallyFalse)
+        layerState.add(newPos.getPositionIndex(), fact, /*negated=*/true);
     
     // Does position to the left already have the encoded fact? -> not new!
     if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(VarType::FACT, fact)) return;
