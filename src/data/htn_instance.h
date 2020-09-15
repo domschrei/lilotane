@@ -118,7 +118,7 @@ public:
 
     static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
 
-    SigSet getInitState();
+    USigSet getInitState();
     const Reduction& getInitReduction();
     const USignature& getBlankActionSig();
     Action getGoalAction();

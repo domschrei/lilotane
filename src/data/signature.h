@@ -97,7 +97,7 @@ struct USignatureHasher {
     }
 };
 struct SignatureHasher {
-    static USignatureHasher _usig_hasher;
+    USignatureHasher _usig_hasher;
     inline std::size_t operator()(const Signature& s) const {
         size_t hash = _usig_hasher(s._usig);
         hash_combine(hash, s._negated);

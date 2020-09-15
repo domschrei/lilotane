@@ -30,6 +30,8 @@ private:
     Instantiator& _instantiator;
     Encoding _enc;
 
+    USigSet _init_state;
+
     size_t _layer_idx;
     size_t _pos;
     size_t _old_pos;
@@ -69,7 +71,7 @@ private:
     void addSubstitutionConstraints(const USignature& op, 
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
             NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
-    bool addEffect(const USignature& op, const Signature& fact);
+    bool addEffect(const USignature& op, const Signature& fact, bool direct);
     bool addAction(Action& a);
     bool addReduction(Reduction& r, const USignature& task);
 
@@ -78,8 +80,8 @@ private:
     void propagateReductions(size_t offset);
     std::vector<USignature> getAllActionsOfTask(const USignature& task, const StateEvaluator& state);
     std::vector<USignature> getAllReductionsOfTask(const USignature& task, const StateEvaluator& state);
-    void addNewFalseFacts();
-    void introduceNewFalseFact(Position& newPos, const USignature& fact);
+    void introduceNewFacts();
+    void introduceNewFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
 
     void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);

@@ -297,12 +297,10 @@ Signature HtnInstance::convertSignature(int parentNameId, const literal& literal
     return sig;
 }
 
-SigSet HtnInstance::getInitState() {
-    SigSet result;
-    for (const ground_literal& lit : _p.init) {
-        Signature sig(nameId(lit.predicate), convertArguments(nameId(lit.predicate), lit.args));
-        if (!lit.positive) sig.negate();
-        result.insert(sig);
+USigSet HtnInstance::getInitState() {
+    USigSet result;
+    for (const ground_literal& lit : _p.init) if (lit.positive) {
+        result.emplace(nameId(lit.predicate), convertArguments(nameId(lit.predicate), lit.args));
     }
 
     // Insert all necessary equality predicates
