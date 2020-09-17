@@ -6,7 +6,7 @@ else
 	timeout="$TIMEOUT"
 fi
 rating_timeout=1800
-domains="ipc-blocks ipc-logistics ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport factories" 
+domains="ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
