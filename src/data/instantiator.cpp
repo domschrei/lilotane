@@ -336,6 +336,12 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
                 for (const Signature& eff : a.getEffects()) {
                     facts.insert(eff);
                 }
+            } else if (_htn->hasSurrogate(nodeSig._name_id)) {
+                Action a = _htn->getSurrogate(nodeSig._name_id);
+                a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
+                for (const Signature& eff : a.getEffects()) {
+                    facts.insert(eff);
+                }
             }
         });
 
