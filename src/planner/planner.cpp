@@ -387,15 +387,7 @@ void Planner::createNextPosition() {
 void Planner::createNextPositionFromAbove(const Position& above) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
-
     int offset = _pos - (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos);
-    if (offset == 0) {
-        // Propagate facts
-        for (const auto& fact : above.getQFacts()) {
-            newPos.addQFact(fact);
-        }
-    }
-
     propagateActions(offset);
     propagateReductions(offset);
 }
@@ -412,16 +404,22 @@ void Planner::createNextPositionFromLeft(Position& left) {
     FlatHashSet<int> relevantQConstants;
 
     // Propagate fact changes from operations from previous position
+    USigSet actionsToRemove;
     for (const auto& aSig : left.getActions()) {
         for (const Signature& fact : left.getFactChanges(aSig)) {
             if (!addEffect(aSig, fact, /*direct=*/true)) {
                 // Impossible direct effect: forbid action retroactively.
+                Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                 _enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
+                actionsToRemove.insert(aSig);
             }
         }
         for (const int& arg : aSig._args) {
             if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
         }
+    }
+    for (const auto& aSig : actionsToRemove) {
+        left.removeActionOccurrence(aSig);
     }
     for (const auto& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
@@ -448,7 +446,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
             getLayerState().withdraw(_pos, fact, false);
             continue;
         }
-        newPos.addQFact(fact);
     }
 }
 
@@ -573,11 +570,6 @@ void Planner::propagateInitialState() {
 
     Position& newPos = (*_layers[_layer_idx])[0];
     Position& above = (*_layers[_layer_idx-1])[0];
-
-    // Propagate occurring facts
-    for (const auto& fact : above.getQFacts()) {
-        newPos.addQFact(fact);
-    }
     
     // Propagate TRUE facts
     for (const USignature& fact : above.getTrueFacts())
@@ -891,19 +883,6 @@ void Planner::introduceNewFacts() {
                     introduceNewFact(newPos, decEff);
                 }
             }
-        }
-    }
-
-    // For each fact from "above" the next position:
-    if (_layer_idx == 0) return;
-    if (_old_pos+1 < (*_layers[_layer_idx-1]).size() && (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos+1) == _pos+1) {
-        Position& newAbove = (*_layers[_layer_idx-1])[_old_pos+1];
-
-        // TODO Propagation of facts from above to new layer ~> add as new false facts?
-
-        for (const auto& fact : newAbove.getQFacts()) {
-            // If fact was not seen here before
-            newPos.addQFact(fact);
         }
     }
 }
