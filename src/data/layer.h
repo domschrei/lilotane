@@ -16,7 +16,6 @@ class Layer {
 private:
     size_t _index;
     std::vector<Position> _content;
-    LayerState _state;
     std::vector<size_t> _successor_positions;
 
 public:
@@ -26,7 +25,6 @@ public:
     size_t index() const;
     size_t getNextLayerSize() const;
     size_t getSuccessorPos(size_t oldPos) const;
-    LayerState& getState();
     
     Position& at(size_t pos);
     Position& operator[](size_t pos);

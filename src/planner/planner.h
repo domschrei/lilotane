@@ -31,6 +31,8 @@ private:
     Encoding _enc;
 
     USigSet _init_state;
+    USigSet _pos_layer_facts;
+    USigSet _neg_layer_facts;
 
     size_t _layer_idx;
     size_t _pos;
@@ -64,7 +66,7 @@ private:
     void createNextLayer();
     
     void createNextPosition();
-    void createNextPositionFromAbove(const Position& above);
+    void createNextPositionFromAbove();
     void createNextPositionFromLeft(Position& left);
 
     void addPrecondition(const USignature& op, const Signature& fact, 
@@ -88,7 +90,7 @@ private:
 
     void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);
 
-    LayerState& getLayerState(int layer = -1);
+    USigSet& getCurrentState(bool negated);
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.
 
