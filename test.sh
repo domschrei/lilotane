@@ -123,7 +123,7 @@ for domain in $domains ; do
                 score=$(echo "$score + $thisscore"|bc -l)
 
                 cp "$outfile" "$outdir/log_$((solved+unsolved+1))_$domain"
-                grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" > "$outdir/plo_$((solved+unsolved+1))_$domain"
+                grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" > "$outdir/plo_$((solved+unsolved+1))_$domain" || :
             fi
             solved=$((solved+1))
         else
