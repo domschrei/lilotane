@@ -52,6 +52,9 @@ unsolved=0
 all=0
 score=0
 
+outdir=tests/tests_$(date +%s)
+mkdir $outdir
+
 # Count instances
 for domain in $domains ; do    
     for pfile in instances/$domain/p*.hddl; do
@@ -117,8 +120,10 @@ for domain in $domains ; do
                 fi
             else
                 echo "${green}All ok.${reset}"
-                echo -ne "$(header | sed -e 's/./ /g')"
+                echo -ne "$(header | sed -e 's/./ /g')" # clean indentation
                 LC_ALL=C printf "TIME %.2f SCORE %.2f\n" $runtime $thisscore
+                cp "$outfile" "$outdir/log_$((solved+unsolved+1))_$domain"
+                grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" > "$outdir/plo_$((solved+unsolved+1))_$domain"
             fi
             solved=$((solved+1))
         else

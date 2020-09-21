@@ -814,6 +814,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     int layerIdx = _layers.size()-1;
     Layer& l = *_layers.at(layerIdx);
     int currentPlanLength = upperBound;
+    Log::v("PLO BEGIN %i\n", currentPlanLength);
     
     // Add counting mechanism
     begin(STAGE_PLANLENGTHCOUNTING);
@@ -926,6 +927,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     while (true) {
         // Hit lower bound of possible plan lengths? 
         if (currentPlanLength == minPlanLength) {
+            Log::v("PLO END %i\n", currentPlanLength);
             Log::i("Length of current plan is at lower bound (%i): finished\n", minPlanLength);
             break;
         }
@@ -961,12 +963,15 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             assert(newPlanLength < currentPlanLength || Log::e("New found plan has length %i!\n", newPlanLength));
             Log::i("Shorter plan (length %i) found\n", newPlanLength);
             currentPlanLength = newPlanLength;
+            Log::v("PLO UPDATE %i\n", currentPlanLength);
         } else if (result == 20) {
             // UNSAT
+            Log::v("PLO END %i\n", currentPlanLength);
             Log::i("No plan of length < %i exists at this layer\n", currentPlanLength);
             break;
         } else {
             // UNKNOWN
+            Log::v("PLO END %i\n", currentPlanLength);
             break;
         }
     }

@@ -42,6 +42,9 @@ void Planner::checkTermination() {
     } else if (cancelOpt) {
         Log::i("Cancelling optimization according to provided limit.\n");
         outputPlan();
+    } else if (_time_at_first_plan == 0 && Timer::elapsedSeconds() > _init_plan_time_limit) {
+        Log::i("Time limit to find an initial plan exceeded.\n");
+        exitSet = true;
     }
     if (exitSet || cancelOpt) {
         _enc.printStages();
@@ -52,7 +55,7 @@ void Planner::checkTermination() {
 
 bool Planner::cancelOptimization() {
     return _time_at_first_plan > 0 &&
-            _optimization_factor != 0 &&
+            _optimization_factor > 0 &&
             Timer::elapsedSeconds() > (1+_optimization_factor) * _time_at_first_plan;
 }
 

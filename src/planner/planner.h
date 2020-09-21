@@ -37,6 +37,7 @@ private:
     size_t _old_pos;
 
     float _sat_time_limit = 0;
+    float _init_plan_time_limit = 0;
     bool _nonprimitive_support;
     float _optimization_factor;
     float _time_at_first_plan = 0;
@@ -47,7 +48,8 @@ private:
 public:
     Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem),
             _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers, [this](){checkTermination();}), 
-            _nonprimitive_support(_params.isNonzero("nps")), _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {}
+            _init_plan_time_limit(_params.getFloatParam("T")), _nonprimitive_support(_params.isNonzero("nps")), 
+            _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {}
     int findPlan();
 
     friend int terminateSatCall(void* state);
