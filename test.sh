@@ -87,12 +87,10 @@ for domain in $domains ; do
         retval="$?"
         end=$(date +%s.%N)    
         runtime=$(python -c "print(${end} - ${start})")
-        thisscore=0
+        thisscore=$(rating "$runtime")
 
         if [ "$retval" == "0" ]; then
             echo -ne "exit code ${green}$retval${reset}. "
-            thisscore=$(rating "$runtime")
-            score=$(echo "$score + $thisscore"|bc -l)
         else
             echo -ne "${yellow}exit code $retval.${reset} "
             if [ "$retval" == "134" -o "$retval" == "139" -o "$retval" == "6" -o "$retval" == "11" ]; then
@@ -122,6 +120,8 @@ for domain in $domains ; do
                 echo "${green}All ok.${reset}"
                 echo -ne "$(header | sed -e 's/./ /g')" # clean indentation
                 LC_ALL=C printf "TIME %.2f SCORE %.2f\n" $runtime $thisscore
+                score=$(echo "$score + $thisscore"|bc -l)
+
                 cp "$outfile" "$outdir/log_$((solved+unsolved+1))_$domain"
                 grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" > "$outdir/plo_$((solved+unsolved+1))_$domain"
             fi
