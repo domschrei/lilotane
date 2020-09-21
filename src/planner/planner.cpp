@@ -20,6 +20,11 @@ int terminateSatCall(void* state) {
         planner->_enc.getTimeSinceSatCallStart() > planner->_sat_time_limit) {
         return 1;
     }
+    // Termination due to initial planning time limit (-T)
+    if (planner->_time_at_first_plan == 0 &&
+        Timer::elapsedSeconds() > planner->_init_plan_time_limit) {
+        return 1;
+    }
     // Plan length optimization limit hit
     if (planner->cancelOptimization()) {
         return 1;
