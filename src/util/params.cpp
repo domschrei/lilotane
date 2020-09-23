@@ -42,6 +42,7 @@ void Parameters::init(int argc, char** argv) {
 }
 
 void Parameters::setDefaults() {
+    setParam("alo", "0"); // explicitly encode "at-least-one" over elements at each position
     setParam("bamot", "50"); // Binary at-most-one threshold
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
@@ -78,8 +79,9 @@ void Parameters::printUsage() {
     Log::e("  <problemfile> Path to problem file in HDDL format.\n");
     Log::e("\n");
     Log::e("Option syntax: -OPTION or -OPTION=VALUE .\n");
-    Log::e(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> reductions\n");
-    Log::e("                     at the current position (0 : no AMO constraints for reductions)\n");
+
+    Log::e(" -alo=<0|1>          Explicitly encode at-least-one constraints over operations at each position\n");
+    Log::e(" -bamot=<int>        Binary at-most-one threshold\n");
     Log::e(" -co=<0|1>           Colored terminal output\n");
     Log::e(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
     Log::e("                     to see whether the formula has become generally unsatisfiable\n");
