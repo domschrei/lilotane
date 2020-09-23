@@ -217,11 +217,9 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
 void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
+    begin(STAGE_DIRECTFRAMEAXIOMS);
+
     using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher>;
-
-    // Fact supports, frame axioms (only for non-new facts free of q-constants)
-    begin(STAGE_FRAMEAXIOMS);
-
     bool nonprimFactSupport = _params.isNonzero("nps");
 
     int layerIdx = newPos.getLayerIndex();
@@ -358,6 +356,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         }
 
         // Encode substitutions enabling indirect support for this fact
+        begin(STAGE_INDIRECTFRAMEAXIOMS);
         i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
@@ -386,9 +385,9 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 for (const auto& cls : tree.encode(headLits)) addClause(cls);
             }
         }
+        end(STAGE_INDIRECTFRAMEAXIOMS);
     }
-
-    end(STAGE_FRAMEAXIOMS);
+    end(STAGE_DIRECTFRAMEAXIOMS);
 }
 
 void Encoding::encodeOperationConstraints(Position& newPos) {
@@ -445,12 +444,14 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
     } else {
         // Naive exactly-one
 
-        begin(STAGE_ATLEASTONEELEMENT);
-        size_t i = 0; 
-        while (i < elementVars.size() && elementVars[i] != 0) 
-            appendClause(elementVars[i++]);
-        endClause();
-        end(STAGE_ATLEASTONEELEMENT);
+        if (_params.isNonzero("alo")) {
+            begin(STAGE_ATLEASTONEELEMENT);
+            size_t i = 0; 
+            while (i < elementVars.size() && elementVars[i] != 0) 
+                appendClause(elementVars[i++]);
+            endClause();
+            end(STAGE_ATLEASTONEELEMENT);
+        }
 
         begin(STAGE_ATMOSTONEELEMENT);
         for (size_t i = 0; i < elementVars.size(); i++) {

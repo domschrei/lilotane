@@ -83,25 +83,26 @@ private:
     int STAGE_ATLEASTONEELEMENT = 2;
     int STAGE_ATMOSTONEELEMENT = 3;
     int STAGE_AXIOMATICOPS = 4;
-    int STAGE_EXPANSIONS = 5;
-    int STAGE_FACTPROPAGATION = 6;
-    int STAGE_FACTVARENCODING = 7;
-    int STAGE_FORBIDDENPARENTS = 8;
-    int STAGE_FRAMEAXIOMS = 9;
-    int STAGE_INITSUBSTITUTIONS = 10;
-    int STAGE_PREDECESSORS = 11;
-    int STAGE_QCONSTEQUALITY = 12;
-    int STAGE_QFACTSEMANTICS = 13;
-    int STAGE_QTYPECONSTRAINTS = 14;
-    int STAGE_REDUCTIONCONSTRAINTS = 15;
-    int STAGE_SUBSTITUTIONCONSTRAINTS = 16;
-    int STAGE_TRUEFACTS = 17;
-    int STAGE_ASSUMPTIONS = 18;
-    int STAGE_PLANLENGTHCOUNTING = 19;
-    const char* STAGES_NAMES[20] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
-        "axiomaticops","expansions","factpropagation","factvarencoding","forbiddenparents","frameaxioms","initsubstitutions",
-        "predecessors","qconstequality","qfactsemantics","qtypeconstraints","reductionconstraints",
-        "substitutionconstraints","truefacts","assumptions","planlengthcounting"};
+    int STAGE_DIRECTFRAMEAXIOMS = 5;
+    int STAGE_EXPANSIONS = 6;
+    int STAGE_FACTPROPAGATION = 7;
+    int STAGE_FACTVARENCODING = 8;
+    int STAGE_FORBIDDENPARENTS = 9;
+    int STAGE_INDIRECTFRAMEAXIOMS = 10;
+    int STAGE_INITSUBSTITUTIONS = 11;
+    int STAGE_PREDECESSORS = 12;
+    int STAGE_QCONSTEQUALITY = 13;
+    int STAGE_QFACTSEMANTICS = 14;
+    int STAGE_QTYPECONSTRAINTS = 15;
+    int STAGE_REDUCTIONCONSTRAINTS = 16;
+    int STAGE_SUBSTITUTIONCONSTRAINTS = 17;
+    int STAGE_TRUEFACTS = 18;
+    int STAGE_ASSUMPTIONS = 19;
+    int STAGE_PLANLENGTHCOUNTING = 20;
+    const char* STAGES_NAMES[21] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
+        "axiomaticops","directframeaxioms","expansions","factpropagation","factvarencoding","forbiddenparents",
+        "indirectframeaxioms", "initsubstitutions","predecessors","qconstequality","qfactsemantics",
+        "qtypeconstraints","reductionconstraints","substitutionconstraints","truefacts","assumptions","planlengthcounting"};
     std::map<int, int> _num_cls_per_stage;
     std::vector<int> _current_stages;
     int _num_cls_at_stage_start = 0; 
