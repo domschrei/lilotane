@@ -78,6 +78,11 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         createReduction(method);
     }
 
+    if (_params.isNonzero("stats")) {
+        printStatistics();
+        exit(0);
+    }
+
     // Create replacements for surrogate methods with only one subtask
     if (_params.isNonzero("surr")) replaceSurrogateReductionsWithAction();
 
@@ -98,6 +103,79 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     if (_params.isNonzero("mp")) minePreconditions();
 
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+}
+
+void HtnInstance::printStatistics() {
+    static size_t BIG = 999999UL;
+
+    size_t maxPredicateArity = 0;
+
+    size_t minExpansionSize = BIG;
+    size_t maxExpansionSize = 0;
+    size_t maxLiftedBranchingFactor = 0;
+    
+    size_t maxReductionPreconditions = 0;
+    size_t maxReductionArity = 0;
+    size_t maxReductionFreeArgs = 0;
+    
+    size_t maxActionPreconditions = 0;
+    size_t maxActionEffects = 0;
+    size_t maxActionArity = 0;
+
+    for (auto predId : _predicate_ids) {
+        maxPredicateArity = std::max(maxPredicateArity, _signature_sorts_table[predId].size());
+    }
+
+    FlatHashMap<int, size_t> numMethodsMatchingTaskNameId;
+    for (const auto& [nameId, r] : _reductions) {
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0)
+            continue;
+        minExpansionSize = std::min(minExpansionSize, r.getSubtasks().size());
+        maxExpansionSize = std::max(maxExpansionSize, r.getSubtasks().size());
+        maxReductionPreconditions = std::max(maxReductionPreconditions, r.getPreconditions().size());
+        maxReductionArity = std::max(maxReductionArity, r.getArguments().size());
+        maxReductionFreeArgs = std::max(maxReductionFreeArgs, getNumFreeArguments(r));
+        
+        int taskNameId = r.getTaskSignature()._name_id;
+        if (!numMethodsMatchingTaskNameId.count(taskNameId)) 
+            numMethodsMatchingTaskNameId[taskNameId] = 1;
+        else numMethodsMatchingTaskNameId[taskNameId]++;
+    }
+    for (const auto& [nameId, a] : _actions) {
+        maxActionPreconditions = std::max(maxActionPreconditions, a.getPreconditions().size());
+        maxActionEffects = std::max(maxActionEffects, a.getEffects().size());
+        maxActionArity = std::max(maxActionArity, a.getArguments().size());
+    }
+
+    for (const auto& [taskNameId, numMethods] : numMethodsMatchingTaskNameId) {
+        maxLiftedBranchingFactor = std::max(maxLiftedBranchingFactor, numMethods);
+    }
+
+    Log::v("STATS numoperators %lu\n", _actions.size()-1); // minus blank action
+    Log::v("STATS nummethods %lu\n", _reductions.size()-1); // minus __top_method
+    
+    Log::v("STATS maxexpansionsize %lu\n", maxExpansionSize);
+    Log::v("STATS maxliftedbranchingfactor %lu\n", maxLiftedBranchingFactor);
+    Log::v("STATS maxreductionfreeargs %lu\n", maxReductionFreeArgs);
+    
+    Log::v("STATS maxactionpreconditions %lu\n", maxActionPreconditions);
+    Log::v("STATS maxreductionpreconditions %lu\n", maxReductionPreconditions);
+    Log::v("STATS maxactioneffects %lu\n", maxActionEffects);
+    
+    Log::v("STATS maxpredicatearity %lu\n", maxPredicateArity);    
+    Log::v("STATS maxactionarity %lu\n", maxActionArity);
+    Log::v("STATS maxreductionarity %lu\n", maxReductionArity);    
+}
+
+size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
+    size_t freeArgs = 0;
+    for (int arg : r.getArguments()) {
+        if (std::find(r.getTaskArguments().begin(), r.getTaskArguments().end(), arg) == r.getTaskArguments().end()) {
+            // Argument is not contained in task arguments: Free variable
+            freeArgs++;
+        }
+    }
+    return freeArgs;
 }
 
 void HtnInstance::replaceSurrogateReductionsWithAction() {

@@ -122,6 +122,8 @@ public:
     const Reduction& getInitReduction();
     const USignature& getBlankActionSig();
     Action getGoalAction();
+    void printStatistics();
+    size_t getNumFreeArguments(const Reduction& r);
     
     Action toAction(int actionName, const std::vector<int>& args) const;
     Reduction toReduction(int reductionName, const std::vector<int>& args) const;
