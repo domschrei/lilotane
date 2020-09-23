@@ -7,7 +7,6 @@
 
 #include "data/hashmap.h"
 #include "data/signature.h"
-#include "data/layer_state.h"
 #include "util/names.h"
 #include "data/position.h"
 
