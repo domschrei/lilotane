@@ -30,15 +30,6 @@ ci = 0
 mi = 0
 li = 0
 
-# Compare two problem tuples
-def compare(p1, p2):
-    if p1[3] < p2[3]:
-        return -1
-    elif p1[3] > p2[3]:
-        return 1
-    else:
-        return 0
-
 # For each problem
 for file in files:
 
@@ -50,14 +41,6 @@ for file in files:
     domain = match.group(2)
 
     print("%i (%s) : %s" % (index, domain, file))
-    
-    # Retrieve style for the problem's domain
-    if domain not in style_by_domain:
-        style_by_domain[domain] = (colors[ci], markers[mi], linestyles[li])
-        ci = (ci+1) % len(colors)
-        mi = (mi+1) % len(markers)
-        li = (li+1) % len(linestyles)
-    style = style_by_domain[domain]
 
     Xs = []
     Ys = []
@@ -105,8 +88,27 @@ for file in files:
     problems_by_domain[domain] += [(Xs, Ys, optpoint, duration)]
 
 
+# Compare two problem tuples
+def compare(p1, p2):
+    if p1[3] < p2[3]:
+        return -1
+    elif p1[3] > p2[3]:
+        return 1
+    else:
+        return 0
+
 # Plot problems per domain
-for domain in problems_by_domain:
+domains = sorted([d for d in problems_by_domain])
+for domain in domains:
+
+    # Create and retrieve style for the problem's domain
+    if domain not in style_by_domain:
+        style_by_domain[domain] = (colors[ci], markers[mi], linestyles[li])
+        ci = (ci+1) % len(colors)
+        mi = (mi+1) % len(markers)
+        li = (li+1) % len(linestyles)
+    style = style_by_domain[domain]
+
     problems = sorted(problems_by_domain[domain], key=functools.cmp_to_key(compare))
     # Pick (up to) three slowest problems
     indices = [len(problems)-1, len(problems)-2, len(problems)-3]

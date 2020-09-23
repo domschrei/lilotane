@@ -6,7 +6,7 @@ else
 	timeout="$TIMEOUT"
 fi
 rating_timeout=1800
-domains="ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
+domains="miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
@@ -86,7 +86,7 @@ for domain in $domains ; do
         /usr/bin/timeout $timeout $command > "$outfile" & wait -n
         retval="$?"
         end=$(date +%s.%N)    
-        runtime=$(python -c "print(${end} - ${start})")
+        runtime=$(python3 -c "print(${end} - ${start})")
         thisscore=$(rating "$runtime")
 
         if [ "$retval" == "0" ]; then
@@ -124,6 +124,8 @@ for domain in $domains ; do
 
                 cp "$outfile" "$outdir/log_$((solved+unsolved+1))_$domain"
                 grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" > "$outdir/plo_$((solved+unsolved+1))_$domain" || :
+                sed -e '1,/Total amount of clauses encoded/ d' "$outfile" | grep -E "^[0-9\.]+ - .* : [0-9]+" \
+                    | awk '{print $3,$5}' > "$outdir/cls_$((solved+unsolved+1))_$domain" || :
             fi
             solved=$((solved+1))
         else
