@@ -683,17 +683,24 @@ void Planner::propagateActions(size_t offset) {
         if (offset < 1) {
             // proper action propagation
             assert(_instantiator.isFullyGround(aSig));
-            newPos.addAction(aSig);
-            newPos.addExpansion(aSig, aSig);
-            above.moveFactChanges(newPos, aSig);
-            // Add preconditions of action
-            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
-            for (const Signature& fact : a.getPreconditions()) {
-                addPrecondition(aSig, fact, goodSubs, badSubs);
+            if (_params.isNonzero("vca")) {
+                // Virtualize child of action
+                USignature vChildSig = _htn.getVirtualizedChildOfAction(aSig);
+                Reduction r = _htn.getReduction(vChildSig);
+                newPos.addReduction(vChildSig);
+                newPos.addExpansion(aSig, vChildSig);
+                newPos.setFactChanges(vChildSig, _instantiator.getPossibleFactChanges(vChildSig));
+            } else {
+                newPos.addAction(aSig);
+                newPos.addExpansion(aSig, aSig);
+                above.moveFactChanges(newPos, aSig);
+                // Add preconditions of action
+                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+                for (const Signature& fact : a.getPreconditions()) {
+                    addPrecondition(aSig, fact, goodSubs, badSubs);
+                }
             }
-            // Not necessary – were already added for above action!
-            //addSubstitutionConstraints(aSig, goodSubs, badSubs);
         } else {
             // action expands to "blank" at non-zero offsets
             const USignature& blankSig = _htn.getBlankActionSig();

@@ -327,23 +327,33 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
         
         NodeHashSet<Signature, SignatureHasher> facts;
 
-        _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
-        NetworkTraversal::TRAVERSE_PREORDER,
-        [&](const USignature& nodeSig, int depth) { // NOLINT
-            // If visited node is an action: add effects
-            if (_htn->isAction(nodeSig)) {
-                Action a = _htn->toAction(nodeSig._name_id, nodeSig._args);
-                for (const Signature& eff : a.getEffects()) {
-                    facts.insert(eff);
-                }
-            } else if (_htn->hasSurrogate(nodeSig._name_id)) {
-                Action a = _htn->getSurrogate(nodeSig._name_id);
-                a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
-                for (const Signature& eff : a.getEffects()) {
-                    facts.insert(eff);
-                }
+        if (_htn->isVirtualizedChildOfAction(nameId)) {
+            // Special case: Reduction which is actually just a virtualized action
+            Action a = _htn->getActionOfVirtualizedChild(nameId);
+            a = a.substitute(Substitution(a.getArguments(), placeholderArgs));
+            for (const Signature& eff : a.getEffects()) {
+                facts.insert(eff);
             }
-        });
+        } else {
+            // Normal traversal to find possible fact changes
+            _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
+            NetworkTraversal::TRAVERSE_PREORDER,
+            [&](const USignature& nodeSig, int depth) { // NOLINT
+                // If visited node is an action: add effects
+                if (_htn->isAction(nodeSig)) {
+                    Action a = _htn->toAction(nodeSig._name_id, nodeSig._args);
+                    for (const Signature& eff : a.getEffects()) {
+                        facts.insert(eff);
+                    }
+                } else if (_htn->hasSurrogate(nodeSig._name_id)) {
+                    Action a = _htn->getSurrogate(nodeSig._name_id);
+                    a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
+                    for (const Signature& eff : a.getEffects()) {
+                        facts.insert(eff);
+                    }
+                }
+            });
+        }
 
         // Convert result to vector
         SigSet& liftedResult = _lifted_fact_changes[nameId];

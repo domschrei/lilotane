@@ -30,7 +30,7 @@ hatches = ["...", "ooo", "/////", " ", "\\\\\\\\\\", "xxxxx"]
 
 """
 /   - diagonal hatching
-\   - back diagonal
+\\   - back diagonal
 |   - vertical
 -   - horizontal
 +   - crossed
@@ -146,23 +146,27 @@ plt.savefig('clause_distribution.pdf')
 
 # Export legend separately
 
+def flip_legend_labels(labels, bars, ncols):
+
+    newlabels = [l for l in labels]
+    newbars = [b for b in bars]
+    r = 0
+    c = 0
+
+    for i in range(len(labels)):
+        j = ncols * r + c
+        newlabels[i] = labels[j]
+        newbars[i] = bars[j]
+        if ncols * (r+1) + c >= len(labels):
+            r = 0
+            c += 1
+        else:
+            r += 1
+    
+    return (newlabels, newbars) 
+
 ncols = 4
-nrows = math.ceil(len(labels) / float(ncols))
-
-newlabels = [l for l in labels]
-newbars = [b for b in bars]
-r = 0
-c = 0
-
-for i in range(len(labels)):
-    j = ncols * r + c
-    newlabels[i] = labels[j]
-    newbars[i] = bars[j]
-    if ncols * (r+1) + c >= len(labels):
-        r = 0
-        c += 1
-    else:
-        r += 1
+(newlabels, newbars) = flip_legend_labels(labels, bars, ncols)
 
 figlegend = plt.figure()
 figlegend.legend(newbars, newlabels, 'center', ncol=ncols, edgecolor='#000000')

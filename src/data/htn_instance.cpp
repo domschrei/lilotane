@@ -78,6 +78,15 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
         createReduction(method);
     }
 
+    // Instantiate possible "root" / "top" methods
+    for (const auto& rPair : _reductions) {
+        const Reduction& r = rPair.second;
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
+            // Initial "top" method
+            _init_reduction = r;
+        }
+    }
+
     if (_params.isNonzero("stats")) {
         printStatistics();
         exit(0);
@@ -89,15 +98,6 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
     if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
-
-    // Instantiate possible "root" / "top" methods
-    for (const auto& rPair : _reductions) {
-        const Reduction& r = rPair.second;
-        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
-            // Initial "top" method
-            _init_reduction = r;
-        }
-    }
 
     // Mine additional preconditions for reductions from their subtasks
     if (_params.isNonzero("mp")) minePreconditions();
@@ -151,20 +151,35 @@ void HtnInstance::printStatistics() {
         maxLiftedBranchingFactor = std::max(maxLiftedBranchingFactor, numMethods);
     }
 
-    Log::v("STATS numoperators %lu\n", _actions.size()-1); // minus blank action
-    Log::v("STATS nummethods %lu\n", _reductions.size()-1); // minus __top_method
+    FlatHashSet<int> allConstants;
+    for (const auto& [sort, constants] : _constants_by_sort) {
+        allConstants.insert(constants.begin(), constants.end());
+    }
+    int initStateSize = getInitState().size();
+    int numInitTasks = getInitReduction().getSubtasks().size();
+
+    Log::e("Domain stats:\n");
+
+    Log::e("STATS numoperators %lu\n", _actions.size()-1); // minus blank action
+    Log::e("STATS nummethods %lu\n", _reductions.size()-1); // minus __top_method
     
-    Log::v("STATS maxexpansionsize %lu\n", maxExpansionSize);
-    Log::v("STATS maxliftedbranchingfactor %lu\n", maxLiftedBranchingFactor);
-    Log::v("STATS maxreductionfreeargs %lu\n", maxReductionFreeArgs);
+    Log::e("STATS maxexpansionsize %lu\n", maxExpansionSize);
+    Log::e("STATS maxliftedbranchingfactor %lu\n", maxLiftedBranchingFactor);
+    Log::e("STATS maxreductionfreeargs %lu\n", maxReductionFreeArgs);
     
-    Log::v("STATS maxactionpreconditions %lu\n", maxActionPreconditions);
-    Log::v("STATS maxreductionpreconditions %lu\n", maxReductionPreconditions);
-    Log::v("STATS maxactioneffects %lu\n", maxActionEffects);
+    Log::e("STATS maxactionpreconditions %lu\n", maxActionPreconditions);
+    Log::e("STATS maxreductionpreconditions %lu\n", maxReductionPreconditions);
+    Log::e("STATS maxactioneffects %lu\n", maxActionEffects);
     
-    Log::v("STATS maxpredicatearity %lu\n", maxPredicateArity);    
-    Log::v("STATS maxactionarity %lu\n", maxActionArity);
-    Log::v("STATS maxreductionarity %lu\n", maxReductionArity);    
+    Log::e("STATS maxpredicatearity %lu\n", maxPredicateArity);    
+    Log::e("STATS maxactionarity %lu\n", maxActionArity);
+    Log::e("STATS maxreductionarity %lu\n", maxReductionArity);    
+
+    Log::e("Problem stats:\n");
+
+    Log::e("STATS numconstants %lu\n", allConstants.size());
+    Log::e("STATS numinitfacts %lu\n", initStateSize);
+    Log::e("STATS numinittasks %lu\n", numInitTasks);
 }
 
 size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
@@ -737,6 +752,49 @@ const Action& HtnInstance::getSurrogate(int reductionId) const {
     return _actions.at(_reduction_to_surrogate.at(reductionId));
 }
 
+bool HtnInstance::isVirtualizedChildOfAction(int reductionId) const {
+    return _virtualized_to_actual_action.count(reductionId);
+}
+
+USignature HtnInstance::getVirtualizedChildOfAction(const USignature& action) {
+
+    int redNameId = nameId("__VIRT_CHLD_ACT_R_" + _name_back_table[action._name_id]);
+    USignature sig(redNameId, action._args);
+
+    if (!_reductions_by_sig.count(sig)) {
+        int taskNameId = nameId("__VIRT_CHLD_ACT_T_" + _name_back_table[action._name_id]);
+
+        // Define the method
+        if (!_reductions.count(redNameId)) {
+            const Action& op = _actions[action._name_id];
+            USignature task(taskNameId, op.getArguments());
+            Reduction m(redNameId, task._args, task);
+            m.addSubtask(task); // single subtask: itself
+            for (const auto& pre : op.getPreconditions()) m.addPrecondition(pre);
+            _reductions[redNameId] = std::move(m);
+            _task_id_to_reduction_ids[taskNameId].push_back(redNameId);
+            _virtualized_to_actual_action[redNameId] = action._name_id;
+            const auto& sorts = _signature_sorts_table[action._name_id];
+            _signature_sorts_table[redNameId] = sorts;
+            _signature_sorts_table[taskNameId] = sorts;
+        }
+
+        // Define the reduction
+        Reduction r = _reductions[redNameId];
+        _reductions_by_sig[sig] = r.substituteRed(Substitution(r.getArguments(), sig._args));
+    }
+
+    return sig;
+}
+
+const Action& HtnInstance::getActionOfVirtualizedChild(int vChildId) const {
+    return _actions.at(_virtualized_to_actual_action.at(vChildId));
+}
+
+int HtnInstance::getActionNameOfVirtualizedChild(int vChildId) const {
+    return _virtualized_to_actual_action.at(vChildId);
+}
+
 Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state) {
     std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)a, layerIdx, pos, state);
     if (newArgs.size() == 1 && newArgs[0] == -1) {
@@ -755,7 +813,8 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
 }
 
 std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
-
+    
+    if (op.getArguments().size() == 0) return std::vector<int>();
     std::vector<int> vecFailure(1, -1);
 
     std::vector<int> args = op.getArguments();

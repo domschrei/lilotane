@@ -69,6 +69,7 @@ void Parameters::setDefaults() {
     setParam("T", "0"); // max. time (secs) for finding an initial plan
     setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
+    setParam("vca", "0"); // virtualize children of actions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
 }
@@ -110,6 +111,7 @@ void Parameters::printUsage() {
     Log::e(" -T=<0|secs>         Try finding an initial plan for up to #secs (without optimization: total allowed runtime; 0: no limit)\n");
     Log::e(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
+    Log::e(" -vca=<0|1>          Virtualize children of actions\n");
     Log::e(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     Log::e(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     printParams(/*forcePrint=*/true);

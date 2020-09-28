@@ -120,7 +120,14 @@ void Encoding::encodeOperationVariables(Position& newPos) {
             // If a trivial reduction occurs, the position is primitive
             _primitive_ops.push_back(rVar);
         } else {
-            // If a non-trivial reduction occurs, the position is non-primitive
+            if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
+                // If a virtualized child of an action occurs,
+                // this position may remain non-primitive
+                while (newPos.getPositionIndex() >= _nonprimitive_ops_ok_in_solution.size())
+                    _nonprimitive_ops_ok_in_solution.emplace_back();
+                _nonprimitive_ops_ok_in_solution[newPos.getPositionIndex()].push_back(rVar);
+            }
+            // If another reduction occurs, the position is non-primitive
             _nonprimitive_ops.push_back(rVar);
         }
     }
@@ -986,13 +993,38 @@ void Encoding::addAssumptions(int layerIdx) {
         for (size_t pos = 0; pos < l.size(); pos++) {
             appendClause(-encodeVarPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
+            if (pos < _nonprimitive_ops_ok_in_solution.size()) {
+                for (int var : _nonprimitive_ops_ok_in_solution[pos]) appendClause(var);
+            }
             endClause();
         }
         end(STAGE_ASSUMPTIONS);
     }
     for (size_t pos = 0; pos < l.size(); pos++) {
-        int v = getVarPrimitiveOrZero(layerIdx, pos);
-        if (v != 0) assume(v);
+
+        // If there are nonprimitive ops here which are admissible in a solution,
+        // allow them to be active even if the position is primitive
+        if (pos < _nonprimitive_ops_ok_in_solution.size() 
+            && !_nonprimitive_ops_ok_in_solution[pos].empty()) {
+            
+            begin(STAGE_ASSUMPTIONS);
+
+            int varEffectivelyPrim = VariableDomain::nextVar();
+            int varPrim = getVarPrimitiveOrZero(layerIdx, pos);
+
+            appendClause(-varEffectivelyPrim); // IF effectively primitive,
+            if (varPrim != 0) appendClause(varPrim); // THEN actually primitive
+            // OR any of the nonprimitive ops which are admissible in the solution
+            for (int var : _nonprimitive_ops_ok_in_solution[pos]) appendClause(var);
+            endClause();
+
+            end(STAGE_ASSUMPTIONS);
+            assume(varEffectivelyPrim);
+
+        } else {
+            int v = getVarPrimitiveOrZero(layerIdx, pos);
+            if (v != 0) assume(v);
+        }
     }
 }
 
@@ -1203,35 +1235,35 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
     //log("(actions at layer %i)\n", li);
     for (size_t pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
-        if (!_implicit_primitiveness) assert(
-            getVarPrimitiveOrZero(li, pos) == 0 || 
-            value(VarType::OP, li, pos, _sig_primitive) || 
-            Log::e("Plan error: Position %i is not primitive!\n", pos)
-        );
 
         int chosenActions = 0;
         //State newState = state;
-        for (const auto& [aSig, aVar] : finalLayer[pos].getVariableTable(VarType::OP)) {
+        for (const auto& [sig, aVar] : finalLayer[pos].getVariableTable(VarType::OP)) {
+            if (ipasir_val(_solver, aVar) <= 0) continue;
+
+            USignature aSig = sig;
+            if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+                aSig._name_id = _htn.getActionNameOfVirtualizedChild(sig._name_id);
+            }
             if (!_htn.isAction(aSig)) continue;
+
             //log("  %s ?\n", TOSTR(aSig));
 
-            if (ipasir_val(_solver, aVar) > 0) {
-                chosenActions++;
+            chosenActions++;
 
-                // Decode q constants
-                USignature aDec = getDecodedQOp(li, pos, aSig);
-                if (aDec == Position::NONE_SIG) continue;
+            // Decode q constants
+            USignature aDec = getDecodedQOp(li, pos, aSig);
+            if (aDec == Position::NONE_SIG) continue;
 
-                if (aDec != aSig) {
+            if (aDec != aSig) {
 
-                    const Action& a = _htn.getAction(aSig);
-                    HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
-                    Action aDecoded = (Action) opDecoded;
-                }
-
-                //Log::d("* %s @ %i\n", TOSTR(aDec), pos);
-                plan[pos] = {aVar, aDec, aDec, std::vector<int>()};
+                const Action& a = _htn.getAction(aSig);
+                HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
+                Action aDecoded = (Action) opDecoded;
             }
+
+            //Log::d("* %s @ %i\n", TOSTR(aDec), pos);
+            plan[pos] = {aVar, aDec, aDec, std::vector<int>()};
         }
 
         assert(chosenActions <= 1 || Log::e("Plan error: Added %i actions at step %i!\n", chosenActions, pos));
@@ -1317,6 +1349,11 @@ Plan Encoding::extractPlan() {
                         // Reduction
                         const USignature& rSig = opSig;
                         const Reduction& r = _htn.getReduction(rSig);
+                        
+                        if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
+                            reductionsThisPos++;
+                            continue;
+                        }
 
                         //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                         USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
@@ -1415,8 +1452,8 @@ void Encoding::printSatisfyingAssignment() {
 }
 
 USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig) {
-    assert(isEncoded(VarType::OP, layer, pos, origSig));
-    assert(value(VarType::OP, layer, pos, origSig));
+    //assert(isEncoded(VarType::OP, layer, pos, origSig));
+    //assert(value(VarType::OP, layer, pos, origSig));
 
     USignature sig = origSig;
     while (true) {
@@ -1440,12 +1477,11 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
                 }
             }
 
-            int opVar = getVariable(VarType::OP, layer, pos, origSig);
             if (numSubstitutions == 0) {
-                Log::v("No substitutions for arg %s of %s (op=%i)\n", TOSTR(arg), TOSTR(origSig), opVar);
+                Log::v("No substitutions for arg %s of %s\n", TOSTR(arg), TOSTR(origSig));
                 return Position::NONE_SIG;
             }
-            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s (op=%i)\n", numSubstitutions, TOSTR(arg), TOSTR(origSig), opVar));
+            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s\n", numSubstitutions, TOSTR(arg), TOSTR(origSig)));
         }
 
         if (!containsQConstants) break; // done

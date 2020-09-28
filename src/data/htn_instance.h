@@ -100,6 +100,8 @@ private:
     // and the replaced child name ID.
     FlatHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
 
+    FlatHashMap<int, int> _virtualized_to_actual_action;
+
     // The initial reduction of the problem.
     Reduction _init_reduction;
     // Signature of the BLANK virtual action.
@@ -140,6 +142,11 @@ public:
 
     bool hasSurrogate(int reductionId) const;
     const Action& getSurrogate(int reductionId) const;
+
+    bool isVirtualizedChildOfAction(int reductionId) const;
+    USignature getVirtualizedChildOfAction(const USignature& action);
+    const Action& getActionOfVirtualizedChild(int vChildId) const;
+    int getActionNameOfVirtualizedChild(int vChildId) const;
 
     const std::vector<int>& getSorts(int nameId) const;
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
