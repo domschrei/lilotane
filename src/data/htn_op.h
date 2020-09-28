@@ -14,6 +14,12 @@ protected:
     std::vector<int> _args;
 
     SigSet _preconditions;
+    
+    // Preconditions which are not part of the problem description.
+    // They are implied by the logic and thus are not necessary to be checked,
+    // but they *can* be checked, helping to prune operations.
+    SigSet _extra_preconditions;
+
     SigSet _effects;
 
 public:
@@ -26,6 +32,8 @@ public:
     void setPreconditions(const SigSet& set);
     void addPrecondition(const Signature& sig);
     void addPrecondition(Signature&& sig);
+    void addExtraPrecondition(const Signature& sig);
+    void addExtraPrecondition(Signature&& sig);
     void addEffect(const Signature& sig);
     void addEffect(Signature&& sig);
     void addArgument(int arg);
@@ -34,6 +42,7 @@ public:
     virtual HtnOp substitute(const Substitution& s) const;
 
     const SigSet& getPreconditions() const;
+    const SigSet& getExtraPreconditions() const;
     const SigSet& getEffects() const;
     const std::vector<int>& getArguments() const;
     USignature getSignature() const;

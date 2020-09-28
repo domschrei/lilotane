@@ -175,6 +175,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
     
     if (doneInstSize == 0) {
         if (hasValidPreconditions(op.getPreconditions(), state) 
+            && hasValidPreconditions(op.getExtraPreconditions(), state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
         //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
@@ -217,7 +218,8 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
             HtnOp newOp = op.substitute(s);
 
             // Test validity
-            if (!hasValidPreconditions(newOp.getPreconditions(), state)) continue;
+            if (!hasValidPreconditions(newOp.getPreconditions(), state)
+                || !hasValidPreconditions(newOp.getExtraPreconditions(), state)) continue;
 
             // All ok -- add to stack
             if (newAssignment.size() == doneInstSize) {

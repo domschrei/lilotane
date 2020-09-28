@@ -5,6 +5,7 @@ Reduction::Reduction() : HtnOp() {}
 Reduction::Reduction(HtnOp& op) : HtnOp(op) {}
 Reduction::Reduction(const Reduction& r) : HtnOp(r._id, r._args), _task_name_id(r._task_name_id), _task_args(r._task_args), _subtasks(r._subtasks) {
     for (auto pre : r.getPreconditions()) addPrecondition(pre);
+    for (auto pre : r.getExtraPreconditions()) addExtraPrecondition(pre);
     for (auto eff : r.getEffects()) addEffect(eff);
 }
 Reduction::Reduction(int nameId, const std::vector<int>& args, const USignature& task) : 
@@ -117,6 +118,7 @@ Reduction& Reduction::operator=(const Reduction& other) {
     _id = other._id;
     _args = other._args;
     _preconditions = other._preconditions;
+    _extra_preconditions = other._extra_preconditions;
     _effects = other._effects;
     _task_name_id = other._task_name_id;
     _task_args = other._task_args;

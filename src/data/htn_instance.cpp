@@ -212,7 +212,9 @@ void HtnInstance::replaceSurrogateReductionsWithAction() {
         Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
         _actions[id] = Action(id, red.getArguments());
         for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& pre : red.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
         for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& pre : childAct.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
         for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
         _reduction_to_surrogate[entry.first] = id;
         _signature_sorts_table[id] = _signature_sorts_table[entry.first];
@@ -326,7 +328,7 @@ void HtnInstance::minePreconditions() {
                 if (hasFreeArgs) continue;
 
                 Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
-                r.addPrecondition(std::move(pre));
+                r.addExtraPrecondition(std::move(pre));
                 minedPreconds++;
             }
         }
@@ -770,7 +772,7 @@ USignature HtnInstance::getVirtualizedChildOfAction(const USignature& action) {
             USignature task(taskNameId, op.getArguments());
             Reduction m(redNameId, task._args, task);
             m.addSubtask(task); // single subtask: itself
-            for (const auto& pre : op.getPreconditions()) m.addPrecondition(pre);
+            for (const auto& pre : op.getPreconditions()) m.addExtraPrecondition(pre);
             _reductions[redNameId] = std::move(m);
             _task_id_to_reduction_ids[taskNameId].push_back(redNameId);
             _virtualized_to_actual_action[redNameId] = action._name_id;
@@ -828,7 +830,9 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
     std::vector<FlatHashSet<int>> domainPerVariable(op.getArguments().size());
 
     // Check each precondition regarding its valid decodings w.r.t. current state
-    for (const auto& preSig : op.getPreconditions()) {
+    //const SigSet* preSets[2] = {&op.getPreconditions(), &op.getExtraPreconditions()};
+    const SigSet* preSets[1] = {&op.getPreconditions()};
+    for (const auto& preSet : preSets) for (const auto& preSig : *preSet) {
 
         // Check base condition; if unsatisfied, discard op 
         if (!_instantiator->test(preSig, state)) return vecFailure;
@@ -1109,7 +1113,8 @@ void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& 
     
     int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
 
-    for (const auto& pre : op.getPreconditions()) {
+    const SigSet* preSets[2] = {&op.getPreconditions(), &op.getExtraPreconditions()};
+    for (const auto& preSet : preSets) for (const auto& pre : *preSet) {
         
         std::vector<int> ref;
         std::vector<int> qConstIndices;

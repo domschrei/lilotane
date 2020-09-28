@@ -671,7 +671,8 @@ void Planner::propagateActions(size_t offset) {
         const Action& a = _htn.getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
-        bool valid = _instantiator.hasValidPreconditions(a.getPreconditions(), getStateEvaluator());
+        bool valid = _instantiator.hasValidPreconditions(a.getPreconditions(), getStateEvaluator())
+                && _instantiator.hasValidPreconditions(a.getExtraPreconditions(), getStateEvaluator());
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
@@ -896,6 +897,7 @@ bool Planner::addAction(Action& action) {
     if (!_instantiator.isFullyGround(action.getSignature())) return false;
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
+    if (!_instantiator.hasValidPreconditions(action.getExtraPreconditions(), getStateEvaluator())) return false;
     
     sig = action.getSignature();
     _htn.addAction(action);
@@ -918,6 +920,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.isFullyGround(red.getSignature())) return false;
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
+    if (!_instantiator.hasValidPreconditions(red.getExtraPreconditions(), getStateEvaluator())) return false;
     
     sig = red.getSignature();
     _htn.addReduction(red);
@@ -995,7 +998,8 @@ void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSi
         // TODO What if op did not become completely impossible, but just more restricted?
         // => Iterate over possible children, add these to the "stack" of ops to be updated.
 
-        if (!_instantiator.hasValidPreconditions(op.getPreconditions(), getStateEvaluator(layerIdx, pos))) {
+        if (!_instantiator.hasValidPreconditions(op.getPreconditions(), getStateEvaluator(layerIdx, pos))
+            || !_instantiator.hasValidPreconditions(op.getExtraPreconditions(), getStateEvaluator(layerIdx, pos))) {
             // Operation has become impossible to apply
             Log::d("Op %s became impossible!\n", TOSTR(sig));
 
