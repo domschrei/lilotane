@@ -116,7 +116,7 @@ public:
     ~Encoding();
 
     void encode(size_t layerIdx, size_t pos);
-    void addAssumptions(int layerIdx);
+    void addAssumptions(int layerIdx, bool permanent = false);
     void setTerminateCallback(void * state, int (*terminate)(void * state));
     int solve();
 

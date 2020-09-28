@@ -825,6 +825,10 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     int currentPlanLength = upperBound;
     Log::v("PLO BEGIN %i\n", currentPlanLength);
     
+    auto isEmptyAction = [this](const USignature& aSig){
+        return _htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig;
+    };
+
     // Add counting mechanism
     begin(STAGE_PLANLENGTHCOUNTING);
     int minPlanLength = 0;
@@ -838,19 +842,20 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
         // Collect sets of potential operations
         USigSet emptyActions, actualActions;
         for (const auto& aSig : l.at(pos).getActions()) {
+            Log::d("PLO %i %s?\n", pos, TOSTR(aSig));
             if (aSig == Position::NONE_SIG) continue;
-            if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig) {
-                // Empty reduction or blank action or second part of a split action
-                emptyActions.insert(aSig);
-            } else {
-                actualActions.insert(aSig);
-            }
+            (isEmptyAction(aSig) ? emptyActions : actualActions).insert(aSig);
         }
         for (const auto& rSig : l.at(pos).getReductions()) {
+            Log::d("PLO %i %s?\n", pos, TOSTR(rSig));
             if (rSig == Position::NONE_SIG) continue;
             if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
                 // Empty reduction
                 emptyActions.insert(rSig);
+            } else if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
+                // Virtualized action
+                USignature a(_htn.getActionNameOfVirtualizedChild(rSig._name_id), rSig._args);
+                (isEmptyAction(a) ? emptyActions : actualActions).insert(rSig);
             }
         }
 
@@ -926,10 +931,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     
     // Add primitiveness of all positions at the final layer
     // as unit literals (instead of assumptions)
-    for (size_t pos = 0; pos < l.size(); pos++) {
-        int v = getVarPrimitiveOrZero(layerIdx, pos);
-        if (v != 0) addClause(v);
-    }
+    addAssumptions(layerIdx, /*permanent=*/true);
     end(STAGE_PLANLENGTHCOUNTING);
 
     // Solving iterations
@@ -987,7 +989,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
 
 }
 
-void Encoding::addAssumptions(int layerIdx) {
+void Encoding::addAssumptions(int layerIdx, bool permanent) {
     Layer& l = *_layers.at(layerIdx);
     if (_implicit_primitiveness) {
         begin(STAGE_ASSUMPTIONS);
@@ -1020,11 +1022,15 @@ void Encoding::addAssumptions(int layerIdx) {
             endClause();
 
             end(STAGE_ASSUMPTIONS);
-            assume(varEffectivelyPrim);
+            if (permanent) addClause(varEffectivelyPrim);
+            else assume(varEffectivelyPrim);
 
         } else {
             int v = getVarPrimitiveOrZero(layerIdx, pos);
-            if (v != 0) assume(v);
+            if (v != 0) {
+                if (permanent) addClause(v);
+                else assume(v);
+            }
         }
     }
 }
