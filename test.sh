@@ -106,7 +106,7 @@ for domain in $domains ; do
         
         if cat "$outfile"|grep -q "<=="; then
             echo -ne "Verifying ... "
-            ./pandaPIparser $dfile $pfile -vvverify "$outfile" > "$verifile" || :
+            ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile" || :
             if grep -q "false" "$verifile"; then
                 echo -ne "${red}Verification error!${reset}"
                 if $exit_on_verify_fail ; then

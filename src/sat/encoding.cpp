@@ -34,6 +34,7 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
     int priorNumLits = _num_lits;
     _layer_idx = layerIdx;
     _pos = pos;
+    if (pos == 0) _nonprimitive_ops_ok_in_solution.clear();
 
     // Calculate relevant environment of the position
     Position NULL_POS;
