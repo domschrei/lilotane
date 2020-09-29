@@ -40,6 +40,7 @@ struct USignature {
     Signature toSignature(bool negated = false) const;
     USignature substitute(const Substitution& s) const;
     void apply(const Substitution& s);
+    USignature renamed(int nameId) const;
 
     USignature& operator=(const USignature& sig);
     USignature& operator=(USignature&& sig);

@@ -199,6 +199,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 }
 
 void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
+    static Position NULL_POS;
 
     begin(STAGE_DIRECTFRAMEAXIOMS);
 
@@ -210,20 +211,27 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
     bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
 
-    // Direct supports
+    Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
+
+    // Retrieve direct supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
+    // (also from above position)
+    const NodeHashMap<USignature, USigSet, USignatureHasher>* aboveSupports[2] 
+            = {&above.getNegFactSupports(), &above.getPosFactSupports()};
     
-    // Indirect supports:
+    // Structures for indirect supports:
     // Maps each fact to a map of operation variables to a tree of substitutions 
     // which make the operation (possibly) change the variable.
     IndirectSupport indirectPosSupport, indirectNegSupport;
     const IndirectSupport* indirectSupports[2] 
             = {&indirectNegSupport, &indirectPosSupport};
-    
+    // Compute indirect supports
     for (const auto& op : left.getActions()) {
         int opVar = getVariable(VarType::OP, left, op);
-
+        USignature opNorm = _htn.isVirtualizedChildOfAction(op._name_id) ? 
+                op.renamed(_htn.getActionNameOfVirtualizedChild(op._name_id)) : op;
+        
         for (const auto& eff : left.getFactChanges(op)) {
             if (!_htn.hasQConstants(eff._usig)) continue;
             if (!newPos.hasQFactDecodings(eff._usig)) continue;
@@ -237,7 +245,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 if (hasPrimitiveOps) {
                     // Skip if the operation is already a DIRECT support for the fact
                     auto it = support.find(decEff);
-                    if (it != support.end() && it->second.count(op)) continue;
+                    if (it != support.end() && it->second.count(opNorm)) continue;
                 
                     // Convert into a vector of substitution variables
                     Substitution s(eff._usig._args, decEff._args);
@@ -292,11 +300,45 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             }
         }
 
-        // Decide on the fact variable to use (reuse or encode)
         int factVar = newPos.getVariableOrZero(VarType::FACT, fact);
+
+        // Check if there is already an equivalent fact support ABOVE
+        if (!reuse && _offset == 0) {
+            int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
+            if (aboveVar != 0) {
+                bool skip = true;
+                // Check for equivalence of fact support
+                for (int i = 0; i < 2; i++) {
+                    auto it = supports[i]->find(fact);
+                    bool hasSupport = it != supports[i]->end();
+                    auto aboveIt = aboveSupports[i]->find(fact);
+                    bool aboveHasSupport = aboveIt != aboveSupports[i]->end();
+                    if (hasSupport != aboveHasSupport) {
+                        skip = false;
+                        break;
+                    }
+                    if (hasSupport && *it != *aboveIt) {
+                        skip = false;
+                        break;
+                    }
+                }
+                if (skip) {
+                    // Frame axiom was already encoded equivalently for fact above
+                    if (factVar == 0) newPos.setVariable(VarType::FACT, fact, aboveVar);
+                    else if (factVar != aboveVar) {
+                        // Need to link fact variables
+                        addClause(-aboveVar, factVar);
+                        addClause(aboveVar, -factVar);
+                    }
+                    continue;
+                }
+            } 
+        }
+
+        // Decide on the fact variable to use (reuse or encode)
         if (factVar == 0) {
             if (reuse) {
-                // No support for this fact -- variable can be reused
+                // No support for this fact -- variable can be reused from left
                 factVar = var;
                 newPos.setVariable(VarType::FACT, fact, var);
             } else {
@@ -327,9 +369,10 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 }
                 // DIRECT support
                 if (dir[i] != nullptr) for (const USignature& opSig : *dir[i]) {
-                    int opVar = getVariable(VarType::OP, left, opSig);
-                    assert(opVar > 0);
-                    appendClause(opVar);
+                    int opVar = left.getVariableOrZero(VarType::OP, opSig);
+                    if (opVar > 0) appendClause(opVar);
+                    USignature virt = opSig.renamed(_htn.getVirtualizedChildNameOfAction(opSig._name_id));
+                    if (left.getActions().count(virt)) appendClause(left.getVariable(VarType::OP, virt));
                 }
                 // INDIRECT support
                 if (indir[i] != nullptr) for (const auto& [opVar, subs] : *indir[i]) 

@@ -486,7 +486,10 @@ void Planner::createNextPositionFromLeft(Position& left) {
     for (const auto& aSig : left.getActions()) {
         bool repeatedAction = _htn.isVirtualizedChildOfAction(aSig._name_id);
         for (const Signature& fact : left.getFactChanges(aSig)) {
-            if (!addEffect(aSig, fact, repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
+            if (!addEffect(
+                    repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
+                    fact, 
+                    repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
                 // Impossible direct effect: forbid action retroactively.
                 Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                 _enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));

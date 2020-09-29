@@ -164,8 +164,6 @@ void Position::clearAtPastPosition() {
     _predecessors.reserve(0);
     _axiomatic_ops.clear();
     _axiomatic_ops.reserve(0);
-    if (_pos_fact_supports != nullptr) delete _pos_fact_supports;
-    if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
     _q_constants_type_constraints.clear();
     _q_constants_type_constraints.reserve(0);
     _forbidden_substitutions_per_op.clear();
@@ -180,6 +178,8 @@ void Position::clearAtPastPosition() {
 }
 
 void Position::clearAtPastLayer() {
+    if (_pos_fact_supports != nullptr) delete _pos_fact_supports;
+    if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
     _fact_changes.clear();
     _fact_changes.reserve(0);
     _true_facts.clear();

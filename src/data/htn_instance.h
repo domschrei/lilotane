@@ -140,7 +140,8 @@ public:
     bool hasSurrogate(int reductionId) const;
     const Action& getSurrogate(int reductionId) const;
 
-    bool isVirtualizedChildOfAction(int reductionId) const;
+    bool isVirtualizedChildOfAction(int actionId) const;
+    int getVirtualizedChildNameOfAction(int actionId);
     USignature getVirtualizedChildOfAction(const USignature& action);
     const Action& getActionOfVirtualizedChild(int vChildId) const;
     int getActionNameOfVirtualizedChild(int vChildId) const;

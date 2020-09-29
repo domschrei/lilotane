@@ -765,9 +765,13 @@ bool HtnInstance::isVirtualizedChildOfAction(int actionId) const {
     return _virtualized_to_actual_action.count(actionId);
 }
 
+int HtnInstance::getVirtualizedChildNameOfAction(int actionId) {
+    return nameId("__REPEATED_" + _name_back_table[actionId]);
+}
+
 USignature HtnInstance::getVirtualizedChildOfAction(const USignature& action) {
 
-    int repOpNameId = nameId("__REPEATED_" + _name_back_table[action._name_id]);
+    int repOpNameId = getVirtualizedChildNameOfAction(action._name_id);
     USignature sig(repOpNameId, action._args);
 
     if (!_actions_by_sig.count(sig)) {
