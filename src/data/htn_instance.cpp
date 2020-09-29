@@ -100,7 +100,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
 
     // Mine additional preconditions for reductions from their subtasks
-    if (_params.isNonzero("mp")) minePreconditions();
+    minePreconditions(MinePrecMode(_params.getIntParam("mp")));
 
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
 }
@@ -312,8 +312,10 @@ void HtnInstance::splitActionsWithConflictingEffects() {
     _actions = newActions;
 }
 
-void HtnInstance::minePreconditions() {
+void HtnInstance::minePreconditions(MinePrecMode mode) {
     
+    if (mode == NO_MINING) return;
+
     int precondsBefore = 0;
     int minedPreconds = 0;
     for (auto& [rId, r] : _reductions) {
@@ -328,7 +330,12 @@ void HtnInstance::minePreconditions() {
                 if (hasFreeArgs) continue;
 
                 Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
-                r.addExtraPrecondition(std::move(pre));
+                if (mode == USE_FOR_INSTANTIATION) {
+                    r.addExtraPrecondition(std::move(pre));
+                }
+                if (mode == USE_EVERYWHERE) {
+                    r.addPrecondition(std::move(pre));
+                }
                 minedPreconds++;
             }
         }
@@ -1061,24 +1068,6 @@ std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, cons
 
 const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) const {
     return _constants_by_sort.at(_primary_sort_of_q_constants.at(qconst));
-}
-
-void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact];
-    _qfact_decodings[qFact].insert(decFact);
-}
-
-void HtnInstance::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact].erase(decFact);
-}
-
-bool HtnInstance::hasQFactDecodings(const USignature& qFact) {
-    return _qfact_decodings.count(qFact);
-}
-
-const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
-    assert(_qfact_decodings.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
-    return _qfact_decodings.at(qFact);
 }
 
 void HtnInstance::addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs) {

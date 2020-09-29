@@ -34,6 +34,7 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);
 }
+
 void Position::addForbiddenSubstitution(const USignature& op, Substitution& s) {
     auto& set = _forbidden_substitutions_per_op[op];
     set.insert(std::move(s));
@@ -41,6 +42,24 @@ void Position::addForbiddenSubstitution(const USignature& op, Substitution& s) {
 void Position::addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs) {
     auto& set = _valid_substitutions_per_op[op];
     set.push_back(std::move(subs));
+}
+
+void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
+    _qfact_decodings[qFact];
+    _qfact_decodings[qFact].insert(decFact);
+}
+
+void Position::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
+    _qfact_decodings[qFact].erase(decFact);
+}
+
+bool Position::hasQFactDecodings(const USignature& qFact) {
+    return _qfact_decodings.count(qFact);
+}
+
+const USigSet& Position::getQFactDecodings(const USignature& qFact) {
+    assert(_qfact_decodings.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
+    return _qfact_decodings.at(qFact);
 }
 
 void Position::addAction(const USignature& action) {
@@ -153,6 +172,8 @@ void Position::clearAtPastPosition() {
     _forbidden_substitutions_per_op.reserve(0);
     _valid_substitutions_per_op.clear();
     _valid_substitutions_per_op.reserve(0);
+    _qfact_decodings.clear();
+    _qfact_decodings.reserve(0);
 
     for (const auto& r : _reductions) _fact_changes.erase(r);
     _fact_changes.reserve(0);

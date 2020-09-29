@@ -433,46 +433,6 @@ void Planner::createNextPosition() {
     // add all effects of the actions and reductions occurring HERE
     // as (initially false) facts to THIS position.  
     introduceNewFacts();
-
-    if (_params.isNonzero("qcm")) {
-
-        // Use new q-constant conditions from this position to infer conditions 
-        // of the respective parent ops at the layer above. 
-        //auto updatedOps = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getActions());
-        //auto updatedReductions = _htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
-        //updatedOps.insert(updatedReductions.begin(), updatedReductions.end());
-
-        //pruneRetroactively(updatedOps);
-
-        // Remove all q fact decodings which have become invalid
-        for (const auto& qfactSig : (*_layers[_layer_idx])[_pos].getQFacts()) {
-
-            std::vector<int> qargs, qargIndices;
-            for (size_t i = 0; i < qfactSig._args.size(); i++) {
-                const int& arg = qfactSig._args[i];
-                if (_htn.isQConstant(arg)) {
-                    qargs.push_back(arg);
-                    qargIndices.push_back(i);
-                }
-            }
-
-            USigSet decodingsToRemove;
-            for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-                if (!_htn.isAbstraction(decFactSig, qfactSig)) {
-                    decodingsToRemove.insert(decFactSig);
-                    Log::d("REMOVE_DECODING %s@(%i,%i)\n", TOSTR(decFactSig), _layer_idx, _pos);
-
-                }
-            }
-            // Remove all invalid q fact decodings
-            for (const auto& decFactSig : decodingsToRemove) {
-                _htn.removeQFactDecoding(qfactSig, decFactSig);
-                
-                std::vector<int> decargs; for (int idx : qargIndices) decargs.push_back(decFactSig._args[idx]);
-                _htn.addForbiddenSubstitution(qargs, decargs);
-            } 
-        }
-    }
 }
 
 void Planner::createNextPositionFromAbove() {
@@ -554,6 +514,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
         
+        // Can the decoded fact occur as is?
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
             badSubs.emplace(factAbs._args, decFactAbs._args);
@@ -562,10 +523,16 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
             goods.emplace(factAbs._args, decFactAbs._args);
         }
 
+        // If yes, can the decoded fact also occured in its opposite form?
+        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, !fact._negated, state)) {
+            // No! This precondition is trivially satisfied 
+            // with above substitution restrictions
+            continue;
+        }
+
         // Decoded fact may be new - initialize as necessary
         introduceNewFact(pos, decFactAbs);
-
-        _htn.addQFactDecoding(factAbs, decFactAbs);
+        pos.addQFactDecoding(factAbs, decFactAbs);
     }
     goodSubs.push_back(std::move(goods));
 }
@@ -618,7 +585,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, bool dir
             // Valid effect decoding
             getCurrentState(fact._negated).insert(decFactAbs);
             pos.touchFactSupport(decFactAbs, fact._negated);
-            if (direct) _htn.addQFactDecoding(factAbs, decFactAbs);
+            if (direct) pos.addQFactDecoding(factAbs, decFactAbs);
             anyGood = true;
         }
         // Not a single valid decoding of the effect? -> Invalid effect.

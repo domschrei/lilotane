@@ -50,7 +50,7 @@ void Parameters::setDefaults() {
     setParam("D", "0"); // max depth (= num iterations)
     setParam("el", "0"); // extra layers after initial solution
     setParam("ip", "0"); // implicit primitiveness
-    setParam("mp", "1"); // mine preconditions
+    setParam("mp", "2"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // optimization factor
     setParam("p", "1"); // encode predecessor operations
@@ -69,7 +69,7 @@ void Parameters::setDefaults() {
     setParam("T", "0"); // max. time (secs) for finding an initial plan
     setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
-    setParam("vca", "0"); // virtualize children of actions
+    setParam("vca", "1"); // virtualize children of actions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
 }
@@ -91,7 +91,8 @@ void Parameters::printUsage() {
     Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
     Log::e(" -el=<int>           Number of extra layers to encode after an initial solution was found (use with -of=...)\n");
     Log::e(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
-    Log::e(" -mp=<0|1>           Mine preconditions for reductions from their (recursive) subtasks\n");
+    Log::e(" -mp=<0|1|2>         Mine preconditions for reductions from their (recursive) subtasks:\n");
+    Log::e("                     0=none, 1=use mined prec. for instantiation only, 2=use mined prec. everywhere\n");
     Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
     Log::e(" -of=<factor>        Plan length optimization factor: spend up to <factor> * <original solving time> for optimization\n");
     Log::e("                     (-1 for exhaustive optimization)\n");

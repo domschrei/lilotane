@@ -38,6 +38,8 @@ private:
 
     // All VIRTUAL facts potentially occurring at this position.
     USigSet _qfacts;
+    // Maps a q-fact to the set of possibly valid decoded facts.
+    NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
 
     // All facts that are definitely true at this position.
     USigSet _true_facts;
@@ -78,6 +80,11 @@ public:
     void addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs);
     void clearForbiddenSubstitutions(const USignature& op);
     void clearValidSubstitutions(const USignature& op);
+
+    bool hasQFactDecodings(const USignature& qFact);
+    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
+    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
+    const USigSet& getQFactDecodings(const USignature& qfact);
 
     void addAction(const USignature& action);
     void addAction(USignature&& action);

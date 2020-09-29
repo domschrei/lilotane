@@ -72,9 +72,6 @@ private:
     // Lookup table for the possible decodings of a fact signature with normalized arguments.    
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_normalized;
 
-    // Maps a q-fact to the set of possibly valid decoded facts.
-    NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
-
     // Collection of a set of q-constant substitutions which are invalid. 
     // Periodically cleared after being encoded.
     NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
@@ -156,11 +153,6 @@ public:
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
     const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
-    
-    bool hasQFactDecodings(const USignature& qFact);
-    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
-    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
-    const USigSet& getQFactDecodings(const USignature& qfact);
 
     void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
@@ -251,7 +243,8 @@ private:
 
     void replaceSurrogateReductionsWithAction();
     void splitActionsWithConflictingEffects();
-    void minePreconditions();
+    enum MinePrecMode { NO_MINING, USE_FOR_INSTANTIATION, USE_EVERYWHERE };
+    void minePreconditions(MinePrecMode mode);
 
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
     std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);

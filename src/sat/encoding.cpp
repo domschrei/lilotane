@@ -183,26 +183,9 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     // Encode q-facts that are not encoded yet
     for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
         if (newPos.hasVariable(VarType::FACT, qfact)) continue;
-
-        // Reuse from left?
-        int leftVar = left.getVariableOrZero(VarType::FACT, qfact);
-        bool reuseFromLeft = leftVar != 0 
-                && !newPos.getPosFactSupports().count(qfact)
-                && !newPos.getNegFactSupports().count(qfact);
-        if (reuseFromLeft) for (const auto& decFact : _htn.getQFactDecodings(qfact)) {
-            int decFactVar = getVariable(VarType::FACT, newPos, decFact);
-            if (_new_fact_vars.count(decFactVar)) {
-                reuseFromLeft = false;
-                break;
-            }
-        }
-        
-        if (reuseFromLeft) newPos.setVariable(VarType::FACT, qfact, leftVar); 
-        else {
-            // Encode new variable
-            _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));
-        } 
-        
+        if (!newPos.hasQFactDecodings(qfact)) continue;
+        // Encode new variable
+        _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));        
     }
     end(STAGE_FACTVARENCODING);
 
@@ -249,14 +232,12 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int opVar = getVariable(VarType::OP, left, op);
         for (const auto& eff : _htn.getAction(op).getEffects()) {
             if (!_htn.hasQConstants(eff._usig)) continue;
+            if (!newPos.hasQFactDecodings(eff._usig)) continue;
             
             auto& support = eff._negated ? *supports[0] : *supports[1];
             auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
 
-            for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
-                
-                // TODO Check if this is a valid effect decoding indeed.
-                // (Might happen that it isn't.) 
+            for (const auto& decEff : newPos.getQFactDecodings(eff._usig)) {
 
                 // Are there any primitive ops at this position?
                 if (hasPrimitiveOps) {
@@ -417,6 +398,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
 
         // Preconditions
         for (const Signature& pre : _htn.getAction(aSig).getPreconditions()) {
+            if (!isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             addClause(-aVar, (pre._negated?-1:1)*getVariable(VarType::FACT, newPos, pre._usig));
         }
     }
@@ -431,6 +413,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
 
         // Preconditions
         for (const Signature& pre : _htn.getReduction(rSig).getPreconditions()) {
+            if (!isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             addClause(-rVar, (pre._negated?-1:1)*getVariable(VarType::FACT, newPos, pre._usig));
         }
     }
@@ -518,33 +501,19 @@ void Encoding::encodeSubstitutionVars(int opVar, int arg, Position& pos) {
 void Encoding::encodeQFactSemantics(Position& newPos) {
 
     begin(STAGE_QFACTSEMANTICS);
-    bool useMutexes = _params.isNonzero("qcm");
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
     std::vector<int> qargs, qargIndices; 
     for (const auto& qfactSig : newPos.getQFacts()) {
         assert(_htn.hasQConstants(qfactSig));
+        if (!newPos.hasQFactDecodings(qfactSig)) continue;
 
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
 
         // Already encoded earlier?
         if (!_new_fact_vars.count(qfactVar)) continue;
 
-        if (useMutexes) {
-            qargs.clear();
-            qargIndices.clear();
-            for (size_t aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
-                qargs.push_back(qfactSig._args[aIdx]);
-                qargIndices.push_back(aIdx);
-            } 
-        }
-
         // For each possible fact decoding:
-        for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (useMutexes) {
-                // Check if this decoding is valid
-                std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
-                if (!_htn.getQConstantDatabase().test(qargs, decArgs)) continue;
-            }
+        for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig)) {
 
             // Assemble list of substitution variables
             int decFactVar = getVariable(VarType::FACT, newPos, decFactSig);
