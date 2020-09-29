@@ -133,6 +133,7 @@ public:
 
     void optimizePlan(int upperBound, Plan& plan);
     int getPlanLength(const std::vector<PlanItem>& classicalPlan);
+    bool isEmptyAction(const USignature& aSig);
 
     void printFailedVars(Layer& layer);
     void printSatisfyingAssignment();

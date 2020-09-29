@@ -435,8 +435,11 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
         if (aSig == Position::NONE_SIG) continue;
 
         int aVar = getVariable(VarType::OP, newPos, aSig);
-        for (int arg : aSig._args) encodeSubstitutionVars(aVar, arg, newPos);
         elementVars[numOccurringOps++] = aVar;
+        
+        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
+
+        for (int arg : aSig._args) encodeSubstitutionVars(aVar, arg, newPos);
 
         // Preconditions
         for (const Signature& pre : _htn.getAction(aSig).getPreconditions()) {
@@ -836,10 +839,6 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     Layer& l = *_layers.at(layerIdx);
     int currentPlanLength = upperBound;
     Log::v("PLO BEGIN %i\n", currentPlanLength);
-    
-    auto isEmptyAction = [this](const USignature& aSig){
-        return _htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig;
-    };
 
     // Add counting mechanism
     begin(STAGE_PLANLENGTHCOUNTING);
@@ -994,7 +993,14 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             break;
         }
     }
+}
 
+bool Encoding::isEmptyAction(const USignature& aSig) {
+    if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig)
+        return true;
+    if (_htn.getActionNameOfVirtualizedChild(aSig._name_id) == _htn.getBlankActionSig()._name_id)
+        return true;
+    return false;
 }
 
 void Encoding::addAssumptions(int layerIdx, bool permanent) {
@@ -1425,7 +1431,7 @@ int Encoding::getPlanLength(const std::vector<PlanItem>& classicalPlan) {
         // Reduction with an empty expansion?
         if (aSig._name_id < 0) continue;
         // No blank action, no second part of a split action?
-        else if (!_htn.isSecondPartOfSplitAction(aSig) && _htn.getBlankActionSig() != aSig) {
+        else if (!isEmptyAction(aSig)) {
             currentPlanLength++;
         }
     }

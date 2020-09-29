@@ -802,7 +802,8 @@ const Action& HtnInstance::getActionOfVirtualizedChild(int vChildId) const {
 }
 
 int HtnInstance::getActionNameOfVirtualizedChild(int vChildId) const {
-    return _virtualized_to_actual_action.at(vChildId);
+    auto it = _virtualized_to_actual_action.find(vChildId);
+    return it == _virtualized_to_actual_action.end() ? -1 : it->second;
 }
 
 Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state) {
