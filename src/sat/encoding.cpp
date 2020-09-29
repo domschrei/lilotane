@@ -273,6 +273,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     const bool dirEmpty[2] = {supports[0]->empty(), supports[1]->empty()};
     
     // Find and encode frame axioms for each applicable fact from the left
+    size_t skipped = 0;
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable(VarType::FACT)) {
         if (_htn.hasQConstants(fact)) continue;
         
@@ -303,7 +304,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int factVar = newPos.getVariableOrZero(VarType::FACT, fact);
 
         // Check if there is already an equivalent fact support ABOVE
-        if (!reuse && _offset == 0) {
+        // (only if at offset 0, and if the frame axioms are not trivial either way)
+        if (!reuse && hasPrimitiveOps && _offset == 0) {
             int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
             if (aboveVar != 0) {
                 bool skip = true;
@@ -330,6 +332,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                         addClause(-aboveVar, factVar);
                         addClause(aboveVar, -factVar);
                     }
+                    skipped++;
                     continue;
                 }
             } 
@@ -414,6 +417,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         end(STAGE_INDIRECTFRAMEAXIOMS);
     }
     end(STAGE_DIRECTFRAMEAXIOMS);
+
+    Log::d("Skipped %i frame axioms\n", skipped);
 }
 
 void Encoding::encodeOperationConstraints(Position& newPos) {
