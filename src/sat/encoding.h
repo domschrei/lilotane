@@ -65,7 +65,6 @@ private:
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
     std::vector<int> _primitive_ops;
     std::vector<int> _nonprimitive_ops;
-    std::vector<std::vector<int>> _nonprimitive_ops_ok_in_solution;
     bool _nonprimitive_only_at_prior_pos;
 
     std::vector<int> _last_assumptions;

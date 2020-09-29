@@ -34,7 +34,6 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
     int priorNumLits = _num_lits;
     _layer_idx = layerIdx;
     _pos = pos;
-    if (pos == 0) _nonprimitive_ops_ok_in_solution.clear();
 
     // Calculate relevant environment of the position
     Position NULL_POS;
@@ -121,13 +120,6 @@ void Encoding::encodeOperationVariables(Position& newPos) {
             // If a trivial reduction occurs, the position is primitive
             _primitive_ops.push_back(rVar);
         } else {
-            if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
-                // If a virtualized child of an action occurs,
-                // this position may remain non-primitive
-                while (newPos.getPositionIndex() >= _nonprimitive_ops_ok_in_solution.size())
-                    _nonprimitive_ops_ok_in_solution.emplace_back();
-                _nonprimitive_ops_ok_in_solution[newPos.getPositionIndex()].push_back(rVar);
-            }
             // If another reduction occurs, the position is non-primitive
             _nonprimitive_ops.push_back(rVar);
         }
@@ -221,16 +213,18 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     // Direct supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
-
+    
     // Indirect supports:
     // Maps each fact to a map of operation variables to a tree of substitutions 
     // which make the operation (possibly) change the variable.
     IndirectSupport indirectPosSupport, indirectNegSupport;
     const IndirectSupport* indirectSupports[2] 
             = {&indirectNegSupport, &indirectPosSupport};
+    
     for (const auto& op : left.getActions()) {
         int opVar = getVariable(VarType::OP, left, op);
-        for (const auto& eff : _htn.getAction(op).getEffects()) {
+
+        for (const auto& eff : left.getFactChanges(op)) {
             if (!_htn.hasQConstants(eff._usig)) continue;
             if (!newPos.hasQFactDecodings(eff._usig)) continue;
             
@@ -545,6 +539,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
     begin(STAGE_ACTIONEFFECTS);
     for (const auto& aSig : left.getActions()) {
         if (aSig == Position::NONE_SIG) continue;
+        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
         int aVar = getVariable(VarType::OP, left, aSig);
 
         for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
@@ -821,10 +816,6 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
                 // Empty reduction
                 emptyActions.insert(rSig);
-            } else if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
-                // Virtualized action
-                USignature a(_htn.getActionNameOfVirtualizedChild(rSig._name_id), rSig._args);
-                (isEmptyAction(a) ? emptyActions : actualActions).insert(rSig);
             }
         }
 
@@ -965,41 +956,16 @@ void Encoding::addAssumptions(int layerIdx, bool permanent) {
         for (size_t pos = 0; pos < l.size(); pos++) {
             appendClause(-encodeVarPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
-            if (pos < _nonprimitive_ops_ok_in_solution.size()) {
-                for (int var : _nonprimitive_ops_ok_in_solution[pos]) appendClause(var);
-            }
             endClause();
         }
         end(STAGE_ASSUMPTIONS);
     }
     for (size_t pos = 0; pos < l.size(); pos++) {
 
-        // If there are nonprimitive ops here which are admissible in a solution,
-        // allow them to be active even if the position is primitive
-        if (pos < _nonprimitive_ops_ok_in_solution.size() 
-            && !_nonprimitive_ops_ok_in_solution[pos].empty()) {
-            
-            begin(STAGE_ASSUMPTIONS);
-
-            int varEffectivelyPrim = VariableDomain::nextVar();
-            int varPrim = getVarPrimitiveOrZero(layerIdx, pos);
-
-            appendClause(-varEffectivelyPrim); // IF effectively primitive,
-            if (varPrim != 0) appendClause(varPrim); // THEN actually primitive
-            // OR any of the nonprimitive ops which are admissible in the solution
-            for (int var : _nonprimitive_ops_ok_in_solution[pos]) appendClause(var);
-            endClause();
-
-            end(STAGE_ASSUMPTIONS);
-            if (permanent) addClause(varEffectivelyPrim);
-            else assume(varEffectivelyPrim);
-
-        } else {
-            int v = getVarPrimitiveOrZero(layerIdx, pos);
-            if (v != 0) {
-                if (permanent) addClause(v);
-                else assume(v);
-            }
+        int v = getVarPrimitiveOrZero(layerIdx, pos);
+        if (v != 0) {
+            if (permanent) addClause(v);
+            else assume(v);
         }
     }
 }
@@ -1218,10 +1184,11 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
             if (ipasir_val(_solver, aVar) <= 0) continue;
 
             USignature aSig = sig;
+            if (!_htn.isAction(aSig)) continue;
+
             if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
                 aSig._name_id = _htn.getActionNameOfVirtualizedChild(sig._name_id);
             }
-            if (!_htn.isAction(aSig)) continue;
 
             //log("  %s ?\n", TOSTR(aSig));
 
@@ -1298,6 +1265,9 @@ Plan Encoding::extractPlan() {
                         const USignature& aSig = opSig;
 
                         if (aSig == _htn.getBlankActionSig()) continue;
+                        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+                            continue;
+                        }
                         
                         int v = getVariable(VarType::OP, layerIdx, pos, aSig);
                         Action a = _htn.getAction(aSig);
@@ -1325,11 +1295,6 @@ Plan Encoding::extractPlan() {
                         // Reduction
                         const USignature& rSig = opSig;
                         const Reduction& r = _htn.getReduction(rSig);
-                        
-                        if (_htn.isVirtualizedChildOfAction(rSig._name_id)) {
-                            reductionsThisPos++;
-                            continue;
-                        }
 
                         //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                         USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);

@@ -30,6 +30,8 @@ public:
     HtnOp(HtnOp&& op);
 
     void setPreconditions(const SigSet& set);
+    void setExtraPreconditions(const SigSet& set);
+    void setEffects(const SigSet& set);
     void addPrecondition(const Signature& sig);
     void addPrecondition(Signature&& sig);
     void addExtraPrecondition(const Signature& sig);

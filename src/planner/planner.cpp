@@ -388,10 +388,37 @@ void Planner::createNextLayer() {
     _layer_idx++;
     _pos = 0;
 
+    // Copy necessary facts collected at previous layer to "complete collection"
+    _prev_necessary_facts = _new_necessary_facts;
+    /*
+    Log::d("NECFACTS %i at layer %i: ", _prev_necessary_facts.size(), _layer_idx-1);
+    for (const auto& fact : _prev_necessary_facts) {
+        Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(fact));
+    }
+    Log::log_notime(Log::V4_DEBUG, "\n");*/
+
+    // Instantiate new layer
     for (_old_pos = 0; _old_pos < oldLayer.size(); _old_pos++) {
         size_t newPos = oldLayer.getSuccessorPos(_old_pos);
         size_t maxOffset = oldLayer[_old_pos].getMaxExpansionSize();
 
+        if (_old_pos > 0) {
+            // Remove fact variables from prev. position which turned out to be unnecessary
+            USigSet factsToRemove;
+            size_t factsBefore = 0;
+            for (const auto& [fact, var] : oldLayer[_old_pos].getVariableTable(VarType::FACT)) {
+                if (!_prev_necessary_facts.count(fact)) factsToRemove.insert(fact);
+                factsBefore++;
+            }
+            for (const auto& fact : factsToRemove) {
+                oldLayer[_old_pos].removeVariable(VarType::FACT, fact);
+                //Log::d("NECFACTS pos %i : remove %s\n", _old_pos, TOSTR(fact));
+            }
+            //size_t factsAfter = oldLayer[_old_pos].getVariableTable(VarType::FACT).size();
+            //Log::d("NECFACTS (%i,%i) removed %i/%i facts\n", _layer_idx-1, _old_pos, factsBefore-factsAfter, factsBefore);
+        }
+
+        // Instantiate each new position induced by the old position
         for (size_t offset = 0; offset < maxOffset; offset++) {
             assert(_pos == newPos + offset);
             Log::v(" Position (%i,%i)\n", _layer_idx, _pos);
@@ -457,8 +484,9 @@ void Planner::createNextPositionFromLeft(Position& left) {
     // Propagate fact changes from operations from previous position
     USigSet actionsToRemove;
     for (const auto& aSig : left.getActions()) {
+        bool repeatedAction = _htn.isVirtualizedChildOfAction(aSig._name_id);
         for (const Signature& fact : left.getFactChanges(aSig)) {
-            if (!addEffect(aSig, fact, /*direct=*/true)) {
+            if (!addEffect(aSig, fact, repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
                 // Impossible direct effect: forbid action retroactively.
                 Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                 _enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
@@ -475,7 +503,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
     for (const auto& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
         for (const Signature& fact : left.getFactChanges(rSig)) {
-            if (!addEffect(rSig, fact, /*direct=*/false)) {
+            if (!addEffect(rSig, fact, EffectMode::INDIRECT)) {
                 // Impossible indirect effect: ignore.
             }
         }
@@ -487,26 +515,23 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
 void Planner::addPrecondition(const USignature& op, const Signature& fact, 
         std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-        NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
+        NodeHashSet<Substitution, Substitution::Hasher>& badSubs, 
+        bool addQFact) {
 
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
 
-    bool isQFact = _htn.hasQConstants(factAbs);
-
-    if (!isQFact) { 
+    if (!_htn.hasQConstants(factAbs)) { 
         // Precondition may not be contained in facts yet: initialize
         //log("NEG_PRE %s\n", TOSTR(fact));
         introduceNewFact(pos, factAbs);
+        _new_necessary_facts.insert(factAbs);
+        assert(getCurrentState(fact._negated).contains(fact._usig) 
+                || Log::e("%s not contained in state!\n", TOSTR(fact)));
+        return;
     }
-    
-    //log("pre %s of %s\n", TOSTR(fact), TOSTR(op));
-    // Precondition must be valid (or a q fact)
-    if (!isQFact) assert(getCurrentState(fact._negated).contains(fact._usig) 
-            || Log::e("%s not contained in state!\n", TOSTR(fact)));
 
-    if (!isQFact) return;
-    pos.addQFact(factAbs);
+    if (addQFact) pos.addQFact(factAbs);
 
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
@@ -517,10 +542,10 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         // Can the decoded fact occur as is?
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
-            badSubs.emplace(factAbs._args, decFactAbs._args);
+            if (addQFact) badSubs.emplace(factAbs._args, decFactAbs._args);
             continue;
         } else {
-            goods.emplace(factAbs._args, decFactAbs._args);
+            if (addQFact) goods.emplace(factAbs._args, decFactAbs._args);
         }
 
         // If yes, can the decoded fact also occured in its opposite form?
@@ -533,8 +558,9 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         // Decoded fact may be new - initialize as necessary
         introduceNewFact(pos, decFactAbs);
         pos.addQFactDecoding(factAbs, decFactAbs);
+        _new_necessary_facts.insert(decFactAbs);
     }
-    goodSubs.push_back(std::move(goods));
+    if (addQFact) goodSubs.push_back(std::move(goods));
 }
 
 void Planner::addSubstitutionConstraints(const USignature& op, 
@@ -561,7 +587,7 @@ void Planner::addSubstitutionConstraints(const USignature& op,
     //}
 }
 
-bool Planner::addEffect(const USignature& opSig, const Signature& fact, bool direct) {
+bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMode mode) {
     Position& pos = (*_layers[_layer_idx])[_pos];
     assert(_pos > 0);
     Position& left = (*_layers[_layer_idx])[_pos-1];
@@ -585,14 +611,18 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, bool dir
             // Valid effect decoding
             getCurrentState(fact._negated).insert(decFactAbs);
             pos.touchFactSupport(decFactAbs, fact._negated);
-            if (direct) pos.addQFactDecoding(factAbs, decFactAbs);
+            if (mode != INDIRECT) {
+                pos.addQFactDecoding(factAbs, decFactAbs);
+                _new_necessary_facts.insert(decFactAbs);
+            }
             anyGood = true;
         }
         // Not a single valid decoding of the effect? -> Invalid effect.
         if (!anyGood) return false;
 
-        if (direct) pos.addQFact(factAbs);
-    }
+        if (mode == DIRECT) pos.addQFact(factAbs);
+
+    } else if (mode != INDIRECT) _new_necessary_facts.insert(factAbs);
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
@@ -651,23 +681,25 @@ void Planner::propagateActions(size_t offset) {
         if (offset < 1) {
             // proper action propagation
             assert(_instantiator.isFullyGround(aSig));
-            if (_params.isNonzero("vca")) {
+            if (_params.isNonzero("vca") && !_htn.isVirtualizedChildOfAction(aSig._name_id)) {
                 // Virtualize child of action
                 USignature vChildSig = _htn.getVirtualizedChildOfAction(aSig);
-                Reduction r = _htn.getReduction(vChildSig);
-                newPos.addReduction(vChildSig);
+                Action a = _htn.getAction(vChildSig);
+                newPos.addAction(vChildSig);
                 newPos.addExpansion(aSig, vChildSig);
-                newPos.setFactChanges(vChildSig, _instantiator.getPossibleFactChanges(vChildSig));
+                newPos.setFactChanges(vChildSig, _instantiator.getPossibleFactChanges(aSig));
             } else {
+                // Treat as a normal action
                 newPos.addAction(aSig);
                 newPos.addExpansion(aSig, aSig);
                 above.moveFactChanges(newPos, aSig);
-                // Add preconditions of action
-                NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-                std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
-                for (const Signature& fact : a.getPreconditions()) {
-                    addPrecondition(aSig, fact, goodSubs, badSubs);
-                }
+            }
+            // Add preconditions of action
+            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
+            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            for (const Signature& fact : a.getPreconditions()) {
+                addPrecondition(aSig, fact, goodSubs, badSubs, 
+                    /*addQFact=*/!_htn.isVirtualizedChildOfAction(aSig._name_id));
             }
         } else {
             // action expands to "blank" at non-zero offsets
@@ -944,41 +976,6 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
         (*_layers[_layer_idx])[_pos].addQConstantTypeConstraint(op, c);
     }
 }
-
-void Planner::pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps) {
-
-    // TODO Retroactive pruning.
-    // If they or some of their (recursive) children become impossible,
-    // remove these ops, all of their children and recursively their parent
-    // if the parent has no valid children at that position any more.
-
-    if (!updatedOps.empty()) Log::d("%i ops to update\n", updatedOps.size());
-
-    // For all ops which have become more restricted
-    for (const auto& pusig : updatedOps) {
-        
-        const auto& sig = pusig.usig;
-        int layerIdx = pusig.layer;
-        int pos = pusig.pos;
-        HtnOp& op = _htn.getOp(sig);
-
-        // TODO What if op did not become completely impossible, but just more restricted?
-        // => Iterate over possible children, add these to the "stack" of ops to be updated.
-
-        if (!_instantiator.hasValidPreconditions(op.getPreconditions(), getStateEvaluator(layerIdx, pos))
-            || !_instantiator.hasValidPreconditions(op.getExtraPreconditions(), getStateEvaluator(layerIdx, pos))) {
-            // Operation has become impossible to apply
-            Log::d("Op %s became impossible!\n", TOSTR(sig));
-
-            // COMPLETELY remove this op, disregarding witness counters.
-
-            bool isReduction = _htn.isReduction(sig);
-            if (isReduction) (*_layers[layerIdx])[pos].removeReductionOccurrence(sig);
-            else (*_layers[layerIdx])[pos].removeActionOccurrence(sig);
-        }
-    }
-}
-
 
 USigSet& Planner::getCurrentState(bool negated) {
     return negated ? _neg_layer_facts : _pos_layer_facts;

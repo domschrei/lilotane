@@ -14,6 +14,12 @@ HtnOp::HtnOp(HtnOp&& op) : _id(op._id), _args(std::move(op._args)),
 void HtnOp::setPreconditions(const SigSet& set) {
     _preconditions = set;
 }
+void HtnOp::setExtraPreconditions(const SigSet& set) {
+    _extra_preconditions = set;
+}
+void HtnOp::setEffects(const SigSet& set) {
+    _effects = set;
+}
 void HtnOp::addPrecondition(const Signature& sig) {
     _preconditions.insert(sig);
 }

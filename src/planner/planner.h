@@ -33,6 +33,8 @@ private:
     USigSet _init_state;
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
+    USigSet _prev_necessary_facts;
+    USigSet _new_necessary_facts;
 
     size_t _layer_idx;
     size_t _pos;
@@ -71,11 +73,13 @@ private:
 
     void addPrecondition(const USignature& op, const Signature& fact, 
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
+            NodeHashSet<Substitution, Substitution::Hasher>& badSubs, 
+            bool addQFact = true);
     void addSubstitutionConstraints(const USignature& op, 
             std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
             NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
-    bool addEffect(const USignature& op, const Signature& fact, bool direct);
+    enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
+    bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
     bool addAction(Action& a);
     bool addReduction(Reduction& r, const USignature& task);
 
@@ -87,8 +91,6 @@ private:
     void introduceNewFacts();
     void introduceNewFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
-
-    void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);
 
     USigSet& getCurrentState(bool negated);
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);

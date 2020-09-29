@@ -168,6 +168,11 @@ public:
         if (it == vars.end()) return 0;
         return it->second;
     }
+
+    inline void removeVariable(VarType type, const USignature& sig) {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        vars.erase(sig);
+    }
 };
 
 

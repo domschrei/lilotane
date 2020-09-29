@@ -761,36 +761,33 @@ const Action& HtnInstance::getSurrogate(int reductionId) const {
     return _actions.at(_reduction_to_surrogate.at(reductionId));
 }
 
-bool HtnInstance::isVirtualizedChildOfAction(int reductionId) const {
-    return _virtualized_to_actual_action.count(reductionId);
+bool HtnInstance::isVirtualizedChildOfAction(int actionId) const {
+    return _virtualized_to_actual_action.count(actionId);
 }
 
 USignature HtnInstance::getVirtualizedChildOfAction(const USignature& action) {
 
-    int redNameId = nameId("__VIRT_CHLD_ACT_R_" + _name_back_table[action._name_id]);
-    USignature sig(redNameId, action._args);
+    int repOpNameId = nameId("__REPEATED_" + _name_back_table[action._name_id]);
+    USignature sig(repOpNameId, action._args);
 
-    if (!_reductions_by_sig.count(sig)) {
-        int taskNameId = nameId("__VIRT_CHLD_ACT_T_" + _name_back_table[action._name_id]);
+    if (!_actions_by_sig.count(sig)) {
 
-        // Define the method
-        if (!_reductions.count(redNameId)) {
+        // Define the operator
+        if (!_actions.count(repOpNameId)) {
             const Action& op = _actions[action._name_id];
-            USignature task(taskNameId, op.getArguments());
-            Reduction m(redNameId, task._args, task);
-            m.addSubtask(task); // single subtask: itself
-            for (const auto& pre : op.getPreconditions()) m.addExtraPrecondition(pre);
-            _reductions[redNameId] = std::move(m);
-            _task_id_to_reduction_ids[taskNameId].push_back(redNameId);
-            _virtualized_to_actual_action[redNameId] = action._name_id;
+            Action a(repOpNameId, op.getArguments());
+            a.setPreconditions(op.getPreconditions());
+            a.setExtraPreconditions(op.getExtraPreconditions());
+            a.setEffects(op.getEffects());
+            _actions[repOpNameId] = std::move(a);
+            _virtualized_to_actual_action[repOpNameId] = action._name_id;
             const auto& sorts = _signature_sorts_table[action._name_id];
-            _signature_sorts_table[redNameId] = sorts;
-            _signature_sorts_table[taskNameId] = sorts;
+            _signature_sorts_table[repOpNameId] = sorts;
         }
 
-        // Define the reduction
-        Reduction r = _reductions[redNameId];
-        _reductions_by_sig[sig] = r.substituteRed(Substitution(r.getArguments(), sig._args));
+        // Define the action
+        Action a = _actions[repOpNameId];
+        _actions_by_sig[sig] = a.substitute(Substitution(a.getArguments(), sig._args));
     }
 
     return sig;
