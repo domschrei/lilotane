@@ -159,7 +159,6 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     // Reuse variables from above position
     if (newPos.getLayerIndex() > 0 && _offset == 0) {
         newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
-        //above.moveVariableTable(VarType::FACT, newPos);
     }
 
     if (_pos == 0) {
@@ -270,11 +269,18 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     int pos = newPos.getPositionIndex();
     int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
 
+    // Check if frame axioms can be skipped because
+    // the above position had a superset of operations
     Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
     Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
     bool skipRedundantFrameAxioms = _params.isNonzero("srfa") && _offset == 0
-        && hasPrimitiveOps && !left.hasNonprimitiveOps()
-        && leftOfAbove.hasPrimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
+        && !left.hasNonprimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
+    if (skipRedundantFrameAxioms) for (const auto& a : left.getActions()) {
+        if (!leftOfAbove.hasAction(a)) {
+            skipRedundantFrameAxioms = false;
+            break;
+        }
+    }
 
     // Retrieve supports from left position
     Supports* supp[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
@@ -283,10 +289,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     auto [negIS, posIS] = computeFactSupports(newPos, left);
     IndirectSupport* iSuppTrees[2] = {&negIS, &posIS};
 
-    // Retrieve supports from above position
-    Supports* aboveSupp[2] = {&above.getNegFactSupports(), &above.getPosFactSupports()};
-    IndirectFactSupportMap* aboveISupp[2] = {&above.getNegIndirectFactSupports(), &above.getPosIndirectFactSupports()};
-    
     // Find and encode frame axioms for each applicable fact from the left
     size_t skipped = 0;
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable(VarType::FACT)) {
@@ -322,65 +324,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
         int factVar = newPos.getVariableOrZero(VarType::FACT, fact);
 
-        // Check if there is already an equivalent fact support ABOVE
-        // (only if at offset 0, and if the frame axioms are not trivial either way)
-        bool skip[2] = {false, false};
-        if (skipRedundantFrameAxioms && !reuse) {
-            int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
-            if (aboveVar != 0) {
-                // Should reuse variable from above
-                assert(factVar == aboveVar);
-
-                // Check for equivalence of fact support
-                for (int i = 0; i < 2; i++) {
-                    int suppSize = 0;
-                    {
-                        // Equivalent direct support at the two positions?
-                        auto aboveIt = aboveSupp[i]->find(fact);
-                        if (aboveIt == aboveSupp[i]->end() && dir[i] != nullptr)
-                            // No support above, but support to the left
-                            continue;
-                        if (aboveIt != aboveSupp[i]->end()) {
-                            if (dir[i] == nullptr)
-                                // Support above, but no support to the left
-                                continue;
-                            // Both have some support
-                            auto* aboveDir = &aboveIt->second;
-                            if (*dir[i] != *aboveDir) continue; // Support not equal
-                            suppSize += dir[i]->size();
-                        }
-                    }
-                    {
-                        // Equivalent indirect support at the two positions?
-                        auto aboveIt = aboveISupp[i]->find(fact);
-                        if (aboveIt == aboveISupp[i]->end() && indir[i] != nullptr)
-                            // No support above, but support to the left
-                            continue;
-                        if (aboveIt != aboveISupp[i]->end()) {
-                            if (indir[i] == nullptr)
-                                // Support above, but no support to the left
-                                continue;
-                            // Both have some support
-                            auto* aboveIndir = &aboveIt->second;
-                            if (indir[i]->size() != aboveIndir->size()) continue; // different #entries
-                            bool ok = true;
-                            for (const auto& [op, subs] : *indir[i]) {
-                                if (!aboveIndir->count(op)) {ok = false; break;} // entry not in both
-                            }
-                            if (!ok) continue;
-                            suppSize += indir[i]->size();
-                        }
-                    }
-
-                    // All equivalence checks passed:
-                    // Frame axiom was already encoded equivalently for fact above
-                    skip[i] = true;
-                    Log::d("Skipping frame axiom of %s; %i supporting ops\n", TOSTR(fact), suppSize);
-                    skipped++;
-                }
-            } 
-        }
-
         // Decide on the fact variable to use (reuse or encode)
         if (factVar == 0) {
             if (reuse) {
@@ -394,8 +337,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 factVar = v;
             }
         }
-        if (var == factVar) continue; // Skip frame axiom encoding
-        
+
+        // Skip frame axiom encoding if nothing can change
+        if (var == factVar) continue; 
+        // Skip frame axioms if they were already encoded
+        if (skipRedundantFrameAxioms && above.hasVariable(VarType::FACT, fact)) continue;
         // No primitive ops at this position: No need for encoding frame axioms
         if (!hasPrimitiveOps) continue;
 
@@ -403,7 +349,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
-            if (skip[i]) continue;
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);
@@ -436,7 +381,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
             factVar *= -1;
-            if (skip[i]) continue;
             if (tree[i] == nullptr) continue;
 
             // -- 1st part of each clause: "head literals"
