@@ -324,6 +324,7 @@ void Planner::createFirstLayer() {
     for (const USignature& fact : _init_state) {
         initLayer[_pos].addTrueFact(fact);
         _pos_layer_facts.insert(fact);
+        _defined_facts.insert(fact);
     }
 
     // Instantiate all possible init. reductions
@@ -351,7 +352,7 @@ void Planner::createFirstLayer() {
     }
     introduceNewFacts();
     //_htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
-    _enc.encode(_layer_idx, _pos++);
+    _pos++;
 
     /***** LAYER 0, POSITION 1 ******/
 
@@ -372,10 +373,11 @@ void Planner::createFirstLayer() {
     }
     assert(goodSubs.empty() && badSubs.empty());
     
-    _enc.encode(_layer_idx, _pos++);
-
     /***** LAYER 0 END ******/
 
+    _pos = 0;
+    _enc.encode(_layer_idx, _pos++);
+    _enc.encode(_layer_idx, _pos++);
     initLayer.consolidate();
 }
 
@@ -388,43 +390,18 @@ void Planner::createNextLayer() {
     _layer_idx++;
     _pos = 0;
 
-    // Copy necessary facts collected at previous layer to "complete collection"
-    _prev_necessary_facts = _new_necessary_facts;
-    /*
-    Log::d("NECFACTS %i at layer %i: ", _prev_necessary_facts.size(), _layer_idx-1);
-    for (const auto& fact : _prev_necessary_facts) {
-        Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(fact));
-    }
-    Log::log_notime(Log::V4_DEBUG, "\n");*/
-
     // Instantiate new layer
+    Log::i("Instantiating ...\n");
     for (_old_pos = 0; _old_pos < oldLayer.size(); _old_pos++) {
         size_t newPos = oldLayer.getSuccessorPos(_old_pos);
         size_t maxOffset = oldLayer[_old_pos].getMaxExpansionSize();
 
-        if (_old_pos > 0) {
-            // Remove fact variables from prev. position which turned out to be unnecessary
-            USigSet factsToRemove;
-            size_t factsBefore = 0;
-            for (const auto& [fact, var] : oldLayer[_old_pos].getVariableTable(VarType::FACT)) {
-                if (!_prev_necessary_facts.count(fact)) factsToRemove.insert(fact);
-                factsBefore++;
-            }
-            for (const auto& fact : factsToRemove) {
-                oldLayer[_old_pos].removeVariable(VarType::FACT, fact);
-                //Log::d("NECFACTS pos %i : remove %s\n", _old_pos, TOSTR(fact));
-            }
-            //size_t factsAfter = oldLayer[_old_pos].getVariableTable(VarType::FACT).size();
-            //Log::d("NECFACTS (%i,%i) removed %i/%i facts\n", _layer_idx-1, _old_pos, factsBefore-factsAfter, factsBefore);
-        }
-
         // Instantiate each new position induced by the old position
         for (size_t offset = 0; offset < maxOffset; offset++) {
+            //Log::d("%i,%i,%i,%i\n", _old_pos, newPos, offset, newLayer.size());
             assert(_pos == newPos + offset);
-            Log::v(" Position (%i,%i)\n", _layer_idx, _pos);
-            Log::d("  Instantiating ...\n");
+            Log::v("- Position (%i,%i)\n", _layer_idx, _pos);
 
-            //log("%i,%i,%i,%i\n", oldPos, newPos, offset, newLayer.size());
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
@@ -434,8 +411,16 @@ void Planner::createNextLayer() {
                     (*_layers[_layer_idx])[_pos].getQFacts().size(),
                     (*_layers[_layer_idx])[_pos].getPosFactSupports().size() + (*_layers[_layer_idx])[_pos].getNegFactSupports().size()
             );
-            _enc.encode(_layer_idx, _pos++);
+
+            _pos++;
         }
+    }
+
+    // Encode new layer
+    Log::i("Encoding ...\n");
+    for (_pos = 0; _pos < newLayer.size(); _pos++) {
+        Log::v("- Position (%i,%i)\n", _layer_idx, _pos);
+        _enc.encode(_layer_idx, _pos);
     }
 
     newLayer.consolidate();
@@ -492,7 +477,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
                 // Impossible direct effect: forbid action retroactively.
                 Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
-                _enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
+                //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
                 actionsToRemove.insert(aSig);
             }
         }
@@ -528,7 +513,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         // Precondition may not be contained in facts yet: initialize
         //log("NEG_PRE %s\n", TOSTR(fact));
         introduceNewFact(pos, factAbs);
-        _new_necessary_facts.insert(factAbs);
+        _htn.addRelevantFact(factAbs);
         assert(getCurrentState(fact._negated).contains(fact._usig) 
                 || Log::e("%s not contained in state!\n", TOSTR(fact)));
         return;
@@ -561,7 +546,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         // Decoded fact may be new - initialize as necessary
         introduceNewFact(pos, decFactAbs);
         pos.addQFactDecoding(factAbs, decFactAbs);
-        _new_necessary_facts.insert(decFactAbs);
+        _htn.addRelevantFact(decFactAbs);
     }
     if (addQFact) goodSubs.push_back(std::move(goods));
 }
@@ -616,7 +601,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             pos.touchFactSupport(decFactAbs, fact._negated);
             if (mode != INDIRECT) {
                 pos.addQFactDecoding(factAbs, decFactAbs);
-                _new_necessary_facts.insert(decFactAbs);
+                _htn.addRelevantFact(decFactAbs);
             }
             anyGood = true;
         }
@@ -625,7 +610,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
 
         if (mode == DIRECT) pos.addQFact(factAbs);
 
-    } else if (mode != INDIRECT) _new_necessary_facts.insert(factAbs);
+    } else if (mode != INDIRECT) _htn.addRelevantFact(factAbs);
 
     // Depending on whether fact supports are encoded for primitive ops only,
     // add the fact to the op's support accordingly
@@ -646,12 +631,18 @@ void Planner::propagateInitialState() {
 
     Position& newPos = (*_layers[_layer_idx])[0];
     Position& above = (*_layers[_layer_idx-1])[0];
+
+    _defined_facts.clear();
     
     // Propagate TRUE facts
-    for (const USignature& fact : above.getTrueFacts())
+    for (const USignature& fact : above.getTrueFacts()) {
         newPos.addTrueFact(fact);
-    for (const USignature& fact : above.getFalseFacts())
+        _defined_facts.insert(fact);
+    }
+    for (const USignature& fact : above.getFalseFacts()) {
         newPos.addFalseFact(fact);
+        _defined_facts.insert(fact);
+    }
 
     // Set up layer facts: initial state only
     _pos_layer_facts.clear();
@@ -964,8 +955,9 @@ void Planner::introduceNewFact(Position& newPos, const USignature& fact) {
     bool initiallyFalse = !_init_state.contains(fact);
     if (initiallyFalse) _neg_layer_facts.insert(fact);
     
-    // Does position to the left already have the encoded fact? -> not new!
-    if (_pos > 0 && (*_layers[_layer_idx])[_pos-1].hasVariable(VarType::FACT, fact)) return;
+    // Has the fact already been defined? -> Not new!
+    if (_defined_facts.count(fact)) return;
+    _defined_facts.insert(fact);
     
     if (initiallyFalse) newPos.addFalseFact(fact);
     else newPos.addTrueFact(fact);

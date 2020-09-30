@@ -120,6 +120,7 @@ public:
     int solve();
 
     void addUnitConstraint(int lit);
+    void setNecessaryFacts(USigSet& set);
 
     float getTimeSinceSatCallStart();
 

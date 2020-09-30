@@ -29,7 +29,7 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
 void Encoding::encode(size_t layerIdx, size_t pos) {
     _termination_callback();
 
-    Log::v("Encoding ...\n");
+    //Log::v("Encoding ...\n");
     int priorNumClauses = _num_cls;
     int priorNumLits = _num_lits;
     _layer_idx = layerIdx;
@@ -89,7 +89,7 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
     }
     end(STAGE_AXIOMATICOPS);
 
-    Log::v("Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
+    Log::v("  Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
 
     clearDonePositions();
 }
@@ -160,14 +160,15 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     // Reuse variables from above position
     if (newPos.getLayerIndex() > 0 && _offset == 0) {
-        newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
+        //newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
+        above.moveVariableTable(VarType::FACT, newPos);
     }
 
     if (_pos == 0) {
         // Encode all definitive facts
         const USigSet* defFacts[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()};
         for (auto set : defFacts) for (const auto& fact : *set) {
-            if (!newPos.hasVariable(VarType::FACT, fact)) 
+            if (!newPos.hasVariable(VarType::FACT, fact) && _htn.isRelevant(fact)) 
                 _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, fact, false));
         }
     } else {
@@ -189,7 +190,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     begin(STAGE_TRUEFACTS);
     const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
     for (int i = 0; i < 2; i++) 
-    for (const USignature& factSig : *cHere[i]) {
+    for (const USignature& factSig : *cHere[i]) if (_htn.isRelevant(factSig)) {
         int var = newPos.getVariableOrZero(VarType::FACT, factSig);
         if (var == 0) {
             // Variable is not encoded yet.
@@ -198,6 +199,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
             // Variable is already encoded. If the variable is new, constrain it.
             if (_new_fact_vars.count(var)) addClause((i == 0 ? 1 : -1) * var);
         }
+        Log::d("DEFFACT %s\n", TOSTR(factSig));
     }
     end(STAGE_TRUEFACTS);
 }
@@ -215,16 +217,17 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
     bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
 
+    /*
     Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
     Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
     bool leftOfAboveFullyPrimitive = leftOfAbove.hasPrimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
-
+    */
     // Retrieve direct supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
     // (also from above position)
-    const NodeHashMap<USignature, USigSet, USignatureHasher>* aboveSupports[2] 
-            = {&above.getNegFactSupports(), &above.getPosFactSupports()};
+    //const NodeHashMap<USignature, USigSet, USignatureHasher>* aboveSupports[2] 
+    //        = {&above.getNegFactSupports(), &above.getPosFactSupports()};
     
     // Structures for indirect supports:
     // Maps each fact to a map of operation variables to a tree of substitutions 
@@ -314,6 +317,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
         // Check if there is already an equivalent fact support ABOVE
         // (only if at offset 0, and if the frame axioms are not trivial either way)
+        /*
         bool skip[2] = {false, false};
         if (leftOfAboveFullyPrimitive && !reuse && hasPrimitiveOps && _offset == 0) {
             int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
@@ -347,7 +351,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                     skipped++;
                 }
             } 
-        }
+        }*/
 
         // Decide on the fact variable to use (reuse or encode)
         if (factVar == 0) {
@@ -371,7 +375,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
-            if (skip[i]) continue;
+            //if (skip[i]) continue;
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);
@@ -825,7 +829,7 @@ void Encoding::clearDonePositions() {
         positionToClearLeft = &_layers.at(_layer_idx-1)->last();
     } else if (_pos > 0) positionToClearLeft = &_layers.at(_layer_idx)->at(_pos-1);
     if (positionToClearLeft != nullptr) {
-        Log::v("Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
+        Log::v("  Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
         positionToClearLeft->clearAtPastPosition();
     }
 
@@ -840,7 +844,7 @@ void Encoding::clearDonePositions() {
         positionToClearAbove = &_layers.at(_layer_idx-1)->at(_old_pos-1);
     }
     if (positionToClearAbove != nullptr) {
-        Log::v("Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
+        Log::v("  Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
         positionToClearAbove->clearAtPastLayer();
     }
 }

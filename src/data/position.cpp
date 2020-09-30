@@ -113,7 +113,11 @@ void Position::moveFactChanges(Position& dest, const USignature& op) {
 
 void Position::removeActionOccurrence(const USignature& action) {
     assert(_actions.count(action));
-     _actions.erase(action);
+    _actions.erase(action);
+    for (auto& [parent, children] : _expansions) {
+        children.erase(action);
+    }
+    _predecessors.erase(action);
 }
 void Position::removeReductionOccurrence(const USignature& reduction) {
     assert(_reductions.count(reduction));

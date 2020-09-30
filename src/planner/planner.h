@@ -33,8 +33,8 @@ private:
     USigSet _init_state;
     USigSet _pos_layer_facts;
     USigSet _neg_layer_facts;
-    USigSet _prev_necessary_facts;
-    USigSet _new_necessary_facts;
+    USigSet _necessary_facts;
+    USigSet _defined_facts;
 
     size_t _layer_idx;
     size_t _pos;

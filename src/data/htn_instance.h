@@ -107,6 +107,8 @@ private:
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
 
+    USigSet _relevant_facts;
+
 public:
 
     // Special action representing a virtual "No-op".
@@ -170,6 +172,18 @@ public:
     USignature cutNonoriginalTaskArguments(const USignature& sig);
     int getSplitAction(int firstActionName);
     const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
+
+    inline const USigSet& getRelevantFacts() const {
+        return _relevant_facts;
+    }
+
+    inline void addRelevantFact(const USignature& sig) {
+        _relevant_facts.insert(sig);
+    }
+
+    inline bool isRelevant(const USignature& sig) {
+        return _relevant_facts.count(sig);
+    }
 
     Instantiator& getInstantiator();
     QConstantDatabase& getQConstantDatabase();
