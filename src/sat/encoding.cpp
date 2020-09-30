@@ -133,15 +133,19 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     if (_nonprimitive_ops.empty()) {
         // Workaround for "x-1" ID assignment of surrogate actions
         VariableDomain::nextVar(); 
+        newPos.setHasNonprimitiveOps(false);
         return;
     }
+    newPos.setHasNonprimitiveOps(true);
 
     int varPrim = encodeVarPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
 
     if (_primitive_ops.empty()) {
         // Only non-primitive ops here
         addClause(-varPrim);
+        newPos.setHasPrimitiveOps(false);
     } else {
+        newPos.setHasPrimitiveOps(true);
         // Mix of primitive and non-primitive ops (default)
         for (int aVar : _primitive_ops) addClause(-aVar, varPrim);
         for (int rVar : _nonprimitive_ops) addClause(-rVar, -varPrim);
@@ -156,7 +160,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     // Reuse variables from above position
     if (newPos.getLayerIndex() > 0 && _offset == 0) {
-        above.moveVariableTable(VarType::FACT, newPos);
+        newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
     }
 
     if (_pos == 0) {
@@ -212,6 +216,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
 
     Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
+    Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
+    bool leftOfAboveFullyPrimitive = leftOfAbove.hasPrimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
 
     // Retrieve direct supports
     const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
@@ -281,6 +287,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
         const USigSet* dir[2] = {nullptr, nullptr};
         const NodeHashMap<int, LiteralTree>* indir[2] = {nullptr, nullptr};
+        bool hasSomeSupport[2] = {false, false};
 
         // Retrieve direct and indirect support for this fact
         bool reuse = true;
@@ -290,6 +297,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 if (it != indirectSupports[i]->end()) {
                     indir[i] = &(it->second);
                     reuse = false;
+                    hasSomeSupport[i] = true;
                 } 
             }
             if (!dirEmpty[i]) {
@@ -297,6 +305,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 if (it != supports[i]->end()) {
                     dir[i] = &(it->second);
                     reuse = false;
+                    hasSomeSupport[i] = true;
                 }
             }
         }
@@ -305,35 +314,37 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
         // Check if there is already an equivalent fact support ABOVE
         // (only if at offset 0, and if the frame axioms are not trivial either way)
-        if (!reuse && hasPrimitiveOps && _offset == 0) {
+        bool skip[2] = {false, false};
+        if (leftOfAboveFullyPrimitive && !reuse && hasPrimitiveOps && _offset == 0) {
             int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
             if (aboveVar != 0) {
-                bool skip = true;
                 // Check for equivalence of fact support
+                bool setEquivalent = false;
                 for (int i = 0; i < 2; i++) {
-                    auto it = supports[i]->find(fact);
-                    bool hasSupport = it != supports[i]->end();
+
+                    assert(false);
+
+                    // Equivalent support at the two positions?
                     auto aboveIt = aboveSupports[i]->find(fact);
-                    bool aboveHasSupport = aboveIt != aboveSupports[i]->end();
-                    if (hasSupport != aboveHasSupport) {
-                        skip = false;
-                        break;
-                    }
-                    if (hasSupport && *it != *aboveIt) {
-                        skip = false;
-                        break;
-                    }
-                }
-                if (skip) {
+                    bool aboveHasSomeSupport = aboveIt != aboveSupports[i]->end();
+                    // One has some support, one does not?
+                    if (hasSomeSupport[i] != aboveHasSomeSupport) continue;
+                    // Different supports?
+                    if (hasSomeSupport[i] && *dir[i] != aboveIt->second) continue;
+
                     // Frame axiom was already encoded equivalently for fact above
+                    skip[i] = true;
+                    Log::d("Skipping frame axiom of %s; %i supporting ops\n", TOSTR(fact), 
+                            !hasSomeSupport[i]?0:dir[i]->size());
+                    
                     if (factVar == 0) newPos.setVariable(VarType::FACT, fact, aboveVar);
-                    else if (factVar != aboveVar) {
+                    else if (factVar != aboveVar && !setEquivalent) {
                         // Need to link fact variables
                         addClause(-aboveVar, factVar);
                         addClause(aboveVar, -factVar);
+                        setEquivalent = true;
                     }
                     skipped++;
-                    continue;
                 }
             } 
         }
@@ -360,6 +371,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
+            if (skip[i]) continue;
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);

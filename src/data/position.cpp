@@ -30,6 +30,19 @@ void Position::touchFactSupport(const USignature& fact, bool negated) {
     if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
     (*supp)[fact];
 }
+void Position::setHasPrimitiveOps(bool has) {
+    _has_primitive_ops = has;
+}
+void Position::setHasNonprimitiveOps(bool has) {
+    _has_nonprimitive_ops = has;
+}
+bool Position::hasPrimitiveOps() {
+    return _has_primitive_ops;
+}
+bool Position::hasNonprimitiveOps() {
+    return _has_nonprimitive_ops;
+}
+
 void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c) {
     auto& vec = _q_constants_type_constraints[op];
     vec.push_back(c);
@@ -109,6 +122,13 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable(VarType type) const {
     return type == OP ? _op_variables : _fact_variables;
+}
+void Position::setVariableTable(VarType type, const NodeHashMap<USignature, int, USignatureHasher>& table) {
+    if (type == OP) {
+        _op_variables = table;
+    } else {
+        _fact_variables = table;
+    }
 }
 void Position::moveVariableTable(VarType type, Position& destination) {
     auto& src = type == OP ? _op_variables : _fact_variables;

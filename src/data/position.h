@@ -60,6 +60,9 @@ private:
     NodeHashMap<USignature, int, USignatureHasher> _op_variables;
     NodeHashMap<USignature, int, USignatureHasher> _fact_variables;
 
+    bool _has_primitive_ops = false;
+    bool _has_nonprimitive_ops = false;
+
 public:
 
     Position();
@@ -74,6 +77,11 @@ public:
     void touchFactSupport(const Signature& fact);
     void touchFactSupport(const USignature& fact, bool negated);
     void addIndirectFactSupport(const Signature& fact, const USignature& op, const Substitution& s);
+    void setHasPrimitiveOps(bool has);
+    void setHasNonprimitiveOps(bool has);
+    bool hasPrimitiveOps();
+    bool hasNonprimitiveOps();
+
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
 
     void addForbiddenSubstitution(const USignature& op, Substitution& s);
@@ -101,6 +109,7 @@ public:
     void removeReductionOccurrence(const USignature& reduction);
 
     const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable(VarType type) const;
+    void setVariableTable(VarType type, const NodeHashMap<USignature, int, USignatureHasher>& table);
     void moveVariableTable(VarType type, Position& destination);
 
     bool hasQFact(const USignature& fact) const;
