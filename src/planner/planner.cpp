@@ -413,6 +413,7 @@ void Planner::createNextLayer() {
             );
 
             _pos++;
+            checkTermination();
         }
     }
 
@@ -582,46 +583,52 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
 
-    if (isQFact) {
-        // Get forbidden substitutions for this operation
-        const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
-                &left.getForbiddenSubstitutions().at(opSig) : nullptr;
+    if (!isQFact) {
+        if (mode != INDIRECT) _htn.addRelevantFact(factAbs);
 
-        // Create the full set of valid decodings for this qfact
-        std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
-        bool anyGood = false;
-        for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
-
-            // Check if this decoding is known to be invalid    
-            Substitution s(factAbs._args, decFactAbs._args);
-            if (invalids != nullptr && invalids->count(s)) continue;
-            
-            // Valid effect decoding
-            getCurrentState(fact._negated).insert(decFactAbs);
-            pos.touchFactSupport(decFactAbs, fact._negated);
-            if (mode != INDIRECT) {
-                pos.addQFactDecoding(factAbs, decFactAbs);
-                _htn.addRelevantFact(decFactAbs);
-            }
-            anyGood = true;
+        // Depending on whether fact supports are encoded for primitive ops only,
+        // add the ground fact to the op's support accordingly
+        if (_nonprimitive_support || _htn.isAction(opSig)) {
+            pos.addFactSupport(fact, opSig);
+        } else {
+            // Remember that there is some (unspecified) support for this fact
+            pos.touchFactSupport(fact);
         }
-        // Not a single valid decoding of the effect? -> Invalid effect.
-        if (!anyGood) return false;
-
-        if (mode == DIRECT) pos.addQFact(factAbs);
-
-    } else if (mode != INDIRECT) _htn.addRelevantFact(factAbs);
-
-    // Depending on whether fact supports are encoded for primitive ops only,
-    // add the fact to the op's support accordingly
-    if (_nonprimitive_support || _htn.isAction(opSig)) {
-        pos.addFactSupport(fact, opSig);
-    } else {
-        // Remember that there is some (unspecified) support for this fact
-        pos.touchFactSupport(fact);
+        
+        getCurrentState(fact._negated).insert(fact._usig);
+        return true;
     }
-    
-    getCurrentState(fact._negated).insert(fact._usig);
+
+    // Get forbidden substitutions for this operation
+    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
+            &left.getForbiddenSubstitutions().at(opSig) : nullptr;
+
+    // Create the full set of valid decodings for this qfact
+    std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
+    bool anyGood = false;
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
+
+        // Check if this decoding is known to be invalid    
+        Substitution s(factAbs._args, decFactAbs._args);
+        if (invalids != nullptr && invalids->count(s)) continue;
+        
+        // Valid effect decoding
+        getCurrentState(fact._negated).insert(decFactAbs);
+        if (_nonprimitive_support || _htn.isAction(opSig)) {
+            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(s));
+        } else {
+            pos.touchFactSupport(decFactAbs, fact._negated);
+        }
+        if (mode != INDIRECT) {
+            pos.addQFactDecoding(factAbs, decFactAbs);
+            _htn.addRelevantFact(decFactAbs);
+        }
+        anyGood = true;
+    }
+    // Not a single valid decoding of the effect? -> Invalid effect.
+    if (!anyGood) return false;
+
+    if (mode == DIRECT) pos.addQFact(factAbs);
     return true;
 }
 

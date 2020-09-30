@@ -12,6 +12,8 @@
 #include "util/log.h"
 
 typedef std::pair<int, int> IntPair;
+typedef NodeHashMap<USignature, std::vector<Substitution>, USignatureHasher> IndirectFactSupportMapEntry;
+typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 
 enum VarType { FACT, OP };
 
@@ -21,7 +23,8 @@ public:
     const static USignature NONE_SIG;
     const static SigSet EMPTY_SIG_SET;
     const static USigSet EMPTY_USIG_SET;
-    const static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
+    static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
+    static IndirectFactSupportMap EMPTY_INDIRECT_FACT_SUPPORT_MAP;
 
 private:
     size_t _layer_idx;
@@ -48,6 +51,8 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher>* _pos_fact_supports = nullptr;
     NodeHashMap<USignature, USigSet, USignatureHasher>* _neg_fact_supports = nullptr;
+    IndirectFactSupportMap* _pos_indir_fact_supports = nullptr;
+    IndirectFactSupportMap* _neg_indir_fact_supports = nullptr;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 
@@ -76,7 +81,8 @@ public:
     void addFactSupport(const Signature& fact, const USignature& operation);
     void touchFactSupport(const Signature& fact);
     void touchFactSupport(const USignature& fact, bool negated);
-    void addIndirectFactSupport(const Signature& fact, const USignature& op, const Substitution& s);
+    void addIndirectFactSupport(const Signature& fact, const USignature& op, Substitution&& sub);
+    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, Substitution&& sub);
     void setHasPrimitiveOps(bool has);
     void setHasNonprimitiveOps(bool has);
     bool hasPrimitiveOps();
@@ -120,8 +126,10 @@ public:
     int getNumQFacts() const;
     const USigSet& getTrueFacts() const;
     const USigSet& getFalseFacts() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports() const;
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports();
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports();
+    IndirectFactSupportMap& getPosIndirectFactSupports();
+    IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
     const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
     getForbiddenSubstitutions() const;

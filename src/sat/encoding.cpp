@@ -96,7 +96,6 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
 
 void Encoding::encodeOperationVariables(Position& newPos) {
 
-    _nonprimitive_only_at_prior_pos = _primitive_ops.empty();
     _primitive_ops.clear();
     _nonprimitive_ops.clear();
 
@@ -126,6 +125,9 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
 
+    newPos.setHasPrimitiveOps(!_primitive_ops.empty());
+    newPos.setHasNonprimitiveOps(!_nonprimitive_ops.empty());
+    
     // Implicit primitiveness?
     if (_implicit_primitiveness) return;
 
@@ -133,19 +135,15 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     if (_nonprimitive_ops.empty()) {
         // Workaround for "x-1" ID assignment of surrogate actions
         VariableDomain::nextVar(); 
-        newPos.setHasNonprimitiveOps(false);
         return;
     }
-    newPos.setHasNonprimitiveOps(true);
 
     int varPrim = encodeVarPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
 
     if (_primitive_ops.empty()) {
         // Only non-primitive ops here
         addClause(-varPrim);
-        newPos.setHasPrimitiveOps(false);
     } else {
-        newPos.setHasPrimitiveOps(true);
         // Mix of primitive and non-primitive ops (default)
         for (int aVar : _primitive_ops) addClause(-aVar, varPrim);
         for (int rVar : _nonprimitive_ops) addClause(-rVar, -varPrim);
@@ -160,8 +158,8 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     // Reuse variables from above position
     if (newPos.getLayerIndex() > 0 && _offset == 0) {
-        //newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
-        above.moveVariableTable(VarType::FACT, newPos);
+        newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
+        //above.moveVariableTable(VarType::FACT, newPos);
     }
 
     if (_pos == 0) {
@@ -204,82 +202,90 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     end(STAGE_TRUEFACTS);
 }
 
-void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
+std::pair<IndirectSupport, IndirectSupport> Encoding::computeFactSupports(Position& newPos, Position& left) {
     static Position NULL_POS;
 
-    begin(STAGE_DIRECTFRAMEAXIOMS);
-
-    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher>;
-    bool nonprimFactSupport = _params.isNonzero("nps");
-
-    int layerIdx = newPos.getLayerIndex();
-    int pos = newPos.getPositionIndex();
-    int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
-    bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
-
-    /*
-    Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
-    Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
-    bool leftOfAboveFullyPrimitive = leftOfAbove.hasPrimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
-    */
-    // Retrieve direct supports
-    const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
+    // Retrieve supports
+    NodeHashMap<USignature, USigSet, USignatureHasher>* dirSupports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
-    // (also from above position)
-    //const NodeHashMap<USignature, USigSet, USignatureHasher>* aboveSupports[2] 
-    //        = {&above.getNegFactSupports(), &above.getPosFactSupports()};
+    IndirectFactSupportMap* indirSupports[2] 
+            = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
     
     // Structures for indirect supports:
     // Maps each fact to a map of operation variables to a tree of substitutions 
     // which make the operation (possibly) change the variable.
-    IndirectSupport indirectPosSupport, indirectNegSupport;
-    const IndirectSupport* indirectSupports[2] 
-            = {&indirectNegSupport, &indirectPosSupport};
-    // Compute indirect supports
-    for (const auto& op : left.getActions()) {
-        int opVar = getVariable(VarType::OP, left, op);
-        USignature opNorm = _htn.isVirtualizedChildOfAction(op._name_id) ? 
-                op.renamed(_htn.getActionNameOfVirtualizedChild(op._name_id)) : op;
+    std::pair<IndirectSupport, IndirectSupport> result;
+    auto& [negResult, posResult] = result;
+
+    // For both fact polarities
+    for (size_t i = 0; i < 2; i++) {
         
-        for (const auto& eff : left.getFactChanges(op)) {
-            if (!_htn.hasQConstants(eff._usig)) continue;
-            if (!newPos.hasQFactDecodings(eff._usig)) continue;
+        // For each fact with some indirect support, for each action in the support
+        auto& output = i == 0 ? negResult : posResult;
+        for (const auto& [fact, entry] : *indirSupports[i]) for (const auto& [op, subs] : entry) {
+            assert(!_htn.isVirtualizedChildOfAction(op._name_id));
+
+            // Skip if the operation is already a DIRECT support for the fact
+            auto it = dirSupports[i]->find(fact);
+            if (it != dirSupports[i]->end() && it->second.count(op)) continue;
+
+            int opVar = left.getVariableOrZero(VarType::OP, op);
+            USignature virtOp(_htn.getVirtualizedChildNameOfAction(op._name_id), op._args);
+            int virtOpVar = left.getVariableOrZero(VarType::OP, virtOp);
             
-            auto& support = eff._negated ? *supports[0] : *supports[1];
-            auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
+            // Not an encoded action? (May have been pruned away)
+            if (opVar == 0 && virtOpVar == 0) continue;
 
-            for (const auto& decEff : newPos.getQFactDecodings(eff._usig)) {
-
-                // Are there any primitive ops at this position?
-                if (hasPrimitiveOps) {
-                    // Skip if the operation is already a DIRECT support for the fact
-                    auto it = support.find(decEff);
-                    if (it != support.end() && it->second.count(opNorm)) continue;
-                
-                    // Convert into a vector of substitution variables
-                    Substitution s(eff._usig._args, decEff._args);
-                    std::vector<int> sVars(s.size());
-                    size_t i = 0;
-                    for (const auto& [src, dest] : s) {
-                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                    }
-                    std::sort(sVars.begin(), sVars.end());
-
-                    // Insert into according support tree
-                    indirectSupport[decEff][opVar].insert(std::move(sVars));
-                } else {
-                    // No frame axioms will be encoded: 
-                    // Just remember that there is some support for this fact
-                    indirectSupport[decEff];
+            // For each substitution leading to the desired ground effect:
+            for (const auto& s : subs) {
+                assert(!s.empty());
+                std::vector<int> sVars(s.size());
+                size_t i = 0;
+                for (const auto& [src, dest] : s) {
+                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
                 }
+                std::sort(sVars.begin(), sVars.end());
+
+                // Insert into according support tree
+                if (opVar != 0) output[fact][opVar].insert(sVars);
+                if (virtOpVar != 0) output[fact][virtOpVar].insert(sVars);
             }
         }
     }
 
-    // Remember which of the (potentially large) support structures are empty
-    // such that no hash map retrieval will be attempted at all for these
-    const bool indirEmpty[2] = {indirectSupports[0]->empty(), indirectSupports[1]->empty()};
-    const bool dirEmpty[2] = {supports[0]->empty(), supports[1]->empty()};
+    return result;
+}
+
+void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
+    static Position NULL_POS;
+
+    using Supports = const NodeHashMap<USignature, USigSet, USignatureHasher>;
+
+    begin(STAGE_DIRECTFRAMEAXIOMS);
+
+    bool nonprimFactSupport = _params.isNonzero("nps");
+    bool hasPrimitiveOps = left.hasPrimitiveOps();
+
+    int layerIdx = newPos.getLayerIndex();
+    int pos = newPos.getPositionIndex();
+    int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
+
+    Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
+    Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
+    bool skipRedundantFrameAxioms = _params.isNonzero("srfa") && _offset == 0
+        && hasPrimitiveOps && !left.hasNonprimitiveOps()
+        && leftOfAbove.hasPrimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
+
+    // Retrieve supports from left position
+    Supports* supp[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
+    IndirectFactSupportMap* iSupp[2] = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
+    // Retrieve indirect support substitutions
+    auto [negIS, posIS] = computeFactSupports(newPos, left);
+    IndirectSupport* iSuppTrees[2] = {&negIS, &posIS};
+
+    // Retrieve supports from above position
+    Supports* aboveSupp[2] = {&above.getNegFactSupports(), &above.getPosFactSupports()};
+    IndirectFactSupportMap* aboveISupp[2] = {&above.getNegIndirectFactSupports(), &above.getPosIndirectFactSupports()};
     
     // Find and encode frame axioms for each applicable fact from the left
     size_t skipped = 0;
@@ -287,29 +293,30 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         if (_htn.hasQConstants(fact)) continue;
         
         int oldFactVars[2] = {-var, var};
-
         const USigSet* dir[2] = {nullptr, nullptr};
-        const NodeHashMap<int, LiteralTree>* indir[2] = {nullptr, nullptr};
-        bool hasSomeSupport[2] = {false, false};
+        const IndirectFactSupportMapEntry* indir[2] = {nullptr, nullptr};
+        const NodeHashMap<int, LiteralTree>* tree[2] = {nullptr, nullptr};
 
         // Retrieve direct and indirect support for this fact
         bool reuse = true;
         for (int i = 0; i < 2; i++) {
-            if (!indirEmpty[i]) {
-                auto it = indirectSupports[i]->find(fact);
-                if (it != indirectSupports[i]->end()) {
-                    indir[i] = &(it->second);
-                    reuse = false;
-                    hasSomeSupport[i] = true;
-                } 
-            }
-            if (!dirEmpty[i]) {
-                auto it = supports[i]->find(fact);
-                if (it != supports[i]->end()) {
+            if (!supp[i]->empty()) { // Direct support
+                auto it = supp[i]->find(fact);
+                if (it != supp[i]->end()) {
                     dir[i] = &(it->second);
                     reuse = false;
-                    hasSomeSupport[i] = true;
-                }
+                } 
+            }
+            if (!iSupp[i]->empty()) { // Indirect support & tree
+                auto it = iSupp[i]->find(fact);
+                if (it != iSupp[i]->end()) {
+                    indir[i] = &(it->second);
+                    reuse = false;
+                    auto itt = iSuppTrees[i]->find(fact);
+                    if (itt != iSuppTrees[i]->end()) {
+                        tree[i] = &(itt->second);
+                    }
+                } 
             }
         }
 
@@ -317,41 +324,62 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
 
         // Check if there is already an equivalent fact support ABOVE
         // (only if at offset 0, and if the frame axioms are not trivial either way)
-        /*
         bool skip[2] = {false, false};
-        if (leftOfAboveFullyPrimitive && !reuse && hasPrimitiveOps && _offset == 0) {
+        if (skipRedundantFrameAxioms && !reuse) {
             int aboveVar = above.getVariableOrZero(VarType::FACT, fact);
             if (aboveVar != 0) {
+                // Should reuse variable from above
+                assert(factVar == aboveVar);
+
                 // Check for equivalence of fact support
-                bool setEquivalent = false;
                 for (int i = 0; i < 2; i++) {
+                    int suppSize = 0;
+                    {
+                        // Equivalent direct support at the two positions?
+                        auto aboveIt = aboveSupp[i]->find(fact);
+                        if (aboveIt == aboveSupp[i]->end() && dir[i] != nullptr)
+                            // No support above, but support to the left
+                            continue;
+                        if (aboveIt != aboveSupp[i]->end()) {
+                            if (dir[i] == nullptr)
+                                // Support above, but no support to the left
+                                continue;
+                            // Both have some support
+                            auto* aboveDir = &aboveIt->second;
+                            if (*dir[i] != *aboveDir) continue; // Support not equal
+                            suppSize += dir[i]->size();
+                        }
+                    }
+                    {
+                        // Equivalent indirect support at the two positions?
+                        auto aboveIt = aboveISupp[i]->find(fact);
+                        if (aboveIt == aboveISupp[i]->end() && indir[i] != nullptr)
+                            // No support above, but support to the left
+                            continue;
+                        if (aboveIt != aboveISupp[i]->end()) {
+                            if (indir[i] == nullptr)
+                                // Support above, but no support to the left
+                                continue;
+                            // Both have some support
+                            auto* aboveIndir = &aboveIt->second;
+                            if (indir[i]->size() != aboveIndir->size()) continue; // different #entries
+                            bool ok = true;
+                            for (const auto& [op, subs] : *indir[i]) {
+                                if (!aboveIndir->count(op)) {ok = false; break;} // entry not in both
+                            }
+                            if (!ok) continue;
+                            suppSize += indir[i]->size();
+                        }
+                    }
 
-                    assert(false);
-
-                    // Equivalent support at the two positions?
-                    auto aboveIt = aboveSupports[i]->find(fact);
-                    bool aboveHasSomeSupport = aboveIt != aboveSupports[i]->end();
-                    // One has some support, one does not?
-                    if (hasSomeSupport[i] != aboveHasSomeSupport) continue;
-                    // Different supports?
-                    if (hasSomeSupport[i] && *dir[i] != aboveIt->second) continue;
-
+                    // All equivalence checks passed:
                     // Frame axiom was already encoded equivalently for fact above
                     skip[i] = true;
-                    Log::d("Skipping frame axiom of %s; %i supporting ops\n", TOSTR(fact), 
-                            !hasSomeSupport[i]?0:dir[i]->size());
-                    
-                    if (factVar == 0) newPos.setVariable(VarType::FACT, fact, aboveVar);
-                    else if (factVar != aboveVar && !setEquivalent) {
-                        // Need to link fact variables
-                        addClause(-aboveVar, factVar);
-                        addClause(aboveVar, -factVar);
-                        setEquivalent = true;
-                    }
+                    Log::d("Skipping frame axiom of %s; %i supporting ops\n", TOSTR(fact), suppSize);
                     skipped++;
                 }
             } 
-        }*/
+        }
 
         // Decide on the fact variable to use (reuse or encode)
         if (factVar == 0) {
@@ -375,7 +403,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
-            //if (skip[i]) continue;
+            if (skip[i]) continue;
             // Fact change:
             if (oldFactVars[i] != 0) appendClause(oldFactVars[i]);
             appendClause(-sign*factVar);
@@ -391,11 +419,13 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                     int opVar = left.getVariableOrZero(VarType::OP, opSig);
                     if (opVar > 0) appendClause(opVar);
                     USignature virt = opSig.renamed(_htn.getVirtualizedChildNameOfAction(opSig._name_id));
-                    if (left.getActions().count(virt)) appendClause(left.getVariable(VarType::OP, virt));
+                    int virtOpVar = left.getVariableOrZero(VarType::OP, virt);
+                    if (virtOpVar > 0) appendClause(virtOpVar);
                 }
                 // INDIRECT support
-                if (indir[i] != nullptr) for (const auto& [opVar, subs] : *indir[i]) 
-                    appendClause(opVar);
+                if (tree[i] != nullptr) for (const auto& [var, tree] : *tree[i]) {
+                    appendClause(var);
+                }
             }
             endClause();
         }
@@ -406,7 +436,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
             factVar *= -1;
-            if (indir[i] == nullptr) continue;
+            if (skip[i]) continue;
+            if (tree[i] == nullptr) continue;
 
             // -- 1st part of each clause: "head literals"
             std::vector<int> headLits;
@@ -421,7 +452,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             } 
 
             // Encode indirect support constraints
-            for (const auto& [opVar, tree] : *indir[i]) {
+            for (const auto& [opVar, tree] : *tree[i]) {
                 
                 // Unconditional effect?
                 if (tree.containsEmpty()) continue;

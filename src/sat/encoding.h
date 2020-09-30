@@ -17,6 +17,7 @@ extern "C" {
 #include "data/htn_instance.h"
 #include "data/action.h"
 #include "sat/variable_domain.h"
+#include "sat/literal_tree.h"
 
 struct PlanItem {
     PlanItem() {
@@ -35,6 +36,7 @@ struct PlanItem {
 
 typedef NodeHashMap<int, SigSet> State;
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
+typedef NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher> IndirectSupport;
 
 class Encoding {
 
@@ -65,7 +67,6 @@ private:
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
     std::vector<int> _primitive_ops;
     std::vector<int> _nonprimitive_ops;
-    bool _nonprimitive_only_at_prior_pos;
 
     std::vector<int> _last_assumptions;
     std::vector<int> _no_decision_variables;
@@ -114,6 +115,7 @@ public:
     Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback);
     ~Encoding();
 
+    std::pair<IndirectSupport, IndirectSupport> computeFactSupports(Position& newPos, Position& left);
     void encode(size_t layerIdx, size_t pos);
     void addAssumptions(int layerIdx, bool permanent = false);
     void setTerminateCallback(void * state, int (*terminate)(void * state));

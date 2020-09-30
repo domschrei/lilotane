@@ -30,6 +30,15 @@ void Position::touchFactSupport(const USignature& fact, bool negated) {
     if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
     (*supp)[fact];
 }
+void Position::addIndirectFactSupport(const Signature& fact, const USignature& op, Substitution&& sub) {
+    addIndirectFactSupport(fact._usig, fact._negated, op, std::move(sub));
+}
+void Position::addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, Substitution&& sub) {
+    auto& supp = negated ? _neg_indir_fact_supports : _pos_indir_fact_supports;
+    if (supp == nullptr) supp = new IndirectFactSupportMap();
+    auto& set = (*supp)[fact];
+    set[op].push_back(std::move(sub));
+}
 void Position::setHasPrimitiveOps(bool has) {
     _has_primitive_ops = has;
 }
@@ -152,13 +161,21 @@ size_t Position::getPositionIndex() const {return _pos;}
 const USigSet& Position::getQFacts() const {return _qfacts;}
 const USigSet& Position::getTrueFacts() const {return _true_facts;}
 const USigSet& Position::getFalseFacts() const {return _false_facts;}
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() const {
+NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPosFactSupports() {
     if (_pos_fact_supports == nullptr) return EMPTY_USIG_TO_USIG_SET_MAP;
     return *_pos_fact_supports;
 }
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSupports() const {
+NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getNegFactSupports() {
     if (_neg_fact_supports == nullptr) return EMPTY_USIG_TO_USIG_SET_MAP;
     return *_neg_fact_supports;
+}
+IndirectFactSupportMap& Position::getPosIndirectFactSupports() {
+    if (_pos_indir_fact_supports == nullptr) return EMPTY_INDIRECT_FACT_SUPPORT_MAP;
+    return *_pos_indir_fact_supports;
+}
+IndirectFactSupportMap& Position::getNegIndirectFactSupports() {
+    if (_neg_indir_fact_supports == nullptr) return EMPTY_INDIRECT_FACT_SUPPORT_MAP;
+    return *_neg_indir_fact_supports;
 }
 const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Position::getQConstantsTypeConstraints() const {
     return _q_constants_type_constraints;
@@ -204,6 +221,8 @@ void Position::clearAtPastPosition() {
 void Position::clearAtPastLayer() {
     if (_pos_fact_supports != nullptr) delete _pos_fact_supports;
     if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
+    if (_pos_indir_fact_supports != nullptr) delete _pos_indir_fact_supports;
+    if (_neg_indir_fact_supports != nullptr) delete _neg_indir_fact_supports;
     _fact_changes.clear();
     _fact_changes.reserve(0);
     _true_facts.clear();
