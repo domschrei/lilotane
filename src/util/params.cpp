@@ -62,7 +62,7 @@ void Parameters::setDefaults() {
     setParam("qq", "1"); // q-constants without instantiation of preconditions
     setParam("s", "0"); // random seed
     setParam("sace", "0"); // split actions with (potentially) conflicting effects
-    setParam("srfa", "0"); // skip redundant frame axioms
+    setParam("srfa", "1"); // skip redundant frame axioms
     setParam("stats", "0"); // output domain statistics and exit
     setParam("stl", "0"); // SAT time limit
     setParam("surr", "1"); // replace surrogate methods
