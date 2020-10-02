@@ -85,11 +85,8 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
 
             newArgs[argPos] = constantsPerArg[argPos][counter[argPos]];
         }
-        // There may be multiple possible substitutions
-        for (const Substitution& s : Substitution::getAll(sig._args, newArgs)) {
-            instantiation.push_back(sig.substitute(s));            
-        }
-
+        instantiation.emplace_back(sig._name_id, newArgs);
+        
         // Increment exponential counter
         size_t x = 0;
         while (x < counter.size()) {
@@ -109,9 +106,9 @@ std::vector<USignature> ArgIterator::instantiate(const USignature& sig, const st
         // Counter finished?
         if (counter[x] == 0 && x+1 == counter.size()) break;
     }
-
+    
     assert(numChoices <= numInstantiations || 
-        Log::e("Erroneous instantiation: %s > %s\n", numChoices, numInstantiations));
+        Log::e("Erroneous instantiation: %i > %i\n", numChoices, numInstantiations));
     
     return instantiation;
 }

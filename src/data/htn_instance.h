@@ -51,6 +51,8 @@ private:
     // Set of all q-constant IDs.
     FlatHashSet<int> _q_constants;
 
+    NodeHashMap<int, NodeHashMap<USignature, std::vector<int>, USignatureHasher>> _q_const_to_op_domains;  
+
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
     NodeHashMap<int, std::vector<int>> _signature_sorts_table;
 
@@ -65,12 +67,8 @@ private:
     // Maps each {action,reduction} name ID to the number of task variables it originally had.
     FlatHashMap<int, int> _original_n_taskvars;
 
-    // Lookup table for the possible decodings of a fact signature with ground, lifted, and/or
-    // q-constant arguments.
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
-
     // Lookup table for the possible decodings of a fact signature with normalized arguments.    
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_normalized;
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
 
     // Collection of a set of q-constant substitutions which are invalid. 
     // Periodically cleared after being encoded.
@@ -106,6 +104,8 @@ private:
     
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
+
+    const bool _share_q_constants;
 
     USigSet _relevant_facts;
 
@@ -152,10 +152,11 @@ public:
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
     const FlatHashSet<int>& getDomainOfQConstant(int qconst) const;
+    std::vector<int> popOperationDependentDomainOfQConstant(int qconst, const USignature& op);
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    const std::vector<USignature>& decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 
     void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
@@ -278,7 +279,7 @@ private:
     Action& createAction(const task& task);
 
     std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state);
-    int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
+    void addQConstant(int id, const FlatHashSet<int>& domain);
 
 };
 

@@ -64,6 +64,7 @@ private:
     int _substitute_name_id;
 
     FlatHashSet<int> _q_constants;
+    FlatHashSet<int> _new_q_constants;
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
     std::vector<int> _primitive_ops;
     std::vector<int> _nonprimitive_ops;
@@ -147,7 +148,7 @@ private:
     void encodeFactVariables(Position& pos, Position& left, Position& above);
     void encodeFrameAxioms(Position& pos, Position& left);
     void encodeOperationConstraints(Position& pos);
-    void encodeSubstitutionVars(int opVar, int qconst, Position& pos);
+    void encodeSubstitutionVars(const USignature& opSig, int opVar, int qconst, Position& pos);
     void encodeQFactSemantics(Position& pos);
     void encodeActionEffects(Position& pos, Position& left);
     void encodeQConstraints(Position& pos);

@@ -125,7 +125,7 @@ public:
         
         // Q-Fact:
         if (_htn->hasQConstants(sig)) {
-            for (const auto& decSig : _htn->decodeObjects(sig, true)) {
+            for (const auto& decSig : _htn->decodeObjects(sig)) {
                 if (testWithNoVarsNoQConstants(decSig, negated, state)) return true;
             }
             return false;

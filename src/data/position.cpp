@@ -207,12 +207,7 @@ void Position::clearAtPastPosition() {
     _axiomatic_ops.reserve(0);
     _q_constants_type_constraints.clear();
     _q_constants_type_constraints.reserve(0);
-    _forbidden_substitutions_per_op.clear();
-    _forbidden_substitutions_per_op.reserve(0);
-    _valid_substitutions_per_op.clear();
-    _valid_substitutions_per_op.reserve(0);
-    _qfact_decodings.clear();
-    _qfact_decodings.reserve(0);
+    clearSubstitutions();
 
     for (const auto& r : _reductions) _fact_changes.erase(r);
     _fact_changes.reserve(0);
@@ -223,6 +218,8 @@ void Position::clearAtPastLayer() {
     if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
     if (_pos_indir_fact_supports != nullptr) delete _pos_indir_fact_supports;
     if (_neg_indir_fact_supports != nullptr) delete _neg_indir_fact_supports;
+    _qfact_decodings.clear();
+    _qfact_decodings.reserve(0);
     _fact_changes.clear();
     _fact_changes.reserve(0);
     _true_facts.clear();

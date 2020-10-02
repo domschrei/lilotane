@@ -148,6 +148,12 @@ public:
     
     void clearAtPastPosition();
     void clearAtPastLayer();
+    inline void clearSubstitutions() {
+        _forbidden_substitutions_per_op.clear();
+        _forbidden_substitutions_per_op.reserve(0);
+        _valid_substitutions_per_op.clear();
+        _valid_substitutions_per_op.reserve(0);
+    }
 
     inline int encode(VarType type, const USignature& sig) {
         auto& vars = type == OP ? _op_variables : _fact_variables;

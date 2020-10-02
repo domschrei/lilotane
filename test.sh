@@ -7,6 +7,7 @@ else
 fi
 rating_timeout=1800
 domains="miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
+#domains="transport"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
@@ -107,7 +108,7 @@ for domain in $domains ; do
         if cat "$outfile"|grep -q "<=="; then
             echo -ne "Verifying ... "
             ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile" || :
-            if grep -q "false" "$verifile"; then
+            if grep -qE "Plan verification result:.*false" "$verifile"; then
                 echo -ne "${red}Verification error!${reset}"
                 if $exit_on_verify_fail ; then
                     echo " Output:"

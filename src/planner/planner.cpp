@@ -347,7 +347,6 @@ void Planner::createFirstLayer() {
             addSubstitutionConstraints(sig, goodSubs, badSubs);
             addQConstantTypeConstraints(sig);
             const PositionedUSig psig{_layer_idx,_pos,sig};
-            _htn.addQConstantConditions(r, psig, QConstantDatabase::PSIG_ROOT, 0, getStateEvaluator());
         }
     }
     introduceNewFacts();
@@ -405,7 +404,7 @@ void Planner::createNextLayer() {
             assert(newPos+offset < newLayer.size());
 
             createNextPosition();
-            Log::d("  Instantiation done. (r=%i a=%i qf=%i supp=%i)\n", 
+            Log::v("  Instantiation done. (r=%i a=%i qf=%i supp=%i)\n", 
                     (*_layers[_layer_idx])[_pos].getReductions().size(),
                     (*_layers[_layer_idx])[_pos].getActions().size(),
                     (*_layers[_layer_idx])[_pos].getQFacts().size(),
@@ -526,8 +525,8 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
     NodeHashSet<Substitution, Substitution::Hasher> goods;
     const auto& state = getStateEvaluator();
-    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, false, sorts)) {
-        
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
+
         // Can the decoded fact occur as is?
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
@@ -606,8 +605,8 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     bool anyGood = false;
-    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, true, sorts)) {
-
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
+        
         // Check if this decoding is known to be invalid    
         Substitution s(factAbs._args, decFactAbs._args);
         if (invalids != nullptr && invalids->count(s)) continue;
@@ -629,6 +628,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     if (!anyGood) return false;
 
     if (mode == DIRECT) pos.addQFact(factAbs);
+    
     return true;
 }
 
@@ -777,9 +777,6 @@ void Planner::propagateReductions(size_t offset) {
             for (const auto& rSig : parents) {
                 reductionsWithChildren.insert(rSig);
                 newPos.addExpansion(rSig, subRSig);
-                //const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
-                //_htn.addQConstantConditions(subR, PositionedUSig(_layer_idx, _pos, subRSig), 
-                //                        parentPSig, offset, getStateEvaluator());
             }
             //log("\n");
         }
@@ -801,9 +798,6 @@ void Planner::propagateReductions(size_t offset) {
             for (const auto& rSig : parents) {
                 reductionsWithChildren.insert(rSig);
                 newPos.addExpansion(rSig, aSig);
-                //const PositionedUSig parentPSig(_layer_idx-1, _old_pos, rSig);
-                //_htn.addQConstantConditions(a, PositionedUSig(_layer_idx, _pos, aSig), 
-                //                        parentPSig, offset, getStateEvaluator());
             }
         }
     }
@@ -945,7 +939,7 @@ void Planner::introduceNewFacts() {
                 introduceNewFact(newPos, eff._usig); 
             } else {
                 std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                for (const USignature& decEff : _htn.decodeObjects(eff._usig, true, sorts)) {                    
+                for (const USignature& decEff : _htn.decodeObjects(eff._usig, sorts)) {                    
                     // New fact: set before the action may happen
                     introduceNewFact(newPos, decEff);
                 }
