@@ -569,9 +569,10 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig)) {
-            int decFactVar = getVariable(VarType::FACT, newPos, decFactSig);
 
             // Assemble list of substitution variables
+            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
+            if (decFactVar == 0) continue;
             for (size_t i = 0; i < qfactSig._args.size(); i++) {
                 if (qfactSig._args[i] != decFactSig._args[i])
                     substitutionVars.push_back(
