@@ -178,8 +178,8 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
                 && !newPos.getPosFactSupports().count(qfact)
                 && !newPos.getNegFactSupports().count(qfact);
         if (reuseFromLeft) for (const auto& decFact : _htn.getQFactDecodings(qfact)) {
-            int decFactVar = getVariable(VarType::FACT, newPos, decFact);
-            if (_new_fact_vars.count(decFactVar)) {
+            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
+            if (decFactVar == 0 || _new_fact_vars.count(decFactVar)) {
                 reuseFromLeft = false;
                 break;
             }
@@ -244,6 +244,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
 
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
+                if (!newPos.hasVariable(VarType::FACT, decEff)) continue;
                 
                 // TODO Check if this is a valid effect decoding indeed.
                 // (Might happen that it isn't.) 
@@ -515,7 +516,8 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
             }
 
             // Assemble list of substitution variables
-            int decFactVar = getVariable(VarType::FACT, newPos, decFactSig);
+            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
+            if (decFactVar == 0) continue;
             for (size_t i = 0; i < qfactSig._args.size(); i++) {
                 if (qfactSig._args[i] != decFactSig._args[i])
                     substitutionVars.push_back(
