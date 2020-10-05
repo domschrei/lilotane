@@ -13,12 +13,15 @@ else
 fi
 
 # Checkout correct commit (can be updated but must be manually checked to build cleanly)
-git config --global advice.detachedHead false
+git config advice.detachedHead false
 git checkout 95bbe291c5bdb9fb517c1ad55f5136d45450c644
 
 # Patch pandaPIparser with adapted makefile and "library" header
 cp ../panda_makefile makefile
 cp ../libpanda.hpp src/
+
+# Replace the literal used for compiling out method preconditions
+sed -i 's/__method_precondition_/<method_prec>/g' src/domain.hpp
 
 # Build library (internally does a patch of pandaPIparser's main.cpp)
 make library
