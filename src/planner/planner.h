@@ -28,6 +28,9 @@ private:
     Instantiator& _instantiator;
     Encoding _enc;
 
+    USigSet _init_state_pos;
+    USigSet _init_state_neg;
+
     size_t _layer_idx;
     size_t _pos;
     size_t _old_pos;
@@ -68,8 +71,8 @@ private:
     void propagateReductions(size_t offset);
     std::vector<USignature> getAllActionsOfTask(const USignature& task, const StateEvaluator& state);
     std::vector<USignature> getAllReductionsOfTask(const USignature& task, const StateEvaluator& state);
-    void addNewFalseFacts();
-    void introduceNewFalseFact(Position& newPos, const USignature& fact);
+    void introduceNewFacts();
+    void introduceNewFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
 
     void pruneRetroactively(const NodeHashSet<PositionedUSig, PositionedUSigHasher>& updatedOps);
