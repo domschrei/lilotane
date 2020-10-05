@@ -243,7 +243,7 @@ void Planner::outputPlan() {
 
         // Do not write blank actions or the virtual goal action
         if (item.abstractTask == _htn.getBlankActionSig()) continue;
-        if (item.abstractTask._name_id == _htn.nameId("_GOAL_ACTION_")) continue;
+        if (item.abstractTask._name_id == _htn.nameId("<goal_action>")) continue;
 
         stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
         length++;
@@ -321,11 +321,7 @@ void Planner::createFirstLayer() {
 
     // Initial state
     _init_state = _htn.getInitState();
-    for (const USignature& fact : _init_state) {
-        initLayer[_pos].addTrueFact(fact);
-        _pos_layer_facts.insert(fact);
-        _defined_facts.insert(fact);
-    }
+    for (const USignature& fact : _init_state) _pos_layer_facts.insert(fact);
 
     // Instantiate all possible init. reductions
     std::vector<Reduction> roots = _instantiator.getApplicableInstantiations(
@@ -958,8 +954,8 @@ void Planner::introduceNewFact(Position& newPos, const USignature& fact) {
     
     // Has the fact already been defined? -> Not new!
     if (_defined_facts.count(fact)) return;
+
     _defined_facts.insert(fact);
-    
     if (initiallyFalse) newPos.addFalseFact(fact);
     else newPos.addTrueFact(fact);
 }

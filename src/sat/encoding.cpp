@@ -165,7 +165,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     }
 
     if (_pos == 0) {
-        // Encode all definitive facts
+        // Encode all relevant definitive facts
         const USigSet* defFacts[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()};
         for (auto set : defFacts) for (const auto& fact : *set) {
             if (!newPos.hasVariable(VarType::FACT, fact) && _htn.isRelevant(fact)) 
