@@ -244,7 +244,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
 
             for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
-                if (!newPos.hasVariable(VarType::FACT, decEff)) continue;
                 
                 // TODO Check if this is a valid effect decoding indeed.
                 // (Might happen that it isn't.) 
