@@ -1,8 +1,8 @@
 
 #include <iostream>
 #include <functional>
-#include <regex>
 #include <string>
+#include <sstream>
 
 #include "plan.hpp"
 #include "verify.hpp"
@@ -740,7 +740,7 @@ void Planner::propagateReductions(size_t offset) {
 
         // Any reduction(s) fitting the subtask?
         for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
-            
+
             if (_htn.isAction(subRSig)) {
                 // Actually an action, not a reduction: remember for later
                 allActions.push_back(subRSig);
@@ -911,7 +911,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
     if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
     if (!_instantiator.hasValidPreconditions(red.getExtraPreconditions(), getStateEvaluator())) return false;
-    
+
     sig = red.getSignature();
     _htn.addReduction(red);
 

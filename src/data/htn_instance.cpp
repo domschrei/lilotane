@@ -1,11 +1,11 @@
 
-#include <regex>
 #include <algorithm>
 #include <getopt.h>
 #include <sys/stat.h>
 
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
+#include "util/ctre.hpp"
 
 Action HtnInstance::BLANK_ACTION;
 
@@ -538,9 +538,10 @@ Reduction& HtnInstance::createReduction(method& method) {
         
         // Normalize task name
         std::string subtaskName = st.task;
-        std::smatch matches;
-        while (std::regex_match(subtaskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
-            subtaskName = matches.str(1);
+
+        static constexpr auto pattern = ctll::fixed_string{ "_splitting_method_(.*)_splitted_[0-9]+" };
+        while (auto m = ctre::match<pattern>(subtaskName)) {
+            subtaskName = m.get<1>().to_view();
         }
         Log::d("%s\n", subtaskName.c_str());
 
@@ -555,9 +556,8 @@ Reduction& HtnInstance::createReduction(method& method) {
                 
                 // Normalize task name
                 std::string taskName = t.name;
-                std::smatch matches;
-                while (std::regex_match(taskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
-                    taskName = matches.str(1);
+                while (auto m = ctre::match<pattern>(taskName)) {
+                    taskName = m.get<1>().to_view();
                 }
 
                 //Log::d(" ~~~ %s\n", taskName.c_str());
@@ -867,10 +867,11 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         }
 
         // Check possible decodings of precondition
-        const std::vector<USignature>& usigs = decodeObjects(preSig._usig, /*restrictiveSorts=*/preSorts);
-        bool anyValid = usigs.empty();
-        for (const auto& decUSig : usigs) {
-            //Log::d("------%s\n", TOSTR(decSig));
+        bool any = false;
+        bool anyValid = false;
+        for (const auto& decUSig : decodeObjects(preSig._usig, /*restrictiveSorts=*/preSorts)) {
+            any = true;
+            assert(_instantiator->isFullyGround(decUSig));
 
             // Valid?
             if (!_instantiator->testWithNoVarsNoQConstants(decUSig, preSig._negated, state)) continue;
@@ -885,7 +886,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
                 }
             }
         }
-        if (!anyValid) return vecFailure;
+        if (any && !anyValid) return vecFailure;
     }
 
     // Assemble new operator arguments
@@ -981,68 +982,39 @@ void HtnInstance::addQConstant(int id, const FlatHashSet<int>& domain) {
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
-const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig,
+ArgIterator HtnInstance::decodeObjects(const USignature& qSig,
         const std::vector<int>& restrictiveSorts) {
 
-    if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) return SIGVEC_EMPTY;
+    std::vector<std::vector<int>> eligibleArgs;
 
-    // Create normalized form of queried signature
-    std::vector<int> normArgs(qSig._args);
+    if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) 
+        return ArgIterator(qSig._name_id, std::move(eligibleArgs));
+
+    eligibleArgs.resize(qSig._args.size());
+    size_t numChoices = 1;
     for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
-        if (isVariable(arg)) {
-            normArgs[argPos] = nameId("?" + std::to_string(argPos));
-        } else if (isQConstant(arg)) {
-            normArgs[argPos] = nameId("?" + std::to_string(argPos) 
-                + "_" + std::to_string(_primary_sort_of_q_constants[arg])
-                + "_" + std::to_string(_constants_by_sort[_primary_sort_of_q_constants[arg]].size()));
-        }
-    }
-    const USignature normSig(qSig._name_id, normArgs);
-
-    // Create signature used for lookup table which also contains the restrictive sorts
-    std::vector<int> lookupArgs(normArgs);
-    lookupArgs.insert(lookupArgs.end(), restrictiveSorts.begin(), restrictiveSorts.end());
-    const USignature lookupSig(qSig._name_id, lookupArgs);
-    
-    //Log::d("DECODE_OBJECTS(%s) => %s => ", TOSTR(qSig), TOSTR(lookupSig));
-    if (!_fact_sig_decodings.count(lookupSig)) {
-        
-        std::vector<std::vector<int>> eligibleArgs(normSig._args.size());
-        for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
-            int arg = qSig._args[argPos];
-            if (isVariable(arg) || isQConstant(arg)) {
-                // Q-constant sort or variable
-                const auto& domain = _constants_by_sort.at(isQConstant(arg) ? _primary_sort_of_q_constants[arg] 
-                            : getSorts(normSig._name_id).at(argPos));
-                if (restrictiveSorts.empty()) {
-                    eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
-                } else {
-                    const auto& restrictiveDomain = _constants_by_sort.at(restrictiveSorts.at(argPos));
-                    for (int c : domain) {
-                        if (restrictiveDomain.count(c)) eligibleArgs[argPos].push_back(c);
-                    }
-                }
+        if (isVariable(arg) || isQConstant(arg)) {
+            // Q-constant sort or variable
+            const auto& domain = _constants_by_sort.at(isQConstant(arg) ? _primary_sort_of_q_constants[arg] 
+                        : getSorts(qSig._name_id).at(argPos));
+            if (restrictiveSorts.empty()) {
+                eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
             } else {
-                // normal constant
-                eligibleArgs[argPos].push_back(arg);
+                const auto& restrictiveDomain = _constants_by_sort.at(restrictiveSorts.at(argPos));
+                for (int c : domain) {
+                    if (restrictiveDomain.count(c)) eligibleArgs[argPos].push_back(c);
+                }
             }
-            assert(eligibleArgs[argPos].size() > 0);
+        } else {
+            // normal constant
+            eligibleArgs[argPos].push_back(arg);
         }
-
-        _fact_sig_decodings[lookupSig] = ArgIterator::instantiate(qSig, eligibleArgs);
-    } else {
-        //Log::log_notime(Log::V4_DEBUG, "[lookup] => ");
+        assert(eligibleArgs[argPos].size() > 0);
+        numChoices *= eligibleArgs[argPos].size();
     }
-    
-    /*
-    for (const auto& sig : _fact_sig_decodings[lookupSig]) {
-        Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(sig));
-    }
-    Log::log_notime(Log::V4_DEBUG, "\n");
-    */
 
-    return _fact_sig_decodings[lookupSig];
+    return ArgIterator(qSig._name_id, std::move(eligibleArgs));
 }
 
 const std::vector<int>& HtnInstance::getSorts(int nameId) const {

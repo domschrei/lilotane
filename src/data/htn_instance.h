@@ -156,7 +156,7 @@ public:
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 
     void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
