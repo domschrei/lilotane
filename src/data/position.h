@@ -35,7 +35,6 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
     NodeHashMap<USignature, USigSet, USignatureHasher> _predecessors;
-    NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes;
 
     USigSet _axiomatic_ops;
 
@@ -106,11 +105,7 @@ public:
     void addExpansion(const USignature& parent, const USignature& child);
     void addAxiomaticOp(const USignature& op);
     void addExpansionSize(size_t size);
-    void setFactChanges(const USignature& op, const SigSet& factChanges);
-    const SigSet& getFactChanges(const USignature& op) const;
-    bool hasFactChanges(const USignature& op) const;
-    void moveFactChanges(Position& dest, const USignature& op);
-
+    
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);
 
@@ -146,6 +141,7 @@ public:
     size_t getLayerIndex() const;
     size_t getPositionIndex() const;
     
+    void clearAfterInstantiation();
     void clearAtPastPosition();
     void clearAtPastLayer();
     inline void clearSubstitutions() {

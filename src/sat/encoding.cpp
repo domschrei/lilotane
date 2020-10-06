@@ -605,7 +605,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
         int aVar = getVariable(VarType::OP, left, aSig);
 
         for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
-                        
+        
             std::set<std::set<int>> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {

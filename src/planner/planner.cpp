@@ -370,6 +370,9 @@ void Planner::createFirstLayer() {
     
     /***** LAYER 0 END ******/
 
+    initLayer[0].clearAfterInstantiation();
+    initLayer[1].clearAfterInstantiation();
+
     _pos = 0;
     _enc.encode(_layer_idx, _pos++);
     _enc.encode(_layer_idx, _pos++);
@@ -406,11 +409,13 @@ void Planner::createNextLayer() {
                     (*_layers[_layer_idx])[_pos].getQFacts().size(),
                     (*_layers[_layer_idx])[_pos].getPosFactSupports().size() + (*_layers[_layer_idx])[_pos].getNegFactSupports().size()
             );
+            if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
             _pos++;
             checkTermination();
         }
     }
+    if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
     // Encode new layer
     Log::i("Encoding ...\n");
@@ -466,7 +471,8 @@ void Planner::createNextPositionFromLeft(Position& left) {
     USigSet actionsToRemove;
     for (const auto& aSig : left.getActions()) {
         bool repeatedAction = _htn.isVirtualizedChildOfAction(aSig._name_id);
-        for (const Signature& fact : left.getFactChanges(aSig)) {
+        const Action& a = _htn.getAction(aSig);
+        for (const Signature& fact : a.getEffects()) {
             if (!addEffect(
                     repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
                     fact, 
@@ -486,7 +492,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
     }
     for (const auto& rSig : left.getReductions()) {
         if (rSig == Position::NONE_SIG) continue;
-        for (const Signature& fact : left.getFactChanges(rSig)) {
+        for (const Signature& fact : _instantiator.getPossibleFactChanges(rSig)) {
             if (!addEffect(rSig, fact, EffectMode::INDIRECT)) {
                 // Impossible indirect effect: ignore.
             }
@@ -684,12 +690,10 @@ void Planner::propagateActions(size_t offset) {
                 Action a = _htn.getAction(vChildSig);
                 newPos.addAction(vChildSig);
                 newPos.addExpansion(aSig, vChildSig);
-                newPos.setFactChanges(vChildSig, _instantiator.getPossibleFactChanges(aSig));
             } else {
                 // Treat as a normal action
                 newPos.addAction(aSig);
                 newPos.addExpansion(aSig, aSig);
-                above.moveFactChanges(newPos, aSig);
             }
             // Add preconditions of action
             NodeHashSet<Substitution, Substitution::Hasher> badSubs;
@@ -891,9 +895,6 @@ bool Planner::addAction(Action& action) {
     
     sig = action.getSignature();
     _htn.addAction(action);
-
-    // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     //Log::d("ADDACTION -- added\n");
     return true;
@@ -914,9 +915,6 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
 
     sig = red.getSignature();
     _htn.addReduction(red);
-
-    // Compute fact changes
-    (*_layers[_layer_idx])[_pos].setFactChanges(sig, _instantiator.getPossibleFactChanges(sig));
     
     return true;
 }
@@ -928,7 +926,7 @@ void Planner::introduceNewFacts() {
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     for (const auto& set : ops) for (const auto& aSig : *set) {
         if (aSig == Position::NONE_SIG) continue;
-        for (const Signature& eff : newPos.getFactChanges(aSig)) {
+        for (const Signature& eff : _instantiator.getPossibleFactChanges(aSig)) {
 
             if (!_htn.hasQConstants(eff._usig)) { // TODO
                 // New fact: set before the action may happen

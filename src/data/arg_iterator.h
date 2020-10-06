@@ -84,9 +84,7 @@ public:
         return _end;
     }
 
-    static std::vector<Signature> getFullInstantiation(const Signature& sig, HtnInstance& _htn);
-    static std::vector<USignature> getFullInstantiation(const USignature& sig, HtnInstance& _htn);
-    static std::vector<USignature> instantiate(const USignature& sig, const std::vector<std::vector<int>>& eligibleArgs);
+    static ArgIterator getFullInstantiation(const USignature& sig, HtnInstance& _htn);
 };
 
 #endif

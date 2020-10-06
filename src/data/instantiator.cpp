@@ -362,8 +362,9 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
         SigSet& result = _fact_changes[nameId];
         for (const Signature& sig : facts) {
             liftedResult.insert(sig);
-            for (const Signature& sigGround : ArgIterator::getFullInstantiation(sig, *_htn)) {
-                result.insert(sigGround);
+            if (sig._usig._args.empty()) result.insert(sig);
+            else for (const USignature& sigGround : ArgIterator::getFullInstantiation(sig._usig, *_htn)) {
+                result.emplace(sigGround, sig._negated);
             }
         }
     }

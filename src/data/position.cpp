@@ -106,19 +106,6 @@ void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
 }
 void Position::addExpansionSize(size_t size) {_max_expansion_size = std::max(_max_expansion_size, size);}
-void Position::setFactChanges(const USignature& op, const SigSet& factChanges) {
-    _fact_changes[op] = factChanges;
-}
-const SigSet& Position::getFactChanges(const USignature& op) const {
-    return _fact_changes.count(op) ? _fact_changes.at(op) : EMPTY_SIG_SET;
-}
-bool Position::hasFactChanges(const USignature& op) const {
-    return _fact_changes.count(op);
-}
-void Position::moveFactChanges(Position& dest, const USignature& op) {
-    dest._fact_changes[op] = std::move(_fact_changes[op]);
-    _fact_changes.erase(op);
-}
 
 void Position::removeActionOccurrence(const USignature& action) {
     assert(_actions.count(action));
@@ -196,6 +183,9 @@ const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecess
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 size_t Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
+void Position::clearAfterInstantiation() {
+}
+
 void Position::clearAtPastPosition() {
     _qfacts.clear();
     _qfacts.reserve(0);
@@ -208,20 +198,15 @@ void Position::clearAtPastPosition() {
     _q_constants_type_constraints.clear();
     _q_constants_type_constraints.reserve(0);
     clearSubstitutions();
-
-    for (const auto& r : _reductions) _fact_changes.erase(r);
-    _fact_changes.reserve(0);
-}
-
-void Position::clearAtPastLayer() {
     if (_pos_fact_supports != nullptr) delete _pos_fact_supports;
     if (_neg_fact_supports != nullptr) delete _neg_fact_supports;
     if (_pos_indir_fact_supports != nullptr) delete _pos_indir_fact_supports;
     if (_neg_indir_fact_supports != nullptr) delete _neg_indir_fact_supports;
+}
+
+void Position::clearAtPastLayer() {
     _qfact_decodings.clear();
     _qfact_decodings.reserve(0);
-    _fact_changes.clear();
-    _fact_changes.reserve(0);
     _true_facts.clear();
     _true_facts.reserve(0);
     _false_facts.clear();
