@@ -14,9 +14,9 @@
 
 typedef std::pair<int, int> IntPair;
 
-typedef NodeHashMap<USignature, std::vector<Substitution>, USignatureHasher> IndirectFactSupportMapEntry;
-typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
+typedef NodeHashMap<USignature, IntPairTree, USignatureHasher> IndirectFactSupportMapEntry;
+typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 
 enum VarType { FACT, OP };
 
@@ -83,8 +83,8 @@ public:
     void addFactSupport(const Signature& fact, const USignature& operation);
     void touchFactSupport(const Signature& fact);
     void touchFactSupport(const USignature& fact, bool negated);
-    void addIndirectFactSupport(const Signature& fact, const USignature& op, Substitution&& sub);
-    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, Substitution&& sub);
+    void addIndirectFactSupport(const Signature& fact, const USignature& op, std::vector<IntPair>&& sub);
+    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, std::vector<IntPair>&& sub);
     void setHasPrimitiveOps(bool has);
     void setHasNonprimitiveOps(bool has);
     bool hasPrimitiveOps();

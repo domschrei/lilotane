@@ -577,15 +577,18 @@ std::vector<IntPair> Planner::decodingToPath(int nameId, const std::vector<int>&
     }
 
     // Sort argument indices by the potential size of their domain
-    const std::vector<int> sorts = _htn.getSorts(nameId);
+    const std::vector<int>& sorts = _htn.getSorts(nameId);
     std::sort(argIndices.begin(), argIndices.end(), 
             [&](int i, int j) {return _htn.getConstantsOfSort(sorts[i]).size() < _htn.getConstantsOfSort(sorts[j]).size();});
 
     // Write argument substitutions into the result in correct order
     std::vector<IntPair> path;
-    for (int i : argIndices) {
-        if (i > 0) {assert(_htn.getConstantsOfSort(sorts[i-1]).size() >= _htn.getConstantsOfSort(sorts[i]).size());}
-        path.emplace_back(qargs[i], decArgs[i]);
+    for (size_t x = 0; x < argIndices.size(); x++) {
+        if (x > 0) {
+            assert(_htn.getConstantsOfSort(sorts[argIndices[x-1]]).size() <= _htn.getConstantsOfSort(sorts[argIndices[x]]).size());
+        }
+        size_t argIdx = argIndices[x];
+        path.emplace_back(qargs[argIdx], decArgs[argIdx]);
     }
     return path;
 }
@@ -637,10 +640,9 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         }
         
         // Valid effect decoding
-        Substitution s(factAbs._args, decFactAbs._args);
         getCurrentState(fact._negated).insert(decFactAbs);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
-            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(s));
+            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(path));
         } else {
             pos.touchFactSupport(decFactAbs, fact._negated);
         }

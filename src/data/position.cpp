@@ -30,14 +30,14 @@ void Position::touchFactSupport(const USignature& fact, bool negated) {
     if (supp == nullptr) supp = new NodeHashMap<USignature, USigSet, USignatureHasher>();
     (*supp)[fact];
 }
-void Position::addIndirectFactSupport(const Signature& fact, const USignature& op, Substitution&& sub) {
+void Position::addIndirectFactSupport(const Signature& fact, const USignature& op, std::vector<IntPair>&& sub) {
     addIndirectFactSupport(fact._usig, fact._negated, op, std::move(sub));
 }
-void Position::addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, Substitution&& sub) {
+void Position::addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, std::vector<IntPair>&& sub) {
     auto& supp = negated ? _neg_indir_fact_supports : _pos_indir_fact_supports;
     if (supp == nullptr) supp = new IndirectFactSupportMap();
     auto& set = (*supp)[fact];
-    set[op].push_back(std::move(sub));
+    set[op].insert(std::move(sub));
 }
 void Position::setHasPrimitiveOps(bool has) {
     _has_primitive_ops = has;

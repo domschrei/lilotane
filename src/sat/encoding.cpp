@@ -231,7 +231,7 @@ std::pair<IndirectSupport, IndirectSupport> Encoding::computeFactSupports(Positi
         
         // For each fact with some indirect support, for each action in the support
         auto& output = i == 0 ? negResult : posResult;
-        for (const auto& [fact, entry] : *indirSupports[i]) for (const auto& [op, subs] : entry) {
+        for (const auto& [fact, entry] : *indirSupports[i]) for (const auto& [op, tree] : entry) {
             assert(!_htn.isVirtualizedChildOfAction(op._name_id));
 
             // Skip if the operation is already a DIRECT support for the fact
@@ -246,19 +246,11 @@ std::pair<IndirectSupport, IndirectSupport> Encoding::computeFactSupports(Positi
             if (opVar == 0 && virtOpVar == 0) continue;
 
             // For each substitution leading to the desired ground effect:
-            for (const auto& s : subs) {
-                assert(!s.empty());
-                std::vector<int> sVars(s.size());
-                size_t i = 0;
-                for (const auto& [src, dest] : s) {
-                    sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                }
-                std::sort(sVars.begin(), sVars.end());
-
-                // Insert into according support tree
-                if (opVar != 0) output[fact][opVar].insert(sVars);
-                if (virtOpVar != 0) output[fact][virtOpVar].insert(sVars);
-            }
+            auto convTree = tree.convert<int>([&](IntPair x) {
+                return varSubstitution(sigSubstitute(x.first, x.second));
+            });
+            if (opVar != 0) output[fact][opVar] = convTree;
+            if (virtOpVar != 0) output[fact][virtOpVar] = convTree;
         }
     }
 
