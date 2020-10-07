@@ -230,7 +230,6 @@ void Planner::createFirstLayer() {
     // Initial state
     _init_state = _htn.getInitState();
     for (const USignature& fact : _init_state) {
-        initLayer[_pos].addTrueFact(fact);
         getLayerState().add(_pos, fact, /*negated=*/false);
     }
 
