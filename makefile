@@ -51,7 +51,7 @@ lib/libpandaPIparser.a:
 build/main.o: src/main.cpp
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 	
-build/%.o: src/%.cpp src/%.h
+build/%.o: src/%.cpp src/%.h #$(shell g++ -MM ${INCLUDES} )
 	mkdir -p $(@D)
 	${CC} ${COMPILEFLAGS} ${INCLUDES} -o $@ -c $<
 

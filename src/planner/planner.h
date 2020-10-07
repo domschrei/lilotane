@@ -72,12 +72,12 @@ private:
     void createNextPositionFromLeft(Position& left);
 
     void addPrecondition(const USignature& op, const Signature& fact, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs, 
+            std::vector<IntPairTree>& goodSubs, 
+            IntPairTree& badSubs, 
             bool addQFact = true);
     void addSubstitutionConstraints(const USignature& op, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs);
+            std::vector<IntPairTree>& goodSubs, 
+            IntPairTree& badSubs);
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
     bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
     bool addAction(Action& a);
@@ -95,6 +95,8 @@ private:
     USigSet& getCurrentState(bool negated);
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.
+
+    std::vector<IntPair> decodingToPath(int nameId, const std::vector<int>& qargs, const std::vector<int>& decArgs) const;
 
 };
 

@@ -10,10 +10,13 @@
 #include "util/names.h"
 #include "sat/variable_domain.h"
 #include "util/log.h"
+#include "sat/literal_tree.h"
 
 typedef std::pair<int, int> IntPair;
+
 typedef NodeHashMap<USignature, std::vector<Substitution>, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
+typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
 
 enum VarType { FACT, OP };
 
@@ -55,8 +58,8 @@ private:
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 
-    NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
-    NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher> _valid_substitutions_per_op;
+    NodeHashMap<USignature, IntPairTree, USignatureHasher> _forbidden_substitutions_per_op;
+    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher> _valid_substitutions_per_op;
 
     size_t _max_expansion_size = 1;
 
@@ -89,10 +92,8 @@ public:
 
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
 
-    void addForbiddenSubstitution(const USignature& op, Substitution& s);
-    void addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs);
-    void clearForbiddenSubstitutions(const USignature& op);
-    void clearValidSubstitutions(const USignature& op);
+    void setForbiddenSubstitutions(const USignature &op, IntPairTree&& subs);
+    void setValidSubstitutions(const USignature &op, std::vector<IntPairTree>&& subs);
 
     bool hasQFactDecodings(const USignature& qFact);
     void addQFactDecoding(const USignature& qFact, const USignature& decFact);
@@ -126,10 +127,8 @@ public:
     IndirectFactSupportMap& getPosIndirectFactSupports();
     IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
-    getForbiddenSubstitutions() const;
-    const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
-    getValidSubstitutions() const;
+    NodeHashMap<USignature, IntPairTree, USignatureHasher>& getForbiddenSubstitutions();
+    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& getValidSubstitutions();
 
     USigSet& getActions();
     const USigSet& getReductions() const;
@@ -144,7 +143,7 @@ public:
     void clearAfterInstantiation();
     void clearAtPastPosition();
     void clearAtPastLayer();
-    inline void clearSubstitutions() {
+    void clearSubstitutions() {
         _forbidden_substitutions_per_op.clear();
         _forbidden_substitutions_per_op.reserve(0);
         _valid_substitutions_per_op.clear();

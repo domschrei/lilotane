@@ -307,7 +307,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int oldFactVars[2] = {-var, var};
         const USigSet* dir[2] = {nullptr, nullptr};
         const IndirectFactSupportMapEntry* indir[2] = {nullptr, nullptr};
-        const NodeHashMap<int, LiteralTree>* tree[2] = {nullptr, nullptr};
+        const NodeHashMap<int, LiteralTree<int>>* tree[2] = {nullptr, nullptr};
 
         // Retrieve direct and indirect support for this fact
         bool reuse = true;
@@ -648,7 +648,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
 
             // Negative effect which only holds in certain cases
             if (treeConversion) {
-                LiteralTree tree;
+                LiteralTree<int> tree;
                 for (const auto& set : unifiersDnf) tree.insert(std::vector<int>(set.begin(), set.end()));
                 std::vector<int> headerLits;
                 headerLits.push_back(aVar);
@@ -704,62 +704,48 @@ void Encoding::encodeQConstraints(Position& newPos) {
     }
     end(STAGE_QTYPECONSTRAINTS);
 
-    // Forbidden substitutions per operator
+    // Forbidden substitutions
     begin(STAGE_SUBSTITUTIONCONSTRAINTS);
 
     // For each operation (action or reduction)
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     for (const auto& set : ops) for (auto opSig : *set) {
 
-        // Get number of "good" and "bad" substitution options
-        size_t goodSize = 0;
+        // Get "good" and "bad" substitution options
         auto itValid = newPos.getValidSubstitutions().find(opSig);
-        if (itValid != newPos.getValidSubstitutions().end()) {
-            for (const auto& s : itValid->second) {
-                goodSize += s.size();
-            }
-        }
         auto itForb = newPos.getForbiddenSubstitutions().find(opSig);
-        size_t badSize = itForb != newPos.getForbiddenSubstitutions().end() ? itForb->second.size() : 0;
-        if (badSize == 0) continue;
+        
+        // Encode forbidden substitutions
 
-        // Which one to encode?
-        if (badSize <= goodSize) {
-            // Use forbidden substitutions
-            for (const Substitution& s : itForb->second) {
+        if (itForb != newPos.getForbiddenSubstitutions().end()) {
+            auto cls = itForb->second.encodeNegation();
+            for (const auto& sub : cls) {
                 appendClause(-getVariable(VarType::OP, newPos, opSig));
-                for (const auto& [src, dest] : s) {
+                for (const auto& [src, dest] : sub) {
                     appendClause(-varSubstitution(sigSubstitute(src, dest)));
                 }
                 endClause();
             }
-        } else {
-            // Use valid substitutions
-            
-            // For each set of valid substitution options
-            for (const auto& subs : itValid->second) {
-                // Build literal tree from this set of valid substitution options for this op
-                LiteralTree tree;
-                // For each substitution option:
-                for (const auto& s : subs) {
-                    std::vector<int> sVars(s.size()); 
-                    size_t i = 0;
-                    // For each atomic substitution:
-                    for (const auto& [src, dest] : s) {
-                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                    }
-                    tree.insert(sVars);
+        }
+        
+        // Encode valid substitutions
+        
+        // For each set of valid substitution options
+        if (itValid != newPos.getValidSubstitutions().end()) for (const auto& tree : itValid->second) {
+            auto cls = tree.encode();
+            for (auto& sub : cls) {
+                appendClause(-getVariable(VarType::OP, newPos, opSig));
+                for (auto& [src, dest] : sub) {
+                    bool negated = src < 0;
+                    if (negated) src *= -1;
+                    appendClause((negated ? -1 : 1) * varSubstitution(sigSubstitute(src, dest)));
                 }
-                // Encode set of valid substitution options into CNF
-                std::vector<std::vector<int>> cls = tree.encode(
-                    std::vector<int>(1, getVariable(VarType::OP, newPos, opSig))
-                );
-                for (const auto& c : cls) {
-                    addClause(c);
-                }
+                endClause();
             }
         }
     }
+    newPos.clearSubstitutions();
+
     // Globally forbidden substitutions
     for (const auto& sub : _htn.getForbiddenSubstitutions()) {
         assert(!sub.empty());
@@ -771,9 +757,8 @@ void Encoding::encodeQConstraints(Position& newPos) {
         _forbidden_substitutions.insert(sub);
     }
     _htn.clearForbiddenSubstitutions();
+    
     end(STAGE_SUBSTITUTIONCONSTRAINTS);
-
-    newPos.clearSubstitutions();
 }
 
 void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
@@ -949,7 +934,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
 
     Log::i("Tightened initial plan length bounds at layer %i: [0,%i] => [%i,%i]\n",
             layerIdx, l.size()-1, minPlanLength, maxPlanLength);
-    assert(planLengthVars.size() == maxPlanLength-minPlanLength+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLength, minPlanLength));
+    assert((int)planLengthVars.size() == maxPlanLength-minPlanLength+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLength, minPlanLength));
     
     // Add primitiveness of all positions at the final layer
     // as unit literals (instead of assumptions)

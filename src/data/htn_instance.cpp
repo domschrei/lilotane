@@ -539,8 +539,7 @@ Reduction& HtnInstance::createReduction(method& method) {
         // Normalize task name
         std::string subtaskName = st.task;
 
-        static constexpr auto pattern = ctll::fixed_string{ "_splitting_method_(.*)_splitted_[0-9]+" };
-        while (auto m = ctre::match<pattern>(subtaskName)) {
+        while (auto m = ctre::match<REGEX_SPLITTING_METHOD>(subtaskName)) {
             subtaskName = m.get<1>().to_view();
         }
         Log::d("%s\n", subtaskName.c_str());
@@ -556,7 +555,7 @@ Reduction& HtnInstance::createReduction(method& method) {
                 
                 // Normalize task name
                 std::string taskName = t.name;
-                while (auto m = ctre::match<pattern>(taskName)) {
+                while (auto m = ctre::match<REGEX_SPLITTING_METHOD>(taskName)) {
                     taskName = m.get<1>().to_view();
                 }
 

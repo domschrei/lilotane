@@ -57,13 +57,13 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
     vec.push_back(c);
 }
 
-void Position::addForbiddenSubstitution(const USignature& op, Substitution& s) {
+void Position::setForbiddenSubstitutions(const USignature &op, IntPairTree&& subs) {
     auto& set = _forbidden_substitutions_per_op[op];
-    set.insert(std::move(s));
+    set = std::move(subs);
 }
-void Position::addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs) {
+void Position::setValidSubstitutions(const USignature &op, std::vector<IntPairTree>&& subs) {
     auto& set = _valid_substitutions_per_op[op];
-    set.push_back(std::move(subs));
+    set = std::move(subs);
 }
 
 void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
@@ -167,12 +167,10 @@ IndirectFactSupportMap& Position::getNegIndirectFactSupports() {
 const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& Position::getQConstantsTypeConstraints() const {
     return _q_constants_type_constraints;
 }
-const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
-Position::getForbiddenSubstitutions() const {
+NodeHashMap<USignature, IntPairTree, USignatureHasher>& Position::getForbiddenSubstitutions() {
     return _forbidden_substitutions_per_op;
 }
-const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
-Position::getValidSubstitutions() const {
+NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& Position::getValidSubstitutions() {
     return _valid_substitutions_per_op;
 }
 

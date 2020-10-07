@@ -17,6 +17,7 @@
 
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
+#include "util/ctre.hpp"
 
 class Instantiator; // forward def
 
@@ -24,6 +25,8 @@ class HtnInstance {
 
 public:
     typedef std::function<bool(const USignature&, bool)> StateEvaluator;
+
+    static constexpr ctll::fixed_string REGEX_SPLITTING_METHOD = ctll::fixed_string{ "_splitting_method_(.*)_splitted_[0-9]+" };
 
 private:
 

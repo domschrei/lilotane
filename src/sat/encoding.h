@@ -36,7 +36,7 @@ struct PlanItem {
 
 typedef NodeHashMap<int, SigSet> State;
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
-typedef NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher> IndirectSupport;
+typedef NodeHashMap<USignature, NodeHashMap<int, LiteralTree<int>>, USignatureHasher> IndirectSupport;
 
 class Encoding {
 

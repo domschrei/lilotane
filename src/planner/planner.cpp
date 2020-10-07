@@ -335,8 +335,8 @@ void Planner::createFirstLayer() {
             initLayer[_pos].addAxiomaticOp(sig);
             initLayer[_pos].addExpansionSize(r.getSubtasks().size());
             // Add preconditions
-            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            IntPairTree badSubs;
+            std::vector<IntPairTree> goodSubs;
             for (const Signature& fact : r.getPreconditions()) {
                 addPrecondition(sig, fact, goodSubs, badSubs);
             }
@@ -360,8 +360,8 @@ void Planner::createFirstLayer() {
     initLayer[_pos].addAxiomaticOp(goalSig);
     
     // Extract primitive goals, add to preconds of goal action
-    NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-    std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+    IntPairTree badSubs;
+    std::vector<IntPairTree> goodSubs;
     for (const Signature& fact : goalAction.getPreconditions()) {
         assert(getCurrentState(fact._negated).contains(fact._usig));
         addPrecondition(goalSig, fact, goodSubs, badSubs);
@@ -469,44 +469,56 @@ void Planner::createNextPositionFromLeft(Position& left) {
 
     // Propagate fact changes from operations from previous position
     USigSet actionsToRemove;
-    for (const auto& aSig : left.getActions()) {
-        bool repeatedAction = _htn.isVirtualizedChildOfAction(aSig._name_id);
-        const Action& a = _htn.getAction(aSig);
-        for (const Signature& fact : a.getEffects()) {
-            if (!addEffect(
-                    repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
-                    fact, 
-                    repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
-                // Impossible direct effect: forbid action retroactively.
-                Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
-                //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
-                actionsToRemove.insert(aSig);
+    const USigSet* ops[2] = {&left.getActions(), &left.getReductions()};
+    bool isAction = true;
+    for (const auto& set : ops) {
+        for (const auto& aSig : *set) {
+
+            bool repeatedAction = isAction && _htn.isVirtualizedChildOfAction(aSig._name_id);
+            for (const Signature& fact : isAction ? _htn.getAction(aSig).getEffects() : _instantiator.getPossibleFactChanges(aSig)) {
+                if (isAction && !addEffect(
+                        repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
+                        fact, 
+                        repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
+                    // Impossible direct effect: forbid action retroactively.
+                    Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
+                    //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
+                    actionsToRemove.insert(aSig);
+                }
+                if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
+                    // Impossible indirect effect: ignore.
+                }
+            }
+            for (const int& arg : aSig._args) {
+                if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
+            }
+
+            // Remove larger substitution constraint structure
+            auto goodSubs = left.getValidSubstitutions().count(aSig) ? &left.getValidSubstitutions().at(aSig) : nullptr;
+            auto badSubs = left.getForbiddenSubstitutions().count(aSig) ? &left.getForbiddenSubstitutions().at(aSig) : nullptr;
+            size_t goodSize = 0;
+            if (goodSubs != nullptr) for (const auto& subs : *goodSubs) goodSize += subs.getSizeOfEncoding();
+            size_t badSize = badSubs != nullptr ? badSubs->getSizeOfNegationEncoding() : 0;
+            if (goodSubs != nullptr && badSize > goodSize) {
+                // More bad subs than good ones:
+                // Remember good ones instead (although encoding them can be more complex)
+                left.getForbiddenSubstitutions().erase(aSig);
+                Log::d("SUBCONSTR : %i good (instead of %i bad)\n", goodSize, badSize);
+            } else if (badSubs != nullptr) {
+                left.getValidSubstitutions().erase(aSig);
+                Log::d("SUBCONSTR : %i bad (instead of %i good)\n", badSize, goodSize);
             }
         }
-        for (const int& arg : aSig._args) {
-            if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
-        }
+        isAction = false;
     }
+
     for (const auto& aSig : actionsToRemove) {
         left.removeActionOccurrence(aSig);
-    }
-    for (const auto& rSig : left.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
-        for (const Signature& fact : _instantiator.getPossibleFactChanges(rSig)) {
-            if (!addEffect(rSig, fact, EffectMode::INDIRECT)) {
-                // Impossible indirect effect: ignore.
-            }
-        }
-        for (const int& arg : rSig._args) {
-            if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
-        }
     }
 }
 
 void Planner::addPrecondition(const USignature& op, const Signature& fact, 
-        std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-        NodeHashSet<Substitution, Substitution::Hasher>& badSubs, 
-        bool addQFact) {
+        std::vector<IntPairTree>& goodSubs, IntPairTree& badSubs, bool addQFact) {
 
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
@@ -525,17 +537,17 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
-    NodeHashSet<Substitution, Substitution::Hasher> goods;
+    IntPairTree goods;
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
         // Can the decoded fact occur as is?
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
-            if (addQFact) badSubs.emplace(factAbs._args, decFactAbs._args);
+            if (addQFact) badSubs.insert(decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args));
             continue;
         } else {
-            if (addQFact) goods.emplace(factAbs._args, decFactAbs._args);
+            if (addQFact) goods.insert(decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args));
         }
 
         // If yes, can the decoded fact also occured in its opposite form?
@@ -553,28 +565,37 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     if (addQFact) goodSubs.push_back(std::move(goods));
 }
 
+std::vector<IntPair> Planner::decodingToPath(int nameId, const std::vector<int>& qargs, const std::vector<int>& decArgs) const {
+    
+    // Collect indices of arguments which differ
+    std::vector<int> argIndices;
+    for (size_t i = 0; i < qargs.size(); i++) {
+        int arg = qargs[i];
+        int decArg = decArgs[i];
+        if (arg == decArg) continue;
+        argIndices.push_back(i);
+    }
+
+    // Sort argument indices by the potential size of their domain
+    const std::vector<int> sorts = _htn.getSorts(nameId);
+    std::sort(argIndices.begin(), argIndices.end(), 
+            [&](int i, int j) {return _htn.getConstantsOfSort(sorts[i]).size() < _htn.getConstantsOfSort(sorts[j]).size();});
+
+    // Write argument substitutions into the result in correct order
+    std::vector<IntPair> path;
+    for (int i : argIndices) {
+        if (i > 0) {assert(_htn.getConstantsOfSort(sorts[i-1]).size() >= _htn.getConstantsOfSort(sorts[i]).size());}
+        path.emplace_back(qargs[i], decArgs[i]);
+    }
+    return path;
+}
+
 void Planner::addSubstitutionConstraints(const USignature& op, 
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>>& goodSubs, 
-            NodeHashSet<Substitution, Substitution::Hasher>& badSubs) {
+            std::vector<IntPairTree>& goodSubs, IntPairTree& badSubs) {
     
     Position& newPos = _layers[_layer_idx]->at(_pos);
-
-    size_t goodSize = 0;
-    for (const auto& subs : goodSubs) goodSize += subs.size();
-
-    //if (badSubs.size() <= goodSize) {
-        for (auto& s : badSubs) {
-            //Log::d("(%i,%i) FORBIDDEN_SUBST NOR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addForbiddenSubstitution(op, s);
-        }
-    //} else {
-        // More bad subs than there are good ones:
-        // Remember good ones instead (although encoding them can be more complex)
-        for (auto& subs : goodSubs) {
-            //Log::d("(%i,%i) VALID_SUBST OR %s\n", _layer_idx, _pos, TOSTR(op));
-            newPos.addValidSubstitutions(op, subs);
-        }
-    //}
+    newPos.setValidSubstitutions(op, std::move(goodSubs));
+    newPos.setForbiddenSubstitutions(op, std::move(badSubs));
 }
 
 bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMode mode) {
@@ -609,11 +630,14 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     bool anyGood = false;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
         
-        // Check if this decoding is known to be invalid    
-        Substitution s(factAbs._args, decFactAbs._args);
-        if (invalids != nullptr && invalids->count(s)) continue;
+        // Check if this decoding is known to be invalid
+        auto path = decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args);
+        if (invalids != nullptr) {
+            if (invalids->contains(path)) continue;
+        }
         
         // Valid effect decoding
+        Substitution s(factAbs._args, decFactAbs._args);
         getCurrentState(fact._negated).insert(decFactAbs);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
             pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(s));
@@ -696,8 +720,8 @@ void Planner::propagateActions(size_t offset) {
                 newPos.addExpansion(aSig, aSig);
             }
             // Add preconditions of action
-            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            IntPairTree badSubs;
+            std::vector<IntPairTree> goodSubs;
             for (const Signature& fact : a.getPreconditions()) {
                 addPrecondition(aSig, fact, goodSubs, badSubs, 
                     /*addQFact=*/!_htn.isVirtualizedChildOfAction(aSig._name_id));
@@ -765,8 +789,8 @@ void Planner::propagateReductions(size_t offset) {
             newPos.addExpansionSize(subR.getSubtasks().size());
             // Add preconditions of reduction
             //log("PRECONDS %s ", TOSTR(subRSig));
-            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            IntPairTree badSubs;
+            std::vector<IntPairTree> goodSubs;
             for (const Signature& fact : subR.getPreconditions()) {
                 addPrecondition(subRSig, fact, goodSubs, badSubs);
                 //log("%s ", TOSTR(fact));
@@ -787,8 +811,8 @@ void Planner::propagateReductions(size_t offset) {
             newPos.addAction(aSig);
             // Add preconditions of action
             const Action& a = _htn.getAction(aSig);
-            NodeHashSet<Substitution, Substitution::Hasher> badSubs;
-            std::vector<NodeHashSet<Substitution, Substitution::Hasher>> goodSubs;
+            IntPairTree badSubs;
+            std::vector<IntPairTree> goodSubs;
             for (const Signature& fact : a.getPreconditions()) {
                 addPrecondition(aSig, fact, goodSubs, badSubs);
             }
