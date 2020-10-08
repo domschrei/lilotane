@@ -64,13 +64,18 @@ class LiteralTree {
             return it->second->contains(lits, idx+1);
         }
 
-        size_t getSizeOfEncoding() const {
-            if (validLeaf) return 0;
-            size_t paths = 1;
+        std::pair<size_t, size_t> getSizeOfEncoding() const {
+            std::pair<size_t, size_t> result;
+            if (validLeaf) return result;
+            auto& [cls, lits] = result;
+            cls = 1;
+            lits = children.size();
             for (const auto& [lit, child] : children) {
-                paths += child->getSizeOfEncoding();
+                auto [cCls, cLits] = child->getSizeOfEncoding();
+                cls += cCls;
+                lits += cLits + cCls;
             }
-            return paths;
+            return result;
         }
         void encode(std::vector<std::vector<T>>& cls, std::vector<T>& path) const {
             if (validLeaf) return;
@@ -94,14 +99,23 @@ class LiteralTree {
             cls.push_back(std::move(orClause));
         }
 
-        size_t getSizeOfNegationEncoding() const {
-            if (validLeaf) return 0;
-            size_t paths = 1;
+        std::pair<size_t, size_t> getSizeOfNegationEncoding() const {
+            std::pair<size_t, size_t> result;
+            if (validLeaf) return result;
+            auto& [cls, lits] = result;
+            cls = 0;
+            lits = 0;
             for (const auto& [lit, child] : children) {
-                if (child->validLeaf) paths++;
-                else paths += child->getSizeOfNegationEncoding();
+                if (child->validLeaf) { 
+                    cls++;
+                    lits++;
+                } else {
+                    auto [cCls, cLits] = child->getSizeOfNegationEncoding();
+                    cls += cCls;
+                    lits += cLits + cCls;
+                }
             }
-            return paths;
+            return result;
         }
         void encodeNegation(std::vector<std::vector<T>>& cls, std::vector<T>& path) const {
             if (validLeaf) return;
@@ -169,10 +183,10 @@ public:
     }
 
     size_t getSizeOfEncoding() const {
-        return _root.getSizeOfEncoding();
+        return _root.getSizeOfEncoding().second;
     }
     size_t getSizeOfNegationEncoding() const {
-        return _root.getSizeOfNegationEncoding();
+        return _root.getSizeOfNegationEncoding().second;
     }
 
     bool contains(const std::vector<T>& lits) const {
@@ -185,8 +199,20 @@ public:
 
     std::vector<std::vector<T>> encode(std::vector<T> headLits = std::vector<T>()) const {
         std::vector<std::vector<T>> cls;
+
+        //size_t headSize = headLits.size();
+
         _root.encode(cls, headLits);
-        
+
+        /*
+        auto [predCls, predLits] = _root.getSizeOfEncoding();
+        predLits += headSize * predCls;
+        assert(cls.size() == predCls || Log::e("%i != %i\n", cls.size(), predCls));
+        size_t lits = 0;
+        for (const auto& c : cls) lits += c.size();
+        assert(lits == predLits || Log::e("%i != %i\n", lits, predLits));
+        */
+
         /*
         Log::d("TREE ENCODE ");
         for (const auto& c : cls) {
@@ -204,8 +230,20 @@ public:
 
     std::vector<std::vector<T>> encodeNegation(std::vector<T> headLits = std::vector<T>()) const {
         std::vector<std::vector<T>> cls;
+
+        //size_t headSize = headLits.size();
+
         _root.encodeNegation(cls, headLits);
         
+        /*
+        auto [predCls, predLits] = _root.getSizeOfNegationEncoding();
+        predLits += headSize * predCls;
+        assert(cls.size() == predCls || Log::e("%i != %i\n", cls.size(), predCls));
+        size_t lits = 0;
+        for (const auto& c : cls) lits += c.size();
+        assert(lits == predLits || Log::e("%i != %i\n", lits, predLits));
+        */
+
         /*
         Log::d("TREE ENCODE_NEG ");
         for (const auto& c : cls) {

@@ -922,7 +922,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
                 + std::to_string(pos) + "_" + _name_back_table[primarySort]
                 + ":" + std::to_string(sortCounter) 
-                + (_share_q_constants ? std::string() : std::to_string(_q_constants.size()));
+                + (_share_q_constants ? std::string() : "_#"+std::to_string(_q_constants.size()));
             
             // Initialize q-constant
             args[i] = nameId(qConstName, /*createQConstant=*/true);
