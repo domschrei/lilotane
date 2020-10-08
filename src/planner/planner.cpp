@@ -470,7 +470,8 @@ void Planner::createNextPositionFromLeft(Position& left) {
         for (const auto& aSig : *set) {
 
             bool repeatedAction = isAction && _htn.isVirtualizedChildOfAction(aSig._name_id);
-            for (const Signature& fact : isAction ? _htn.getAction(aSig).getEffects() : _instantiator.getPossibleFactChanges(aSig)) {
+            for (const Signature& fact : isAction ? _htn.getAction(aSig).getEffects() 
+                                                  : _fact_changes_cache[aSig]) {
                 if (isAction && !addEffect(
                         repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
                         fact, 
@@ -479,11 +480,13 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                     //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
                     actionsToRemove.insert(aSig);
+                    break;
                 }
                 if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
                     // Impossible indirect effect: ignore.
                 }
             }
+            if (!isAction) _fact_changes_cache.erase(aSig);
 
             // Remove larger substitution constraint structure
             auto goodSubs = left.getValidSubstitutions().count(aSig) ? &left.getValidSubstitutions().at(aSig) : nullptr;
@@ -941,21 +944,29 @@ void Planner::introduceNewFacts() {
     
     // For each possible operation effect:
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
-    for (const auto& set : ops) for (const auto& aSig : *set) {
-        if (aSig == Position::NONE_SIG) continue;
-        for (const Signature& eff : _instantiator.getPossibleFactChanges(aSig)) {
+    bool isAction = true;
+    for (const auto& set : ops) {
+        for (const auto& aSig : *set) {
+            if (aSig == Position::NONE_SIG) continue;
+            if (!isAction) {
+                _fact_changes_cache[aSig] = std::move(_instantiator.getPossibleFactChanges(aSig));
+            }
+            for (const Signature& eff : isAction ? _htn.getAction(aSig).getEffects() 
+                                                 : _fact_changes_cache[aSig]) {
 
-            if (!_htn.hasQConstants(eff._usig)) {
-                // New fact: set before the action may happen
-                introduceNewFact(newPos, eff._usig); 
-            } else {
-                std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                for (const USignature& decEff : _htn.decodeObjects(eff._usig, sorts)) {                    
+                if (!_htn.hasQConstants(eff._usig)) {
                     // New fact: set before the action may happen
-                    introduceNewFact(newPos, decEff);
+                    introduceNewFact(newPos, eff._usig); 
+                } else {
+                    std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
+                    for (const USignature& decEff : _htn.decodeObjects(eff._usig, sorts)) {                    
+                        // New fact: set before the action may happen
+                        introduceNewFact(newPos, decEff);
+                    }
                 }
             }
         }
+        isAction = false;
     }
 }
 

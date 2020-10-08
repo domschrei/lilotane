@@ -36,6 +36,8 @@ private:
     USigSet _necessary_facts;
     USigSet _defined_facts;
 
+    NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
+
     size_t _layer_idx;
     size_t _pos;
     size_t _old_pos;
