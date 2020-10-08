@@ -462,11 +462,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
     assert(left.getLayerIndex() == _layer_idx);
     assert(left.getPositionIndex() == _pos-1);
 
-    // Propagate state
-    //newPos.extendState(left.getState());
-
-    FlatHashSet<int> relevantQConstants;
-
     // Propagate fact changes from operations from previous position
     USigSet actionsToRemove;
     const USigSet* ops[2] = {&left.getActions(), &left.getReductions()};
@@ -488,9 +483,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
                 if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
                     // Impossible indirect effect: ignore.
                 }
-            }
-            for (const int& arg : aSig._args) {
-                if (_htn.isQConstant(arg)) relevantQConstants.insert(arg);
             }
 
             // Remove larger substitution constraint structure
@@ -537,6 +529,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
+    std::vector<int> sortedArgIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
     IntPairTree goods;
     const auto& state = getStateEvaluator();
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
@@ -544,10 +537,10 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         // Can the decoded fact occur as is?
         if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
             // Fact cannot be true here
-            if (addQFact) badSubs.insert(decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args));
+            if (addQFact) badSubs.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
             continue;
         } else {
-            if (addQFact) goods.insert(decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args));
+            if (addQFact) goods.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
         }
 
         // If yes, can the decoded fact also occured in its opposite form?
@@ -565,29 +558,26 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     if (addQFact) goodSubs.push_back(std::move(goods));
 }
 
-std::vector<IntPair> Planner::decodingToPath(int nameId, const std::vector<int>& qargs, const std::vector<int>& decArgs) const {
-    
-    // Collect indices of arguments which differ
+std::vector<int> Planner::getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const {
+
+    // Collect indices of arguments which will be substituted
     std::vector<int> argIndices;
     for (size_t i = 0; i < qargs.size(); i++) {
-        int arg = qargs[i];
-        int decArg = decArgs[i];
-        if (arg == decArg) continue;
-        argIndices.push_back(i);
+        if (_htn.isQConstant(qargs[i])) argIndices.push_back(i);
     }
 
     // Sort argument indices by the potential size of their domain
-    const std::vector<int>& sorts = _htn.getSorts(nameId);
     std::sort(argIndices.begin(), argIndices.end(), 
             [&](int i, int j) {return _htn.getConstantsOfSort(sorts[i]).size() < _htn.getConstantsOfSort(sorts[j]).size();});
+    return argIndices;
+}
 
+std::vector<IntPair> Planner::decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const {
+    
     // Write argument substitutions into the result in correct order
     std::vector<IntPair> path;
-    for (size_t x = 0; x < argIndices.size(); x++) {
-        if (x > 0) {
-            assert(_htn.getConstantsOfSort(sorts[argIndices[x-1]]).size() <= _htn.getConstantsOfSort(sorts[argIndices[x]]).size());
-        }
-        size_t argIdx = argIndices[x];
+    for (size_t x = 0; x < sortedIndices.size(); x++) {
+        size_t argIdx = sortedIndices[x];
         path.emplace_back(qargs[argIdx], decArgs[argIdx]);
     }
     return path;
@@ -630,11 +620,12 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
 
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
+    std::vector<int> argIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
     bool anyGood = false;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
         
         // Check if this decoding is known to be invalid
-        auto path = decodingToPath(factAbs._name_id, factAbs._args, decFactAbs._args);
+        auto path = decodingToPath(factAbs._args, decFactAbs._args, argIndices);
         if (invalids != nullptr) {
             if (invalids->contains(path)) continue;
         }
@@ -954,7 +945,7 @@ void Planner::introduceNewFacts() {
         if (aSig == Position::NONE_SIG) continue;
         for (const Signature& eff : _instantiator.getPossibleFactChanges(aSig)) {
 
-            if (!_htn.hasQConstants(eff._usig)) { // TODO
+            if (!_htn.hasQConstants(eff._usig)) {
                 // New fact: set before the action may happen
                 introduceNewFact(newPos, eff._usig); 
             } else {

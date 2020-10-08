@@ -96,7 +96,8 @@ private:
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.
 
-    std::vector<IntPair> decodingToPath(int nameId, const std::vector<int>& qargs, const std::vector<int>& decArgs) const;
+    std::vector<int> getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const;
+    std::vector<IntPair> decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const;
 
 };
 

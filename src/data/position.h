@@ -15,7 +15,7 @@
 typedef std::pair<int, int> IntPair;
 
 typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
-typedef NodeHashMap<USignature, IntPairTree, USignatureHasher> IndirectFactSupportMapEntry;
+typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 
 enum VarType { FACT, OP };

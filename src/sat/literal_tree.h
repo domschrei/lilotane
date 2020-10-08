@@ -59,8 +59,9 @@ class LiteralTree {
 
         bool contains(const std::vector<T>& lits, size_t idx) const {
             if (idx == lits.size()) return validLeaf;
-            if (!children.count(lits[idx])) return false;
-            return children.at(lits[idx])->contains(lits, idx+1);
+            auto it = children.find(lits[idx]);
+            if (it == children.end()) return false;
+            return it->second->contains(lits, idx+1);
         }
 
         size_t getSizeOfEncoding() const {

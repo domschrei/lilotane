@@ -37,7 +37,7 @@ void Position::addIndirectFactSupport(const USignature& fact, bool negated, cons
     auto& supp = negated ? _neg_indir_fact_supports : _pos_indir_fact_supports;
     if (supp == nullptr) supp = new IndirectFactSupportMap();
     auto& set = (*supp)[fact];
-    set[op].insert(std::move(sub));
+    set[op].push_back(std::move(sub));
 }
 void Position::setHasPrimitiveOps(bool has) {
     _has_primitive_ops = has;
