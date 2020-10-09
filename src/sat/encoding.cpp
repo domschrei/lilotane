@@ -7,7 +7,6 @@
 #include "util/log.h"
 #include "util/timer.h"
 
-
 Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
             _params(params), _htn(htn), _layers(layers), 
             _termination_callback(terminationCallback), 
@@ -101,7 +100,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
 
     begin(STAGE_ACTIONCONSTRAINTS);
     for (const auto& aSig : newPos.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
         int aVar = encodeVariable(VarType::OP, newPos, aSig, true);
 
         // If the action occurs, the position is primitive
@@ -111,7 +110,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
 
     begin(STAGE_REDUCTIONCONSTRAINTS);
     for (const auto& rSig : newPos.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
+        if (rSig == Sig::NONE_SIG) continue;
         int rVar = encodeVariable(VarType::OP, newPos, rSig, true);
 
         bool trivialReduction = _htn.getReduction(rSig).getSubtasks().size() == 0;
@@ -429,7 +428,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
 
     begin(STAGE_ACTIONCONSTRAINTS);
     for (const auto& aSig : newPos.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
 
         int aVar = getVariable(VarType::OP, newPos, aSig);
         elementVars[numOccurringOps++] = aVar;
@@ -447,7 +446,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
     end(STAGE_ACTIONCONSTRAINTS);
     begin(STAGE_REDUCTIONCONSTRAINTS);
     for (const auto& rSig : newPos.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
+        if (rSig == Sig::NONE_SIG) continue;
 
         int rVar = getVariable(VarType::OP, newPos, rSig);
         for (int arg : rSig._args) encodeSubstitutionVars(rSig, rVar, arg, newPos);
@@ -596,7 +595,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
     bool treeConversion = _params.isNonzero("tc");
     begin(STAGE_ACTIONEFFECTS);
     for (const auto& aSig : left.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
         if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
         int aVar = getVariable(VarType::OP, left, aSig);
 
@@ -766,7 +765,7 @@ void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
 
         bool forbidden = false;
         for (const USignature& child : pair.second) {
-            if (child == Position::NONE_SIG) {
+            if (child == Sig::NONE_SIG) {
                 // Forbid parent op that turned out to be impossible
                 int oldOpVar = getVariable(VarType::OP, above, parent);
                 addClause(-oldOpVar);
@@ -778,7 +777,7 @@ void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
 
         appendClause(-getVariable(VarType::OP, above, parent));
         for (const USignature& child : pair.second) {
-            if (child == Position::NONE_SIG) continue;
+            if (child == Sig::NONE_SIG) continue;
             appendClause(getVariable(VarType::OP, newPos, child));
         }
         endClause();
@@ -790,7 +789,7 @@ void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
         begin(STAGE_PREDECESSORS);
         for (const auto& pair : newPos.getPredecessors()) {
             const USignature& child = pair.first;
-            if (child == Position::NONE_SIG) continue;
+            if (child == Sig::NONE_SIG) continue;
 
             appendClause(-getVariable(VarType::OP, newPos, child));
             for (const USignature& parent : pair.second) {
@@ -850,12 +849,16 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
         USigSet emptyActions, actualActions;
         for (const auto& aSig : l.at(pos).getActions()) {
             Log::d("PLO %i %s?\n", pos, TOSTR(aSig));
-            if (aSig == Position::NONE_SIG) continue;
-            (isEmptyAction(aSig) ? emptyActions : actualActions).insert(aSig);
+            if (aSig == Sig::NONE_SIG) continue;
+            if (isEmptyAction(aSig)) {
+                emptyActions.insert(aSig);
+            } else {
+                actualActions.insert(aSig);
+            }
         }
         for (const auto& rSig : l.at(pos).getReductions()) {
             Log::d("PLO %i %s?\n", pos, TOSTR(rSig));
-            if (rSig == Position::NONE_SIG) continue;
+            if (rSig == Sig::NONE_SIG) continue;
             if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
                 // Empty reduction
                 emptyActions.insert(rSig);
@@ -873,10 +876,10 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
                 addClause(-planLengthVars.back());
                 planLengthVars.resize(planLengthVars.size()-1);
             }
-            Log::d("[no empty actions]\n");
+            Log::d("[no empty ops]\n");
         } else if (actualActions.empty()) {
             // Only empty actions here: Keep current bounds, keep all variables.
-            Log::d("[only empty actions]\n");
+            Log::d("[only empty ops]\n");
         } else {
             // Mix of actual and empty actions here: Increment upper bound, 
             bool increaseUpperBound = maxPlanLength < currentPlanLength;
@@ -907,13 +910,13 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
                     // IF previous plan length is X THEN
                     // (here is an empty spot IFF the plan length stays X) 
                     addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
-                    addClause(-prevVar, emptySpotVar, -keptPlanLengthVar);
+                    //addClause(-prevVar, emptySpotVar, -keptPlanLengthVar);
 
                     // IF previous plan length is X THEN
                     // (here is a non-empty spot IFF the plan length becomes X+1)
                     int incrPlanLengthVar = newPlanLengthVars[i+1];
                     addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
-                    addClause(-prevVar, -emptySpotVar, -incrPlanLengthVar);
+                    //addClause(-prevVar, -emptySpotVar, -incrPlanLengthVar);
                 } else {
                     // Limit hit -- no more actions are admitted
                     // IF previous plan length is X THEN this spot must be empty
@@ -937,12 +940,46 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     addAssumptions(layerIdx, /*permanent=*/true);
     end(STAGE_PLANLENGTHCOUNTING);
 
+    int curr = currentPlanLength;
+    currentPlanLength = findMinBySat(minPlanLength, std::min(maxPlanLength, currentPlanLength), 
+        // Variable mapping
+        [&](int currentMax) {
+            return planLengthVars[currentMax-minPlanLength];
+        }, 
+        // Bound update on SAT 
+        [&]() {
+            // SAT: Shorter plan found!
+            plan = extractPlan();
+            int newPlanLength = getPlanLength(std::get<0>(plan));
+            Log::i("Shorter plan (length %i) found\n", newPlanLength);
+            assert(newPlanLength < curr);
+            curr = newPlanLength;
+            return newPlanLength;
+        }, 
+    ConstraintAddition::PERMANENT);
+
+    float factor = (float)currentPlanLength / minPlanLength;
+    if (factor <= 1) {
+        Log::v("Plan is globally optimal (static lower bound: %i)\n", minPlanLength);
+    } else if (minPlanLength == 0) {
+        Log::v("Plan may be arbitrarily suboptimal (static lower bound: 0)\n");
+    } else {
+        Log::v("Plan may be suboptimal by a maximum factor of %.2f (static lower bound: %i)\n", factor, minPlanLength);
+    }
+}
+
+int Encoding::findMinBySat(int lower, int upper, std::function<int(int)> varMap, 
+            std::function<int(void)> boundUpdateOnSat, ConstraintAddition mode) {
+
+    int originalUpper = upper;
+    int current = upper;
+
     // Solving iterations
     while (true) {
         // Hit lower bound of possible plan lengths? 
-        if (currentPlanLength == minPlanLength) {
-            Log::v("PLO END %i\n", currentPlanLength);
-            Log::i("Length of current plan is at lower bound (%i): finished\n", minPlanLength);
+        if (current == lower) {
+            Log::v("PLO END %i\n", current);
+            Log::i("Length of current plan is at lower bound (%i): finished\n", lower);
             break;
         }
 
@@ -950,45 +987,46 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
         begin(STAGE_PLANLENGTHCOUNTING);
 
         // Permanently forbid any plan lengths greater than / equal to the last found plan
-        while (maxPlanLength > currentPlanLength) {
-            Log::d("GUARANTEE PL!=%i\n", maxPlanLength);
-            int probedVar = planLengthVars[maxPlanLength-minPlanLength];
-            addClause(-probedVar);
-            maxPlanLength--;
+        if (mode == TRANSIENT) {
+            upper = originalUpper;
         }
-        assert(maxPlanLength == currentPlanLength);
-        //assert(solve() != 20 || Log::e("Problem became unsolvable through plan counter!\n"));
-
+        while (upper > current) {
+            Log::d("GUARANTEE PL!=%i\n", upper);
+            int probedVar = varMap(upper);
+            if (mode == TRANSIENT) ipasir_assume(_solver, -probedVar);
+            else addClause(-probedVar);
+            upper--;
+        }
+        assert(upper == current);
+        
         // Assume a plan length shorter than the last found plan
-        Log::d("GUARANTEE PL!=%i\n", maxPlanLength);
-        int probedVar = planLengthVars[maxPlanLength-minPlanLength];
-        addClause(-probedVar);
+        Log::d("GUARANTEE PL!=%i\n", upper);
+        int probedVar = varMap(upper);
+        if (mode == TRANSIENT) ipasir_assume(_solver, -probedVar);
+        else addClause(-probedVar);
 
         end(STAGE_PLANLENGTHCOUNTING);
 
-        Log::i("Searching for a plan of length < %i\n", maxPlanLength);
+        Log::i("Searching for a plan of length < %i\n", upper);
         int result = solve();
 
         // Check result
         if (result == 10) {
             // SAT: Shorter plan found!
-            plan = extractPlan();
-            int newPlanLength = getPlanLength(std::get<0>(plan));
-            assert(newPlanLength < currentPlanLength || Log::e("New found plan has length %i!\n", newPlanLength));
-            Log::i("Shorter plan (length %i) found\n", newPlanLength);
-            currentPlanLength = newPlanLength;
-            Log::v("PLO UPDATE %i\n", currentPlanLength);
+            current = boundUpdateOnSat();
+            Log::v("PLO UPDATE %i\n", current);
         } else if (result == 20) {
             // UNSAT
-            Log::v("PLO END %i\n", currentPlanLength);
-            Log::i("No plan of length < %i exists at this layer\n", currentPlanLength);
+            Log::v("PLO END %i\n", current);
             break;
         } else {
             // UNKNOWN
-            Log::v("PLO END %i\n", currentPlanLength);
+            Log::v("PLO END %i\n", current);
             break;
         }
     }
+
+    return current;
 }
 
 bool Encoding::isEmptyAction(const USignature& aSig) {
@@ -1217,7 +1255,7 @@ void Encoding::printFailedVars(Layer& layer) {
     Log::d("\n");
 }
 
-std::vector<PlanItem> Encoding::extractClassicalPlan() {
+std::vector<PlanItem> Encoding::extractClassicalPlan(PlanExtraction mode) {
 
     Layer& finalLayer = *_layers.back();
     int li = finalLayer.index();
@@ -1241,7 +1279,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
             if (ipasir_val(_solver, aVar) <= 0) continue;
 
             USignature aSig = sig;
-            if (!_htn.isAction(aSig)) continue;
+            if (mode == PRIMITIVE_ONLY && !_htn.isAction(aSig)) continue;
 
             if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
                 aSig._name_id = _htn.getActionNameOfVirtualizedChild(sig._name_id);
@@ -1255,15 +1293,7 @@ std::vector<PlanItem> Encoding::extractClassicalPlan() {
 
             // Decode q constants
             USignature aDec = getDecodedQOp(li, pos, aSig);
-            if (aDec == Position::NONE_SIG) continue;
-
-            if (aDec != aSig) {
-
-                const Action& a = _htn.getAction(aSig);
-                HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
-                Action aDecoded = (Action) opDecoded;
-            }
-
+            if (aDec == Sig::NONE_SIG) continue;
             plan[pos] = {aVar, aDec, aDec, std::vector<int>()};
         }
 
@@ -1356,7 +1386,7 @@ Plan Encoding::extractPlan() {
 
                         //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                         USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
-                        if (decRSig == Position::NONE_SIG) continue;
+                        if (decRSig == Sig::NONE_SIG) continue;
 
                         Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
                         Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
@@ -1478,7 +1508,7 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
 
             if (numSubstitutions == 0) {
                 Log::v("(%i,%i) No substitutions for arg %s of %s\n", layer, pos, TOSTR(arg), TOSTR(origSig));
-                return Position::NONE_SIG;
+                return Sig::NONE_SIG;
             }
             assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s\n", numSubstitutions, TOSTR(arg), TOSTR(origSig)));
         }

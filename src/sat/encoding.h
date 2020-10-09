@@ -22,8 +22,8 @@ extern "C" {
 struct PlanItem {
     PlanItem() {
         id = -1;
-        abstractTask = Position::NONE_SIG;
-        reduction = Position::NONE_SIG;
+        abstractTask = Sig::NONE_SIG;
+        reduction = Sig::NONE_SIG;
         subtaskIds = std::vector<int>(0);
     }
     PlanItem(int id, const USignature& abstractTask, const USignature& reduction, const std::vector<int> subtaskIds) :
@@ -132,10 +132,13 @@ public:
     void printStages();
 
     Plan extractPlan();
-    std::vector<PlanItem> extractClassicalPlan();
+    enum PlanExtraction {ALL, PRIMITIVE_ONLY};
+    std::vector<PlanItem> extractClassicalPlan(PlanExtraction mode = PRIMITIVE_ONLY);
     std::vector<PlanItem> extractDecompositionPlan();
 
     void optimizePlan(int upperBound, Plan& plan);
+    enum ConstraintAddition { TRANSIENT, PERMANENT };
+    int findMinBySat(int lower, int upper, std::function<int(int)> varMap, std::function<int(void)> boundUpdateOnSat, ConstraintAddition mode);
     int getPlanLength(const std::vector<PlanItem>& classicalPlan);
     bool isEmptyAction(const USignature& aSig);
 

@@ -2,12 +2,9 @@
 #ifndef DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 #define DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 
-#include <assert.h> 
- 
-#include "libpanda.hpp"
+#include <assert.h>
 
 #include "data/code_table.h"
-#include "data/layer.h"
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
@@ -17,16 +14,19 @@
 
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
-#include "util/ctre.hpp"
 
-class Instantiator; // forward def
+// Forward definitions
+class Instantiator;
+class ParsedProblem;
+struct predicate_definition;
+struct task;
+struct method;
+struct literal;
 
 class HtnInstance {
 
 public:
     typedef std::function<bool(const USignature&, bool)> StateEvaluator;
-
-    static constexpr ctll::fixed_string REGEX_SPLITTING_METHOD = ctll::fixed_string{ "_splitting_method_(.*)_splitted_[0-9]+" };
 
 private:
 
@@ -117,10 +117,10 @@ public:
     // Special action representing a virtual "No-op".
     static Action BLANK_ACTION;
 
-    HtnInstance(Parameters& params, ParsedProblem& p);
+    HtnInstance(Parameters& params);
     ~HtnInstance();
 
-    static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
+    ParsedProblem* parse(std::string domainFile, std::string problemFile);
 
     USigSet getInitState();
     const Reduction& getInitReduction();
@@ -129,6 +129,10 @@ public:
     void printStatistics();
     size_t getNumFreeArguments(const Reduction& r);
     
+    const NodeHashMap<int, Action> getActionTemplates() const;
+    const NodeHashMap<int, Reduction> getReductionTemplates() const;
+    int getMinRES(int nameId);
+
     Action toAction(int actionName, const std::vector<int>& args) const;
     Reduction toReduction(int reductionName, const std::vector<int>& args) const;
     HtnOp& getOp(const USignature& opSig);

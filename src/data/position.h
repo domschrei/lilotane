@@ -12,8 +12,6 @@
 #include "util/log.h"
 #include "sat/literal_tree.h"
 
-typedef std::pair<int, int> IntPair;
-
 typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
 typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
@@ -23,9 +21,6 @@ enum VarType { FACT, OP };
 struct Position {
 
 public:
-    const static USignature NONE_SIG;
-    const static SigSet EMPTY_SIG_SET;
-    const static USigSet EMPTY_USIG_SET;
     static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
     static IndirectFactSupportMap EMPTY_INDIRECT_FACT_SUPPORT_MAP;
 

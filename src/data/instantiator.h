@@ -4,15 +4,14 @@
 
 #include <functional>
 
+#include "data/htn_instance.h"
 #include "data/hashmap.h"
 #include "data/reduction.h"
 #include "data/action.h"
-#include "data/code_table.h"
 #include "data/signature.h"
 #include "data/network_traversal.h"
 #include "data/fact_frame.h"
 #include "util/params.h"
-#include "data/htn_instance.h"
 
 struct ArgComparator {
     HtnOp& op;
@@ -64,6 +63,7 @@ private:
     NodeHashMap<int, SigSet> _lifted_fact_changes;
 
     NodeHashMap<int, FactFrame> _fact_frames;
+    FlatHashMap<int, int> _min_recursive_expansion_sizes;
 
 public:
     Instantiator(Parameters& params, HtnInstance& htn) : _params(params), _htn(&htn), _traversal(htn) {
@@ -95,6 +95,9 @@ public:
     SigSet getPossibleFactChanges(const USignature& sig, bool fullyInstantiate = true);
 
     FactFrame getFactFrame(const USignature& sig, bool simpleMode = false, USigSet& currentOps = EMPTY_USIG_SET);
+
+    void computeMinNumPrimitiveChildren();
+    int getMinNumPrimitiveChildren(int sigName);
 
     std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs);
     bool fits(const USignature& from, const USignature& to, FlatHashMap<int, int>* substitution = nullptr);

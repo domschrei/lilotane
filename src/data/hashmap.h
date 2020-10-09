@@ -24,6 +24,7 @@
 
 #include "util/hash.h"
 
+typedef std::pair<int, int> IntPair;
 struct IntPairHasher {
 size_t operator()(const std::pair<int, int>& pair) const {
     size_t h = 17;

@@ -4,6 +4,9 @@
 #include "sat/variable_domain.h"
 #include "util/log.h"
 
+NodeHashMap<USignature, USigSet, USignatureHasher> Position::EMPTY_USIG_TO_USIG_SET_MAP;
+IndirectFactSupportMap Position::EMPTY_INDIRECT_FACT_SUPPORT_MAP;
+
 Position::Position() : _layer_idx(-1), _pos(-1) {}
 void Position::setPos(size_t layerIdx, size_t pos) {_layer_idx = layerIdx; _pos = pos;}
 

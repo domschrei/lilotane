@@ -6,13 +6,11 @@
  
 #include "util/names.h"
 #include "util/params.h"
-
 #include "data/hashmap.h"
 #include "data/layer.h"
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
 #include "data/arg_iterator.h"
-
 #include "sat/encoding.h"
 
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
@@ -24,7 +22,7 @@ public:
 
 private:
     Parameters& _params;
-    HtnInstance _htn;
+    HtnInstance& _htn;
 
     std::vector<Layer*> _layers;
     Instantiator& _instantiator;
@@ -52,7 +50,7 @@ private:
     Plan _plan;
 
 public:
-    Planner(Parameters& params, ParsedProblem& problem) : _params(params), _htn(params, problem),
+    Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
             _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers, [this](){checkTermination();}), 
             _init_plan_time_limit(_params.getFloatParam("T")), _nonprimitive_support(_params.isNonzero("nps")), 
             _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {}

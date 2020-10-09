@@ -117,4 +117,10 @@ struct SigVecHasher {
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;
 typedef FlatHashSet<USignature, USignatureHasher> USigSet;
 
+namespace Sig {
+    const static USignature NONE_SIG = USignature(-1, std::vector<int>());
+    const static SigSet EMPTY_SIG_SET;
+    const static USigSet EMPTY_USIG_SET;
+}
+
 #endif

@@ -29,13 +29,8 @@ void handleSignal(int signum) {
 
 void run(Parameters& params) {
 
-    ParsedProblem p;
-    HtnInstance::parse(params.getDomainFilename(), params.getProblemFilename(), p);
-
-    Log::i("%i methods, %i abstract tasks, %i primitive tasks\n", 
-        p.methods.size(), p.abstract_tasks.size(), p.primitive_tasks.size());
-
-    Planner planner(params, p);
+    HtnInstance htn(params);
+    Planner planner(params, htn);
     int result = planner.findPlan();
 
     if (result == 0) {

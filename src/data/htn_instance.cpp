@@ -5,36 +5,14 @@
 
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
-#include "util/ctre.hpp"
+#include "util/regex.h"
+
+#include "libpanda.hpp"
 
 Action HtnInstance::BLANK_ACTION;
 
-void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedProblem& pp) {
-
-    const char* firstArg = "pandaPIparser";
-    const char* domainStr = domainFile.c_str();
-    const char* problemStr = problemFile.c_str();
-
-    struct stat sb;
-    if (stat(domainStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
-        Log::e("Domain file \"%s\" is not a regular file. Exiting.\n", domainStr);
-        exit(1);
-    }
-    if (stat(problemStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
-        Log::e("Problem file \"%s\" is not a regular file. Exiting.\n", problemStr);
-        exit(1);
-    }
-
-    char* args[3];
-    args[0] = (char*)firstArg;
-    args[1] = (char*)domainStr;
-    args[2] = (char*)problemStr;
-
-    optind = 1;
-    run_pandaPIparser(3, args, pp);
-}
-
-HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
+HtnInstance::HtnInstance(Parameters& params) :
+             _params(params), _p(*parse(params.getDomainFilename(), params.getProblemFilename())), 
             _q_db([this](int arg) {return isQConstant(arg);}),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0),
             _share_q_constants(_params.isNonzero("sqq")) {
@@ -48,6 +26,7 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     _actions[blankId] = BLANK_ACTION;
     addAction(BLANK_ACTION);
     _blank_action_sig = BLANK_ACTION.getSignature();
+    _signature_sorts_table[blankId];
 
     for (const predicate_definition& p : predicate_definitions)
         extractPredSorts(p);
@@ -104,6 +83,35 @@ HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params)
     minePreconditions(MinePrecMode(_params.getIntParam("mp")));
 
     Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+
+    _instantiator->computeMinNumPrimitiveChildren();
+}
+
+ParsedProblem* HtnInstance::parse(std::string domainFile, std::string problemFile) {
+
+    const char* firstArg = "pandaPIparser";
+    const char* domainStr = domainFile.c_str();
+    const char* problemStr = problemFile.c_str();
+
+    struct stat sb;
+    if (stat(domainStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        Log::e("Domain file \"%s\" is not a regular file. Exiting.\n", domainStr);
+        exit(1);
+    }
+    if (stat(problemStr, &sb) != 0 || !S_ISREG(sb.st_mode)) {
+        Log::e("Problem file \"%s\" is not a regular file. Exiting.\n", problemStr);
+        exit(1);
+    }
+
+    char* args[3];
+    args[0] = (char*)firstArg;
+    args[1] = (char*)domainStr;
+    args[2] = (char*)problemStr;
+
+    ParsedProblem* p = new ParsedProblem();
+    optind = 1;
+    run_pandaPIparser(3, args, *p);
+    return p;
 }
 
 void HtnInstance::printStatistics() {
@@ -538,10 +546,7 @@ Reduction& HtnInstance::createReduction(method& method) {
         
         // Normalize task name
         std::string subtaskName = st.task;
-
-        while (auto m = ctre::match<REGEX_SPLITTING_METHOD>(subtaskName)) {
-            subtaskName = m.get<1>().to_view();
-        }
+        Regex::extractCoreNameOfSplittingMethod(subtaskName);
         Log::d("%s\n", subtaskName.c_str());
 
         if (subtaskName.rfind(method_precondition_action_name) != std::string::npos) {
@@ -555,9 +560,7 @@ Reduction& HtnInstance::createReduction(method& method) {
                 
                 // Normalize task name
                 std::string taskName = t.name;
-                while (auto m = ctre::match<REGEX_SPLITTING_METHOD>(taskName)) {
-                    taskName = m.get<1>().to_view();
-                }
+                Regex::extractCoreNameOfSplittingMethod(taskName);
 
                 //Log::d(" ~~~ %s\n", taskName.c_str());
                 if (subtaskName.rfind(taskName) != std::string::npos) {
@@ -1074,6 +1077,16 @@ void HtnInstance::clearForbiddenSubstitutions() {
     _forbidden_substitutions.clear();
 }
 
+const NodeHashMap<int, Action> HtnInstance::getActionTemplates() const {
+    return _actions;
+}
+const NodeHashMap<int, Reduction> HtnInstance::getReductionTemplates() const {
+    return _reductions;
+}
+int HtnInstance::getMinRES(int nameId) {
+    return _instantiator->getMinNumPrimitiveChildren(nameId);
+}
+
 Action HtnInstance::toAction(int actionName, const std::vector<int>& args) const {
     const auto& op = _actions.at(actionName);
     return op.substitute(Substitution(op.getArguments(), args));
@@ -1129,4 +1142,5 @@ QConstantDatabase& HtnInstance::getQConstantDatabase() {
 
 HtnInstance::~HtnInstance() {
     delete _instantiator;
+    delete &_p;
 }

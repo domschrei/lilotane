@@ -687,7 +687,7 @@ void Planner::propagateActions(size_t offset) {
 
     // Propagate actions
     for (const auto& aSig : above.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
         const Action& a = _htn.getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
@@ -697,7 +697,7 @@ void Planner::propagateActions(size_t offset) {
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
             Log::i("Forbidding action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
-            newPos.addExpansion(aSig, Position::NONE_SIG);
+            newPos.addExpansion(aSig, Sig::NONE_SIG);
             continue;
         }
 
@@ -740,7 +740,7 @@ void Planner::propagateReductions(size_t offset) {
 
     // Collect all possible subtasks and remember their possible parents
     for (const auto& rSig : above.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
+        if (rSig == Sig::NONE_SIG) continue;
         const Reduction r = _htn.getReduction(rSig);
         
         if (offset < r.getSubtasks().size()) {
@@ -828,7 +828,7 @@ void Planner::propagateReductions(size_t offset) {
             // Explicitly forbid the parent!
             Log::i("Forbidding reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
-            newPos.addExpansion(rSig, Position::NONE_SIG);
+            newPos.addExpansion(rSig, Sig::NONE_SIG);
         }
     }
 }
@@ -947,9 +947,9 @@ void Planner::introduceNewFacts() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            if (aSig == Position::NONE_SIG) continue;
+            if (aSig == Sig::NONE_SIG) continue;
             if (!isAction) {
-                _fact_changes_cache[aSig] = std::move(_instantiator.getPossibleFactChanges(aSig));
+                _fact_changes_cache[aSig] = _instantiator.getPossibleFactChanges(aSig);
             }
             for (const Signature& eff : isAction ? _htn.getAction(aSig).getEffects() 
                                                  : _fact_changes_cache[aSig]) {

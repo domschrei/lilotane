@@ -5,9 +5,6 @@
 #include <vector>
 #include <set>
 
-#include "data/hashmap.h"
-#include "data/signature.h"
-#include "util/names.h"
 #include "data/position.h"
 
 class Layer {
