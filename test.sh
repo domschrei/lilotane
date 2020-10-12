@@ -63,7 +63,7 @@ for domain in $domains ; do
 done
 
 # Output chosen parameters of lilotane
-echo "${blue}$(./lilotane $@|tail -1)${reset}"
+echo "${blue}$(./lilotane $@ -h|tail -1)${reset}"
 
 # Attempt to solve each instance
 for domain in $domains ; do
