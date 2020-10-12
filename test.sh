@@ -6,8 +6,7 @@ else
 	timeout="$TIMEOUT"
 fi
 rating_timeout=1800
-domains="miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
-#domains="transport"
+domains="barman blocksworld childsnack depots entertainment factories gripper hiking HikingG ipc-blocks ipc-entertainment-1 ipc-entertainment-2 ipc-entertainment-3 ipc-entertainment-4 ipc-freecell ipc-logistics ipc-minecraft-house ipc-minecraft-player ipc-rover miconic minecraft rover RoverG satellite SatelliteG smartphone transport umtranslog woodworking zenotravel"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
