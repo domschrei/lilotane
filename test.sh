@@ -7,7 +7,6 @@ else
 fi
 rating_timeout=1800
 domains="miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport ipc-blocks ipc-logistics ipc-freecell ipc-minecraft ipc-rover factories" 
-#domains="transport"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
@@ -64,7 +63,7 @@ for domain in $domains ; do
 done
 
 # Output chosen parameters of lilotane
-echo "${blue}$(./lilotane $@|tail -1)${reset}"
+echo "${blue}$(./lilotane $@ -h|tail -1)${reset}"
 
 # Attempt to solve each instance
 for domain in $domains ; do

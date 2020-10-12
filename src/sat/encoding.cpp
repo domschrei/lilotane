@@ -180,13 +180,37 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
         if (newPos.hasVariable(VarType::FACT, qfact)) continue;
         if (!newPos.hasQFactDecodings(qfact)) continue;
+
+        // Reuse variable from above?
         int aboveVar = above.getVariableOrZero(VarType::FACT, qfact);
         if (_offset == 0 && aboveVar != 0) {
             // Reuse qfact variable from above
             newPos.setVariable(VarType::FACT, qfact, aboveVar);
         } else {
-            // Encode new variable
-            _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));        
+            
+            // Reuse variable from left?
+            int leftVar = left.getVariableOrZero(VarType::FACT, qfact);
+            bool reuseFromLeft = leftVar != 0 
+                    && left.hasQFactDecodings(qfact)
+                    && left.getQFactDecodings(qfact).size() == newPos.getQFactDecodings(qfact).size();
+            if (reuseFromLeft) {
+                const auto& leftDec = left.getQFactDecodings(qfact);
+                for (const auto& decFact : newPos.getQFactDecodings(qfact)) {
+                    int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
+                    int decFactVarLeft = left.getVariableOrZero(VarType::FACT, decFact);
+                    if (decFactVar == 0 || decFactVarLeft == 0 || decFactVar != decFactVarLeft || !leftDec.count(decFact)) {
+                        reuseFromLeft = false;
+                        break;
+                    }
+                }
+            }
+            
+            if (reuseFromLeft) { 
+                newPos.setVariable(VarType::FACT, qfact, leftVar);
+            } else {
+                // Encode new variable
+                _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));
+            }
         }
     }
 
@@ -556,10 +580,17 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
         
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
         
-        if (_offset == 0 && _layer_idx > 0 && !_new_fact_vars.count(qfactVar)) {
-            Position& above = _layers[_layer_idx-1]->at(_old_pos);
-            if (newPos.getQFactDecodings(qfactSig) == above.getQFactDecodings(qfactSig))
-                continue;
+        if (!_new_fact_vars.count(qfactVar)) {
+            if (_offset == 0 && _layer_idx > 0) {
+                Position& above = _layers[_layer_idx-1]->at(_old_pos);
+                if (above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
+                    continue;
+            }
+            if (_pos > 0) {
+                Position& left = _layers[_layer_idx]->at(_pos-1);
+                if (left.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
+                    continue;
+            }
         }
 
         // For each possible fact decoding:
