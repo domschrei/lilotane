@@ -101,9 +101,10 @@ for file in files:
             optpoint[1] = 1/(initlength-optlength)*optpoint[1] - optlength/(initlength-optlength)
 
     # Update problems per domain
-    if domain not in problems_by_domain:
-        problems_by_domain[domain] = []
-    problems_by_domain[domain] += [(Xs, Ys, optpoint, duration)]
+    if Xs:
+        if domain not in problems_by_domain:
+            problems_by_domain[domain] = []
+        problems_by_domain[domain] += [(Xs, Ys, optpoint, duration)]
 
     # Add total relative improvement and total relative runtime to dicts 
     if Xs:

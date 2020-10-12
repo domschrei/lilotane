@@ -517,24 +517,26 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
+    const auto& state = getStateEvaluator();
 
     if (!_htn.hasQConstants(factAbs)) { 
-        // Precondition may not be contained in facts yet: initialize
-        //log("NEG_PRE %s\n", TOSTR(fact));
-        introduceNewFact(pos, factAbs);
-        _htn.addRelevantFact(factAbs);
-        assert(getCurrentState(fact._negated).contains(fact._usig) 
+        assert(_instantiator.testWithNoVarsNoQConstants(factAbs, fact._negated, state)
                 || Log::e("%s not contained in state!\n", TOSTR(fact)));
+                
+        if (_instantiator.testWithNoVarsNoQConstants(factAbs, !fact._negated, state)) {
+            // Negated prec. is not impossible: not statically resolvable
+            introduceNewFact(pos, factAbs);
+            _htn.addRelevantFact(factAbs);
+        }
         return;
     }
-
-    if (addQFact) pos.addQFact(factAbs);
 
     // For each fact decoded from the q-fact:
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
     std::vector<int> sortedArgIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
     IntPairTree goods;
-    const auto& state = getStateEvaluator();
+    bool staticallyResolvable = true;
+    USigSet relevants;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
         // Can the decoded fact occur as is?
@@ -553,11 +555,20 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
             continue;
         }
 
-        // Decoded fact may be new - initialize as necessary
-        introduceNewFact(pos, decFactAbs);
-        pos.addQFactDecoding(factAbs, decFactAbs);
-        _htn.addRelevantFact(decFactAbs);
+        staticallyResolvable = false;
+        relevants.insert(decFactAbs);
     }
+
+    if (!staticallyResolvable) {
+        if (addQFact) pos.addQFact(factAbs);
+        for (const USignature& decFactAbs : relevants) {
+            // Decoded fact may be new - initialize as necessary
+            introduceNewFact(pos, decFactAbs);
+            pos.addQFactDecoding(factAbs, decFactAbs);
+            _htn.addRelevantFact(decFactAbs);
+        }
+    } // else : encoding the precondition is not necessary!
+
     if (addQFact) goodSubs.push_back(std::move(goods));
 }
 
