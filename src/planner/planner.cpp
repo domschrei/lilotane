@@ -611,8 +611,14 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
+    const auto& state = getStateEvaluator();
 
     if (!isQFact) {
+        if (!_instantiator.testWithNoVarsNoQConstants(factAbs, !fact._negated, state)) {
+            // Always holds -- no need to encode
+            return true;
+        }
+
         if (mode != INDIRECT) _htn.addRelevantFact(factAbs);
 
         // Depending on whether fact supports are encoded for primitive ops only,
@@ -636,12 +642,17 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     std::vector<int> argIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
     bool anyGood = false;
+    bool staticallyResolvable = true;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
         
         // Check if this decoding is known to be invalid
         auto path = decodingToPath(factAbs._args, decFactAbs._args, argIndices);
-        if (invalids != nullptr) {
-            if (invalids->contains(path)) continue;
+        if (invalids != nullptr && invalids->contains(path)) continue;
+
+        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, !fact._negated, state)) {
+            // Negation of this ground effect is impossible here -> effect holds trivially
+            anyGood = true;
+            continue;
         }
         
         // Valid effect decoding
@@ -656,11 +667,12 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             _htn.addRelevantFact(decFactAbs);
         }
         anyGood = true;
+        staticallyResolvable = false;
     }
     // Not a single valid decoding of the effect? -> Invalid effect.
     if (!anyGood) return false;
 
-    if (mode == DIRECT) pos.addQFact(factAbs);
+    if (!staticallyResolvable && mode == DIRECT) pos.addQFact(factAbs);
     
     return true;
 }

@@ -631,13 +631,16 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
         int aVar = getVariable(VarType::OP, left, aSig);
 
         for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
-        
+            if (!isEncoded(VarType::FACT, _layer_idx, _pos, eff._usig)) continue;
+
             std::set<std::set<int>> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
                 for (const auto& posEff : _htn.getAction(aSig).getEffects()) {
                     if (posEff._negated) continue;
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
+                    if (!isEncoded(VarType::FACT, _layer_idx, _pos, posEff._usig)) continue;
+
                     bool fits = true;
                     std::set<int> s;
                     for (size_t i = 0; i < eff._usig._args.size(); i++) {
