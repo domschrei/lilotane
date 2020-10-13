@@ -417,6 +417,8 @@ void Planner::createNextLayer() {
     }
     if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
+    Log::i("Collected %i relevant facts at this layer\n", _htn.getRelevantFacts().size());
+
     // Encode new layer
     Log::i("Encoding ...\n");
     for (_pos = 0; _pos < newLayer.size(); _pos++) {

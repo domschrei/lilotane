@@ -880,14 +880,15 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     for (size_t pos = 0; pos+1 < l.size(); pos++) {
 
         // Collect sets of potential operations
-        USigSet emptyActions, actualActions;
+        FlatHashSet<int> emptyActions, actualActions;
         for (const auto& aSig : l.at(pos).getActions()) {
             Log::d("PLO %i %s?\n", pos, TOSTR(aSig));
             if (aSig == Sig::NONE_SIG) continue;
+            int aVar = l.at(pos).getVariable(VarType::OP, aSig);
             if (isEmptyAction(aSig)) {
-                emptyActions.insert(aSig);
+                emptyActions.insert(aVar);
             } else {
-                actualActions.insert(aSig);
+                actualActions.insert(aVar);
             }
         }
         for (const auto& rSig : l.at(pos).getReductions()) {
@@ -895,7 +896,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             if (rSig == Sig::NONE_SIG) continue;
             if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
                 // Empty reduction
-                emptyActions.insert(rSig);
+                emptyActions.insert(l.at(pos).getVariable(VarType::OP, rSig));
             }
         }
 
@@ -918,21 +919,30 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             // Mix of actual and empty actions here: Increment upper bound, 
             bool increaseUpperBound = maxPlanLength < currentPlanLength;
             if (increaseUpperBound) maxPlanLength++;
+
+            int emptySpotVar = 0;
+            bool encodeDirectly = emptyActions.size() <= 3 || actualActions.size() <= 3;
+            bool encodeEmptiesOnly = emptyActions.size() < actualActions.size();
+            bool encodeActualsOnly = emptyActions.size() > actualActions.size();
+            if (!encodeDirectly) {
+                // Encode with a helper variable
+                emptySpotVar = VariableDomain::nextVar();
+
+                // Define for each action var whether it implies an empty spot or not
+                for (int v : emptyActions) {
+                    // IF the empty action occurs, THEN the spot is empty.
+                    addClause(-v, emptySpotVar);
+                }
+                for (int v : actualActions) {
+                    // IF the actual action occurs, THEN the spot is not empty.
+                    addClause(-v, -emptySpotVar);
+                }
+            }
+
             // create new variables and constraints.
-            int emptySpotVar = VariableDomain::nextVar();
             std::vector<int> newPlanLengthVars(planLengthVars.size()+(increaseUpperBound?1:0));
             for (size_t i = 0; i < newPlanLengthVars.size(); i++) {
                 newPlanLengthVars[i] = VariableDomain::nextVar();
-            }
-
-            // Define for each action var whether it implies an empty spot or not
-            for (const auto& aSig : emptyActions) {
-                // IF the empty action occurs, THEN the spot is empty.
-                addClause(-l.at(pos).getVariable(VarType::OP, aSig), emptySpotVar);
-            }
-            for (const auto& aSig : actualActions) {
-                // IF the actual action occurs, THEN the spot is not empty.
-                addClause(-l.at(pos).getVariable(VarType::OP, aSig), -emptySpotVar);
             }
 
             // Propagate plan length from previous position to new position
@@ -941,20 +951,55 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
                 int keptPlanLengthVar = newPlanLengthVars[i];
 
                 if (i+1 < newPlanLengthVars.size()) {
-                    // IF previous plan length is X THEN
-                    // (here is an empty spot IFF the plan length stays X) 
-                    addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
-                    //addClause(-prevVar, emptySpotVar, -keptPlanLengthVar);
-
-                    // IF previous plan length is X THEN
-                    // (here is a non-empty spot IFF the plan length becomes X+1)
+                    // IF previous plan length is X AND spot is empty
+                    // THEN the plan length stays X 
+                    if (encodeDirectly) {
+                        if (encodeEmptiesOnly) {
+                            for (int v : emptyActions) {
+                                addClause(-prevVar, -v, keptPlanLengthVar);
+                            }
+                        } else {
+                            appendClause(-prevVar, keptPlanLengthVar);
+                            for (int v : actualActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
+                    }
+                    
+                    // IF previous plan length is X AND here is a non-empty spot 
+                    // THEN the plan length becomes X+1
                     int incrPlanLengthVar = newPlanLengthVars[i+1];
-                    addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
-                    //addClause(-prevVar, -emptySpotVar, -incrPlanLengthVar);
+                    if (encodeDirectly) {
+                        if (encodeActualsOnly) {
+                            for (int v : actualActions) {
+                                addClause(-prevVar, -v, incrPlanLengthVar);
+                            }
+                        } else {
+                            appendClause(-prevVar, incrPlanLengthVar);
+                            for (int v : emptyActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
+                    }
+
                 } else {
                     // Limit hit -- no more actions are admitted
                     // IF previous plan length is X THEN this spot must be empty
-                    addClause(-prevVar, emptySpotVar);
+                    if (encodeDirectly) {
+                        if (encodeActualsOnly) {
+                            for (int v : actualActions) {
+                                addClause(-prevVar, -v);
+                            }
+                        } else {
+                            appendClause(-prevVar);
+                            for (int v : emptyActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, emptySpotVar);
+                    }
                     // IF previous plan length is X THEN the plan length stays X
                     addClause(-prevVar, keptPlanLengthVar);
                 }
