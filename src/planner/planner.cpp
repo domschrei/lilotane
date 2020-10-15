@@ -444,6 +444,8 @@ void Planner::createNextPosition() {
         createNextPositionFromAbove();
     }
 
+    eliminateDominatedOperations();
+
     // In preparation for the upcoming position,
     // add all effects of the actions and reductions occurring HERE
     // as (initially false) facts to THIS position.  
@@ -1018,6 +1020,180 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
     for (const TypeConstraint& c : cs) {
         (*_layers[_layer_idx])[_pos].addQConstantTypeConstraint(op, c);
     }
+}
+
+Planner::DominationStatus Planner::getDominationStatus(const USignature& op, const USignature& other, 
+        Substitution& qconstSubstitutions) {
+    
+    if (op._name_id != other._name_id) return DIFFERENT;
+    assert(op._args.size() == other._args.size());
+    
+    DominationStatus status = EQUIVALENT;
+    FlatHashSet<int> dummyDomain;
+
+    for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
+        int arg = op._args[argIdx];
+        int otherArg = other._args[argIdx];
+
+        // TODO Every q-constant must have a globally invariant domain for this to work.
+        if (arg == otherArg) continue; 
+        
+        bool isQ = _htn.isQConstant(arg);
+        bool isOtherQ = _htn.isQConstant(otherArg);
+        if (!isQ && !isOtherQ) return DIFFERENT; // Different ground constants
+
+        // Check whether both q-constants originate from the same position
+        IntPair position(_layer_idx, _pos);
+        if (isQ && isOtherQ && _htn.getOriginOfQConstant(arg) != _htn.getOriginOfQConstant(otherArg)) {
+            return DIFFERENT;
+        }
+        
+        // Compare domains of pseudo-constants
+        
+        const auto& domain = isQ ? _htn.getDomainOfQConstant(arg) : dummyDomain;
+        if (!isQ) dummyDomain.insert(arg);
+        const auto& otherDomain = isOtherQ ? _htn.getDomainOfQConstant(otherArg) : dummyDomain;
+        if (!isOtherQ) dummyDomain.insert(otherArg);
+        assert(dummyDomain.size() <= 1);
+
+        if (domain.size() > otherDomain.size()) {
+            // This op may dominate the other op
+
+            // Contradicts previous argument indices -> ops are different
+            if (status == DOMINATED) return DIFFERENT;
+            // Check if this domain actually contains the other domain
+            for (int c : otherDomain) if (!domain.count(c)) return DIFFERENT;
+            // Yes: Dominating w.r.t. this position
+            status = DOMINATING;
+            qconstSubstitutions[otherArg] = arg;
+
+        } else if (domain.size() < otherDomain.size()) {
+            // This op may be dominated by the other op
+
+            // Contradicts previous argument indices -> ops are different
+            if (status == DOMINATED) return DIFFERENT;
+            // Check if the other domain actually contains this domain
+            for (int c : domain) if (!otherDomain.count(c)) return DIFFERENT;
+            // Yes: Dominated w.r.t. this position
+            status = DOMINATED;
+            qconstSubstitutions[arg] = otherArg;
+
+        } else if (domain != otherDomain) {
+            // Different domains
+            return DIFFERENT;
+        }
+        // Domains are equal
+
+        if (!isQ || !isOtherQ) dummyDomain.clear();
+    }
+
+    if (status == EQUIVALENT) {
+        // The operations are equal. Both dominate another.
+        // Tie break using lexicographic ordering of arguments
+        for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
+            if (op._args[argIdx] != other._args[argIdx]) {
+                status = op._args[argIdx] < other._args[argIdx] ? DOMINATED : DOMINATING;
+                break;
+            }    
+        }
+        for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
+            if (_htn.isQConstant(status == DOMINATED ? other._args[argIdx] : op._args[argIdx])) {
+                if (status == DOMINATED) qconstSubstitutions[op._args[argIdx]] = other._args[argIdx];
+                else qconstSubstitutions[other._args[argIdx]] = op._args[argIdx];
+            } 
+        }
+        return status;
+    }
+    return status;
+}
+
+void Planner::eliminateDominatedOperations() {
+    Position& newPos = _layers.at(_layer_idx)->at(_pos);
+
+    // Map of an op name id to (map of a dominating op to a set of dominated ops)
+    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>> dominatingActionsByName;
+    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>> dominatingReductionsByName;
+
+    // For each operation
+    const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
+    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>>* dMaps[2] = {
+        &dominatingActionsByName, &dominatingReductionsByName
+    };
+    for (size_t i = 0; i < 2; i++) {
+
+        for (const auto& op : *ops[i]) {
+            auto& dominatingOps = (*dMaps[i])[op._name_id];
+
+            // Compare operation with each currently dominating op of the same name
+            USigSubstitutionMap dominated;
+            
+            if (dominatingOps.empty()) {
+                dominatingOps[op];
+                continue;
+            }
+
+            for (auto& [other, dominatedByOther] : dominatingOps) {
+                Substitution s;
+                auto status = getDominationStatus(op, other, s);
+                if (status == DOMINATED) {
+                    // This op is being dominated; mark for deletion
+                    //Log::d("DOM %s << %s\n", TOSTR(op), TOSTR(other));
+                    dominatedByOther[op] = s;
+                    dominated.clear();
+                    break;
+                }
+                if (status == DOMINATING) {
+                    // This op dominates the other op
+                    //Log::d("DOM %s >> %s\n", TOSTR(op), TOSTR(other));
+                    dominated[other] = s;
+                }
+            }
+            // Delete all ops transitively dominated by this op
+            assert(!dominatingOps.count(op));
+            for (const auto& [other, s] : dominated) {
+                std::vector<USignature> dominatedVec(1, other);
+                std::vector<Substitution> subVec(1, s);
+                for (size_t j = 0; j < dominatedVec.size(); j++) {
+                    auto dominatedOp = dominatedVec[j];
+                    auto domS = subVec[j];
+                    //Log::d("DOM %s, j=%i : %s\n", TOSTR(op), j, TOSTR(dominatedOp));
+                    //Log::d("DOM sub: %s\n", TOSTR(domS));
+                    if (!dominatingOps[op].count(dominatedOp) || domS.size() < dominatingOps[op][dominatedOp].size()) 
+                        dominatingOps[op][dominatedOp] = domS;
+                    //assert(dominatedOp.substitute(domS) == op || Log::d("%s -> %s != %s\n", TOSTR(dominatedOp), TOSTR(dominatedOp.substitute(domS)), TOSTR(op)));
+                    if (dominatingOps.count(dominatedOp)) {
+                        for (const auto& [domDomOp, domDomS] : dominatingOps[dominatedOp]) {
+                            dominatedVec.push_back(domDomOp);
+                            Substitution cat = domDomS.concatenate(domS);
+                            //Log::d("DOM concat (%s , %s) ~> %s\n", TOSTR(domDomS), TOSTR(domS), TOSTR(cat));
+                            subVec.push_back(cat); 
+                        }
+                        dominatingOps.erase(dominatedOp);
+                    }
+                }
+            }
+        }
+
+        // Remove all dominated ops
+        for (auto& [nameId, dMap] : *dMaps[i]) for (auto& [op, dominated] : dMap) {
+            for (auto& [other, s] : dominated) {
+                //Log::v("%s dominates %s (%s)\n", TOSTR(op), TOSTR(other), TOSTR(s));
+                //assert(other.substitute(s) == op);
+
+                auto predecessors = newPos.getPredecessors().at(other);
+                for (const auto& parent : predecessors) {
+                    newPos.addExpansion(parent, op);
+                    newPos.addExpansionSubstitution(parent, op, std::move(s));
+                }
+                if (i == 0) {
+                    newPos.removeActionOccurrence(other);
+                } else {
+                    newPos.removeReductionOccurrence(other);
+                }
+            }
+        }
+    }
+    
 }
 
 USigSet& Planner::getCurrentState(bool negated) {

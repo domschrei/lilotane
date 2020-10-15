@@ -92,6 +92,10 @@ private:
     void introduceNewFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
 
+    enum DominationStatus {DOMINATING, DOMINATED, DIFFERENT, EQUIVALENT};
+    DominationStatus getDominationStatus(const USignature& op, const USignature& other, Substitution& qconstSubstitutions);
+    void eliminateDominatedOperations();
+
     USigSet& getCurrentState(bool negated);
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
     // Introduces "fact" as FALSE at newPos.

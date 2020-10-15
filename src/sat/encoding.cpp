@@ -178,14 +178,17 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     // Encode q-facts that are not encoded yet
     for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
-        if (newPos.hasVariable(VarType::FACT, qfact)) continue;
         if (!newPos.hasQFactDecodings(qfact)) continue;
+        assert(!newPos.hasVariable(VarType::FACT, qfact));
 
         // Reuse variable from above?
         int aboveVar = above.getVariableOrZero(VarType::FACT, qfact);
         if (_offset == 0 && aboveVar != 0) {
-            // Reuse qfact variable from above
+            // Reuse qfact variable from above, 
             newPos.setVariable(VarType::FACT, qfact, aboveVar);
+            // but re-encode constraints
+            _new_fact_vars.insert(aboveVar);
+
         } else {
             
             // Reuse variable from left?
@@ -550,7 +553,7 @@ void Encoding::encodeSubstitutionVars(const USignature& opSig, int opVar, int ar
     assert(!substitutionVars.empty());
 
     // AT LEAST ONE substitution, or the parent op does NOT occur
-    appendClause(-opVar);
+    //appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
 
@@ -579,7 +582,7 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
         if (!newPos.hasQFactDecodings(qfactSig)) continue;
         
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
-        
+
         if (!_new_fact_vars.count(qfactVar)) {
             if (_offset == 0 && _layer_idx > 0) {
                 Position& above = _layers[_layer_idx-1]->at(_old_pos);
@@ -794,39 +797,63 @@ void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
 
     // expansions
     begin(STAGE_EXPANSIONS);
-    for (const auto& pair : newPos.getExpansions()) {
-        const USignature& parent = pair.first;
+    for (const auto& [parent, children] : newPos.getExpansions()) {
 
+        int parentVar = getVariable(VarType::OP, above, parent);
         bool forbidden = false;
-        for (const USignature& child : pair.second) {
+        for (const USignature& child : children) {
             if (child == Sig::NONE_SIG) {
                 // Forbid parent op that turned out to be impossible
-                int oldOpVar = getVariable(VarType::OP, above, parent);
-                addClause(-oldOpVar);
+                addClause(-parentVar);
                 forbidden = true;
                 break;
             }
         }
+
         if (forbidden) continue;
 
-        appendClause(-getVariable(VarType::OP, above, parent));
-        for (const USignature& child : pair.second) {
+        appendClause(-parentVar);
+        for (const USignature& child : children) {
             if (child == Sig::NONE_SIG) continue;
             appendClause(getVariable(VarType::OP, newPos, child));
         }
         endClause();
+
+        if (newPos.getExpansionSubstitutions().count(parent)) {
+            for (const auto& [child, s] : newPos.getExpansionSubstitutions().at(parent)) {
+                int childVar = newPos.getVariableOrZero(VarType::OP, child);
+                if (childVar == 0) continue;
+
+                for (const auto& [src, dest] : s) {
+                    assert(_htn.isQConstant(dest));
+
+                    // Q-constant dest has a larger domain than (q-)constant src.
+                    // Enforce that dest only takes values from the domain of src!
+                    //Log::d("DOM %s->%s : Enforce %s only to take values from domain of %s\n", TOSTR(parent), TOSTR(child), TOSTR(dest), TOSTR(src));
+
+                    if (!_htn.isQConstant(src)) {
+                        addClause(-parentVar, -childVar, varSubstitution(sigSubstitute(dest, src)));
+                    } else {
+                        addClause(-parentVar, -childVar, varQConstEquality(dest, src));
+                        /*
+                        for (int c : _htn.getDomainOfQConstant(src)) {
+                            appendClause(varSubstitution(sigSubstitute(dest, c)));
+                        }*/
+                    }
+                }
+            }
+        }
     }
     end(STAGE_EXPANSIONS);
 
     // predecessors
     if (_params.isNonzero("p")) {
         begin(STAGE_PREDECESSORS);
-        for (const auto& pair : newPos.getPredecessors()) {
-            const USignature& child = pair.first;
+        for (const auto& [child, parents] : newPos.getPredecessors()) {
             if (child == Sig::NONE_SIG) continue;
 
             appendClause(-getVariable(VarType::OP, newPos, child));
-            for (const USignature& parent : pair.second) {
+            for (const USignature& parent : parents) {
                 appendClause(getVariable(VarType::OP, above, parent));
             }
             endClause();
@@ -1503,7 +1530,7 @@ Plan Encoding::extractPlan() {
                             reductionsThisPos++;
                         } else {
                             Log::d(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
-                        } 
+                        }
                     }
                 }
             }

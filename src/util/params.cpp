@@ -57,7 +57,7 @@ void Parameters::setDefaults() {
     setParam("qq", "1"); // q-constants without instantiation of preconditions
     setParam("s", "0"); // random seed
     setParam("sace", "0"); // split actions with (potentially) conflicting effects
-    setParam("sqq", "0"); // share q-constants
+    setParam("sqq", "1"); // share q-constants
     setParam("srfa", "1"); // skip redundant frame axioms
     setParam("stats", "0"); // output domain statistics and exit
     setParam("stl", "0"); // SAT time limit
@@ -105,6 +105,7 @@ void Parameters::printUsage() {
     Log::i(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
     Log::i(" -s=<int>            Random seed\n");
     Log::i(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
+    Log::i(" -sqq=<0|1>          Share q-constants among operations of a position if they have the same effective domain\n");
     Log::i(" -srfa=<0|1>         Skip redundant frame axioms\n");
     Log::i(" -stats=<0|1>        Output domain statistics and exit\n");
     Log::i(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");

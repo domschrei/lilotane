@@ -116,4 +116,12 @@ namespace Names {
         }
         return out + "}";
     }
+
+    std::string to_string(const Substitution& s) {
+        std::string out = "";
+        for (const auto& [src, dest] : s) {
+            out += "[" + to_string(src) + "/" + to_string(dest) + "]";
+        }
+        return out;
+    }
 }

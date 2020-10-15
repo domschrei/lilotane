@@ -105,6 +105,9 @@ void Position::addExpansion(const USignature& parent, const USignature& child) {
     auto& pred = _predecessors[child];
     pred.insert(parent);
 }
+void Position::addExpansionSubstitution(const USignature& parent, const USignature& child, Substitution&& s) {
+    _expansion_substitutions[parent][child] = std::move(s);
+}
 void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
 }
@@ -121,6 +124,10 @@ void Position::removeActionOccurrence(const USignature& action) {
 void Position::removeReductionOccurrence(const USignature& reduction) {
     assert(_reductions.count(reduction));
     _reductions.erase(reduction);
+    for (auto& [parent, children] : _expansions) {
+        children.erase(reduction);
+    }
+    _predecessors.erase(reduction);
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable(VarType type) const {
@@ -180,6 +187,7 @@ NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& Position::g
 USigSet& Position::getActions() {return _actions;}
 const USigSet& Position::getReductions() const {return _reductions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
+const NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>& Position::getExpansionSubstitutions() const {return _expansion_substitutions;}
 const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 size_t Position::getMaxExpansionSize() const {return _max_expansion_size;}

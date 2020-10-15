@@ -22,6 +22,7 @@ namespace Names {
     std::string to_string(const SigSet& set);
     std::string to_string(const USigSet& set);
     std::string to_string(const FactFrame& f);
+    std::string to_string(const Substitution& s);
 }
 
 #endif

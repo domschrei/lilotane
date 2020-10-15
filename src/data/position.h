@@ -15,6 +15,7 @@
 typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
 typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
+typedef NodeHashMap<USignature, Substitution, USignatureHasher> USigSubstitutionMap;
 
 enum VarType { FACT, OP };
 
@@ -33,6 +34,7 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
     NodeHashMap<USignature, USigSet, USignatureHasher> _predecessors;
+    NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher> _expansion_substitutions;
 
     USigSet _axiomatic_ops;
 
@@ -99,6 +101,7 @@ public:
     void addAction(USignature&& action);
     void addReduction(const USignature& reduction);
     void addExpansion(const USignature& parent, const USignature& child);
+    void addExpansionSubstitution(const USignature& parent, const USignature& child, Substitution&& s);
     void addAxiomaticOp(const USignature& op);
     void addExpansionSize(size_t size);
     
@@ -128,6 +131,7 @@ public:
     USigSet& getActions();
     const USigSet& getReductions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
+    const NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>& getExpansionSubstitutions() const;
     const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
     const USigSet& getAxiomaticOps() const;
     size_t getMaxExpansionSize() const;

@@ -52,7 +52,7 @@ private:
     // Set of equality predicate name IDs.
     FlatHashSet<int> _equality_predicates;
     // Set of all q-constant IDs.
-    FlatHashSet<int> _q_constants;
+    FlatHashMap<int, IntPair> _q_constants_with_origin;
 
     NodeHashMap<int, NodeHashMap<USignature, std::vector<int>, USignatureHasher>> _q_const_to_op_domains;  
 
@@ -158,6 +158,7 @@ public:
     const std::vector<int>& getSorts(int nameId) const;
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
+    const IntPair& getOriginOfQConstant(int qconst) const;
     const FlatHashSet<int>& getDomainOfQConstant(int qconst) const;
     std::vector<int> popOperationDependentDomainOfQConstant(int qconst, const USignature& op);
 
@@ -196,7 +197,7 @@ public:
     Instantiator& getInstantiator();
     QConstantDatabase& getQConstantDatabase();
 
-    int nameId(const std::string& name, bool createQConstant = false);
+    int nameId(const std::string& name, bool createQConstant = false, int layerIdx = -1, int pos = -1);
     std::string toString(int id) const;
 
     inline bool isVariable(int c) const {

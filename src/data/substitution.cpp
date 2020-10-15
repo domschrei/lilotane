@@ -36,6 +36,21 @@ size_t Substitution::size() const {
     return size;
 }
 
+Substitution Substitution::concatenate(const Substitution& second) const {
+    Substitution s;
+    for (const auto& [src, dest] : *this) {
+        if (second.count(dest)) {
+            s[src] = second[dest];
+        } else {
+            s[src] = dest;
+        }
+    }
+    for (const auto& [src, dest] : second) {
+        if (!s.count(src)) s[src] = dest;
+    }
+    return s;
+}
+
 std::vector<Substitution> Substitution::getAll(const std::vector<int>& src, const std::vector<int>& dest) {
     std::vector<Substitution> ss;
     ss.emplace_back(); // start with empty substitution

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <getopt.h>
 #include <sys/stat.h>
+#include <iomanip>
 
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
@@ -356,12 +357,13 @@ void HtnInstance::minePreconditions(MinePrecMode mode) {
     Log::i("Mined %i new reduction preconditions (+%.1f%%).\n", minedPreconds, newRatio);
 }
 
-int HtnInstance::nameId(const std::string& name, bool createQConstant) {
+int HtnInstance::nameId(const std::string& name, bool createQConstant, int layerIdx, int pos) {
     int id = -1;
     if (!_name_table.count(name)) {
         if (createQConstant) {
-            id = std::numeric_limits<int>::max() - _q_constants.size();
-            _q_constants.insert(id);
+            id = std::numeric_limits<int>::max() - _q_constants_with_origin.size();
+            assert(layerIdx >= 0 && pos >= 0);
+            _q_constants_with_origin[id] = IntPair(layerIdx, pos);
         } else {
             id = _name_table_running_id++;
             if (name[0] == '?') {
@@ -922,16 +924,20 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
                 sortCounter = it->second;
                 it->second++;
             }
+            std::vector<int> domainVec(domain.begin(), domain.end());
+            std::stringstream domainHash;
+            domainHash << std::hex << USignatureHasher()(USignature(primarySort, domainVec));
             std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
                 + std::to_string(pos) + "_" + _name_back_table[primarySort]
                 + ":" + std::to_string(sortCounter) 
-                + (_share_q_constants ? std::string() : "_#"+std::to_string(_q_constants.size()));
+                + "_" + domainHash.str()
+                + (_share_q_constants ? std::string() : "_#"+std::to_string(_q_constants_with_origin.size()));
             
             // Initialize q-constant
-            args[i] = nameId(qConstName, /*createQConstant=*/true);
+            args[i] = nameId(qConstName, /*createQConstant=*/true, layerIdx, pos);
             addQConstant(args[i], domain);
-            domainsPerQConst[args[i]] = std::vector<int>(domain.begin(), domain.end());
-
+            domainsPerQConst[args[i]] = std::move(domainVec);
+            assert(getOriginOfQConstant(args[i]) == IntPair(layerIdx, pos));
             /*
             Log::d("QC %s : %s ~> %s ( ", TOSTR(op.getSignature()), TOSTR(vararg), TOSTR(args[i]), domain.size());
             for (int c : domain) {
@@ -1048,6 +1054,10 @@ std::vector<int> HtnInstance::getOpSortsForCondition(const USignature& sig, cons
 
 const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) const {
     return _constants_by_sort.at(_primary_sort_of_q_constants.at(qconst));
+}
+
+const IntPair& HtnInstance::getOriginOfQConstant(int qconst) const {
+    return _q_constants_with_origin.at(qconst);
 }
 
 std::vector<int> HtnInstance::popOperationDependentDomainOfQConstant(int qconst, const USignature& op) {
