@@ -327,26 +327,16 @@ void Planner::createFirstLayer() {
     std::vector<Reduction> roots = _instantiator.getApplicableInstantiations(
             _htn.getInitReduction(), getStateEvaluator());
     for (Reduction& r : roots) {
-
         if (addReduction(r, USignature())) {
             USignature sig = r.getSignature();
-            
             initLayer[_pos].addReduction(sig);
             initLayer[_pos].addAxiomaticOp(sig);
             initLayer[_pos].addExpansionSize(r.getSubtasks().size());
-            // Add preconditions
-            IntPairTree badSubs;
-            std::vector<IntPairTree> goodSubs;
-            for (const Signature& fact : r.getPreconditions()) {
-                addPrecondition(sig, fact, goodSubs, badSubs);
-            }
-            addSubstitutionConstraints(sig, goodSubs, badSubs);
-            addQConstantTypeConstraints(sig);
-            const PositionedUSig psig{_layer_idx,_pos,sig};
         }
     }
+    addPreconditionConstraints();
     introduceNewFacts();
-    //_htn.getQConstantDatabase().backpropagateConditions(_layer_idx, _pos, (*_layers[_layer_idx])[_pos].getReductions());
+    
     _pos++;
 
     /***** LAYER 0, POSITION 1 ******/
@@ -444,7 +434,7 @@ void Planner::createNextPosition() {
         createNextPositionFromAbove();
     }
 
-    eliminateDominatedOperations();
+    if (_params.isNonzero("edo")) eliminateDominatedOperations();
 
     // In preparation for the upcoming position,
     // add all effects of the actions and reductions occurring HERE
@@ -458,6 +448,7 @@ void Planner::createNextPositionFromAbove() {
     int offset = _pos - (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos);
     propagateActions(offset);
     propagateReductions(offset);
+    addPreconditionConstraints();
 }
 
 void Planner::createNextPositionFromLeft(Position& left) {
@@ -512,7 +503,37 @@ void Planner::createNextPositionFromLeft(Position& left) {
     }
 
     for (const auto& aSig : actionsToRemove) {
-        left.removeActionOccurrence(aSig);
+        prune(aSig, _layer_idx, _pos-1);
+    }
+}
+
+void Planner::addPreconditionConstraints() {
+
+    for (const auto& aSig : _layers[_layer_idx]->at(_pos).getActions()) {
+        const Action& a = _htn.getAction(aSig);
+        // Add preconditions of action
+        IntPairTree badSubs;
+        std::vector<IntPairTree> goodSubs;
+        bool isVirtualized = _htn.isVirtualizedChildOfAction(aSig._name_id);
+        for (const Signature& fact : a.getPreconditions()) {
+            addPrecondition(aSig, fact, goodSubs, badSubs, 
+                /*addQFact=*/!isVirtualized);
+        }
+        if (!isVirtualized) {
+            addSubstitutionConstraints(aSig, goodSubs, badSubs);
+            addQConstantTypeConstraints(aSig);
+        }
+    }
+
+    for (const auto& rSig : _layers[_layer_idx]->at(_pos).getReductions()) {
+        // Add preconditions of reduction
+        IntPairTree badSubs;
+        std::vector<IntPairTree> goodSubs;
+        for (const Signature& fact : _htn.getReduction(rSig).getPreconditions()) {
+            addPrecondition(rSig, fact, goodSubs, badSubs);
+        }
+        addSubstitutionConstraints(rSig, goodSubs, badSubs);
+        addQConstantTypeConstraints(rSig);
     }
 }
 
@@ -712,7 +733,9 @@ void Planner::propagateActions(size_t offset) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
 
-    // Propagate actions
+    // Check validity of actions at above position
+    std::vector<USignature> actionsToPrune;
+    size_t numActionsBefore = above.getActions().size();
     for (const auto& aSig : above.getActions()) {
         if (aSig == Sig::NONE_SIG) continue;
         const Action& a = _htn.getAction(aSig);
@@ -723,31 +746,32 @@ void Planner::propagateActions(size_t offset) {
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
-            Log::i("Forbidding action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
-            newPos.addExpansion(aSig, Sig::NONE_SIG);
-            continue;
+            Log::i("Retroactively prune action %s@(%i,%i): no children at offset %i\n", TOSTR(aSig), _layer_idx-1, _old_pos, offset);
+            actionsToPrune.push_back(aSig);
         }
+    }
 
+    // Prune invalid actions at above position
+    for (const auto& aSig : actionsToPrune) {
+        prune(aSig, _layer_idx-1, _old_pos);
+    }
+    assert(above.getActions().size() == numActionsBefore - actionsToPrune.size() 
+        || Log::e("%i != %i-%i\n", above.getActions().size(), numActionsBefore, actionsToPrune.size()));
+
+    // Propagate remaining (valid) actions from above
+    for (const auto& aSig : above.getActions()) {
         if (offset < 1) {
             // proper action propagation
             assert(_instantiator.isFullyGround(aSig));
             if (_params.isNonzero("vca") && !_htn.isVirtualizedChildOfAction(aSig._name_id)) {
                 // Virtualize child of action
                 USignature vChildSig = _htn.getVirtualizedChildOfAction(aSig);
-                Action a = _htn.getAction(vChildSig);
                 newPos.addAction(vChildSig);
                 newPos.addExpansion(aSig, vChildSig);
             } else {
                 // Treat as a normal action
                 newPos.addAction(aSig);
                 newPos.addExpansion(aSig, aSig);
-            }
-            // Add preconditions of action
-            IntPairTree badSubs;
-            std::vector<IntPairTree> goodSubs;
-            for (const Signature& fact : a.getPreconditions()) {
-                addPrecondition(aSig, fact, goodSubs, badSubs, 
-                    /*addQFact=*/!_htn.isVirtualizedChildOfAction(aSig._name_id));
             }
         } else {
             // action expands to "blank" at non-zero offsets
@@ -798,49 +822,24 @@ void Planner::propagateReductions(size_t offset) {
                 continue;
             }
 
-            assert(_htn.isReduction(subRSig));
             const Reduction& subR = _htn.getReduction(subRSig);
-
-            assert(subRSig == subR.getSignature());
-            assert(_instantiator.isFullyGround(subRSig));
+            
+            assert(_htn.isReduction(subRSig) && subRSig == subR.getSignature() 
+                && _instantiator.isFullyGround(subRSig));
             
             newPos.addReduction(subRSig);
-            /*for (const auto& pre : subR.getPreconditions()) {
-                Log::d(" -- pre %s\n", TOSTR(pre));
-            }*/
-            //if (_layer_idx <= 1) log("ADD %s:%s @ (%i,%i)\n", TOSTR(subR.getTaskSignature()), TOSTR(subRSig), _layer_idx, _pos);
             newPos.addExpansionSize(subR.getSubtasks().size());
-            // Add preconditions of reduction
-            //log("PRECONDS %s ", TOSTR(subRSig));
-            IntPairTree badSubs;
-            std::vector<IntPairTree> goodSubs;
-            for (const Signature& fact : subR.getPreconditions()) {
-                addPrecondition(subRSig, fact, goodSubs, badSubs);
-                //log("%s ", TOSTR(fact));
-            }
-            addSubstitutionConstraints(subRSig, goodSubs, badSubs);
-            addQConstantTypeConstraints(subRSig);
 
             for (const auto& rSig : parents) {
                 reductionsWithChildren.insert(rSig);
                 newPos.addExpansion(rSig, subRSig);
             }
-            //log("\n");
         }
 
         // Any action(s) fitting the subtask?
         for (const USignature& aSig : allActions) {
             assert(_instantiator.isFullyGround(aSig));
             newPos.addAction(aSig);
-            // Add preconditions of action
-            const Action& a = _htn.getAction(aSig);
-            IntPairTree badSubs;
-            std::vector<IntPairTree> goodSubs;
-            for (const Signature& fact : a.getPreconditions()) {
-                addPrecondition(aSig, fact, goodSubs, badSubs);
-            }
-            addSubstitutionConstraints(aSig, goodSubs, badSubs);
-            addQConstantTypeConstraints(aSig);
 
             for (const auto& rSig : parents) {
                 reductionsWithChildren.insert(rSig);
@@ -852,10 +851,9 @@ void Planner::propagateReductions(size_t offset) {
     // Check if any reduction has no valid children at all
     for (const auto& rSig : above.getReductions()) {
         if (!reductionsWithChildren.count(rSig)) {
-            // Explicitly forbid the parent!
-            Log::i("Forbidding reduction %s@(%i,%i): no children at offset %i\n", 
+            Log::i("Retroactively prune reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
-            newPos.addExpansion(rSig, Sig::NONE_SIG);
+            prune(rSig, _layer_idx-1, _old_pos);
         }
     }
 }
@@ -891,10 +889,8 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
                 USignature surrSig = a.getSignature().substitute(s);
-                //Log::d("SURROGATE %s \n     -> %s\n", TOSTR(task), TOSTR(surrSig));
 
                 for (const auto& sig : getAllActionsOfTask(surrSig, state)) {
-                    //Log::d("          => %s\n", TOSTR(sig));
                     result.push_back(sig);
                 }
             }
@@ -905,12 +901,10 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
         for (const Substitution& s : subs) {
             for (const auto& entry : s) assert(entry.second != 0);
 
-            //if (_layer_idx <= 1) log("SUBST %s\n", TOSTR(s));
             Reduction rSub = r.substituteRed(s);
             USignature origSig = rSub.getSignature();
             if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
             
-            //log("   reduction %s ~> %i instantiations\n", TOSTR(origSig), reductions.size());
             std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
             for (Reduction& red : reductions) {
                 if (addReduction(red, task)) result.push_back(red.getSignature());
@@ -924,14 +918,10 @@ bool Planner::addAction(Action& action) {
 
     USignature sig = action.getSignature();
 
-    //log("ADDACTION %s\n", TOSTR(sig));
-
     // Rename any remaining variables in each action as unique q-constants,
     action = _htn.replaceVariablesWithQConstants(action, _layer_idx, _pos, getStateEvaluator());
 
-    //Log::d("ADDACTION %s\n", TOSTR(action.getSignature()));
-
-    // Remove any inconsistent effects that were just created
+    // Remove any contradictory ground effects that were just created
     action.removeInconsistentEffects();
 
     // Check validity
@@ -943,7 +933,6 @@ bool Planner::addAction(Action& action) {
     sig = action.getSignature();
     _htn.addAction(action);
     
-    //Log::d("ADDACTION -- added\n");
     return true;
 }
 
@@ -1160,7 +1149,7 @@ void Planner::eliminateDominatedOperations() {
                     //Log::d("DOM sub: %s\n", TOSTR(domS));
                     if (!dominatingOps[op].count(dominatedOp) || domS.size() < dominatingOps[op][dominatedOp].size()) 
                         dominatingOps[op][dominatedOp] = domS;
-                    //assert(dominatedOp.substitute(domS) == op || Log::d("%s -> %s != %s\n", TOSTR(dominatedOp), TOSTR(dominatedOp.substitute(domS)), TOSTR(op)));
+                    //assert(dominatedOp.substitute(domS) == op || Log::e("%s -> %s != %s\n", TOSTR(dominatedOp), TOSTR(dominatedOp.substitute(domS)), TOSTR(op)));
                     if (dominatingOps.count(dominatedOp)) {
                         for (const auto& [domDomOp, domDomS] : dominatingOps[dominatedOp]) {
                             dominatedVec.push_back(domDomOp);
@@ -1177,23 +1166,96 @@ void Planner::eliminateDominatedOperations() {
         // Remove all dominated ops
         for (auto& [nameId, dMap] : *dMaps[i]) for (auto& [op, dominated] : dMap) {
             for (auto& [other, s] : dominated) {
-                //Log::v("%s dominates %s (%s)\n", TOSTR(op), TOSTR(other), TOSTR(s));
+                Log::v("%s dominates %s (%s)\n", TOSTR(op), TOSTR(other), TOSTR(s));
                 //assert(other.substitute(s) == op);
-
-                auto predecessors = newPos.getPredecessors().at(other);
-                for (const auto& parent : predecessors) {
-                    newPos.addExpansion(parent, op);
-                    newPos.addExpansionSubstitution(parent, op, std::move(s));
-                }
-                if (i == 0) {
-                    newPos.removeActionOccurrence(other);
-                } else {
-                    newPos.removeReductionOccurrence(other);
-                }
+                newPos.replaceOperation(other, op, std::move(s));
             }
         }
     }
-    
+}
+
+void Planner::prune(const USignature& op, int layerIdx, int pos) {
+
+    NodeHashSet<PositionedUSig, PositionedUSigHasher> opsToRemove;
+    NodeHashSet<PositionedUSig, PositionedUSigHasher> openOps;
+    openOps.emplace(layerIdx, pos, op);
+    NodeHashMap<PositionedUSig, USigSet, PositionedUSigHasher> removedExpansionsOfParents;
+
+    // Traverse the hierarchy upwards, removing expansions/predecessors
+    // and marking all "root" operations whose induces subtrees should be pruned 
+
+    while (!openOps.empty()) {
+        PositionedUSig psig = *openOps.begin();
+        openOps.erase(psig);
+        Log::d("PRUNE_UP %s\n", TOSTR(psig));
+
+        if (psig.layer == 0) {
+            // Top of the hierarchy hit
+            opsToRemove.insert(psig);
+            continue;
+        }
+
+        Position& position = _layers[psig.layer]->at(psig.pos);
+        int oldPos = 0;
+        Layer& oldLayer = *_layers.at(psig.layer-1);
+        while (oldPos+1 < (int)oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= psig.pos) 
+            oldPos++;
+
+        bool pruneSomeParent = false;
+        assert(position.getPredecessors().count(psig.usig) || Log::e("%s has no predecessors!\n", TOSTR(psig)));
+        for (auto& parent : position.getPredecessors().at(psig.usig)) {
+            PositionedUSig parentPSig(psig.layer-1, oldPos, parent);
+            auto& siblings = position.getExpansions().at(parent);
+
+            // Mark op for removal from expansion of the parent
+            assert(siblings.count(psig.usig));
+            removedExpansionsOfParents[parentPSig].insert(psig.usig);
+
+            if (removedExpansionsOfParents[parentPSig].size() == siblings.size()) {
+                // Siblings become empty -> prune parent as well
+                openOps.insert(std::move(parentPSig));
+                pruneSomeParent = true;
+            }
+        }
+
+        // No parent pruned? -> This op is a root of a subtree to be pruned
+        if (!pruneSomeParent) opsToRemove.insert(psig);
+    }
+
+    // Traverse the hierarchy downwards, pruning all children who became impossible
+
+    while (!opsToRemove.empty()) {
+        PositionedUSig psig = *opsToRemove.begin();
+        opsToRemove.erase(psig);
+        Position& position = _layers[psig.layer]->at(psig.pos);
+        Log::d("PRUNE_DOWN %s\n", TOSTR(psig));
+
+        // Go down one layer and mark all children for removal which have only one predecessor
+        if (psig.layer+1 < _layers.size()) {
+            int belowPosIdx = _layers.at(psig.layer)->getSuccessorPos(psig.pos);
+            while (belowPosIdx < (int)_layers.at(psig.layer)->getSuccessorPos(psig.pos+1)) {
+
+                Position& below = _layers.at(psig.layer+1)->at(belowPosIdx);
+                if (below.getExpansions().count(psig.usig)) for (auto& child : below.getExpansions().at(psig.usig)) {
+                    assert(below.getPredecessors().at(child).count(psig.usig));
+
+                    if (below.getPredecessors().at(child).size() == 1) {
+                        // Child has this op as its only predecessor -> prune
+                        opsToRemove.emplace(psig.layer+1, belowPosIdx, child);
+                    }
+                }
+
+                belowPosIdx++;
+            }
+        }
+
+        // Remove the operation's occurrence itself,
+        // together with its expansions and predecessors
+        int opVar = position.getVariableOrZero(VarType::OP, psig.usig);
+        if (opVar != 0) _enc.addUnitConstraint(-opVar);
+        position.removeActionOccurrence(psig.usig);
+        position.removeReductionOccurrence(psig.usig);
+    }
 }
 
 USigSet& Planner::getCurrentState(bool negated) {

@@ -87,6 +87,15 @@ struct Signature {
     }
 };
 
+struct PositionedUSig {
+    size_t layer; size_t pos; USignature usig;
+    PositionedUSig() : layer(-1), pos(-1) {}
+    PositionedUSig(size_t layer, size_t pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
+    bool operator==(const PositionedUSig& other) const {
+        return layer == other.layer && pos == other.pos && usig == other.usig;
+    }
+};
+
 struct USignatureHasher {
     inline std::size_t operator()(const USignature& s) const {
         size_t hash = s._args.size();
@@ -102,6 +111,15 @@ struct SignatureHasher {
     inline std::size_t operator()(const Signature& s) const {
         size_t hash = _usig_hasher(s._usig);
         hash_combine(hash, s._negated);
+        return hash;
+    }
+};
+struct PositionedUSigHasher {
+    USignatureHasher usigHasher;
+    std::size_t operator()(const PositionedUSig& x) const {
+        size_t hash = x.layer;
+        hash_combine(hash, x.pos);
+        hash_combine(hash, usigHasher(x.usig));
         return hash;
     }
 };

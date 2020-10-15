@@ -6,10 +6,15 @@ else
 	timeout="$TIMEOUT"
 fi
 rating_timeout=1800
-domains="barman blocksworld childsnack depots Elevator entertainment factories gripper hiking HikingG ipc-blocks\
- ipc-entertainment-1 ipc-entertainment-2 ipc-entertainment-3 ipc-entertainment-4 ipc-freecell ipc-logistics\
- ipc-minecraft-house ipc-minecraft-player ipc-rover miconic minecraft rover RoverG satellite SatelliteG smartphone\
- transport umtranslog woodworking zenotravel"
+
+# All collected relevant domains, sorted approximately by difficulty (for Lilotane)
+domains="miconic gripper satellite umtranslog smartphone woodworking zenotravel childsnack barman depots entertainment\
+ hiking blocksworld ipc-blocks ipc-logistics rover transport HikingG Elevator minecraft ipc-minecraft-house\
+ ipc-minecraft-player ipc-rover ipc-entertainment-1 ipc-entertainment-2 ipc-entertainment-3 ipc-entertainment-4\
+ RoverG SatelliteG factories ipc-freecell"
+
+# Domains of comparison of Lilotane vs. Tree-REX
+domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG transport Zenotravel"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "

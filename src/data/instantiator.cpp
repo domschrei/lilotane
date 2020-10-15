@@ -676,7 +676,7 @@ int Instantiator::getMinNumPrimitiveChildren(int sigName) {
     if (_min_recursive_expansion_sizes.count(sigName))
         return _min_recursive_expansion_sizes[sigName];
 
-    assert(_htn->isAction(USignature(sigName, std::vector<int>())) || Log::d("Invalid query for MinRES: %s\n", TOSTR(sigName))); 
+    assert(_htn->isAction(USignature(sigName, std::vector<int>())) || Log::e("Invalid query for MinRES: %s\n", TOSTR(sigName))); 
 
     int blankId = _htn->getBlankActionSig()._name_id;
     int& minNumChildren = _min_recursive_expansion_sizes[sigName];

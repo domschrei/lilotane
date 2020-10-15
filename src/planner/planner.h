@@ -71,6 +71,7 @@ private:
     void createNextPositionFromAbove();
     void createNextPositionFromLeft(Position& left);
 
+    void addPreconditionConstraints();
     void addPrecondition(const USignature& op, const Signature& fact, 
             std::vector<IntPairTree>& goodSubs, 
             IntPairTree& badSubs, 
@@ -78,6 +79,7 @@ private:
     void addSubstitutionConstraints(const USignature& op, 
             std::vector<IntPairTree>& goodSubs, 
             IntPairTree& badSubs);
+    
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
     bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
     bool addAction(Action& a);
@@ -95,6 +97,8 @@ private:
     enum DominationStatus {DOMINATING, DOMINATED, DIFFERENT, EQUIVALENT};
     DominationStatus getDominationStatus(const USignature& op, const USignature& other, Substitution& qconstSubstitutions);
     void eliminateDominatedOperations();
+
+    void prune(const USignature& op, int layerIdx, int pos);
 
     USigSet& getCurrentState(bool negated);
     StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);

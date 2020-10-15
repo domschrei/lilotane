@@ -160,7 +160,6 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         for (const auto& [factSig, factVar] : above.getVariableTable(VarType::FACT)) {
             if (!_htn.hasQConstants(factSig)) newPos.setVariable(VarType::FACT, factSig, factVar);
         }
-        //newPos.setVariableTable(VarType::FACT, above.getVariableTable(VarType::FACT));
     }
 
     if (_pos == 0) {
@@ -176,6 +175,23 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         encodeFrameAxioms(newPos, left);
     }
 
+    auto reuseQFact = [&](const USignature& qfact, int var, Position& otherPos) {
+        if (var == 0 || !otherPos.hasQFactDecodings(qfact)
+                || otherPos.getQFactDecodings(qfact).size() < newPos.getQFactDecodings(qfact).size())
+            return false;
+        const auto& otherDecodings = otherPos.getQFactDecodings(qfact);
+        for (const auto& decFact : newPos.getQFactDecodings(qfact)) {
+            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
+            int otherDecFactVar = otherPos.getVariableOrZero(VarType::FACT, decFact);
+            if (decFactVar == 0 || otherDecFactVar == 0 
+                    || decFactVar != otherDecFactVar 
+                    || !otherDecodings.count(decFact)) {
+                return false;
+            }
+        }
+        return true;
+    };
+
     // Encode q-facts that are not encoded yet
     for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
         if (!newPos.hasQFactDecodings(qfact)) continue;
@@ -184,32 +200,16 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         // Reuse variable from above?
         int aboveVar = above.getVariableOrZero(VarType::FACT, qfact);
         if (_offset == 0 && aboveVar != 0) {
-            // Reuse qfact variable from above, 
+            // Reuse qfact variable from above
             newPos.setVariable(VarType::FACT, qfact, aboveVar);
-            // but re-encode constraints
-            _new_fact_vars.insert(aboveVar);
 
         } else {
-            
             // Reuse variable from left?
-            int leftVar = left.getVariableOrZero(VarType::FACT, qfact);
-            bool reuseFromLeft = leftVar != 0 
-                    && left.hasQFactDecodings(qfact)
-                    && left.getQFactDecodings(qfact).size() == newPos.getQFactDecodings(qfact).size();
-            if (reuseFromLeft) {
-                const auto& leftDec = left.getQFactDecodings(qfact);
-                for (const auto& decFact : newPos.getQFactDecodings(qfact)) {
-                    int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
-                    int decFactVarLeft = left.getVariableOrZero(VarType::FACT, decFact);
-                    if (decFactVar == 0 || decFactVarLeft == 0 || decFactVar != decFactVarLeft || !leftDec.count(decFact)) {
-                        reuseFromLeft = false;
-                        break;
-                    }
-                }
-            }
-            
-            if (reuseFromLeft) { 
+            int leftVar = left.getVariableOrZero(VarType::FACT, qfact);           
+            if (reuseQFact(qfact, leftVar, left)) { 
+                // Reuse qfact variable from above
                 newPos.setVariable(VarType::FACT, qfact, leftVar);
+
             } else {
                 // Encode new variable
                 _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));
@@ -487,36 +487,21 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
 
-    // Add at-most-one constraints over the entire domain of each q constant
-    for (int qconst : _new_q_constants) {
-        _q_constants.insert(qconst);
-    }
+    _q_constants.insert(_new_q_constants.begin(), _new_q_constants.end());
     _new_q_constants.clear();
     
-    if (numOccurringOps == 0 && pos+1 != _layers.back()->size()) {
-        Log::e("No operations to encode at (%i,%i)! Considering this problem UNSOLVABLE.\n", layerIdx, pos);
-        exit(1);
-    }
+    if (numOccurringOps == 0) return;
 
     if ((int)elementVars.size() >= _params.getIntParam("bamot")) {
-        // Binary exactly-one
+        // Binary at-most-one
 
         begin(STAGE_ATMOSTONEELEMENT);
-        auto bamo = BinaryAtMostOne(elementVars, elementVars.size());
+        auto bamo = BinaryAtMostOne(elementVars, elementVars.size()+1);
         for (const auto& c : bamo.encode()) addClause(c);
         end(STAGE_ATMOSTONEELEMENT);
 
     } else {
-        // Naive exactly-one
-
-        if (_params.isNonzero("alo")) {
-            begin(STAGE_ATLEASTONEELEMENT);
-            size_t i = 0; 
-            while (i < elementVars.size() && elementVars[i] != 0) 
-                appendClause(elementVars[i++]);
-            endClause();
-            end(STAGE_ATLEASTONEELEMENT);
-        }
+        // Naive at-most-one
 
         begin(STAGE_ATMOSTONEELEMENT);
         for (size_t i = 0; i < elementVars.size(); i++) {
@@ -583,13 +568,14 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
         
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
 
+        bool filterAbove = false;
+        Position& above = _offset == 0 && _layer_idx > 0 ? _layers[_layer_idx-1]->at(_old_pos) : NULL_POS;
         if (!_new_fact_vars.count(qfactVar)) {
-            if (_offset == 0 && _layer_idx > 0) {
-                Position& above = _layers[_layer_idx-1]->at(_old_pos);
-                if (above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
-                    continue;
+            if (_offset == 0 && _layer_idx > 0 && above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar
+                            && above.hasQFactDecodings(qfactSig)) {
+                filterAbove = true;
             }
-            if (_pos > 0) {
+            if (!filterAbove && _pos > 0) {
                 Position& left = _layers[_layer_idx]->at(_pos-1);
                 if (left.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
                     continue;
@@ -598,10 +584,12 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
 
         // For each possible fact decoding:
         for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig)) {
-
-            // Assemble list of substitution variables
+            
             int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
             if (decFactVar == 0) continue;
+            if (filterAbove && above.getQFactDecodings(qfactSig).count(decFactSig)) continue;
+
+            // Assemble list of substitution variables
             for (size_t i = 0; i < qfactSig._args.size(); i++) {
                 if (qfactSig._args[i] != decFactSig._args[i])
                     substitutionVars.push_back(
@@ -709,11 +697,10 @@ void Encoding::encodeQConstraints(Position& newPos) {
     // Q-constants type constraints
     begin(STAGE_QTYPECONSTRAINTS);
     const auto& constraints = newPos.getQConstantsTypeConstraints();
-    for (const auto& pair : constraints) {
-        const USignature& opSig = pair.first;
+    for (const auto& [opSig, constraints] : constraints) {
         int opVar = newPos.getVariableOrZero(VarType::OP, opSig);
         if (opVar != 0) {
-            for (const TypeConstraint& c : pair.second) {
+            for (const TypeConstraint& c : constraints) {
                 int qconst = c.qconstant;
                 bool positiveConstraint = c.sign;
                 assert(_q_constants.count(qconst));
@@ -1480,10 +1467,14 @@ Plan Encoding::extractPlan() {
                             //log("(%i,%i)\n", l, aPos);
                         }
                         v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
-                        assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
+                        //assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
+                        if (v > 0 && layerIdx > 0) {
+                            itemsOldLayer[predPos].subtaskIds.push_back(v);
+                        } else if (v <= 0) {
+                            Log::d(" -- invalid: not part of classical plan\n");
+                        }
 
                         //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
-                        if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
 
                     } else if (_htn.isReduction(opSig)) {
                         // Reduction
@@ -1536,8 +1527,8 @@ Plan Encoding::extractPlan() {
             }
 
             // At least an item per position 
-            assert( (actionsThisPos+reductionsThisPos >= 1)
-            || Log::e("Plan error: %i ops at (%i,%i)!\n", actionsThisPos+reductionsThisPos, layerIdx, pos));
+            //assert( (actionsThisPos+reductionsThisPos >= 1)
+            //|| Log::e("Plan error: %i ops at (%i,%i)!\n", actionsThisPos+reductionsThisPos, layerIdx, pos));
             
             // At most one action per position
             assert(actionsThisPos <= 1 || Log::e("Plan error: %i actions at (%i,%i)!\n", actionsThisPos, layerIdx, pos));

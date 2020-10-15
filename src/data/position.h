@@ -107,6 +107,7 @@ public:
     
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);
+    void replaceOperation(const USignature& from, const USignature& to, Substitution&& s);
 
     const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable(VarType type) const;
     void setVariableTable(VarType type, const NodeHashMap<USignature, int, USignatureHasher>& table);
@@ -130,9 +131,9 @@ public:
 
     USigSet& getActions();
     const USigSet& getReductions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions();
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors();
     const NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>& getExpansionSubstitutions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
     const USigSet& getAxiomaticOps() const;
     size_t getMaxExpansionSize() const;
 

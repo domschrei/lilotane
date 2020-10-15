@@ -462,6 +462,7 @@ Action HtnInstance::getGoalAction() {
     }
     _actions_by_sig[goalSig] = goalAction;
     _actions[goalSig._name_id] = goalAction;
+    _signature_sorts_table[goalSig._name_id];
 
     return goalAction;
 }
@@ -937,6 +938,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             args[i] = nameId(qConstName, /*createQConstant=*/true, layerIdx, pos);
             addQConstant(args[i], domain);
             domainsPerQConst[args[i]] = std::move(domainVec);
+            assert(domain == getDomainOfQConstant(args[i]));
             assert(getOriginOfQConstant(args[i]) == IntPair(layerIdx, pos));
             /*
             Log::d("QC %s : %s ~> %s ( ", TOSTR(op.getSignature()), TOSTR(vararg), TOSTR(args[i]), domain.size());

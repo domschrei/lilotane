@@ -114,7 +114,6 @@ void Position::addAxiomaticOp(const USignature& op) {
 void Position::addExpansionSize(size_t size) {_max_expansion_size = std::max(_max_expansion_size, size);}
 
 void Position::removeActionOccurrence(const USignature& action) {
-    assert(_actions.count(action));
     _actions.erase(action);
     for (auto& [parent, children] : _expansions) {
         children.erase(action);
@@ -122,12 +121,20 @@ void Position::removeActionOccurrence(const USignature& action) {
     _predecessors.erase(action);
 }
 void Position::removeReductionOccurrence(const USignature& reduction) {
-    assert(_reductions.count(reduction));
     _reductions.erase(reduction);
     for (auto& [parent, children] : _expansions) {
         children.erase(reduction);
     }
     _predecessors.erase(reduction);
+}
+void Position::replaceOperation(const USignature& from, const USignature& to, Substitution&& s) {
+    auto predecessors = getPredecessors().at(from);
+    for (const auto& parent : predecessors) {
+        addExpansion(parent, to);
+        addExpansionSubstitution(parent, to, std::move(s));
+    }
+    removeActionOccurrence(from);
+    removeReductionOccurrence(from);
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable(VarType type) const {
@@ -186,9 +193,9 @@ NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& Position::g
 
 USigSet& Position::getActions() {return _actions;}
 const USigSet& Position::getReductions() const {return _reductions;}
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() const {return _expansions;}
+NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getExpansions() {return _expansions;}
+NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() {return _predecessors;}
 const NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>& Position::getExpansionSubstitutions() const {return _expansion_substitutions;}
-const NodeHashMap<USignature, USigSet, USignatureHasher>& Position::getPredecessors() const {return _predecessors;}
 const USigSet& Position::getAxiomaticOps() const {return _axiomatic_ops;}
 size_t Position::getMaxExpansionSize() const {return _max_expansion_size;}
 
@@ -198,10 +205,14 @@ void Position::clearAfterInstantiation() {
 void Position::clearAtPastPosition() {
     _qfacts.clear();
     _qfacts.reserve(0);
+    /*
     _expansions.clear();
     _expansions.reserve(0);
     _predecessors.clear();
     _predecessors.reserve(0);
+    */
+   _expansion_substitutions.clear();
+   _expansion_substitutions.reserve(0);
     _axiomatic_ops.clear();
     _axiomatic_ops.reserve(0);
     _q_constants_type_constraints.clear();

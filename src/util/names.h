@@ -16,6 +16,7 @@ namespace Names {
     std::string to_string(const std::vector<int>& nameIds);
     std::string to_string(const USignature& sig);
     std::string to_string(const Signature& sig);
+    std::string to_string(const PositionedUSig& sig);
     std::string to_string_nobrackets(const USignature& sig);
     std::string to_string(const FlatHashMap<int, int>& s);
     std::string to_string(const Action& a);
