@@ -475,6 +475,9 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
                     //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
                     actionsToRemove.insert(aSig);
+                    // Also remove any virtualized actions corresponding to this action
+                    if (left.hasAction(aSig.renamed(_htn.getVirtualizedChildNameOfAction(aSig._name_id)))) 
+                        actionsToRemove.insert(aSig.renamed(_htn.getVirtualizedChildNameOfAction(aSig._name_id)));
                     break;
                 }
                 if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
@@ -1195,6 +1198,7 @@ void Planner::prune(const USignature& op, int layerIdx, int pos) {
         }
 
         Position& position = _layers[psig.layer]->at(psig.pos);
+        assert(position.hasAction(psig.usig) || position.hasReduction(psig.usig));
         int oldPos = 0;
         Layer& oldLayer = *_layers.at(psig.layer-1);
         while (oldPos+1 < (int)oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= psig.pos) 
@@ -1202,9 +1206,10 @@ void Planner::prune(const USignature& op, int layerIdx, int pos) {
 
         bool pruneSomeParent = false;
         assert(position.getPredecessors().count(psig.usig) || Log::e("%s has no predecessors!\n", TOSTR(psig)));
-        for (auto& parent : position.getPredecessors().at(psig.usig)) {
+        for (const auto& parent : position.getPredecessors().at(psig.usig)) {
             PositionedUSig parentPSig(psig.layer-1, oldPos, parent);
-            auto& siblings = position.getExpansions().at(parent);
+            //assert(oldLayer.at(oldPos).hasAction(parent) || oldLayer.at(oldPos).hasReduction(parent) || Log::e("%s\n", TOSTR(parentPSig)));
+            const auto& siblings = position.getExpansions().at(parent);
 
             // Mark op for removal from expansion of the parent
             assert(siblings.count(psig.usig));
@@ -1228,8 +1233,9 @@ void Planner::prune(const USignature& op, int layerIdx, int pos) {
         opsToRemove.erase(psig);
         Position& position = _layers[psig.layer]->at(psig.pos);
         Log::d("PRUNE_DOWN %s\n", TOSTR(psig));
+        assert(position.hasAction(psig.usig) || position.hasReduction(psig.usig));
 
-        // Go down one layer and mark all children for removal which have only one predecessor
+        // Go down one layer and mark all children for removal which have only one predecessor left
         if (psig.layer+1 < _layers.size()) {
             int belowPosIdx = _layers.at(psig.layer)->getSuccessorPos(psig.pos);
             while (belowPosIdx < (int)_layers.at(psig.layer)->getSuccessorPos(psig.pos+1)) {
@@ -1237,12 +1243,14 @@ void Planner::prune(const USignature& op, int layerIdx, int pos) {
                 Position& below = _layers.at(psig.layer+1)->at(belowPosIdx);
                 if (below.getExpansions().count(psig.usig)) for (auto& child : below.getExpansions().at(psig.usig)) {
                     assert(below.getPredecessors().at(child).count(psig.usig));
-
-                    if (below.getPredecessors().at(child).size() == 1) {
+                    if (psig.layer+1 == (size_t)layerIdx && belowPosIdx == pos && child == op) {
+                        // Arrived back at original op to prune
+                        opsToRemove.emplace(layerIdx, pos, op);
+                    } else if (below.getPredecessors().at(child).size() == 1) {
                         // Child has this op as its only predecessor -> prune
                         opsToRemove.emplace(psig.layer+1, belowPosIdx, child);
-                    }
-                }
+                    } else Log::d("PRUNE %i pred left for %s@(%i,%i)\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
+                } else Log::d("PRUNE No expansions for %s @ (%i,%i)\n", TOSTR(psig), psig.layer+1, belowPosIdx);
 
                 belowPosIdx++;
             }

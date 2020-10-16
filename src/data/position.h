@@ -102,6 +102,7 @@ public:
     void addAction(USignature&& action);
     void addReduction(const USignature& reduction);
     void addExpansion(const USignature& parent, const USignature& child);
+    void addExpansionSubstitution(const USignature& parent, const USignature& child, const Substitution& s);
     void addExpansionSubstitution(const USignature& parent, const USignature& child, Substitution&& s);
     void addAxiomaticOp(const USignature& op);
     void addExpansionSize(size_t size);

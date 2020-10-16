@@ -111,6 +111,9 @@ void Position::addExpansion(const USignature& parent, const USignature& child) {
 void Position::addExpansionSubstitution(const USignature& parent, const USignature& child, Substitution&& s) {
     _expansion_substitutions[parent][child] = std::move(s);
 }
+void Position::addExpansionSubstitution(const USignature& parent, const USignature& child, const Substitution& s) {
+    _expansion_substitutions[parent][child] = s;
+}
 void Position::addAxiomaticOp(const USignature& op) {
     _axiomatic_ops.insert(op);
 }
@@ -132,12 +135,12 @@ void Position::removeReductionOccurrence(const USignature& reduction) {
 }
 void Position::replaceOperation(const USignature& from, const USignature& to, Substitution&& s) {
     auto predecessors = getPredecessors().at(from);
-    for (const auto& parent : predecessors) {
-        addExpansion(parent, to);
-        addExpansionSubstitution(parent, to, std::move(s));
-    }
     removeActionOccurrence(from);
     removeReductionOccurrence(from);
+    for (const auto& parent : predecessors) {
+        addExpansion(parent, to);
+        addExpansionSubstitution(parent, to, s);
+    }
 }
 
 const NodeHashMap<USignature, int, USignatureHasher>& Position::getVariableTable(VarType type) const {
@@ -238,8 +241,10 @@ void Position::clearAtPastLayer() {
     _false_facts.reserve(0);
     _fact_variables.clear();
     _fact_variables.reserve(0);
+    /*
     _actions.clear();
     _actions.reserve(0);
     _reductions.clear();
     _reductions.reserve(0);
+    */
 }
