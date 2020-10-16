@@ -88,9 +88,11 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
     }
     end(STAGE_AXIOMATICOPS);
 
+    assert(_current_stages.empty());
     Log::v("  Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
 
     clearDonePositions();
+
 }
 
 void Encoding::encodeOperationVariables(Position& newPos) {
@@ -139,14 +141,18 @@ void Encoding::encodeOperationVariables(Position& newPos) {
 
     int varPrim = encodeVarPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
 
+    begin(STAGE_REDUCTIONCONSTRAINTS);
     if (_primitive_ops.empty()) {
         // Only non-primitive ops here
         addClause(-varPrim);
     } else {
         // Mix of primitive and non-primitive ops (default)
+        begin(STAGE_ACTIONCONSTRAINTS);
         for (int aVar : _primitive_ops) addClause(-aVar, varPrim);
+        end(STAGE_ACTIONCONSTRAINTS);
         for (int rVar : _nonprimitive_ops) addClause(-rVar, -varPrim);
     }
+    end(STAGE_REDUCTIONCONSTRAINTS);
 }
 
 void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& above) {
@@ -233,7 +239,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
             // Variable is already encoded. If the variable is new, constrain it.
             if (_new_fact_vars.count(var)) addClause((i == 0 ? 1 : -1) * var);
         }
-        Log::d("DEFFACT %s\n", TOSTR(factSig));
+        Log::d("(%i,%i) DEFFACT %s\n", _layer_idx, _pos, TOSTR(factSig));
     }
     end(STAGE_TRUEFACTS);
 }
@@ -309,7 +315,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     bool skipRedundantFrameAxioms = _params.isNonzero("srfa") && _offset == 0
         && !left.hasNonprimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
     if (skipRedundantFrameAxioms) for (const auto& a : left.getActions()) {
-        if (!leftOfAbove.hasAction(a)) {
+        if (!_htn.isVirtualizedChildOfAction(a._name_id) && !leftOfAbove.hasAction(a)) {
             skipRedundantFrameAxioms = false;
             break;
         }
@@ -345,10 +351,10 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             if (!iSupp[i]->empty()) { // Indirect support & tree
                 auto it = iSupp[i]->find(fact);
                 if (it != iSupp[i]->end()) {
-                    indir[i] = &(it->second);
-                    reuse = false;
                     auto itt = iSuppTrees[i]->find(fact);
                     if (itt != iSuppTrees[i]->end()) {
+                        reuse = false;
+                        indir[i] = &(it->second);
                         tree[i] = &(itt->second);
                     }
                 } 
@@ -1144,21 +1150,22 @@ bool Encoding::isEmptyAction(const USignature& aSig) {
 void Encoding::addAssumptions(int layerIdx, bool permanent) {
     Layer& l = *_layers.at(layerIdx);
     if (_implicit_primitiveness) {
-        begin(STAGE_ASSUMPTIONS);
+        begin(STAGE_ACTIONCONSTRAINTS);
         for (size_t pos = 0; pos < l.size(); pos++) {
             appendClause(-encodeVarPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
             endClause();
         }
-        end(STAGE_ASSUMPTIONS);
+        end(STAGE_ACTIONCONSTRAINTS);
     }
     for (size_t pos = 0; pos < l.size(); pos++) {
-
+        begin(STAGE_ASSUMPTIONS);
         int v = getVarPrimitiveOrZero(layerIdx, pos);
         if (v != 0) {
             if (permanent) addClause(v);
             else assume(v);
         }
+        end(STAGE_ASSUMPTIONS);
     }
 }
 
@@ -1261,7 +1268,9 @@ int Encoding::solve() {
 }
 
 void Encoding::addUnitConstraint(int lit) {
+    begin(STAGE_FORBIDDENOPERATIONS);
     addClause(lit);
+    end(STAGE_FORBIDDENOPERATIONS);
 }
 
 float Encoding::getTimeSinceSatCallStart() {

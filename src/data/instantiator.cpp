@@ -341,18 +341,21 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
             _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
             NetworkTraversal::TRAVERSE_PREORDER,
             [&](const USignature& nodeSig, int depth) { // NOLINT
-                // If visited node is an action: add effects
+                Action a;
                 if (_htn->isAction(nodeSig)) {
-                    Action a = _htn->toAction(nodeSig._name_id, nodeSig._args);
-                    for (const Signature& eff : a.getEffects()) {
-                        facts.insert(eff);
+                    if (_htn->isVirtualizedChildOfAction(nameId)) {
+                        // Special case: Reduction which is actually just a virtualized action
+                        a = _htn->toAction(_htn->getActionNameOfVirtualizedChild(nameId), nodeSig._args);
+                    } else {
+                        a = _htn->toAction(nodeSig._name_id, nodeSig._args);
                     }
                 } else if (_htn->hasSurrogate(nodeSig._name_id)) {
-                    Action a = _htn->getSurrogate(nodeSig._name_id);
+                    a = _htn->getSurrogate(nodeSig._name_id);
                     a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
-                    for (const Signature& eff : a.getEffects()) {
-                        facts.insert(eff);
-                    }
+                }
+
+                for (const Signature& eff : a.getEffects()) {
+                    facts.insert(eff);
                 }
             });
         }

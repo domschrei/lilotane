@@ -89,7 +89,7 @@ private:
     int STAGE_EXPANSIONS = 6;
     int STAGE_FACTPROPAGATION = 7;
     int STAGE_FACTVARENCODING = 8;
-    int STAGE_FORBIDDENPARENTS = 9;
+    int STAGE_FORBIDDENOPERATIONS = 9;
     int STAGE_INDIRECTFRAMEAXIOMS = 10;
     int STAGE_INITSUBSTITUTIONS = 11;
     int STAGE_PREDECESSORS = 12;
@@ -102,7 +102,7 @@ private:
     int STAGE_ASSUMPTIONS = 19;
     int STAGE_PLANLENGTHCOUNTING = 20;
     const char* STAGES_NAMES[21] = {"actionconstraints","actioneffects","atleastoneelement","atmostoneelement",
-        "axiomaticops","directframeaxioms","expansions","factpropagation","factvarencoding","forbiddenparents",
+        "axiomaticops","directframeaxioms","expansions","factpropagation","factvarencoding","forbiddenoperations",
         "indirectframeaxioms", "initsubstitutions","predecessors","qconstequality","qfactsemantics",
         "qtypeconstraints","reductionconstraints","substitutionconstraints","truefacts","assumptions","planlengthcounting"};
     std::map<int, int> _num_cls_per_stage;
@@ -146,7 +146,6 @@ public:
     void printSatisfyingAssignment();
 
 private:
-
     void encodeOperationVariables(Position& pos);
     void encodeFactVariables(Position& pos, Position& left, Position& above);
     void encodeFrameAxioms(Position& pos, Position& left);
@@ -178,12 +177,14 @@ private:
     
 
     inline void addClause(int lit) {
+        assert(!_current_stages.empty());
         assert(lit != 0);
         ipasir_add(_solver, lit); ipasir_add(_solver, 0);
         if (_print_formula) _out << lit << " 0\n";
         _num_lits++; _num_cls++;
     }
     inline void addClause(int lit1, int lit2) {
+        assert(!_current_stages.empty());
         assert(lit1 != 0);
         assert(lit2 != 0);
         ipasir_add(_solver, lit1); ipasir_add(_solver, lit2); ipasir_add(_solver, 0);
@@ -191,6 +192,7 @@ private:
         _num_lits += 2; _num_cls++;
     }
     inline void addClause(int lit1, int lit2, int lit3) {
+        assert(!_current_stages.empty());
         assert(lit1 != 0);
         assert(lit2 != 0);
         assert(lit3 != 0);
@@ -199,6 +201,7 @@ private:
         _num_lits += 3; _num_cls++;
     }
     inline void addClause(const std::initializer_list<int>& lits) {
+        assert(!_current_stages.empty());
         for (int lit : lits) {
             assert(lit != 0);
             ipasir_add(_solver, lit);
@@ -210,6 +213,7 @@ private:
         _num_lits += lits.size();
     }
     inline void addClause(const std::vector<int>& cls) {
+        assert(!_current_stages.empty());
         for (int lit : cls) {
             assert(lit != 0);
             ipasir_add(_solver, lit);
@@ -221,6 +225,7 @@ private:
         _num_lits += cls.size();
     }
     inline void appendClause(int lit) {
+        assert(!_current_stages.empty());
         _began_line = true;
         assert(lit != 0);
         ipasir_add(_solver, lit);
@@ -228,6 +233,7 @@ private:
         _num_lits++;
     }
     inline void appendClause(int lit1, int lit2) {
+        assert(!_current_stages.empty());
         _began_line = true;
         assert(lit1 != 0);
         assert(lit2 != 0);
@@ -236,6 +242,7 @@ private:
         _num_lits += 2;
     }
     inline void appendClause(const std::initializer_list<int>& lits) {
+        assert(!_current_stages.empty());
         _began_line = true;
         for (int lit : lits) {
             assert(lit != 0);
@@ -247,6 +254,7 @@ private:
         _num_lits += lits.size();
     }
     inline void endClause() {
+        assert(!_current_stages.empty());
         assert(_began_line);
         ipasir_add(_solver, 0);
         if (_print_formula) _out << "0\n";
@@ -256,6 +264,7 @@ private:
         _num_cls++;
     }
     inline void assume(int lit) {
+        assert(!_current_stages.empty());
         if (_num_asmpts == 0) _last_assumptions.clear();
         ipasir_assume(_solver, lit);
         //log("CNF !%i\n", lit);

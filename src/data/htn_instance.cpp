@@ -1130,10 +1130,10 @@ USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector
     USignature origSig;
     if (_reductions.count(nameId)) {
         // Reduction
-        origSig = _reductions[nameId].getSignature();
+        origSig = _reductions.at(nameId).getSignature();
     } else {
         // Action
-        origSig = _actions[nameId].getSignature();
+        origSig = _actions.at(nameId).getSignature();
     }
 
     // Substitution mapping
