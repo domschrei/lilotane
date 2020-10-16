@@ -28,4 +28,6 @@ for line in open(corefile, 'r').readlines():
             word = word[1:]
         if word in names:
             out += names[word] + " "
+        else:
+            out += word + " "
     print(out)

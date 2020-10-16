@@ -52,6 +52,7 @@ void Parameters::setDefaults() {
     setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
     setParam("qcm", "0"); // q-constant mutexes: size threshold
+    setParam("plc", "0"); // print learnt clauses
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
     setParam("q", "0"); // q-constants while always instantiating all preconditions

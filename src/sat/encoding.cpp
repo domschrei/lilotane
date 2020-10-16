@@ -538,7 +538,7 @@ void Encoding::encodeSubstitutionVars(const USignature& opSig, int opVar, int ar
     assert(!substitutionVars.empty());
 
     // AT LEAST ONE substitution, or the parent op does NOT occur
-    //appendClause(-opVar);
+    appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
 
@@ -781,6 +781,13 @@ void Encoding::encodeQConstraints(Position& newPos) {
 }
 
 void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
+
+    if (newPos.getActions().size() == 1 && newPos.getReductions().empty() 
+            && newPos.hasAction(_htn.getBlankActionSig())) {
+        // This position contains the blank action and nothing else.
+        // No subtask relationships need to be encoded.
+        return;
+    }
 
     // expansions
     begin(STAGE_EXPANSIONS);
@@ -1231,7 +1238,8 @@ int Encoding::solve() {
     Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _num_cls, _num_lits, _num_asmpts);
     
-    ipasir_set_learn(_solver, this, /*maxLength=*/1, onClauseLearnt);
+    if (_params.isNonzero("plc"))
+        ipasir_set_learn(_solver, this, /*maxLength=*/100, onClauseLearnt);
 
     //for (const int& v: _no_decision_variables) ipasir_set_decision_var(_solver, v, false);
     _no_decision_variables.clear();

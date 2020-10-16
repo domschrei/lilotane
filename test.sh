@@ -14,7 +14,7 @@ domains="miconic gripper satellite umtranslog smartphone woodworking zenotravel 
  RoverG SatelliteG factories ipc-freecell"
 
 # Domains of comparison of Lilotane vs. Tree-REX
-domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG transport Zenotravel"
+#domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG transport Zenotravel"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
