@@ -69,22 +69,25 @@ void Position::setValidSubstitutions(const USignature &op, std::vector<IntPairTr
     set = std::move(subs);
 }
 
-void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact];
-    _qfact_decodings[qFact].insert(decFact);
+void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated) {
+    auto& set = negated ? _neg_qfact_decodings : _pos_qfact_decodings;
+    set[qFact].insert(decFact);
 }
 
-void Position::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact].erase(decFact);
+void Position::removeQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated) {
+    auto& set = negated ? _neg_qfact_decodings : _pos_qfact_decodings;
+    set[qFact].erase(decFact);
 }
 
-bool Position::hasQFactDecodings(const USignature& qFact) {
-    return _qfact_decodings.count(qFact);
+bool Position::hasQFactDecodings(const USignature& qFact, bool negated) {
+    auto& set = negated ? _neg_qfact_decodings : _pos_qfact_decodings;
+    return set.count(qFact);
 }
 
-const USigSet& Position::getQFactDecodings(const USignature& qFact) {
-    assert(_qfact_decodings.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
-    return _qfact_decodings.at(qFact);
+const USigSet& Position::getQFactDecodings(const USignature& qFact, bool negated) {
+    auto& set = negated ? _neg_qfact_decodings : _pos_qfact_decodings;
+    assert(set.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
+    return set.at(qFact);
 }
 
 void Position::addAction(const USignature& action) {
@@ -225,8 +228,10 @@ void Position::clearAtPastPosition() {
 }
 
 void Position::clearAtPastLayer() {
-    _qfact_decodings.clear();
-    _qfact_decodings.reserve(0);
+    _pos_qfact_decodings.clear();
+    _pos_qfact_decodings.reserve(0);
+    _neg_qfact_decodings.clear();
+    _neg_qfact_decodings.reserve(0);
     _true_facts.clear();
     _true_facts.reserve(0);
     _false_facts.clear();

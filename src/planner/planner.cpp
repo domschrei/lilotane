@@ -589,7 +589,7 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         for (const USignature& decFactAbs : relevants) {
             // Decoded fact may be new - initialize as necessary
             introduceNewFact(pos, decFactAbs);
-            pos.addQFactDecoding(factAbs, decFactAbs);
+            pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
             _htn.addRelevantFact(decFactAbs);
         }
     } // else : encoding the precondition is not necessary!
@@ -688,7 +688,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             pos.touchFactSupport(decFactAbs, fact._negated);
         }
         if (mode != INDIRECT) {
-            pos.addQFactDecoding(factAbs, decFactAbs);
+            pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
             _htn.addRelevantFact(decFactAbs);
         }
         anyGood = true;

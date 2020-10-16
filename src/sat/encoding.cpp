@@ -175,12 +175,13 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         encodeFrameAxioms(newPos, left);
     }
 
-    auto reuseQFact = [&](const USignature& qfact, int var, Position& otherPos) {
-        if (var == 0 || !otherPos.hasQFactDecodings(qfact)
-                || otherPos.getQFactDecodings(qfact).size() < newPos.getQFactDecodings(qfact).size())
+    auto reuseQFact = [&](const USignature& qfact, int var, Position& otherPos, bool negated) {
+        if (!newPos.hasQFactDecodings(qfact, negated)) return true;
+        if (var == 0 || !otherPos.hasQFactDecodings(qfact, negated)
+                || otherPos.getQFactDecodings(qfact, negated).size() < newPos.getQFactDecodings(qfact, negated).size())
             return false;
-        const auto& otherDecodings = otherPos.getQFactDecodings(qfact);
-        for (const auto& decFact : newPos.getQFactDecodings(qfact)) {
+        const auto& otherDecodings = otherPos.getQFactDecodings(qfact, negated);
+        for (const auto& decFact : newPos.getQFactDecodings(qfact, negated)) {
             int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
             int otherDecFactVar = otherPos.getVariableOrZero(VarType::FACT, decFact);
             if (decFactVar == 0 || otherDecFactVar == 0 
@@ -194,7 +195,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     // Encode q-facts that are not encoded yet
     for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
-        if (!newPos.hasQFactDecodings(qfact)) continue;
+        if (!newPos.hasQFactDecodings(qfact, true) && !newPos.hasQFactDecodings(qfact, false)) continue;
         assert(!newPos.hasVariable(VarType::FACT, qfact));
 
         // Reuse variable from above?
@@ -206,7 +207,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         } else {
             // Reuse variable from left?
             int leftVar = left.getVariableOrZero(VarType::FACT, qfact);           
-            if (reuseQFact(qfact, leftVar, left)) { 
+            if (reuseQFact(qfact, leftVar, left, true) && reuseQFact(qfact, leftVar, left, false)) {
                 // Reuse qfact variable from above
                 newPos.setVariable(VarType::FACT, qfact, leftVar);
 
@@ -564,49 +565,52 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
     for (const auto& qfactSig : newPos.getQFacts()) {
         assert(_htn.hasQConstants(qfactSig));
-        if (!newPos.hasQFactDecodings(qfactSig)) continue;
         
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
 
-        bool filterAbove = false;
-        Position& above = _offset == 0 && _layer_idx > 0 ? _layers[_layer_idx-1]->at(_old_pos) : NULL_POS;
-        if (!_new_fact_vars.count(qfactVar)) {
-            if (_offset == 0 && _layer_idx > 0 && above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar
-                            && above.hasQFactDecodings(qfactSig)) {
-                filterAbove = true;
-            }
-            if (!filterAbove && _pos > 0) {
-                Position& left = _layers[_layer_idx]->at(_pos-1);
-                if (left.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
-                    continue;
-            }
-        }
+        for (int sign = -1; sign <= 1; sign += 2) {
+            bool negated = sign < 0;
+            if (!newPos.hasQFactDecodings(qfactSig, negated)) 
+                continue;
 
-        // For each possible fact decoding:
-        for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig)) {
-            
-            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
-            if (decFactVar == 0) continue;
-            if (filterAbove && above.getQFactDecodings(qfactSig).count(decFactSig)) continue;
-
-            // Assemble list of substitution variables
-            for (size_t i = 0; i < qfactSig._args.size(); i++) {
-                if (qfactSig._args[i] != decFactSig._args[i])
-                    substitutionVars.push_back(
-                        varSubstitution(sigSubstitute(qfactSig._args[i], decFactSig._args[i]))
-                    );
+            bool filterAbove = false;
+            Position& above = _offset == 0 && _layer_idx > 0 ? _layers[_layer_idx-1]->at(_old_pos) : NULL_POS;
+            if (!_new_fact_vars.count(qfactVar)) {
+                if (_offset == 0 && _layer_idx > 0 && above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar
+                                && above.hasQFactDecodings(qfactSig, negated)) {
+                    filterAbove = true;
+                }
+                if (!filterAbove && _pos > 0) {
+                    Position& left = _layers[_layer_idx]->at(_pos-1);
+                    if (left.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
+                        continue;
+                }
             }
-            
-            // If the substitution is chosen,
-            // the q-fact and the corresponding actual fact are equivalent
-            for (int sign = -1; sign <= 1; sign += 2) {
+
+            // For each possible fact decoding:
+            for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig, negated)) {
+                
+                int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
+                if (decFactVar == 0) continue;
+                if (filterAbove && above.getQFactDecodings(qfactSig, negated).count(decFactSig)) continue;
+
+                // Assemble list of substitution variables
+                for (size_t i = 0; i < qfactSig._args.size(); i++) {
+                    if (qfactSig._args[i] != decFactSig._args[i])
+                        substitutionVars.push_back(
+                            varSubstitution(sigSubstitute(qfactSig._args[i], decFactSig._args[i]))
+                        );
+                }
+                
+                // If the substitution is chosen,
+                // the q-fact and the corresponding actual fact are equivalent
                 for (const int& varSubst : substitutionVars) {
                     appendClause(-varSubst);
                 }
-                appendClause(sign*qfactVar, -sign*decFactVar);
+                appendClause(-sign*qfactVar, sign*decFactVar);
                 endClause();
+                substitutionVars.clear();
             }
-            substitutionVars.clear();
         }
     }
     end(STAGE_QFACTSEMANTICS);
@@ -1308,9 +1312,9 @@ int Encoding::varQConstEquality(int q1, int q2) {
                 addClause(-varEq, v1, -v2);
                 addClause(-varEq, -v1, v2);
             }
-            // Any of the GOOD ones
+            // If any of the GOOD ones, then equality
             for (int c : good) addClause(-varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)), varEq);
-            // None of the BAD ones
+            // If any of the BAD ones, then inequality
             for (int c : bad1) addClause(-varSubstitution(sigSubstitute(q1, c)), -varEq);
             for (int c : bad2) addClause(-varSubstitution(sigSubstitute(q2, c)), -varEq);
         }
