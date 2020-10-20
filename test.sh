@@ -9,12 +9,12 @@ rating_timeout=1800
 
 # All collected relevant domains, sorted approximately by difficulty (for Lilotane)
 domains="miconic gripper satellite umtranslog smartphone woodworking zenotravel childsnack barman depots entertainment\
- hiking blocksworld ipc-blocks ipc-logistics rover transport HikingG Elevator minecraft ipc-minecraft-house\
+ hiking blocksworld ipc-blocks ipc-logistics rover TransportG transport HikingG Elevator minecraft ipc-minecraft-house\
  ipc-minecraft-player ipc-rover ipc-entertainment-1 ipc-entertainment-2 ipc-entertainment-3 ipc-entertainment-4\
  RoverG SatelliteG factories ipc-freecell"
 
 # Domains of comparison of Lilotane vs. Tree-REX
-#domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG transport Zenotravel"
+#domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG TransportG Zenotravel"
 
 function header() {
     echo -ne "[$((solved+unsolved+1))/$all] "
