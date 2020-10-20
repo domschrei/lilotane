@@ -313,13 +313,8 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
     Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
     bool skipRedundantFrameAxioms = _params.isNonzero("srfa") && _offset == 0
-        && !left.hasNonprimitiveOps() && !leftOfAbove.hasNonprimitiveOps();
-    if (skipRedundantFrameAxioms) for (const auto& a : left.getActions()) {
-        if (!_htn.isVirtualizedChildOfAction(a._name_id) && !leftOfAbove.hasAction(a)) {
-            skipRedundantFrameAxioms = false;
-            break;
-        }
-    }
+        && !left.hasNonprimitiveOps() && !leftOfAbove.hasNonprimitiveOps() 
+        && left.getActions().size()+left.getReductions().size() <= leftOfAbove.getActions().size()+leftOfAbove.getReductions().size();
 
     // Retrieve supports from left position
     Supports* supp[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
@@ -585,6 +580,15 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
                 if (_offset == 0 && _layer_idx > 0 && above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar
                                 && above.hasQFactDecodings(qfactSig, negated)) {
                     filterAbove = true;
+
+                    /*
+                    TODO
+                    vca=0 : qfact semantics are added once, then for each further layer
+                    they are skipped because they were already encoded.
+                    vca=1 : qfact semantics are added once, skipped once, then added again
+                    because the qfact (and decodings) do not occur above any more.
+                    */
+
                 }
                 if (!filterAbove && _pos > 0) {
                     Position& left = _layers[_layer_idx]->at(_pos-1);
@@ -610,6 +614,7 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
                 
                 // If the substitution is chosen,
                 // the q-fact and the corresponding actual fact are equivalent
+                //Log::v("QFACTSEM (%i,%i) %s -> %s\n", _layer_idx, _pos, TOSTR(qfactSig), TOSTR(decFactSig));
                 for (const int& varSubst : substitutionVars) {
                     appendClause(-varSubst);
                 }

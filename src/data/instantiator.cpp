@@ -382,7 +382,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
 
 FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USigSet& currentOps) {
 
-    Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
+    //Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
 
     int nameId = sig._name_id;
     if (!_fact_frames.count(nameId)) {
@@ -503,7 +503,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
         _fact_frames[nameId] = std::move(result);
         currentOps.erase(sig);
 
-        Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
+        //Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
     }
 
     const FactFrame& f = _fact_frames[nameId];

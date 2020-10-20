@@ -97,7 +97,7 @@ private:
     enum DominationStatus {DOMINATING, DOMINATED, DIFFERENT, EQUIVALENT};
     DominationStatus getDominationStatus(const USignature& op, const USignature& other, Substitution& qconstSubstitutions);
     void eliminateDominatedOperations();
-
+    void eliminateInvalidParentsAtCurrentState(size_t offset);
     void prune(const USignature& op, int layerIdx, int pos);
 
     USigSet& getCurrentState(bool negated);

@@ -72,6 +72,7 @@ void Position::setValidSubstitutions(const USignature &op, std::vector<IntPairTr
 void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated) {
     auto& set = negated ? _neg_qfact_decodings : _pos_qfact_decodings;
     set[qFact].insert(decFact);
+    //Log::v("QFACTDEC %s -> %s (%s)\n", TOSTR(qFact), TOSTR(decFact), negated?"false":"true");
 }
 
 void Position::removeQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated) {

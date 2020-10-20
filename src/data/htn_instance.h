@@ -163,6 +163,7 @@ public:
     std::vector<int> popOperationDependentDomainOfQConstant(int qconst, const USignature& op);
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
+    std::vector<FlatHashSet<int>> getDomainsOfOpArgs(const HtnOp& op, const StateEvaluator& state);
 
     ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 

@@ -21,6 +21,7 @@ public:
     size_t index() const;
     size_t getNextLayerSize() const;
     size_t getSuccessorPos(size_t oldPos) const;
+    std::pair<size_t, size_t> getPredecessorPosAndOffset(size_t thisPos) const;
     
     Position& at(size_t pos);
     Position& operator[](size_t pos);

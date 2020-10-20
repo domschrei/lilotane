@@ -446,6 +446,7 @@ void Planner::createNextPositionFromAbove() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     newPos.setPos(_layer_idx, _pos);
     int offset = _pos - (*_layers[_layer_idx-1]).getSuccessorPos(_old_pos);
+    //eliminateInvalidParentsAtCurrentState(offset);
     propagateActions(offset);
     propagateReductions(offset);
     addPreconditionConstraints();
@@ -784,6 +785,57 @@ void Planner::propagateActions(size_t offset) {
     }
 }
 
+void Planner::eliminateInvalidParentsAtCurrentState(size_t offset) {
+
+    if (offset > 0) return;
+    Position& above = (*_layers[_layer_idx-1])[_old_pos];
+
+    USigSet reds = above.getReductions();
+    for (const auto& rSig : reds) {
+        if (!above.hasReduction(rSig)) continue;
+
+        NodeHashSet<PositionedUSig, PositionedUSigHasher> frontier;
+        NodeHashSet<PositionedUSig, PositionedUSigHasher> toPrune;
+        frontier.emplace(_layer_idx-1, _old_pos, rSig);
+
+        while (!frontier.empty()) {
+            auto op = *frontier.begin();
+            frontier.erase(op);
+            bool valid = true;
+
+            auto domains = _htn.getDomainsOfOpArgs(_htn.getReduction(op.usig), getStateEvaluator());
+            if (!op.usig._args.empty() && domains.empty()) valid = false;
+
+            if (!valid) {
+                // Overall invalid parent
+                Log::v("Invalid op %s detected!\n", TOSTR(op.usig));
+                toPrune.insert(op);
+            } else {
+                // Check if some q-constant's domain decreased
+                for (size_t i = 0; i < domains.size(); i++) {
+                    int arg = op.usig._args[i];
+                    if (_htn.isQConstant(arg) && domains[i].size() < _htn.getDomainOfQConstant(arg).size()) {
+                        Log::v("Decreased domain for q-constant %s of op %s detected! (%i->%i, %s)\n", TOSTR(arg), TOSTR(op.usig), 
+                                    _htn.getDomainOfQConstant(arg).size(), domains[i].size(), 
+                                    _htn.getOriginOfQConstant(arg) == IntPair(op.layer, op.pos) ? "origin" : "no origin");
+                    }
+                }
+                if (op.layer > 0) {
+                    // Valid parent: Go to parent's parents
+                    auto [upPos, upOffset] = _layers[op.layer-1]->getPredecessorPosAndOffset(op.pos);
+                    //Log::d("(%i,%i) ~> (%i,%i) (+%i)\n", op.layer, op.pos, op.layer-1, upPos, upOffset);
+                    if (upOffset == 0) {
+                        for (const auto& parent : _layers[op.layer]->at(op.pos).getPredecessors().at(op.usig)) {
+                            frontier.emplace(op.layer-1, upPos, parent);
+                        }
+                    }
+                }
+            }
+        }
+        for (const auto& op : frontier) prune(op.usig, op.layer, op.pos);
+    }
+}
+
 void Planner::propagateReductions(size_t offset) {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     Position& above = (*_layers[_layer_idx-1])[_old_pos];
@@ -794,6 +846,7 @@ void Planner::propagateReductions(size_t offset) {
     // Collect all possible subtasks and remember their possible parents
     for (const auto& rSig : above.getReductions()) {
         if (rSig == Sig::NONE_SIG) continue;
+
         const Reduction r = _htn.getReduction(rSig);
         
         if (offset < r.getSubtasks().size()) {

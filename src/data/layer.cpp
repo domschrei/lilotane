@@ -27,3 +27,10 @@ size_t Layer::getSuccessorPos(size_t oldPos) const {
     assert(oldPos < _successor_positions.size());
     return _successor_positions[oldPos];
 }
+std::pair<size_t, size_t> Layer::getPredecessorPosAndOffset(size_t newPos) const {
+    size_t oldPos = 0;
+    while (oldPos+1 < size() && getSuccessorPos(oldPos+1) <= newPos) 
+        oldPos++;
+    size_t offset = newPos - getSuccessorPos(oldPos);
+    return std::pair<size_t, size_t>(oldPos, offset);
+}

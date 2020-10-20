@@ -829,28 +829,17 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
     return red.substituteRed(Substitution(red.getArguments(), newArgs));
 }
 
-std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
-    
-    if (op.getArguments().size() == 0) return std::vector<int>();
-    std::vector<int> vecFailure(1, -1);
+std::vector<FlatHashSet<int>> HtnInstance::getDomainsOfOpArgs(const HtnOp& op, const StateEvaluator& state) {
 
-    std::vector<int> args = op.getArguments();
+    const std::vector<int>& args = op.getArguments();
     const std::vector<int>& sorts = _signature_sorts_table[op.getNameId()];
-    std::vector<int> varargIndices;
-    for (size_t i = 0; i < op.getArguments().size(); i++) {
-        const int& arg = op.getArguments()[i];
-        if (isVariable(arg)) varargIndices.push_back(i);
-    }
-    std::vector<bool> occursInPreconditions(op.getArguments().size(), false);
-    std::vector<FlatHashSet<int>> domainPerVariable(op.getArguments().size());
+    std::vector<FlatHashSet<int>> domainPerVariable(args.size());
+    std::vector<bool> occursInPreconditions(args.size(), false);
 
     // Check each precondition regarding its valid decodings w.r.t. current state
     //const SigSet* preSets[2] = {&op.getPreconditions(), &op.getExtraPreconditions()};
     const SigSet* preSets[1] = {&op.getPreconditions()};
     for (const auto& preSet : preSets) for (const auto& preSig : *preSet) {
-
-        // Check base condition; if unsatisfied, discard op 
-        if (!_instantiator->test(preSig, state)) return vecFailure;
 
         // Find mapping from precond args to op args
         std::vector<int> opArgIndices(preSig._usig._args.size(), -1);
@@ -863,6 +852,17 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
                     break;
                 }
             }
+        }
+
+        if (!hasQConstants(preSig._usig) && _instantiator->isFullyGround(preSig._usig)) {
+            // Check base condition; if unsatisfied, discard op 
+            if (!_instantiator->testWithNoVarsNoQConstants(preSig._usig, preSig._negated, state)) 
+                return std::vector<FlatHashSet<int>>();
+            // Add constants to respective argument domains
+            for (size_t i = 0; i < preSig._usig._args.size(); i++) {
+                domainPerVariable[opArgIndices[i]].insert(preSig._usig._args[i]);
+            }
+            continue;
         }
 
         // Compute sorts of the condition's args w.r.t. op signature
@@ -885,14 +885,34 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             anyValid = true;
             for (size_t i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
-                const int& arg = decUSig._args[i];
                 if (opArgIdx >= 0) {
-                    domainPerVariable[opArgIdx].insert(arg);
+                    domainPerVariable[opArgIdx].insert(decUSig._args[i]);
                 }
             }
         }
-        if (any && !anyValid) return vecFailure;
+        if (any && !anyValid) return std::vector<FlatHashSet<int>>();
     }
+
+    for (size_t i = 0; i < args.size(); i++) {
+        if (!occursInPreconditions[i]) domainPerVariable[i] = _constants_by_sort[sorts[i]];
+    }
+
+    return domainPerVariable;
+}
+
+std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
+    
+    if (op.getArguments().empty()) return std::vector<int>();
+    std::vector<int> vecFailure(1, -1);
+
+    std::vector<int> args = op.getArguments();
+    std::vector<int> varargIndices;
+    for (size_t i = 0; i < args.size(); i++) {
+        const int& arg = args[i];
+        if (isVariable(arg)) varargIndices.push_back(i);
+    }
+    auto domainPerVariable = getDomainsOfOpArgs(op, state);
+    if (domainPerVariable.empty()) return vecFailure;
 
     // Assemble new operator arguments
     FlatHashMap<int, int> numIntroducedQConstsPerType;
@@ -900,9 +920,6 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
     for (int i : varargIndices) {
         int vararg = args[i];
         auto& domain = domainPerVariable[i];
-        if (!occursInPreconditions[i]) {
-            domain = _constants_by_sort[sorts[i]];
-        }
         if (domain.empty()) {
             // No valid constants at this position! The op is impossible.
             Log::d("Empty domain for arg %s of %s\n", TOSTR(vararg), TOSTR(op.getSignature()));
