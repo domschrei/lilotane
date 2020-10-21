@@ -1,9 +1,14 @@
 #!/bin/bash
 
 if [ "x$TIMEOUT" == "x" ]; then
-	timeout=10
+	timeout=10s
 else
 	timeout="$TIMEOUT"
+fi
+if [ "x$MEMOUT" == "x" ]; then
+	memout=8gb
+else
+	memout="$MEMOUT"
 fi
 rating_timeout=1800
 
@@ -35,7 +40,7 @@ function rating() {
 }
 
 function end() {
-    echo "$solved/$all solved within ${timeout}s per instance."
+    echo "$solved/$all solved within ${timeout} per instance."
     echo -ne "Total score for T=${rating_timeout}s: ${green}"
     LC_ALL=C printf "%.4f" $score
     echo "${reset}."
@@ -90,11 +95,12 @@ for domain in $domains ; do
 
         command="./lilotane $dfile $pfile $@"
 
-        start=$(date +%s.%N)
-        /usr/bin/timeout $timeout $command > "$outfile" & wait -n
+        #start=$(date +%s.%N)
+        ./runwatch $timeout $memout cpu0 wcpu1 $command > "$outfile" & wait -n
         retval="$?"
-        end=$(date +%s.%N)    
-        runtime=$(echo "${end} ${start}" | awk '{printf("%.3f\n", $1-$2)}')
+        #end=$(date +%s.%N)
+        #runtime=$(echo "${end} ${start}" | awk '{printf("%.3f\n", $1-$2)}')
+        runtime=$(tail -50 "$outfile"|grep RUNWATCH_RESULT|awk '{print $4}')
         thisscore=$(rating "$runtime")
 
         if [ "$retval" == "0" ]; then

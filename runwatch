@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import re
+import subprocess
+import time
+import signal
+import psutil
+
+starttime = None
+timelim = None
+memlim = None
+cpuset = set()
+wcpu = None
+cmd = None
+verbose = False
+
+def watch_child(childpid):
+    last_signaltime = None
+    last_memchecktime = None
+    status = None
+    mempeak = 0
+    
+    # Retrieve child of child, which is the internally managed process
+    if verbose: print("Child python process: PID",childpid)
+    p = psutil.Process(childpid)
+    while not p.children(): time.sleep(0.001)
+    innerp = p.children()[0]
+    innerpid = innerp.pid
+    if verbose: print("Watching PID",innerpid)
+    
+    # Pin this watcher process to a previously un-allocated CPU
+    if cpuset:
+        cpu_to_use = wcpu
+        if cpu_to_use is None:
+            for cpu in old_cpuset:
+                if cpu not in cpuset:
+                    cpu_to_use = cpu
+                    break
+        if verbose: print("Using CPU %i for watching" % (cpu_to_use,))
+        os.sched_setaffinity(0, {cpu_to_use})
+        os.sched_setaffinity(childpid, cpuset)
+    
+    # Watcher loop
+    while True:
+        t = time.time()
+        (pid, retcode) = os.waitpid(childpid, os.WNOHANG)
+        child_running = pid == 0 and retcode == 0
+        
+        if child_running:            
+            # Some time passed since a signal was fired?
+            if not last_signaltime or t - last_signaltime > 1.0:
+                
+                # Check time limit
+                if timelim and t - starttime > timelim:
+                    if not status: status = "TIMEOUT"
+                    os.kill(innerpid, signal.SIGINT)
+                    last_signaltime = t
+                
+                # Check memory usage (for the child and all of its children)
+                if not last_memchecktime or t-last_memchecktime >= 0.1:
+                    kb_used = 0
+                    for pp in p.children(recursive=True):
+                        try:
+                            kb_used += pp.memory_info().rss
+                        except psutil.NoSuchProcess as e:
+                            continue
+                    kb_used /= 1000
+                    mempeak = max(mempeak, kb_used)
+                    if memlim and kb_used > memlim:
+                        if not status: status = "MEMOUT"
+                        os.kill(innerpid, signal.SIGINT)
+                        last_signaltime = t
+                    last_memchecktime = t
+        else:
+            # Child exited
+            break
+            
+        # Sleep for a short amount of time
+        time.sleep(0.001)
+    
+    if not status: status = "EXIT"
+    print("RUNWATCH_RESULT",status,"TIME_SECS","%.3f" % (t-starttime),"MEMPEAK_KBS",mempeak)
+    exit(retcode)
+
+
+for i in range(1, len(sys.argv)):
+    arg = sys.argv[i]
+    matched = False
+    
+    if arg == "-v" or arg == "--verbose":
+        matched = True
+        verbose = True
+    
+    # Restrict run time in seconds
+    match = re.fullmatch(r'([0-9\.]+) ?(ms|s|min|h)', arg)
+    if match:
+        matched = True
+        num = float(match.group(1))
+        unit = match.group(2)
+        if unit == "ms":
+            num /= 1000
+        if unit == "min":
+            num *= 60
+        if unit == "h":
+            num *= 3600
+        timelim = num
+    
+    # Restrict memory usage
+    match = re.fullmatch(r'([0-9\.]+) ?(b|kb|mb|gb|tb|B|KB|MB|GB|TB)', arg)
+    if match:
+        matched = True
+        num = float(match.group(1))
+        unit = match.group(2)
+        if unit == "b" or unit == "B":
+            num /= 1000
+        if unit == "mb" or unit == "MB":
+            num *= 1000
+        if unit == "gb" or unit == "GB":
+            num *= 1000 * 1000
+        if unit == "tb" or unit == "TB":
+            num *= 1000 * 1000 * 1000
+        memlim = num
+
+    # Add CPU to set of pinned CPUs
+    match = re.fullmatch(r'cpu ?([0-9]+)', arg)
+    if match:
+        matched = True
+        cpuid = int(match.group(1))
+        cpuset.add(cpuid)
+    match = re.fullmatch(r'cpu ?([0-9]+)(\.\.|:)([0-9]+)', arg)
+    if match:
+        matched = True
+        for i in range(int(match.group(1)), int(match.group(3))+1):
+            cpuset.add(i)
+    
+    match = re.fullmatch(r'wcpu ?([0-9]+)', arg)
+    if match:
+        matched = True
+        wcpu = int(match.group(1))
+    
+    # Set command
+    if not matched:
+        cmd = sys.argv[i:]
+        if verbose: print("Command: " + str(cmd))
+        break
+    
+if not cmd:
+    print("Please provide a command to execute.")
+    exit(1)
+
+if verbose and timelim: print("Limiting to %.2fs of run time" % (timelim,))
+if verbose and memlim: print("Limiting to %.2fKB of RSS memory" % (memlim,))
+if cpuset:
+    if verbose: print("Limiting to CPUs " + str(cpuset))
+    old_cpuset = os.sched_getaffinity(0)
+    os.sched_setaffinity(0, cpuset)
+
+starttime = time.time()
+childpid = os.fork()
+if childpid == 0:
+    # Child
+    try:
+        retcode = subprocess.call(cmd, shell=False)
+        if verbose:
+            if retcode == -2: print("[CHILD] Interrupted")
+            else: print("[CHILD] Returned",retcode)
+        exit(retcode)
+    except OSError as e:
+        print("[CHILD] Execution failed:", e, file=sys.stderr)
+        exit(1)
+    except KeyboardInterrupt as e:
+        if verbose: print("[CHILD] Interrupted")
+        exit(130)
+else:
+    # Parent
+    watch_child(childpid)
