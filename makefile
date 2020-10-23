@@ -1,5 +1,5 @@
 
-# Options: lingeling glucose4 cadical cryptominisat
+# Possible options: cadical cryptominisat glucose4 lingeling riss
 IPASIRSOLVER?=glucose4
 
 SOLVERLIB=lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a

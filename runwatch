@@ -8,19 +8,48 @@ import time
 import signal
 import psutil
 
-starttime = None
 timelim = None
 memlim = None
 cpuset = set()
 wcpu = None
 cmd = None
 verbose = False
+num_signals_until_kill = 5
+
+starttime = None
+childpid = -1
+innerpid = -1
+
+def signal_all_children(p, signum):
+    for pp in p.children(recursive=True):
+        os.kill(pp.pid, signum)
+
+def get_kb_used_by_all_children(p):
+    kb_used = 0
+    for pp in p.children(recursive=True):
+        try:
+            kb_used += pp.memory_full_info().pss
+        except psutil.NoSuchProcess as e:
+            continue
+    kb_used /= 1000
+    return kb_used
+
+def handle_signal_parent(signum, frame):
+    if innerpid != -1:
+        signal_all_children(psutil.Process(innerpid), signum)
+    elif childpid != -1:
+        signal_all_children(psutil.Process(childpid), signum)
+    else:
+        exit(signum)
 
 def watch_child(childpid):
+    global innerpid
+    
     last_signaltime = None
     last_memchecktime = None
     status = None
     mempeak = 0
+    num_signals = 0
     
     # Retrieve child of child, which is the internally managed process
     if verbose: print("Child python process: PID",childpid)
@@ -55,22 +84,18 @@ def watch_child(childpid):
                 # Check time limit
                 if timelim and t - starttime > timelim:
                     if not status: status = "TIMEOUT"
-                    os.kill(innerpid, signal.SIGINT)
+                    num_signals += 1
+                    signal_all_children(p, signal.SIGINT if num_signals <= num_signals_until_kill else signal.SIGKILL)
                     last_signaltime = t
                 
                 # Check memory usage (for the child and all of its children)
                 if not last_memchecktime or t-last_memchecktime >= 0.1:
-                    kb_used = 0
-                    for pp in p.children(recursive=True):
-                        try:
-                            kb_used += pp.memory_info().rss
-                        except psutil.NoSuchProcess as e:
-                            continue
-                    kb_used /= 1000
+                    kb_used = get_kb_used_by_all_children(p)
                     mempeak = max(mempeak, kb_used)
                     if memlim and kb_used > memlim:
                         if not status: status = "MEMOUT"
-                        os.kill(innerpid, signal.SIGINT)
+                        num_signals += 1
+                        signal_all_children(p, signal.SIGINT if num_signals <= num_signals_until_kill else signal.SIGKILL)
                         last_signaltime = t
                     last_memchecktime = t
         else:
@@ -81,6 +106,7 @@ def watch_child(childpid):
         time.sleep(0.001)
     
     if not status: status = "EXIT"
+    print()
     print("RUNWATCH_RESULT",status,"TIME_SECS","%.3f" % (t-starttime),"MEMPEAK_KBS",mempeak)
     exit(retcode)
 
@@ -157,6 +183,7 @@ if cpuset:
     old_cpuset = os.sched_getaffinity(0)
     os.sched_setaffinity(0, cpuset)
 
+
 starttime = time.time()
 childpid = os.fork()
 if childpid == 0:
@@ -175,4 +202,5 @@ if childpid == 0:
         exit(130)
 else:
     # Parent
+    signal.signal(signal.SIGINT, handle_signal_parent)
     watch_child(childpid)
