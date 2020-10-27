@@ -118,10 +118,10 @@ for domain in $domains ; do
         retval="$?"
         set -e
         
-        resultline=$(tail -50 "$outfile"|grep RUNWATCH_RESULT|grep -oE "RUNWATCH_RESULT (EXIT|TIMEOUT|MEMOUT) TIME_SECS [0-9\.]+ MEMPEAK_KBS [0-9\.]+")
+        resultline=$(tail -50 "$outfile"|grep RUNWATCH_RESULT|grep -oE "RUNWATCH_RESULT (EXIT|TIMEOUT|MEMOUT) RETVAL -?[0-9]+ TIME_SECS [0-9\.]+ MEMPEAK_KBS [0-9\.]+")
         status=$(echo $resultline|awk '{print $2}')
-        runtime=$(echo $resultline|awk '{print $4}')
-        mempeak=$(echo $resultline|awk '{print $6}')
+        runtime=$(echo $resultline|awk '{print $6}')
+        mempeak=$(echo $resultline|awk '{print $8}')
         thisscore=$(rating "$runtime")
         
         cp "$outfile" "$output"
