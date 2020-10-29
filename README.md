@@ -11,6 +11,8 @@ This planner for totally-ordered HTN planning problems makes use of incremental 
 
 Lilotane introduces new techniques to the field of SAT-based HTN planning, namely lazy instantiation and a lifted encoding that enables it to skip the full grounding of the problem. More information is provided in the accompanying paper [0].
 
+Lilotane was runner-up in the Total Order track of the [International Planning Conference (IPC) 2020](http://ipc2020.hierarchical-task.net/), performing best on a diverse set of planning domains.
+
 ### Valid Inputs
 
 Lilotane operates on totally-ordered HTN planning problems given as HDDL files [1]. The provided HTN domain may be recursive or non-recursive.
