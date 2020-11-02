@@ -1037,7 +1037,8 @@ ArgIterator HtnInstance::decodeObjects(const USignature& qSig,
             // normal constant
             eligibleArgs[argPos].push_back(arg);
         }
-        assert(eligibleArgs[argPos].size() > 0);
+        //assert(eligibleArgs[argPos].size() > 0);
+        if (eligibleArgs[argPos].empty()) return ArgIterator(qSig._name_id, std::vector<std::vector<int>>());
         numChoices *= eligibleArgs[argPos].size();
     }
 
