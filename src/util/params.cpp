@@ -44,7 +44,7 @@ void Parameters::setDefaults() {
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
     setParam("edo", "1"); // eliminate dominated operations
-    setParam("el", "0"); // extra layers after initial solution
+    setParam("el", "0"); // extra layers after initial solution (-1: expand indefinitely)
     setParam("ip", "0"); // implicit primitiveness
     setParam("mp", "2"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports

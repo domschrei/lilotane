@@ -453,7 +453,7 @@ SigSet HtnInstance::extractGoals() {
 Action HtnInstance::getGoalAction() {
 
     // Create virtual goal action
-    Action goalAction(nameId("_GOAL_ACTION_"), std::vector<int>());
+    Action goalAction(nameId("<goal_action>"), std::vector<int>());
     USignature goalSig = goalAction.getSignature();
     
     // Extract primitive goals, add to preconds of goal action

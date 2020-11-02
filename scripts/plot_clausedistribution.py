@@ -22,11 +22,11 @@ rc('text', usetex=True)
 #markers = ['^', 's', 'o', '+', 'x', '*']
 #colors = ['#88bbff', '#ffaaaa', '#ffffaa', '#bbbbbb']
 #colors = ['#ffffcc', '#aaccff', '#ffccaa', '#d0d0d0']
-colors = ['#ffd6d6', '#d0ddff', '#faffb0', '#e1bfff', '#c0ffb6']
+colors = ['#d0ddff', '#ffd6d6', '#e1bfff', '#faffb0', '#c0ffb6']
 
 markers = ['^', 's', 'o', '*', 'v', 'p', 'd']
 linestyles = ["-.", ":", "--", "-"]
-hatches = ["...", "ooo", "/////", " ", "\\\\\\\\\\", "xxxxx"]
+hatches = ["oo", "...", "ooo", "/////", " ", "\\\\\\\\\\", "oo", "...", "ooo", "\\\\\\\\\\", "/////", " ", "xxxxx", "oo", "...", " ", "ooo", "///////", "\\\\\\\\\\", "xxxxx"]
 
 """
 /   - diagonal hatching
@@ -44,20 +44,31 @@ O   - large circle
 max_duration = 300
 
 basedir = sys.argv[1]
-files = [f for f in listdir(basedir) if isfile(join(basedir, f)) and str(f).startswith("cls_")]
+files = [f for f in listdir(basedir) if isfile(join(basedir, f)) and (str(f).endswith("_cls") or str(f).startswith("cls_"))]
+
+clause_cat_file = sys.argv[2]
+categories = [line.rstrip() for line in open(clause_cat_file, "r").readlines()]
 
 clauses_by_domain = dict()
 problems_by_domain = dict()
+
+title = None
+for arg in sys.argv[3:]:
+    match = re.match(r'-title=(.*)', arg)
+    if match:
+        title = match.group(1)
 
 # For each problem
 for file in files:
 
     match = re.search(r'cls_([0-9]+)_(.*)', file)
     if not match:
-        print("[WARN] unparsed file %s" % file)
-        continue
+        match = re.search(r'log_([0-9]+)_(.*)_cls', file)
+        if not match:
+            print("[WARN] unparsed file %s" % file)
+            continue
     index = int(match.group(1))
-    domain = match.group(2)
+    domain = match.group(2).lower().replace("_", "-")
 
     print("%i (%s) : %s" % (index, domain, file))
     
@@ -106,7 +117,7 @@ for domain in clauses_by_domain:
 
 # Do plotting
 
-plt.figure(figsize=(6,3.5))
+plt.figure(figsize=(4,3))
 
 bars = []
 labels = []
@@ -115,9 +126,16 @@ sorteddomains = sorted(clauses_by_domain) #, key=lambda d: -totals_by_domain[d])
 domainlabels = ["Total"] + [d for d in sorteddomains]
 Xs = [0.75] + [x for x in range(2, len(sorteddomains)+2)]
 plt.xlim(0, len(sorteddomains)+1.75)
+plt.ylim(0, 1)
 
 plt.axes().set_axisbelow(True)
 plt.grid(True, which='major', axis='y')
+
+style_by_key = dict()
+i = 0
+for key in categories:
+    style_by_key[key] = (colors[i % len(colors)], hatches[i % len(hatches)])
+    i += 1
 
 bottom = [0 for x in range(1, len(sorteddomains)+2)]
 for key in sorted(clauses, key=lambda x: -clauses[x]):
@@ -125,8 +143,8 @@ for key in sorted(clauses, key=lambda x: -clauses[x]):
     print(Xs)
     print(Ys)
     print(bottom)
-    bars += [plt.bar(Xs, Ys, width=0.65, bottom=bottom, color=colors[len(labels) % len(colors)],
-        hatch=hatches[len(labels) % len(hatches)], alpha=.99)] # alpha trick as workaround that hatching is drawn in PDF
+    (c, h) = style_by_key[key]
+    bars += [plt.bar(Xs, Ys, width=0.65, bottom=bottom, color=c, hatch=h, alpha=.99)] # alpha trick as workaround that hatching is drawn in PDF
     labels += [key]
     for i in range(len(bottom)):
         bottom[i] += Ys[i]
@@ -138,6 +156,8 @@ plt.ylabel("Relative clause occurrence")
 # Tweak spacing to prevent clipping of tick-labels
 #plt.subplots_adjust(bottom=0.15)
 #plt.legend(bars, labels)
+if title:
+    plt.title(title)
 plt.tight_layout()
 #plt.show()
 plt.savefig('clause_distribution.pdf')
@@ -166,6 +186,9 @@ def flip_legend_labels(labels, bars, ncols):
     return (newlabels, newbars) 
 
 ncols = 4
+lb = sorted([(labels[i], bars[i]) for i in range(len(labels))], key=lambda x: x[0])
+labels = [l for (l,b) in lb]
+bars = [b for (l,b) in lb]
 (newlabels, newbars) = flip_legend_labels(labels, bars, ncols)
 
 figlegend = plt.figure()

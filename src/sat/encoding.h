@@ -136,8 +136,8 @@ public:
     std::vector<PlanItem> extractClassicalPlan(PlanExtraction mode = PRIMITIVE_ONLY);
     std::vector<PlanItem> extractDecompositionPlan();
 
-    void optimizePlan(int upperBound, Plan& plan);
     enum ConstraintAddition { TRANSIENT, PERMANENT };
+    void optimizePlan(int upperBound, Plan& plan, ConstraintAddition mode);
     int findMinBySat(int lower, int upper, std::function<int(int)> varMap, std::function<int(void)> boundUpdateOnSat, ConstraintAddition mode);
     int getPlanLength(const std::vector<PlanItem>& classicalPlan);
     bool isEmptyAction(const USignature& aSig);

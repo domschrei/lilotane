@@ -143,48 +143,83 @@ int Planner::findPlan() {
     // Compute extra layers after initial solution as desired
     int extraLayers = _params.getIntParam("el");
     int upperBound = _layers.back()->size()-1;
-    if (extraLayers > 0) {
+    if (extraLayers != 0) {
 
         // Extract initial plan (for anytime purposes)
         _plan = _enc.extractPlan();
         _has_plan = true;
         upperBound = _enc.getPlanLength(std::get<0>(_plan));
         Log::i("Initial plan at most shallow layer has length %i\n", upperBound);
+        
+        if (extraLayers == -1) {
 
-        // Extra layers without solving
-        for (int x = 0; x < extraLayers; x++) {
-            iteration++;      
-            Log::i("Iteration %i. (extra)\n", iteration);
-            createNextLayer();
+            // Indefinitely increase bound and solve until program is interrupted or max depth reached
+            size_t el = 1;
+            do {
+                // Extra layers without solving
+                for (size_t x = 0; x < el && (maxIterations == 0 || iteration < maxIterations); x++) {
+                    iteration++;      
+                    Log::i("Iteration %i. (extra)\n", iteration);
+                    createNextLayer();
+                }
+                // Solve again (to get another plan)
+                _enc.addAssumptions(_layer_idx);
+                int result = _enc.solve();
+                if (result != 10) break;
+                // Extract plan at layer, update bound
+                auto thisLayerPlan = _enc.extractPlan();
+                int newLength = _enc.getPlanLength(std::get<0>(thisLayerPlan));
+                // Update plan only if it is better than any previous plan
+                if (newLength < upperBound || !_has_plan) {
+                    upperBound = newLength;
+                    _plan = thisLayerPlan;
+                    _has_plan = true;
+                }
+                Log::i("Initial plan at layer %i has length %i\n", iteration, newLength);
+                // Optimize
+                _enc.optimizePlan(upperBound, _plan, Encoding::ConstraintAddition::TRANSIENT);
+                // Double number of extra layers in next iteration
+                el *= 2;
+            } while (maxIterations == 0 || iteration < maxIterations);
+
+        } else {
+            // Extra layers without solving
+            for (int x = 0; x < extraLayers; x++) {
+                iteration++;      
+                Log::i("Iteration %i. (extra)\n", iteration);
+                createNextLayer();
+            }
+
+            // Solve again (to get another plan)
+            _enc.addAssumptions(_layer_idx);
+            _enc.solve();
         }
-
-        // Solve again (to get another plan)
-        _enc.addAssumptions(_layer_idx);
-        int result = _enc.solve();
-        assert(result == 10);
     }
 
-    if (_optimization_factor != 0) {
-        // Extract plan at final layer, update bound
-        auto finalLayerPlan = _enc.extractPlan();
-        int newLength = _enc.getPlanLength(std::get<0>(finalLayerPlan));
-        // Update plan only if it is better than any previous plan
-        if (newLength < upperBound || !_has_plan) {
-            upperBound = newLength;
-            _plan = finalLayerPlan;
+    if (extraLayers != -1) {
+        if (_optimization_factor != 0) {
+
+            // Extract plan at final layer, update bound
+            auto finalLayerPlan = _enc.extractPlan();
+            int newLength = _enc.getPlanLength(std::get<0>(finalLayerPlan));
+            // Update plan only if it is better than any previous plan
+            if (newLength < upperBound || !_has_plan) {
+                upperBound = newLength;
+                _plan = finalLayerPlan;
+                _has_plan = true;
+            }
+            Log::i("Initial plan at final layer has length %i\n", newLength);
+            // Optimize
+            _enc.optimizePlan(upperBound, _plan, Encoding::ConstraintAddition::PERMANENT);
+
+        } else {
+            // Just extract plan
+            _plan = _enc.extractPlan();
             _has_plan = true;
         }
-        Log::i("Initial plan at final layer has length %i\n", newLength);
-        // Optimize
-        _enc.optimizePlan(upperBound, _plan);
-
-    } else {
-        // Just extract plan
-        _plan = _enc.extractPlan();
-        _has_plan = true;
     }
-    outputPlan();
 
+    outputPlan();
     _enc.printStages();
     
     return 0;
@@ -1074,6 +1109,7 @@ Planner::DominationStatus Planner::getDominationStatus(const USignature& op, con
     
     DominationStatus status = EQUIVALENT;
     FlatHashSet<int> dummyDomain;
+    std::vector<int> sameDomainQConstArgIndices;
 
     for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
         int arg = op._args[argIdx];
@@ -1125,6 +1161,10 @@ Planner::DominationStatus Planner::getDominationStatus(const USignature& op, con
         } else if (domain != otherDomain) {
             // Different domains
             return DIFFERENT;
+
+        } else {
+            // The two pseudo-constants are not equal, but share the same domain
+            sameDomainQConstArgIndices.push_back(argIdx);
         }
         // Domains are equal
 
@@ -1147,6 +1187,12 @@ Planner::DominationStatus Planner::getDominationStatus(const USignature& op, con
             } 
         }
         return status;
+    } else {
+        // Add to substitution all q-constant pairs with identical domain
+        for (int argIdx : sameDomainQConstArgIndices) {
+            if (status == DOMINATED) qconstSubstitutions[op._args[argIdx]] = other._args[argIdx];
+            else qconstSubstitutions[other._args[argIdx]] = op._args[argIdx];
+        }
     }
     return status;
 }

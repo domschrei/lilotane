@@ -898,7 +898,7 @@ void Encoding::clearDonePositions() {
     }
 }
 
-void Encoding::optimizePlan(int upperBound, Plan& plan) {
+void Encoding::optimizePlan(int upperBound, Plan& plan, ConstraintAddition mode) {
 
     int layerIdx = _layers.size()-1;
     Layer& l = *_layers.at(layerIdx);
@@ -1052,7 +1052,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
     
     // Add primitiveness of all positions at the final layer
     // as unit literals (instead of assumptions)
-    addAssumptions(layerIdx, /*permanent=*/true);
+    addAssumptions(layerIdx, /*permanent=*/mode == ConstraintAddition::PERMANENT);
     end(STAGE_PLANLENGTHCOUNTING);
 
     int curr = currentPlanLength;
@@ -1070,8 +1070,7 @@ void Encoding::optimizePlan(int upperBound, Plan& plan) {
             assert(newPlanLength < curr);
             curr = newPlanLength;
             return newPlanLength;
-        }, 
-    ConstraintAddition::PERMANENT);
+        }, mode);
 
     float factor = (float)currentPlanLength / minPlanLength;
     if (factor <= 1) {
@@ -1108,7 +1107,7 @@ int Encoding::findMinBySat(int lower, int upper, std::function<int(int)> varMap,
         while (upper > current) {
             Log::d("GUARANTEE PL!=%i\n", upper);
             int probedVar = varMap(upper);
-            if (mode == TRANSIENT) ipasir_assume(_solver, -probedVar);
+            if (mode == TRANSIENT) assume(-probedVar);
             else addClause(-probedVar);
             upper--;
         }
@@ -1117,7 +1116,7 @@ int Encoding::findMinBySat(int lower, int upper, std::function<int(int)> varMap,
         // Assume a plan length shorter than the last found plan
         Log::d("GUARANTEE PL!=%i\n", upper);
         int probedVar = varMap(upper);
-        if (mode == TRANSIENT) ipasir_assume(_solver, -probedVar);
+        if (mode == TRANSIENT) assume(-probedVar);
         else addClause(-probedVar);
 
         end(STAGE_PLANLENGTHCOUNTING);
