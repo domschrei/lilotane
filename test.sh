@@ -79,10 +79,16 @@ outdir=tests/tests_$(date +%s)
 mkdir $outdir
 
 # Count instances
-for domain in $domains ; do    
-    for pfile in instances/$domain/p*.hddl; do
-        all=$((all+1))
-    done
+for domain in $domains ; do
+    if [ -f instances/$domain/p*.hddl ]; do
+        for pfile in instances/$domain/p*.hddl; do
+            all=$((all+1))
+        done
+    else
+        for pfile in instances/$domain/problems/*.hddl; do
+            all=$((all+1))
+        done
+    fi
 done
 
 # Output chosen parameters of lilotane

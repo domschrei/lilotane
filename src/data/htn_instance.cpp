@@ -18,6 +18,8 @@ HtnInstance::HtnInstance(Parameters& params) :
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0),
             _share_q_constants(_params.isNonzero("sqq")) {
 
+    Log::i("Parser finished.\n");
+
     Names::init(_name_back_table);
     _instantiator = new Instantiator(params, *this);
     
@@ -40,7 +42,7 @@ HtnInstance::HtnInstance(Parameters& params) :
     
     extractConstants();
 
-    Log::i("Sorts extracted.\n");
+    Log::i("Structures extracted.\n");
     for (const auto& sort_pair : _p.sorts) {
         Log::d(" %s : ", sort_pair.first.c_str());
         for (const std::string& c : sort_pair.second) {
