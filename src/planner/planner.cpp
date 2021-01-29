@@ -55,7 +55,7 @@ void Planner::checkTermination() {
         exitSet = true;
     }
     if (exitSet || cancelOpt) {
-        _enc.printStages();
+        printStatistics();
         Log::i("Exiting happily.\n");
         exit(0);
     }
@@ -220,7 +220,7 @@ int Planner::findPlan() {
     }
 
     outputPlan();
-    _enc.printStages();
+    printStatistics();
     
     return 0;
 }
@@ -341,6 +341,12 @@ void Planner::outputPlan() {
     Log::i("End of solution plan. (counted length of %i)\n", length);
 }
 
+void Planner::incrementPosition() {
+    _num_instantiated_actions += _layers[_layer_idx]->at(_pos).getActions().size();
+    _num_instantiated_reductions += _layers[_layer_idx]->at(_pos).getReductions().size();
+    _pos++; _num_instantiated_positions++;
+}
+
 void Planner::createFirstLayer() {
 
     // Initial layer of size 2 (top level reduction + goal action)
@@ -372,7 +378,7 @@ void Planner::createFirstLayer() {
     addPreconditionConstraints();
     introduceNewFacts();
     
-    _pos++;
+    incrementPosition();
 
     /***** LAYER 0, POSITION 1 ******/
 
@@ -436,7 +442,7 @@ void Planner::createNextLayer() {
             );
             if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
-            _pos++;
+            incrementPosition();
             checkTermination();
         }
     }
@@ -1270,6 +1276,7 @@ void Planner::eliminateDominatedOperations() {
                 Log::v("%s dominates %s (%s)\n", TOSTR(op), TOSTR(other), TOSTR(s));
                 //assert(other.substitute(s) == op);
                 newPos.replaceOperation(other, op, std::move(s));
+                _num_dominated_ops++;
             }
         }
     }
@@ -1361,7 +1368,10 @@ void Planner::prune(const USignature& op, int layerIdx, int pos) {
         if (opVar != 0) _enc.addUnitConstraint(-opVar);
         position.removeActionOccurrence(psig.usig);
         position.removeReductionOccurrence(psig.usig);
+        _num_retroactively_pruned_ops++;
     }
+
+    _num_retroactive_prunings++;
 }
 
 USigSet& Planner::getCurrentState(bool negated) {
@@ -1374,4 +1384,15 @@ Planner::StateEvaluator Planner::getStateEvaluator(int layer, int pos) {
     return [this](const USignature& sig, bool negated) {
         return getCurrentState(negated).contains(sig);
     };
+}
+
+void Planner::printStatistics() {
+    _enc.printStages();
+    Log::i("# instantiated positions: %i\n", _num_instantiated_positions);
+    Log::i("# instantiated actions: %i\n", _num_instantiated_actions);
+    Log::i("# instantiated reductions: %i\n", _num_instantiated_reductions);
+    Log::i("# introduced pseudo-constants: %i\n", _htn.getNumberOfQConstants());
+    Log::i("# retroactive prunings: %i\n", _num_retroactive_prunings);
+    Log::i("# retroactively pruned operations: %i\n", _num_retroactively_pruned_ops);
+    Log::i("# dominated operations: %i\n", _num_dominated_ops);
 }

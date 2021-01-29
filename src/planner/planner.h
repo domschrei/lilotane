@@ -49,6 +49,15 @@ private:
     bool _has_plan;
     Plan _plan;
 
+    // statistics
+    size_t _num_instantiated_positions = 0;
+    size_t _num_instantiated_actions = 0;
+    size_t _num_instantiated_reductions = 0;
+    size_t _num_dominated_ops = 0;
+    size_t _num_retroactive_prunings = 0;
+    size_t _num_retroactively_pruned_ops = 0;
+
+
 public:
     Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
             _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers, [this](){checkTermination();}), 
@@ -70,6 +79,8 @@ private:
     void createNextPosition();
     void createNextPositionFromAbove();
     void createNextPositionFromLeft(Position& left);
+
+    void incrementPosition();
 
     void addPreconditionConstraints();
     void addPrecondition(const USignature& op, const Signature& fact, 
@@ -106,6 +117,8 @@ private:
 
     std::vector<int> getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const;
     std::vector<IntPair> decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const;
+
+    void printStatistics();
 
 };
 
