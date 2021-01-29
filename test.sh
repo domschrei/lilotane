@@ -1,15 +1,38 @@
 #!/bin/bash
 
 if [ "x$TIMEOUT" == "x" ]; then
-	timeout=10
+	timeout=10s
 else
 	timeout="$TIMEOUT"
 fi
+if [ "x$MEMOUT" == "x" ]; then
+	memout=8gb
+else
+	memout="$MEMOUT"
+fi
+if [ "x$MODE" == "x" ]; then
+    # lilotane panda_to panda_po panda_opt
+    mode=lilotane
+else
+    mode="$MODE"
+fi
 rating_timeout=1800
-domains="ipc-blocks ipc-logistics ipc2020-feature-test-forall miconic gripper smartphone satellite umtranslog woodworking zenotravel childsnack entertainment rover barman depots hiking blocksworld transport factories" 
+
+
+# All collected relevant domains, sorted approximately by difficulty (for Lilotane)
+domains="miconic gripper satellite umtranslog smartphone woodworking zenotravel childsnack barman depots entertainment\
+ hiking blocksworld ipc-blocks ipc-logistics rover TransportG transport HikingG Elevator minecraft ipc-minecraft-house\
+ ipc-minecraft-player ipc-rover ipc-entertainment-1 ipc-entertainment-2 ipc-entertainment-3 ipc-entertainment-4\
+ RoverG SatelliteG factories ipc-freecell"
+
+# Domains of comparison of Lilotane vs. Tree-REX
+#domains="barman blocksworld childsnack depots Elevator entertainment gripper HikingG RoverG SatelliteG TransportG Zenotravel"
+
+export LD_LIBRARY_PATH="lib/cryptominisat/:$LD_LIBRARY_PATH"
+export PATH=".:$PATH"
 
 function header() {
-    echo -ne "[$((solved+unsolved+1))/$all] "
+    echo -ne "[$((nsolved+nunsolved+1))/$all] "
 }
 
 function rating() {
@@ -27,7 +50,7 @@ function rating() {
 }
 
 function end() {
-    echo "$solved/$all solved within ${timeout}s per instance."
+    echo "$nsolved/$(($nsolved+$nunsolved)) solved within ${timeout} per instance."
     echo -ne "Total score for T=${rating_timeout}s: ${green}"
     LC_ALL=C printf "%.4f" $score
     echo "${reset}."
@@ -47,20 +70,29 @@ yellow=`tput setaf 3`
 blue=`tput setaf 4`
 reset=`tput sgr0`
 
-solved=0
-unsolved=0
+nsolved=0
+nunsolved=0
 all=0
 score=0
 
+outdir=tests/tests_$(date +%s)
+mkdir $outdir
+
 # Count instances
-for domain in $domains ; do    
-    for pfile in instances/$domain/p*.hddl; do
-        all=$((all+1))
-    done
+for domain in $domains ; do
+    if [ -f instances/$domain/p*.hddl ]; do
+        for pfile in instances/$domain/p*.hddl; do
+            all=$((all+1))
+        done
+    else
+        for pfile in instances/$domain/problems/*.hddl; do
+            all=$((all+1))
+        done
+    fi
 done
 
 # Output chosen parameters of lilotane
-echo "${blue}$(./lilotane $@|tail -1)${reset}"
+echo "${blue}$(./lilotane $@ -h|tail -1)${reset}"
 
 # Attempt to solve each instance
 for domain in $domains ; do
@@ -72,26 +104,36 @@ for domain in $domains ; do
         mkdir -p "$logdir"
         outfile="$logdir/OUT"
         verifile="$logdir/VERIFY"
+        output="$outdir/log_$((nsolved+nunsolved+1))_$domain"
         
-        set +e
         header
         echo -ne "${blue}$pfile${reset} ... "
-
-        command="./lilotane $dfile $pfile $@"
-
-        start=$(date +%s.%N)
-        /usr/bin/timeout $timeout $command > "$outfile" & wait -n
+        
+        if [ $mode == lilotane ]; then
+            command="./lilotane $dfile $pfile $@"
+        elif [ $mode == panda_to ]; then
+            command="/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar PANDA.jar -systemConfig AAAI-2018-totSAT(cryptominisat) -programPath cryptominisat=./cryptominisat5 $dfile $pfile"
+        elif [ $mode == panda_po ]; then
+            command="/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar PANDA.jar -systemConfig sat-exists-forbidden-implication(cms55) -programPath cryptominisat55=./cryptominisat5 $dfile $pfile"
+        elif [ $mode == panda_opt ]; then
+            command="/usr/lib/jvm/java-8-openjdk-amd64/bin/java -jar PANDA.jar -systemConfig sat-exists-forbidden-implication-optimise(bin)(cms55) -programPath cryptominisat55=./cryptominisat5 $dfile $pfile"
+        fi
+        
+        set +e
+        ./runwatch $timeout $memout cpu0 wcpu1 $command > "$outfile"
         retval="$?"
-        end=$(date +%s.%N)    
-        runtime=$(python -c "print(${end} - ${start})")
-        thisscore=0
+        set -e
+        
+        resultline=$(tail -50 "$outfile"|grep RUNWATCH_RESULT|grep -oE "RUNWATCH_RESULT (EXIT|TIMEOUT|MEMOUT) RETVAL -?[0-9]+ TIME_SECS [0-9\.]+ MEMPEAK_KBS [0-9\.]+")
+        status=$(echo $resultline|awk '{print $2}')
+        runtime=$(echo $resultline|awk '{print $6}')
+        mempeak=$(echo $resultline|awk '{print $8}')
+        thisscore=$(rating "$runtime")
+        
+        cp "$outfile" "$output"
 
-        if [ "$retval" == "0" ]; then
-            echo -ne "exit code ${green}$retval${reset}. "
-            thisscore=$(rating "$runtime")
-            score=$(echo "$score + $thisscore"|bc -l)
-        else
-            echo -ne "${yellow}exit code $retval.${reset} "
+        if [ "$status" != "EXIT" ]; then
+            echo "${yellow}$status.${reset}"
             if [ "$retval" == "134" -o "$retval" == "139" -o "$retval" == "6" -o "$retval" == "11" ]; then
                 if $exit_on_error ; then
                     echo "Try:"
@@ -100,30 +142,57 @@ for domain in $domains ; do
                     end 1
                 fi
             fi
+            nunsolved=$(($nunsolved+1))
+            continue
         fi
-        set -e
         
-        if cat "$outfile"|grep -q "<=="; then
-            echo -ne "Verifying ... "
-            ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile"
-            if grep -q "false" "$verifile"; then
-                echo -ne "${red}Verification error!${reset}"
-                if $exit_on_verify_fail ; then
-                    echo " Output:"
-                    cat "$verifile"
-                    exit 1
+        echo -ne "${green}exited properly${reset}. "
+        
+        solved=false
+        
+        if [ $mode == lilotane ]; then
+        
+            if grep -q "<==" "$outfile" ; then
+                solved=true
+                nsolved=$((nsolved+1))
+                echo -ne "Verifying ... "
+                ./pandaPIparser $dfile $pfile -verify "$outfile" > "$verifile" || :
+                if grep -qE "Plan verification result:.*false" "$verifile"; then
+                    echo -ne "${red}Verification error!${reset}"
+                    if $exit_on_verify_fail ; then
+                        echo " Output:"
+                        cat "$verifile"
+                        exit 1
+                    else
+                        echo ""
+                    fi
                 else
-                    echo ""
+                    echo "${green}All ok.${reset}"
                 fi
             else
-                echo "${green}All ok.${reset}"
-                echo -ne "$(header | sed -e 's/./ /g')"
-                LC_ALL=C printf "TIME %.2f SCORE %.2f\n" $runtime $thisscore
+                echo ""
+                nunsolved=$((nunsolved+1))
             fi
-            solved=$((solved+1))
-        else
-            echo ""
-            unsolved=$((unsolved+1))
+        
+        elif echo $mode|grep -q panda ; then
+            if [ "$status" == "EXIT" ] && grep -q "planner result = SOLUTION" "$outfile"; then
+                solved=true
+                nsolved=$((nsolved+1))
+                echo "${green}Solved.${reset}"
+            else
+                nunsolved=$((nunsolved+1))
+                if [ "$status" == "EXIT" ]; then echo "${yellow}Unsolved.${reset}"
+                else echo ""; fi
+            fi
+        fi
+        
+        if $solved ; then
+            echo -ne "$(header | sed -e 's/./ /g')" # clean indentation
+            LC_ALL=C printf "TIME %.2f SCORE %.2f\n" $runtime $thisscore
+            score=$(echo "$score + $thisscore"|bc -l)
+            grep -E "PLO (BEGIN|UPDATE|END)" "$outfile" >> "$output"_plo || :
+            sed -e '1,/Total amount of clauses encoded/ d' "$outfile" | grep -E "^[0-9\.]+ - .* : [0-9]+" \
+                | awk '{print $3,$5}' > "$output"_cls || :
         fi
     done
 done

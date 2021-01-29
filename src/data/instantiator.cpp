@@ -4,8 +4,8 @@
 #include <algorithm>
 
 #include "data/instantiator.h"
-#include "util/names.h"
 #include "data/htn_instance.h"
+#include "util/names.h"
 #include "data/arg_iterator.h"
 
 USigSet Instantiator::EMPTY_USIG_SET;
@@ -175,6 +175,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
     
     if (doneInstSize == 0) {
         if (hasValidPreconditions(op.getPreconditions(), state) 
+            && hasValidPreconditions(op.getExtraPreconditions(), state) 
             && hasSomeInstantiation(op.getSignature())) 
             instantiation.insert(op.getSignature());
         //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
@@ -217,7 +218,8 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const StateEvaluator& 
             HtnOp newOp = op.substitute(s);
 
             // Test validity
-            if (!hasValidPreconditions(newOp.getPreconditions(), state)) continue;
+            if (!hasValidPreconditions(newOp.getPreconditions(), state)
+                || !hasValidPreconditions(newOp.getExtraPreconditions(), state)) continue;
 
             // All ok -- add to stack
             if (newAssignment.size() == doneInstSize) {
@@ -312,7 +314,7 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
 }
 
 SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyInstantiate) {
-    if (sig == Position::NONE_SIG) return SigSet();
+    if (sig == Sig::NONE_SIG) return SigSet();
 
     int nameId = sig._name_id;
     
@@ -327,31 +329,45 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
         
         NodeHashSet<Signature, SignatureHasher> facts;
 
-        _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
-        NetworkTraversal::TRAVERSE_PREORDER,
-        [&](const USignature& nodeSig, int depth) { // NOLINT
-            // If visited node is an action: add effects
-            if (_htn->isAction(nodeSig)) {
-                Action a = _htn->toAction(nodeSig._name_id, nodeSig._args);
-                for (const Signature& eff : a.getEffects()) {
-                    facts.insert(eff);
-                }
-            } else if (_htn->hasSurrogate(nodeSig._name_id)) {
-                Action a = _htn->getSurrogate(nodeSig._name_id);
-                a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
-                for (const Signature& eff : a.getEffects()) {
-                    facts.insert(eff);
-                }
+        if (_htn->isVirtualizedChildOfAction(nameId)) {
+            // Special case: Reduction which is actually just a virtualized action
+            Action a = _htn->getActionOfVirtualizedChild(nameId);
+            a = a.substitute(Substitution(a.getArguments(), placeholderArgs));
+            for (const Signature& eff : a.getEffects()) {
+                facts.insert(eff);
             }
-        });
+        } else {
+            // Normal traversal to find possible fact changes
+            _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
+            NetworkTraversal::TRAVERSE_PREORDER,
+            [&](const USignature& nodeSig, int depth) { // NOLINT
+                Action a;
+                if (_htn->isAction(nodeSig)) {
+                    if (_htn->isVirtualizedChildOfAction(nameId)) {
+                        // Special case: Reduction which is actually just a virtualized action
+                        a = _htn->toAction(_htn->getActionNameOfVirtualizedChild(nameId), nodeSig._args);
+                    } else {
+                        a = _htn->toAction(nodeSig._name_id, nodeSig._args);
+                    }
+                } else if (_htn->hasSurrogate(nodeSig._name_id)) {
+                    a = _htn->getSurrogate(nodeSig._name_id);
+                    a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
+                }
+
+                for (const Signature& eff : a.getEffects()) {
+                    facts.insert(eff);
+                }
+            });
+        }
 
         // Convert result to vector
         SigSet& liftedResult = _lifted_fact_changes[nameId];
         SigSet& result = _fact_changes[nameId];
         for (const Signature& sig : facts) {
             liftedResult.insert(sig);
-            for (const Signature& sigGround : ArgIterator::getFullInstantiation(sig, *_htn)) {
-                result.insert(sigGround);
+            if (sig._usig._args.empty()) result.insert(sig);
+            else for (const USignature& sigGround : ArgIterator::getFullInstantiation(sig._usig, *_htn)) {
+                result.emplace(sigGround, sig._negated);
             }
         }
     }
@@ -366,7 +382,7 @@ SigSet Instantiator::getPossibleFactChanges(const USignature& sig, bool fullyIns
 
 FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USigSet& currentOps) {
 
-    Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
+    //Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
 
     int nameId = sig._name_id;
     if (!_fact_frames.count(nameId)) {
@@ -487,7 +503,7 @@ FactFrame Instantiator::getFactFrame(const USignature& sig, bool simpleMode, USi
         _fact_frames[nameId] = std::move(result);
         currentOps.erase(sig);
 
-        Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
+        //Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
     }
 
     const FactFrame& f = _fact_frames[nameId];
@@ -601,4 +617,75 @@ std::vector<TypeConstraint> Instantiator::getQConstantTypeConstraints(const USig
     }
 
     return constraints;
+}
+
+void Instantiator::computeMinNumPrimitiveChildren() {
+
+    for (const auto& [nameId, action] : _htn->getActionTemplates()) {
+        Log::d("%s : MinRES = %i\n", TOSTR(action.getSignature()), 
+            getMinNumPrimitiveChildren(nameId));
+    }
+
+    NetworkTraversal nt(*_htn);
+    
+    bool change = true;
+    size_t numPasses = 0;
+    while (change) {
+        change = false;
+        for (const auto& [nameId, reduction] : _htn->getReductionTemplates()) {
+
+            if (_min_recursive_expansion_sizes.count(nameId)) continue;
+
+            bool canComputeMinRes = true;
+            for (const auto& sig : _traversal.getPossibleChildren(reduction.getSignature())) {
+                if (sig._name_id != nameId && !_min_recursive_expansion_sizes.count(sig._name_id)) {
+                    canComputeMinRes = false;
+                    break;
+                }
+            }
+            if (!canComputeMinRes) continue;
+
+            std::vector<int> args(_htn->getSorts(nameId).size(), -1);
+            USignature normSig(nameId, args);
+            int& minNumChildren = _min_recursive_expansion_sizes[nameId];
+            const auto& r = _htn->getReductionTemplate(nameId);
+            for (size_t o = 0; o < r.getSubtasks().size(); o++) {
+                int minNumChildrenAtO = 999999;
+
+                std::vector<USignature> children;
+                nt.getPossibleChildren(r.getSubtasks(), o, children);
+                FlatHashSet<int> childrenIds;
+                for (const auto& child : children) 
+                    if (child._name_id != nameId) childrenIds.insert(child._name_id);
+                for (const auto& child : childrenIds) {
+                    minNumChildrenAtO = std::min(minNumChildrenAtO, getMinNumPrimitiveChildren(child));
+                }
+
+                assert(minNumChildrenAtO < 999999);
+                minNumChildren += minNumChildrenAtO;
+            }
+
+            Log::d("%s : MinRES = %i\n", TOSTR(reduction.getSignature()), 
+                getMinNumPrimitiveChildren(nameId));
+            
+            change = true;
+        }
+        numPasses++;
+    }
+}
+
+int Instantiator::getMinNumPrimitiveChildren(int sigName) {
+    
+    if (_min_recursive_expansion_sizes.count(sigName))
+        return _min_recursive_expansion_sizes[sigName];
+
+    assert(_htn->isAction(USignature(sigName, std::vector<int>())) || Log::e("Invalid query for MinRES: %s\n", TOSTR(sigName))); 
+
+    int blankId = _htn->getBlankActionSig()._name_id;
+    int& minNumChildren = _min_recursive_expansion_sizes[sigName];
+    minNumChildren = sigName == blankId
+                    ||  _htn->getActionNameOfVirtualizedChild(sigName) == blankId
+                    || _htn->isSecondPartOfSplitAction(USignature(sigName, std::vector<int>()))
+                ? 0 : 1;
+    return minNumChildren;
 }

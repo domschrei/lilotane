@@ -2,12 +2,9 @@
 #ifndef DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 #define DOMPASCH_TREE_REXX_HTN_INSTANCE_H
 
-#include <assert.h> 
- 
-#include "libpanda.hpp"
+#include <assert.h>
 
 #include "data/code_table.h"
-#include "data/layer.h"
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
@@ -18,7 +15,13 @@
 #include "data/arg_iterator.h"
 #include "data/q_constant_condition.h"
 
-class Instantiator; // forward def
+// Forward definitions
+class Instantiator;
+class ParsedProblem;
+struct predicate_definition;
+struct task;
+struct method;
+struct literal;
 
 class HtnInstance {
 
@@ -49,7 +52,9 @@ private:
     // Set of equality predicate name IDs.
     FlatHashSet<int> _equality_predicates;
     // Set of all q-constant IDs.
-    FlatHashSet<int> _q_constants;
+    FlatHashMap<int, IntPair> _q_constants_with_origin;
+
+    NodeHashMap<int, NodeHashMap<USignature, std::vector<int>, USignatureHasher>> _q_const_to_op_domains;  
 
     // Maps a {predicate,task,method} name ID to a list of sorts IDs.
     NodeHashMap<int, std::vector<int>> _signature_sorts_table;
@@ -65,15 +70,8 @@ private:
     // Maps each {action,reduction} name ID to the number of task variables it originally had.
     FlatHashMap<int, int> _original_n_taskvars;
 
-    // Lookup table for the possible decodings of a fact signature with ground, lifted, and/or
-    // q-constant arguments.
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
-
     // Lookup table for the possible decodings of a fact signature with normalized arguments.    
-    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings_normalized;
-
-    // Maps a q-fact to the set of possibly valid decoded facts.
-    NodeHashMap<USignature, USigSet, USignatureHasher> _qfact_decodings;
+    NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
 
     // Collection of a set of q-constant substitutions which are invalid. 
     // Periodically cleared after being encoded.
@@ -100,6 +98,8 @@ private:
     // and the replaced child name ID.
     FlatHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
 
+    FlatHashMap<int, int> _virtualized_to_actual_action;
+
     // The initial reduction of the problem.
     Reduction _init_reduction;
     // Signature of the BLANK virtual action.
@@ -108,21 +108,31 @@ private:
     // Whether q constant mutexes are created and used.
     const bool _use_q_constant_mutexes;
 
+    const bool _share_q_constants;
+
+    USigSet _relevant_facts;
+
 public:
 
     // Special action representing a virtual "No-op".
     static Action BLANK_ACTION;
 
-    HtnInstance(Parameters& params, ParsedProblem& p);
+    HtnInstance(Parameters& params);
     ~HtnInstance();
 
-    static void parse(std::string domainFile, std::string problemFile, ParsedProblem& pp);
+    ParsedProblem* parse(std::string domainFile, std::string problemFile);
 
-    SigSet getInitState();
+    USigSet getInitState();
     const Reduction& getInitReduction();
     const USignature& getBlankActionSig();
     Action getGoalAction();
+    void printStatistics();
+    size_t getNumFreeArguments(const Reduction& r);
     
+    const NodeHashMap<int, Action> getActionTemplates() const;
+    const NodeHashMap<int, Reduction> getReductionTemplates() const;
+    int getMinRES(int nameId);
+
     Action toAction(int actionName, const std::vector<int>& args) const;
     Reduction toReduction(int reductionName, const std::vector<int>& args) const;
     HtnOp& getOp(const USignature& opSig);
@@ -139,19 +149,23 @@ public:
     bool hasSurrogate(int reductionId) const;
     const Action& getSurrogate(int reductionId) const;
 
+    bool isVirtualizedChildOfAction(int actionId) const;
+    int getVirtualizedChildNameOfAction(int actionId);
+    USignature getVirtualizedChildOfAction(const USignature& action);
+    const Action& getActionOfVirtualizedChild(int vChildId) const;
+    int getActionNameOfVirtualizedChild(int vChildId) const;
+
     const std::vector<int>& getSorts(int nameId) const;
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
     const FlatHashSet<int>& getSortsOfQConstant(int qconst);
+    const IntPair& getOriginOfQConstant(int qconst) const;
     const FlatHashSet<int>& getDomainOfQConstant(int qconst) const;
+    std::vector<int> popOperationDependentDomainOfQConstant(int qconst, const USignature& op);
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
+    std::vector<FlatHashSet<int>> getDomainsOfOpArgs(const HtnOp& op, const StateEvaluator& state);
 
-    const std::vector<USignature>& decodeObjects(const USignature& qFact, bool checkQConstConds, const std::vector<int>& restrictiveSorts = std::vector<int>());
-    
-    bool hasQFactDecodings(const USignature& qFact);
-    void addQFactDecoding(const USignature& qFact, const USignature& decFact);
-    void removeQFactDecoding(const USignature& qFact, const USignature& decFact);
-    const USigSet& getQFactDecodings(const USignature& qfact);
+    ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 
     void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
@@ -169,10 +183,22 @@ public:
     int getSplitAction(int firstActionName);
     const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
 
+    inline const USigSet& getRelevantFacts() const {
+        return _relevant_facts;
+    }
+
+    inline void addRelevantFact(const USignature& sig) {
+        _relevant_facts.insert(sig);
+    }
+
+    inline bool isRelevant(const USignature& sig) {
+        return _relevant_facts.count(sig);
+    }
+
     Instantiator& getInstantiator();
     QConstantDatabase& getQConstantDatabase();
 
-    int nameId(const std::string& name, bool createQConstant = false);
+    int nameId(const std::string& name, bool createQConstant = false, int layerIdx = -1, int pos = -1);
     std::string toString(int id) const;
 
     inline bool isVariable(int c) const {
@@ -233,12 +259,21 @@ public:
         return _reductions.count(sig._name_id);
     }
 
+    inline bool isSecondPartOfSplitAction(const USignature& sig) const {
+        return toString(sig._name_id).rfind("__LLT_SECOND") != std::string::npos;
+    }
+
+    inline size_t getNumberOfQConstants() const {
+        return _q_constants_with_origin.size();
+    }
+
 
 private:
 
     void replaceSurrogateReductionsWithAction();
     void splitActionsWithConflictingEffects();
-    void minePreconditions();
+    enum MinePrecMode { NO_MINING, USE_FOR_INSTANTIATION, USE_EVERYWHERE };
+    void minePreconditions(MinePrecMode mode);
 
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
     std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);
@@ -257,7 +292,7 @@ private:
     Action& createAction(const task& task);
 
     std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state);
-    int addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, const FlatHashSet<int>& domain);
+    void addQConstant(int id, const FlatHashSet<int>& domain);
 
 };
 

@@ -1,15 +1,96 @@
 
-#include <regex>
 #include <algorithm>
 #include <getopt.h>
 #include <sys/stat.h>
+#include <iomanip>
 
 #include "data/htn_instance.h"
 #include "data/instantiator.h"
+#include "util/regex.h"
+
+#include "libpanda.hpp"
 
 Action HtnInstance::BLANK_ACTION;
 
-void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedProblem& pp) {
+HtnInstance::HtnInstance(Parameters& params) :
+             _params(params), _p(*parse(params.getDomainFilename(), params.getProblemFilename())), 
+            _q_db([this](int arg) {return isQConstant(arg);}),
+            _use_q_constant_mutexes(_params.getIntParam("qcm") > 0),
+            _share_q_constants(_params.isNonzero("sqq")) {
+
+    Log::i("Parser finished.\n");
+
+    Names::init(_name_back_table);
+    _instantiator = new Instantiator(params, *this);
+    
+    // Create blank action without any preconditions or effects
+    int blankId = nameId("__BLANK___");
+    BLANK_ACTION = Action(blankId, std::vector<int>());
+    _actions[blankId] = BLANK_ACTION;
+    addAction(BLANK_ACTION);
+    _blank_action_sig = BLANK_ACTION.getSignature();
+    _signature_sorts_table[blankId];
+
+    for (const predicate_definition& p : predicate_definitions)
+        extractPredSorts(p);
+    for (const task& t : primitive_tasks)
+        extractTaskSorts(t);
+    for (const task& t : abstract_tasks)
+        extractTaskSorts(t);
+    for (const method& m : methods)
+        extractMethodSorts(m);
+    
+    extractConstants();
+
+    Log::i("Structures extracted.\n");
+    for (const auto& sort_pair : _p.sorts) {
+        Log::d(" %s : ", sort_pair.first.c_str());
+        for (const std::string& c : sort_pair.second) {
+            Log::d("%s ", c.c_str());
+        }
+        Log::d("\n");
+    }
+
+    // Create actions
+    for (const task& t : primitive_tasks) {
+        createAction(t);
+    }
+
+    // Create reductions
+    for (method& method : methods) {
+        createReduction(method);
+    }
+
+    // Instantiate possible "root" / "top" methods
+    for (const auto& rPair : _reductions) {
+        const Reduction& r = rPair.second;
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
+            // Initial "top" method
+            _init_reduction = r;
+        }
+    }
+
+    if (_params.isNonzero("stats")) {
+        printStatistics();
+        exit(0);
+    }
+
+    // Create replacements for surrogate methods with only one subtask
+    if (_params.isNonzero("surr")) replaceSurrogateReductionsWithAction();
+
+    // If necessary, compile out actions which have some effect predicate
+    // in positive AND negative form: create two new actions in these cases
+    if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
+
+    // Mine additional preconditions for reductions from their subtasks
+    minePreconditions(MinePrecMode(_params.getIntParam("mp")));
+
+    Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+
+    _instantiator->computeMinNumPrimitiveChildren();
+}
+
+ParsedProblem* HtnInstance::parse(std::string domainFile, std::string problemFile) {
 
     const char* firstArg = "pandaPIparser";
     const char* domainStr = domainFile.c_str();
@@ -30,74 +111,98 @@ void HtnInstance::parse(std::string domainFile, std::string problemFile, ParsedP
     args[1] = (char*)domainStr;
     args[2] = (char*)problemStr;
 
+    ParsedProblem* p = new ParsedProblem();
     optind = 1;
-    run_pandaPIparser(3, args, pp);
+    run_pandaPIparser(3, args, *p);
+    return p;
 }
 
-HtnInstance::HtnInstance(Parameters& params, ParsedProblem& p) : _params(params), _p(p), 
-            _q_db([this](int arg) {return isQConstant(arg);}),
-            _use_q_constant_mutexes(_params.getIntParam("qcm") > 0) {
+void HtnInstance::printStatistics() {
+    static size_t BIG = 999999UL;
 
-    Names::init(_name_back_table);
-    _instantiator = new Instantiator(params, *this);
+    size_t maxPredicateArity = 0;
+
+    size_t minExpansionSize = BIG;
+    size_t maxExpansionSize = 0;
+    size_t maxLiftedBranchingFactor = 0;
     
-    // Create blank action without any preconditions or effects
-    int blankId = nameId("__BLANK___");
-    BLANK_ACTION = Action(blankId, std::vector<int>());
-    _actions[blankId] = BLANK_ACTION;
-    addAction(BLANK_ACTION);
-    _blank_action_sig = BLANK_ACTION.getSignature();
-
-    for (const predicate_definition& p : predicate_definitions)
-        extractPredSorts(p);
-    for (const task& t : primitive_tasks)
-        extractTaskSorts(t);
-    for (const task& t : abstract_tasks)
-        extractTaskSorts(t);
-    for (const method& m : methods)
-        extractMethodSorts(m);
+    size_t maxReductionPreconditions = 0;
+    size_t maxReductionArity = 0;
+    size_t maxReductionFreeArgs = 0;
     
-    extractConstants();
+    size_t maxActionPreconditions = 0;
+    size_t maxActionEffects = 0;
+    size_t maxActionArity = 0;
 
-    Log::i("Sorts extracted.\n");
-    for (const auto& sort_pair : _p.sorts) {
-        Log::d(" %s : ", sort_pair.first.c_str());
-        for (const std::string& c : sort_pair.second) {
-            Log::d("%s ", c.c_str());
+    for (auto predId : _predicate_ids) {
+        maxPredicateArity = std::max(maxPredicateArity, _signature_sorts_table[predId].size());
+    }
+
+    FlatHashMap<int, size_t> numMethodsMatchingTaskNameId;
+    for (const auto& [nameId, r] : _reductions) {
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0)
+            continue;
+        minExpansionSize = std::min(minExpansionSize, r.getSubtasks().size());
+        maxExpansionSize = std::max(maxExpansionSize, r.getSubtasks().size());
+        maxReductionPreconditions = std::max(maxReductionPreconditions, r.getPreconditions().size());
+        maxReductionArity = std::max(maxReductionArity, r.getArguments().size());
+        maxReductionFreeArgs = std::max(maxReductionFreeArgs, getNumFreeArguments(r));
+        
+        int taskNameId = r.getTaskSignature()._name_id;
+        if (!numMethodsMatchingTaskNameId.count(taskNameId)) 
+            numMethodsMatchingTaskNameId[taskNameId] = 1;
+        else numMethodsMatchingTaskNameId[taskNameId]++;
+    }
+    for (const auto& [nameId, a] : _actions) {
+        maxActionPreconditions = std::max(maxActionPreconditions, a.getPreconditions().size());
+        maxActionEffects = std::max(maxActionEffects, a.getEffects().size());
+        maxActionArity = std::max(maxActionArity, a.getArguments().size());
+    }
+
+    for (const auto& [taskNameId, numMethods] : numMethodsMatchingTaskNameId) {
+        maxLiftedBranchingFactor = std::max(maxLiftedBranchingFactor, numMethods);
+    }
+
+    FlatHashSet<int> allConstants;
+    for (const auto& [sort, constants] : _constants_by_sort) {
+        allConstants.insert(constants.begin(), constants.end());
+    }
+    int initStateSize = getInitState().size();
+    int numInitTasks = getInitReduction().getSubtasks().size();
+
+    Log::e("Domain stats:\n");
+
+    Log::e("STATS numoperators %lu\n", _actions.size()-1); // minus blank action
+    Log::e("STATS nummethods %lu\n", _reductions.size()-1); // minus __top_method
+    
+    Log::e("STATS maxexpansionsize %lu\n", maxExpansionSize);
+    Log::e("STATS maxliftedbranchingfactor %lu\n", maxLiftedBranchingFactor);
+    Log::e("STATS maxreductionfreeargs %lu\n", maxReductionFreeArgs);
+    
+    Log::e("STATS maxactionpreconditions %lu\n", maxActionPreconditions);
+    Log::e("STATS maxreductionpreconditions %lu\n", maxReductionPreconditions);
+    Log::e("STATS maxactioneffects %lu\n", maxActionEffects);
+    
+    Log::e("STATS maxpredicatearity %lu\n", maxPredicateArity);    
+    Log::e("STATS maxactionarity %lu\n", maxActionArity);
+    Log::e("STATS maxreductionarity %lu\n", maxReductionArity);    
+
+    Log::e("Problem stats:\n");
+
+    Log::e("STATS numconstants %lu\n", allConstants.size());
+    Log::e("STATS numinitfacts %lu\n", initStateSize);
+    Log::e("STATS numinittasks %lu\n", numInitTasks);
+}
+
+size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
+    size_t freeArgs = 0;
+    for (int arg : r.getArguments()) {
+        if (std::find(r.getTaskArguments().begin(), r.getTaskArguments().end(), arg) == r.getTaskArguments().end()) {
+            // Argument is not contained in task arguments: Free variable
+            freeArgs++;
         }
-        Log::d("\n");
     }
-
-    // Create actions
-    for (const task& t : primitive_tasks) {
-        createAction(t);
-    }
-
-    // Create reductions
-    for (method& method : methods) {
-        createReduction(method);
-    }
-
-    // Create replacements for surrogate methods with only one subtask
-    if (_params.isNonzero("surr")) replaceSurrogateReductionsWithAction();
-
-    // If necessary, compile out actions which have some effect predicate
-    // in positive AND negative form: create two new actions in these cases
-    if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
-
-    // Instantiate possible "root" / "top" methods
-    for (const auto& rPair : _reductions) {
-        const Reduction& r = rPair.second;
-        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
-            // Initial "top" method
-            _init_reduction = r;
-        }
-    }
-
-    // Mine additional preconditions for reductions from their subtasks
-    if (_params.isNonzero("mp")) minePreconditions();
-
-    Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+    return freeArgs;
 }
 
 void HtnInstance::replaceSurrogateReductionsWithAction() {
@@ -119,7 +224,9 @@ void HtnInstance::replaceSurrogateReductionsWithAction() {
         Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
         _actions[id] = Action(id, red.getArguments());
         for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& pre : red.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
         for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
+        for (const auto& pre : childAct.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
         for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
         _reduction_to_surrogate[entry.first] = id;
         _signature_sorts_table[id] = _signature_sorts_table[entry.first];
@@ -175,7 +282,7 @@ void HtnInstance::splitActionsWithConflictingEffects() {
         newActions[idFirst] = aFirst;
 
         // Second action: no preconditions, all other effects
-        int idSecond = nameId(oldName + "_SECOND");
+        int idSecond = nameId(oldName + "__LLT_SECOND");
         Action aSecond = Action(idSecond, aSig._args);
         for (const Signature& eff : a.getEffects()) {
             if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
@@ -217,8 +324,10 @@ void HtnInstance::splitActionsWithConflictingEffects() {
     _actions = newActions;
 }
 
-void HtnInstance::minePreconditions() {
+void HtnInstance::minePreconditions(MinePrecMode mode) {
     
+    if (mode == NO_MINING) return;
+
     int precondsBefore = 0;
     int minedPreconds = 0;
     for (auto& [rId, r] : _reductions) {
@@ -233,7 +342,12 @@ void HtnInstance::minePreconditions() {
                 if (hasFreeArgs) continue;
 
                 Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
-                r.addPrecondition(std::move(pre));
+                if (mode == USE_FOR_INSTANTIATION) {
+                    r.addExtraPrecondition(std::move(pre));
+                }
+                if (mode == USE_EVERYWHERE) {
+                    r.addPrecondition(std::move(pre));
+                }
                 minedPreconds++;
             }
         }
@@ -245,12 +359,13 @@ void HtnInstance::minePreconditions() {
     Log::i("Mined %i new reduction preconditions (+%.1f%%).\n", minedPreconds, newRatio);
 }
 
-int HtnInstance::nameId(const std::string& name, bool createQConstant) {
+int HtnInstance::nameId(const std::string& name, bool createQConstant, int layerIdx, int pos) {
     int id = -1;
     if (!_name_table.count(name)) {
         if (createQConstant) {
-            id = std::numeric_limits<int>::max() - _q_constants.size();
-            _q_constants.insert(id);
+            id = std::numeric_limits<int>::max() - _q_constants_with_origin.size();
+            assert(layerIdx >= 0 && pos >= 0);
+            _q_constants_with_origin[id] = IntPair(layerIdx, pos);
         } else {
             id = _name_table_running_id++;
             if (name[0] == '?') {
@@ -297,12 +412,10 @@ Signature HtnInstance::convertSignature(int parentNameId, const literal& literal
     return sig;
 }
 
-SigSet HtnInstance::getInitState() {
-    SigSet result;
-    for (const ground_literal& lit : _p.init) {
-        Signature sig(nameId(lit.predicate), convertArguments(nameId(lit.predicate), lit.args));
-        if (!lit.positive) sig.negate();
-        result.insert(sig);
+USigSet HtnInstance::getInitState() {
+    USigSet result;
+    for (const ground_literal& lit : _p.init) if (lit.positive) {
+        result.emplace(nameId(lit.predicate), convertArguments(nameId(lit.predicate), lit.args));
     }
 
     // Insert all necessary equality predicates
@@ -342,7 +455,7 @@ SigSet HtnInstance::extractGoals() {
 Action HtnInstance::getGoalAction() {
 
     // Create virtual goal action
-    Action goalAction(nameId("_GOAL_ACTION_"), std::vector<int>());
+    Action goalAction(nameId("<goal_action>"), std::vector<int>());
     USignature goalSig = goalAction.getSignature();
     
     // Extract primitive goals, add to preconds of goal action
@@ -351,6 +464,7 @@ Action HtnInstance::getGoalAction() {
     }
     _actions_by_sig[goalSig] = goalAction;
     _actions[goalSig._name_id] = goalAction;
+    _signature_sorts_table[goalSig._name_id];
 
     return goalAction;
 }
@@ -437,10 +551,7 @@ Reduction& HtnInstance::createReduction(method& method) {
         
         // Normalize task name
         std::string subtaskName = st.task;
-        std::smatch matches;
-        while (std::regex_match(subtaskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
-            subtaskName = matches.str(1);
-        }
+        Regex::extractCoreNameOfSplittingMethod(subtaskName);
         Log::d("%s\n", subtaskName.c_str());
 
         if (subtaskName.rfind(method_precondition_action_name) != std::string::npos) {
@@ -454,10 +565,7 @@ Reduction& HtnInstance::createReduction(method& method) {
                 
                 // Normalize task name
                 std::string taskName = t.name;
-                std::smatch matches;
-                while (std::regex_match(taskName, matches, std::regex("_splitting_method_(.*)_splitted_[0-9]+"))) {
-                    taskName = matches.str(1);
-                }
+                Regex::extractCoreNameOfSplittingMethod(taskName);
 
                 //Log::d(" ~~~ %s\n", taskName.c_str());
                 if (subtaskName.rfind(taskName) != std::string::npos) {
@@ -661,6 +769,51 @@ const Action& HtnInstance::getSurrogate(int reductionId) const {
     return _actions.at(_reduction_to_surrogate.at(reductionId));
 }
 
+bool HtnInstance::isVirtualizedChildOfAction(int actionId) const {
+    return _virtualized_to_actual_action.count(actionId);
+}
+
+int HtnInstance::getVirtualizedChildNameOfAction(int actionId) {
+    return nameId("__REPEATED_" + _name_back_table[actionId]);
+}
+
+USignature HtnInstance::getVirtualizedChildOfAction(const USignature& action) {
+
+    int repOpNameId = getVirtualizedChildNameOfAction(action._name_id);
+    USignature sig(repOpNameId, action._args);
+
+    if (!_actions_by_sig.count(sig)) {
+
+        // Define the operator
+        if (!_actions.count(repOpNameId)) {
+            const Action& op = _actions[action._name_id];
+            Action a(repOpNameId, op.getArguments());
+            a.setPreconditions(op.getPreconditions());
+            a.setExtraPreconditions(op.getExtraPreconditions());
+            a.setEffects(op.getEffects());
+            _actions[repOpNameId] = std::move(a);
+            _virtualized_to_actual_action[repOpNameId] = action._name_id;
+            const auto& sorts = _signature_sorts_table[action._name_id];
+            _signature_sorts_table[repOpNameId] = sorts;
+        }
+
+        // Define the action
+        Action a = _actions[repOpNameId];
+        _actions_by_sig[sig] = a.substitute(Substitution(a.getArguments(), sig._args));
+    }
+
+    return sig;
+}
+
+const Action& HtnInstance::getActionOfVirtualizedChild(int vChildId) const {
+    return _actions.at(_virtualized_to_actual_action.at(vChildId));
+}
+
+int HtnInstance::getActionNameOfVirtualizedChild(int vChildId) const {
+    auto it = _virtualized_to_actual_action.find(vChildId);
+    return it == _virtualized_to_actual_action.end() ? -1 : it->second;
+}
+
 Action HtnInstance::replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state) {
     std::vector<int> newArgs = replaceVariablesWithQConstants((const HtnOp&)a, layerIdx, pos, state);
     if (newArgs.size() == 1 && newArgs[0] == -1) {
@@ -678,25 +831,17 @@ Reduction HtnInstance::replaceVariablesWithQConstants(const Reduction& red, int 
     return red.substituteRed(Substitution(red.getArguments(), newArgs));
 }
 
-std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
+std::vector<FlatHashSet<int>> HtnInstance::getDomainsOfOpArgs(const HtnOp& op, const StateEvaluator& state) {
 
-    std::vector<int> vecFailure(1, -1);
-
-    std::vector<int> args = op.getArguments();
+    const std::vector<int>& args = op.getArguments();
     const std::vector<int>& sorts = _signature_sorts_table[op.getNameId()];
-    std::vector<int> varargIndices;
-    for (size_t i = 0; i < op.getArguments().size(); i++) {
-        const int& arg = op.getArguments()[i];
-        if (isVariable(arg)) varargIndices.push_back(i);
-    }
-    std::vector<bool> occursInPreconditions(op.getArguments().size(), false);
-    std::vector<FlatHashSet<int>> domainPerVariable(op.getArguments().size());
+    std::vector<FlatHashSet<int>> domainPerVariable(args.size());
+    std::vector<bool> occursInPreconditions(args.size(), false);
 
     // Check each precondition regarding its valid decodings w.r.t. current state
-    for (const auto& preSig : op.getPreconditions()) {
-
-        // Check base condition; if unsatisfied, discard op 
-        if (!_instantiator->test(preSig, state)) return vecFailure;
+    //const SigSet* preSets[2] = {&op.getPreconditions(), &op.getExtraPreconditions()};
+    const SigSet* preSets[1] = {&op.getPreconditions()};
+    for (const auto& preSet : preSets) for (const auto& preSig : *preSet) {
 
         // Find mapping from precond args to op args
         std::vector<int> opArgIndices(preSig._usig._args.size(), -1);
@@ -711,6 +856,17 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             }
         }
 
+        if (!hasQConstants(preSig._usig) && _instantiator->isFullyGround(preSig._usig)) {
+            // Check base condition; if unsatisfied, discard op 
+            if (!_instantiator->testWithNoVarsNoQConstants(preSig._usig, preSig._negated, state)) 
+                return std::vector<FlatHashSet<int>>();
+            // Add constants to respective argument domains
+            for (size_t i = 0; i < preSig._usig._args.size(); i++) {
+                domainPerVariable[opArgIndices[i]].insert(preSig._usig._args[i]);
+            }
+            continue;
+        }
+
         // Compute sorts of the condition's args w.r.t. op signature
         std::vector<int> preSorts(preSig._usig._args.size());
         for (size_t i = 0; i < preSorts.size(); i++) {
@@ -718,10 +874,11 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
         }
 
         // Check possible decodings of precondition
-        const std::vector<USignature>& usigs = decodeObjects(preSig._usig, /*checkQConstConds=*/true, /*restrictiveSorts=*/preSorts);
-        bool anyValid = usigs.empty();
-        for (const auto& decUSig : usigs) {
-            //Log::d("------%s\n", TOSTR(decSig));
+        bool any = false;
+        bool anyValid = false;
+        for (const auto& decUSig : decodeObjects(preSig._usig, /*restrictiveSorts=*/preSorts)) {
+            any = true;
+            assert(_instantiator->isFullyGround(decUSig));
 
             // Valid?
             if (!_instantiator->testWithNoVarsNoQConstants(decUSig, preSig._negated, state)) continue;
@@ -730,22 +887,41 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             anyValid = true;
             for (size_t i = 0; i < opArgIndices.size(); i++) {
                 int opArgIdx = opArgIndices[i];
-                const int& arg = decUSig._args[i];
                 if (opArgIdx >= 0) {
-                    domainPerVariable[opArgIdx].insert(arg);
+                    domainPerVariable[opArgIdx].insert(decUSig._args[i]);
                 }
             }
         }
-        if (!anyValid) return vecFailure;
+        if (any && !anyValid) return std::vector<FlatHashSet<int>>();
     }
 
+    for (size_t i = 0; i < args.size(); i++) {
+        if (!occursInPreconditions[i]) domainPerVariable[i] = _constants_by_sort[sorts[i]];
+    }
+
+    return domainPerVariable;
+}
+
+std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state) {
+    
+    if (op.getArguments().empty()) return std::vector<int>();
+    std::vector<int> vecFailure(1, -1);
+
+    std::vector<int> args = op.getArguments();
+    std::vector<int> varargIndices;
+    for (size_t i = 0; i < args.size(); i++) {
+        const int& arg = args[i];
+        if (isVariable(arg)) varargIndices.push_back(i);
+    }
+    auto domainPerVariable = getDomainsOfOpArgs(op, state);
+    if (domainPerVariable.empty()) return vecFailure;
+
     // Assemble new operator arguments
+    FlatHashMap<int, int> numIntroducedQConstsPerType;
+    NodeHashMap<int, std::vector<int>> domainsPerQConst;
     for (int i : varargIndices) {
         int vararg = args[i];
         auto& domain = domainPerVariable[i];
-        if (!occursInPreconditions[i]) {
-            domain = _constants_by_sort[sorts[i]];
-        }
         if (domain.empty()) {
             // No valid constants at this position! The op is impossible.
             Log::d("Empty domain for arg %s of %s\n", TOSTR(vararg), TOSTR(op.getSignature()));
@@ -757,39 +933,63 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op, in
             args[i] = onlyArg;
         } else {
             // Several valid constants here: Introduce q-constant
-            args[i] = addQConstant(layerIdx, pos, op.getSignature(), i, domain);
-            Log::d("QC %s ~> %s (|dom|=%i)\n", TOSTR(vararg), TOSTR(args[i]), domain.size());
+
+            // Assemble name
+            int sortCounter = 0;
+            int primarySort = _signature_sorts_table[op.getSignature()._name_id][i];
+            auto it = numIntroducedQConstsPerType.find(primarySort);
+            if (it == numIntroducedQConstsPerType.end()) {
+                numIntroducedQConstsPerType[primarySort] = 1;
+            } else {
+                sortCounter = it->second;
+                it->second++;
+            }
+            std::vector<int> domainVec(domain.begin(), domain.end());
+            std::stringstream domainHash;
+            domainHash << std::hex << USignatureHasher()(USignature(primarySort, domainVec));
+            std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
+                + std::to_string(pos) + "_" + _name_back_table[primarySort]
+                + ":" + std::to_string(sortCounter) 
+                + "_" + domainHash.str()
+                + (_share_q_constants ? std::string() : "_#"+std::to_string(_q_constants_with_origin.size()));
+            
+            // Initialize q-constant
+            args[i] = nameId(qConstName, /*createQConstant=*/true, layerIdx, pos);
+            addQConstant(args[i], domain);
+            domainsPerQConst[args[i]] = std::move(domainVec);
+            assert(domain == getDomainOfQConstant(args[i]));
+            assert(getOriginOfQConstant(args[i]) == IntPair(layerIdx, pos));
+            /*
+            Log::d("QC %s : %s ~> %s ( ", TOSTR(op.getSignature()), TOSTR(vararg), TOSTR(args[i]), domain.size());
+            for (int c : domain) {
+                Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(c));
+            }
+            Log::log_notime(Log::V4_DEBUG, ")\n");
+            */
         }
+    }
+
+    // Remember exact domain of each q constant for this operation
+    USignature newSig(op.getSignature()._name_id, args);
+    for (auto& [qconst, domain] : domainsPerQConst) {
+        _q_const_to_op_domains[qconst][newSig] = std::move(domain);
     }
 
     return args;
 }
 
-int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int argPos, 
-                const FlatHashSet<int>& domain) {
-
-    int sort = _signature_sorts_table[sig._name_id][argPos];
-    
-    // Create a new ID for the q constant (also adds ID to _q_constants)
-    std::string qConstName = "Q_" + std::to_string(layerIdx) + "," 
-        + std::to_string(pos) + "_" + std::to_string(_q_constants.size())
-        + ":" + std::to_string(argPos) + "_" + _name_back_table[sort];
-    int qConstId = nameId(qConstName, /*createQConstant=*/true);
+void HtnInstance::addQConstant(int id, const FlatHashSet<int>& domain) {
 
     // Create or retrieve the exact sort (= domain of constants) for this q-constant
-    std::string qSortName = "qsort_" + std::to_string(sort) + "_"; 
-        //+ std::to_string(domain.size()) + "_h";
-    for (const auto& d : domain) qSortName += std::to_string(d) + "_";
+    std::string qSortName = "qsort_" + _name_back_table[id];
     int newSortId = nameId(qSortName);
-    if (!_constants_by_sort.count(newSortId)) {
-        _constants_by_sort[newSortId] = domain;
-    }
-    _primary_sort_of_q_constants[qConstId] = newSortId; //sort;
+    _constants_by_sort[newSortId].insert(domain.begin(), domain.end());
+    _primary_sort_of_q_constants[id] = newSortId;
 
     // CALCULATE ADDITIONAL SORTS OF Q CONSTANT
 
     // 1. assume that the q-constant is of ALL (super) sorts
-    std::set<int> qConstSorts;
+    FlatHashSet<int> qConstSorts;
     for (const auto& sortPair : _p.sorts) qConstSorts.insert(nameId(sortPair.first));
 
     // 2. for each constant of the primary sort:
@@ -806,91 +1006,45 @@ int HtnInstance::addQConstant(int layerIdx, int pos, const USignature& sig, int 
     }
     // RESULT: The intersection of sorts of all eligible constants.
     // => If the q-constant has some sort, it means that ALL possible substitutions have that sort.
-
-    /*
-    log("  q-constant for arg %s @ pos %i of %s : %s\n   sorts ", 
-            _name_back_table[arg].c_str(), argPos, 
-            TOSTR(sig), TOSTR(qConstId));
-    */
-    _sorts_of_q_constants[qConstId];
-    for (int sort : qConstSorts) {
-        _sorts_of_q_constants[qConstId].insert(sort);
-        //_constants_by_sort[sort].push_back(qConstId);
-        //log("%s ", TOSTR(sort));
-    } 
-    //log("\n");
-
-    return qConstId;
+    _sorts_of_q_constants[id] = qConstSorts;
 }
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
-const std::vector<USignature>& HtnInstance::decodeObjects(const USignature& qSig, bool checkQConstConds, 
+ArgIterator HtnInstance::decodeObjects(const USignature& qSig,
         const std::vector<int>& restrictiveSorts) {
 
-    if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) return SIGVEC_EMPTY;
-    checkQConstConds &= _use_q_constant_mutexes;
+    std::vector<std::vector<int>> eligibleArgs;
 
-    Substitution s;
+    if (!hasQConstants(qSig) && _instantiator->isFullyGround(qSig)) 
+        return ArgIterator(qSig._name_id, std::move(eligibleArgs));
+
+    eligibleArgs.resize(qSig._args.size());
+    size_t numChoices = 1;
     for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
         int arg = qSig._args[argPos];
-        if (!checkQConstConds && isQConstant(arg) && !s.count(arg)) {
-            s[arg] = nameId("?" + std::to_string(argPos) + "_" + std::to_string(_primary_sort_of_q_constants[arg]));
-        }
-    }
-    USignature normSig = qSig.substitute(s);
-    auto& set = checkQConstConds ? _fact_sig_decodings : _fact_sig_decodings_normalized;
-
-    if (!set.count(normSig)) {
-        // Calculate decoded objects
-        //OBJ_CALC %s\n", TOSTR(normSig));
-
-        std::vector<std::vector<int>> eligibleArgs(qSig._args.size());
-        std::vector<int> qconsts, qconstIndices;
-        for (size_t argPos = 0; argPos < qSig._args.size(); argPos++) {
-            int arg = qSig._args[argPos];
-            if (isQConstant(arg)) {
-                // q constant
-                if (checkQConstConds) {
-                    qconsts.push_back(arg);
-                    qconstIndices.push_back(argPos);
-                }
-                const auto& domain = getDomainOfQConstant(arg);
+        if (isVariable(arg) || isQConstant(arg)) {
+            // Q-constant sort or variable
+            const auto& domain = _constants_by_sort.at(isQConstant(arg) ? _primary_sort_of_q_constants[arg] 
+                        : getSorts(qSig._name_id).at(argPos));
+            if (restrictiveSorts.empty()) {
                 eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
-            } else if (isVariable(arg)) {
-                // Variable
-                int sort = _signature_sorts_table[normSig._name_id][argPos];
-                const auto& domain = _constants_by_sort[sort];
-                if (restrictiveSorts.empty()) {
-                    eligibleArgs[argPos].insert(eligibleArgs[argPos].end(), domain.begin(), domain.end());
-                } else {
-                    const auto& restrictiveDomain = _constants_by_sort[restrictiveSorts[argPos]];
-                    for (const int& c : domain) {
-                        if (restrictiveDomain.count(c)) eligibleArgs[argPos].push_back(c);
-                    }
-                }
             } else {
-                // normal constant
-                eligibleArgs[argPos].push_back(arg);
-            }
-            assert(eligibleArgs[argPos].size() > 0);
-        }
-
-        if (checkQConstConds) {
-            set[normSig];
-            //log("DECOBJ %s\n", TOSTR(qSig));
-            //for (const auto& e : eligibleArgs) log("DECOBJ -- %s\n", TOSTR(e));
-            for (const USignature& sig : ArgIterator::instantiate(qSig, eligibleArgs)) {
-                std::vector<int> vals;
-                for (const int& i : qconstIndices) vals.push_back(sig._args[i]);
-                if (_q_db.test(qconsts, vals)) set[normSig].push_back(sig);
+                const auto& restrictiveDomain = _constants_by_sort.at(restrictiveSorts.at(argPos));
+                for (int c : domain) {
+                    if (restrictiveDomain.count(c)) eligibleArgs[argPos].push_back(c);
+                }
             }
         } else {
-            set[normSig] = ArgIterator::instantiate(qSig, eligibleArgs);
+            // normal constant
+            eligibleArgs[argPos].push_back(arg);
         }
+        //assert(eligibleArgs[argPos].size() > 0);
+        if (eligibleArgs[argPos].empty()) return ArgIterator(qSig._name_id, std::vector<std::vector<int>>());
+        numChoices *= eligibleArgs[argPos].size();
     }
 
-    return set[normSig]; 
+    return ArgIterator(qSig._name_id, std::move(eligibleArgs));
 }
 
 const std::vector<int>& HtnInstance::getSorts(int nameId) const {
@@ -924,22 +1078,23 @@ const FlatHashSet<int>& HtnInstance::getDomainOfQConstant(int qconst) const {
     return _constants_by_sort.at(_primary_sort_of_q_constants.at(qconst));
 }
 
-void HtnInstance::addQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact];
-    _qfact_decodings[qFact].insert(decFact);
+const IntPair& HtnInstance::getOriginOfQConstant(int qconst) const {
+    return _q_constants_with_origin.at(qconst);
 }
 
-void HtnInstance::removeQFactDecoding(const USignature& qFact, const USignature& decFact) {
-    _qfact_decodings[qFact].erase(decFact);
-}
-
-bool HtnInstance::hasQFactDecodings(const USignature& qFact) {
-    return _qfact_decodings.count(qFact);
-}
-
-const USigSet& HtnInstance::getQFactDecodings(const USignature& qFact) {
-    assert(_qfact_decodings.count(qFact) || Log::e("No qfact decodings for %s!\n", TOSTR(qFact)));
-    return _qfact_decodings.at(qFact);
+std::vector<int> HtnInstance::popOperationDependentDomainOfQConstant(int qconst, const USignature& op) {
+    auto it1 = _q_const_to_op_domains.find(qconst);
+    assert(it1 != _q_const_to_op_domains.end());
+    auto& opDomains = it1->second;
+    auto it2 = opDomains.find(op);
+    assert(it2 != opDomains.end());
+    std::vector<int> domain = it2->second;
+    if (opDomains.size() == 1) {
+        _q_const_to_op_domains.erase(it1);
+    } else {
+        opDomains.erase(it2);
+    }
+    return domain;
 }
 
 void HtnInstance::addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs) {
@@ -954,6 +1109,16 @@ void HtnInstance::clearForbiddenSubstitutions() {
     _forbidden_substitutions.clear();
 }
 
+const NodeHashMap<int, Action> HtnInstance::getActionTemplates() const {
+    return _actions;
+}
+const NodeHashMap<int, Reduction> HtnInstance::getReductionTemplates() const {
+    return _reductions;
+}
+int HtnInstance::getMinRES(int nameId) {
+    return _instantiator->getMinNumPrimitiveChildren(nameId);
+}
+
 Action HtnInstance::toAction(int actionName, const std::vector<int>& args) const {
     const auto& op = _actions.at(actionName);
     return op.substitute(Substitution(op.getArguments(), args));
@@ -962,52 +1127,6 @@ Action HtnInstance::toAction(int actionName, const std::vector<int>& args) const
 Reduction HtnInstance::toReduction(int reductionName, const std::vector<int>& args) const {
     const auto& op = _reductions.at(reductionName);
     return op.substituteRed(Substitution(op.getArguments(), args));
-}
-
-void HtnInstance::addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const StateEvaluator& state) {
-
-    //log("QQ_ADD %s\n", TOSTR(op.getSignature()));
-
-    if (!_use_q_constant_mutexes) return;
-    if (!hasQConstants(psig.usig)) return;
-    
-    int oid = _q_db.addOp(op, psig.layer, psig.pos, parentPSig, offset);
-
-    for (const auto& pre : op.getPreconditions()) {
-        
-        std::vector<int> ref;
-        std::vector<int> qConstIndices;
-        for (size_t i = 0; i < pre._usig._args.size(); i++) {
-            const int& arg = pre._usig._args[i];
-            if (isQConstant(arg)) {
-                ref.push_back(arg);
-                qConstIndices.push_back(i);
-            }
-        }
-        if (ref.empty() || ref.size() > 2) continue;
-
-        ValueSet good;
-        ValueSet bad;
-        //log("QQ %s\n", TOSTR(pre._usig));
-        std::vector<int> sorts = getOpSortsForCondition(pre._usig, op.getSignature());
-        for (const auto& decPre : decodeObjects(pre._usig, true, sorts)) {
-            bool holds = _instantiator->testWithNoVarsNoQConstants(decPre, pre._negated, state);
-            //log("QQ -- %s : %i\n", TOSTR(decPre), holds);
-            auto& set = holds ? good : bad;
-            std::vector<int> toAdd;
-            for (const int& i : qConstIndices) toAdd.push_back(decPre._args[i]);
-            set.insert(toAdd);
-        }
-
-        if (bad.empty() || std::min(good.size(), bad.size()) > (size_t)_params.getIntParam("qcm")) continue;
-
-        if (good.size() <= bad.size()) {
-            _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_OR, good);
-        } else {
-            _q_db.addCondition(oid, ref, QConstantCondition::CONJUNCTION_NOR, bad);
-        }
-    }
 }
 
 USignature HtnInstance::cutNonoriginalTaskArguments(const USignature& sig) {
@@ -1031,10 +1150,10 @@ USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector
     USignature origSig;
     if (_reductions.count(nameId)) {
         // Reduction
-        origSig = _reductions[nameId].getSignature();
+        origSig = _reductions.at(nameId).getSignature();
     } else {
         // Action
-        origSig = _actions[nameId].getSignature();
+        origSig = _actions.at(nameId).getSignature();
     }
 
     // Substitution mapping
@@ -1055,4 +1174,5 @@ QConstantDatabase& HtnInstance::getQConstantDatabase() {
 
 HtnInstance::~HtnInstance() {
     delete _instantiator;
+    delete &_p;
 }

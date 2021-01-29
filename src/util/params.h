@@ -30,7 +30,7 @@ public:
 	void setDefaults();
 	std::string getDomainFilename();
 	std::string getProblemFilename();
-	void printParams(bool forcePrint = false);
+	void printParams();
 	void setParam(const char* name);
 	void setParam(const char* name, const char* value);
 	bool isSet(const std::string& name) const;

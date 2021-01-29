@@ -40,6 +40,7 @@ struct USignature {
     Signature toSignature(bool negated = false) const;
     USignature substitute(const Substitution& s) const;
     void apply(const Substitution& s);
+    USignature renamed(int nameId) const;
 
     USignature& operator=(const USignature& sig);
     USignature& operator=(USignature&& sig);
@@ -86,6 +87,15 @@ struct Signature {
     }
 };
 
+struct PositionedUSig {
+    size_t layer; size_t pos; USignature usig;
+    PositionedUSig() : layer(-1), pos(-1) {}
+    PositionedUSig(size_t layer, size_t pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
+    bool operator==(const PositionedUSig& other) const {
+        return layer == other.layer && pos == other.pos && usig == other.usig;
+    }
+};
+
 struct USignatureHasher {
     inline std::size_t operator()(const USignature& s) const {
         size_t hash = s._args.size();
@@ -104,6 +114,15 @@ struct SignatureHasher {
         return hash;
     }
 };
+struct PositionedUSigHasher {
+    USignatureHasher usigHasher;
+    std::size_t operator()(const PositionedUSig& x) const {
+        size_t hash = x.layer;
+        hash_combine(hash, x.pos);
+        hash_combine(hash, usigHasher(x.usig));
+        return hash;
+    }
+};
 struct SigVecHasher {
     SignatureHasher _sig_hasher;
     inline std::size_t operator()(const std::vector<Signature>& s) const {
@@ -115,5 +134,11 @@ struct SigVecHasher {
 
 typedef FlatHashSet<Signature, SignatureHasher> SigSet;
 typedef FlatHashSet<USignature, USignatureHasher> USigSet;
+
+namespace Sig {
+    const static USignature NONE_SIG = USignature(-1, std::vector<int>());
+    const static SigSet EMPTY_SIG_SET;
+    const static USigSet EMPTY_USIG_SET;
+}
 
 #endif

@@ -3,12 +3,14 @@
 
 #include "sat/encoding.h"
 #include "sat/literal_tree.h"
+#include "sat/binary_amo.h"
 #include "util/log.h"
 #include "util/timer.h"
 
-
-Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : 
-            _params(params), _htn(htn), _layers(layers), _print_formula(params.isNonzero("of")), 
+Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
+            _params(params), _htn(htn), _layers(layers), 
+            _termination_callback(terminationCallback), 
+            _print_formula(params.isNonzero("wf")),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
             _implicit_primitiveness(params.isNonzero("ip")) {
     _solver = ipasir_init();
@@ -24,8 +26,9 @@ Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& la
 }
 
 void Encoding::encode(size_t layerIdx, size_t pos) {
-    
-    Log::v("Encoding ...\n");
+    _termination_callback();
+
+    //Log::v("Encoding ...\n");
     int priorNumClauses = _num_cls;
     int priorNumLits = _num_lits;
     _layer_idx = layerIdx;
@@ -85,21 +88,59 @@ void Encoding::encode(size_t layerIdx, size_t pos) {
     }
     end(STAGE_AXIOMATICOPS);
 
-    Log::v("Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
+    assert(_current_stages.empty());
+    Log::v("  Encoded (%i,%i): %i clauses, total of %i literals\n", layerIdx, pos, _num_cls-priorNumClauses, _num_lits-priorNumLits);
 
     clearDonePositions();
+
 }
 
 void Encoding::encodeOperationVariables(Position& newPos) {
 
-    _nonprimitive_only_at_prior_pos = _primitive_ops.empty();
     _primitive_ops.clear();
     _nonprimitive_ops.clear();
 
+    // TODO Coarsening of q-constants; test and enable or remove 
+    /*
+    NodeHashMap<USignature, FlatHashSet<int>> _forbidden_constants_per_op;
+    auto getCoarsenedSignature = [&](const USignature& op) {
+        USignature result(op);
+        for (size_t i = 0; i < op._args.size(); i++) {
+            int arg = op._args[i];
+            if (_htn.isQConstant(arg)) {
+                if (!_coarsened_q_constants.count(arg)) {
+                    // TODO create coarsened pseudo-constant
+                    const auto& effectiveDomain = _htn.getDomainOfQConstant(arg);
+                    const auto& sorts = _htn.getSortsOfQConstant(arg);
+                    FlatHashSet<int> excludedConstants;
+                    for (int sort : sorts) for (int c : _htn.getConstantsOfSort(sort)) {
+                        if (!effectiveDomain.count(c)) excludedConstants.insert(c);
+                    }
+                    if (!excludedConstants.empty()) 
+                        _forbidden_constants_per_op[op] = std::move(excludedConstants);
+                }
+            }
+        }
+        return result;
+    };
+    */
+
     begin(STAGE_ACTIONCONSTRAINTS);
     for (const auto& aSig : newPos.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
         int aVar = encodeVariable(VarType::OP, newPos, aSig, true);
+        // TODO see above
+        /*
+        auto cSig = getCoarsenedSignature(aSig);
+        auto it = _coarsened_ops.find(cSig);
+        int var;
+        if (it == _coarsened_ops.end()) {
+            var = VariableDomain::nextVar();
+        } else {
+            var = it->second;
+        }
+        encodeVariable(VarType::OP, newPos, aSig, true);
+        */
 
         // If the action occurs, the position is primitive
         _primitive_ops.push_back(aVar);
@@ -108,7 +149,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
 
     begin(STAGE_REDUCTIONCONSTRAINTS);
     for (const auto& rSig : newPos.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
+        if (rSig == Sig::NONE_SIG) continue;
         int rVar = encodeVariable(VarType::OP, newPos, rSig, true);
 
         bool trivialReduction = _htn.getReduction(rSig).getSubtasks().size() == 0;
@@ -116,12 +157,15 @@ void Encoding::encodeOperationVariables(Position& newPos) {
             // If a trivial reduction occurs, the position is primitive
             _primitive_ops.push_back(rVar);
         } else {
-            // If a non-trivial reduction occurs, the position is non-primitive
+            // If another reduction occurs, the position is non-primitive
             _nonprimitive_ops.push_back(rVar);
         }
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
 
+    newPos.setHasPrimitiveOps(!_primitive_ops.empty());
+    newPos.setHasNonprimitiveOps(!_nonprimitive_ops.empty());
+    
     // Implicit primitiveness?
     if (_implicit_primitiveness) return;
 
@@ -134,14 +178,18 @@ void Encoding::encodeOperationVariables(Position& newPos) {
 
     int varPrim = encodeVarPrimitive(newPos.getLayerIndex(), newPos.getPositionIndex());
 
+    begin(STAGE_REDUCTIONCONSTRAINTS);
     if (_primitive_ops.empty()) {
         // Only non-primitive ops here
         addClause(-varPrim);
     } else {
         // Mix of primitive and non-primitive ops (default)
+        begin(STAGE_ACTIONCONSTRAINTS);
         for (int aVar : _primitive_ops) addClause(-aVar, varPrim);
+        end(STAGE_ACTIONCONSTRAINTS);
         for (int rVar : _nonprimitive_ops) addClause(-rVar, -varPrim);
     }
+    end(STAGE_REDUCTIONCONSTRAINTS);
 }
 
 void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& above) {
@@ -150,16 +198,18 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
 
     begin(STAGE_FACTVARENCODING);
 
-    // Reuse variables from above position
+    // Reuse ground fact variables from above position
     if (newPos.getLayerIndex() > 0 && _offset == 0) {
-        above.moveVariableTable(VarType::FACT, newPos);
+        for (const auto& [factSig, factVar] : above.getVariableTable(VarType::FACT)) {
+            if (!_htn.hasQConstants(factSig)) newPos.setVariable(VarType::FACT, factSig, factVar);
+        }
     }
 
     if (_pos == 0) {
-        // Encode all definitive facts
+        // Encode all relevant definitive facts
         const USigSet* defFacts[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()};
         for (auto set : defFacts) for (const auto& fact : *set) {
-            if (!newPos.hasVariable(VarType::FACT, fact)) 
+            if (!newPos.hasVariable(VarType::FACT, fact) && _htn.isRelevant(fact)) 
                 _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, fact, false));
         }
     } else {
@@ -168,37 +218,56 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         encodeFrameAxioms(newPos, left);
     }
 
-    // Encode q-facts that are not encoded yet
-    for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
-        if (newPos.hasVariable(VarType::FACT, qfact)) continue;
-
-        // Reuse from left?
-        int leftVar = left.getVariableOrZero(VarType::FACT, qfact);
-        bool reuseFromLeft = leftVar != 0 
-                && !newPos.getPosFactSupports().count(qfact)
-                && !newPos.getNegFactSupports().count(qfact);
-        if (reuseFromLeft) for (const auto& decFact : _htn.getQFactDecodings(qfact)) {
+    auto reuseQFact = [&](const USignature& qfact, int var, Position& otherPos, bool negated) {
+        if (!newPos.hasQFactDecodings(qfact, negated)) return true;
+        if (var == 0 || !otherPos.hasQFactDecodings(qfact, negated)
+                || otherPos.getQFactDecodings(qfact, negated).size() < newPos.getQFactDecodings(qfact, negated).size())
+            return false;
+        const auto& otherDecodings = otherPos.getQFactDecodings(qfact, negated);
+        for (const auto& decFact : newPos.getQFactDecodings(qfact, negated)) {
             int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFact);
-            if (decFactVar == 0 || _new_fact_vars.count(decFactVar)) {
-                reuseFromLeft = false;
-                break;
+            int otherDecFactVar = otherPos.getVariableOrZero(VarType::FACT, decFact);
+            if (decFactVar == 0 || otherDecFactVar == 0 
+                    || decFactVar != otherDecFactVar 
+                    || !otherDecodings.count(decFact)) {
+                return false;
             }
         }
-        
-        if (reuseFromLeft) newPos.setVariable(VarType::FACT, qfact, leftVar); 
-        else {
-            // Encode new variable
-            _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));
-        } 
-        
+        return true;
+    };
+
+    // Encode q-facts that are not encoded yet
+    for ([[maybe_unused]] const auto& qfact : newPos.getQFacts()) {
+        if (!newPos.hasQFactDecodings(qfact, true) && !newPos.hasQFactDecodings(qfact, false)) continue;
+        assert(!newPos.hasVariable(VarType::FACT, qfact));
+
+        // Reuse variable from above?
+        int aboveVar = above.getVariableOrZero(VarType::FACT, qfact);
+        if (_offset == 0 && aboveVar != 0) {
+            // Reuse qfact variable from above
+            newPos.setVariable(VarType::FACT, qfact, aboveVar);
+
+        } else {
+            // Reuse variable from left?
+            int leftVar = left.getVariableOrZero(VarType::FACT, qfact);           
+            if (reuseQFact(qfact, leftVar, left, true) && reuseQFact(qfact, leftVar, left, false)) {
+                // Reuse qfact variable from above
+                newPos.setVariable(VarType::FACT, qfact, leftVar);
+
+            } else {
+                // Encode new variable
+                _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, qfact, false));
+            }
+        }
     }
+
     end(STAGE_FACTVARENCODING);
 
     // Facts that must hold at this position
     begin(STAGE_TRUEFACTS);
     const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
     for (int i = 0; i < 2; i++) 
-    for (const USignature& factSig : *cHere[i]) {
+    for (const USignature& factSig : *cHere[i]) if (_htn.isRelevant(factSig)) {
         int var = newPos.getVariableOrZero(VarType::FACT, factSig);
         if (var == 0) {
             // Variable is not encoded yet.
@@ -207,111 +276,129 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
             // Variable is already encoded. If the variable is new, constrain it.
             if (_new_fact_vars.count(var)) addClause((i == 0 ? 1 : -1) * var);
         }
+        Log::d("(%i,%i) DEFFACT %s\n", _layer_idx, _pos, TOSTR(factSig));
     }
     end(STAGE_TRUEFACTS);
 }
 
-void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
+std::pair<IndirectSupport, IndirectSupport> Encoding::computeFactSupports(Position& newPos, Position& left) {
+    static Position NULL_POS;
 
-    using IndirectSupport = NodeHashMap<USignature, NodeHashMap<int, LiteralTree>, USignatureHasher>;
-
-    // Fact supports, frame axioms (only for non-new facts free of q-constants)
-    begin(STAGE_FRAMEAXIOMS);
-
-    bool nonprimFactSupport = _params.isNonzero("nps");
-
-    int layerIdx = newPos.getLayerIndex();
-    int pos = newPos.getPositionIndex();
-    int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
-    bool hasPrimitiveOps = !_nonprimitive_only_at_prior_pos;
-
-    // Direct supports
-    const NodeHashMap<USignature, USigSet, USignatureHasher>* supports[2] 
+    // Retrieve supports
+    NodeHashMap<USignature, USigSet, USignatureHasher>* dirSupports[2] 
             = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
-
-    // Indirect supports:
+    IndirectFactSupportMap* indirSupports[2] 
+            = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
+    
+    // Structures for indirect supports:
     // Maps each fact to a map of operation variables to a tree of substitutions 
     // which make the operation (possibly) change the variable.
-    IndirectSupport indirectPosSupport, indirectNegSupport;
-    const IndirectSupport* indirectSupports[2] 
-            = {&indirectNegSupport, &indirectPosSupport};
-    for (const auto& op : left.getActions()) {
-        int opVar = getVariable(VarType::OP, left, op);
-        for (const auto& eff : _htn.getAction(op).getEffects()) {
-            if (!_htn.hasQConstants(eff._usig)) continue;
+    std::pair<IndirectSupport, IndirectSupport> result;
+    auto& [negResult, posResult] = result;
+
+    // For both fact polarities
+    for (size_t i = 0; i < 2; i++) {
+        
+        // For each fact with some indirect support, for each action in the support
+        auto& output = i == 0 ? negResult : posResult;
+        for (const auto& [fact, entry] : *indirSupports[i]) for (const auto& [op, subs] : entry) {
+            assert(!_htn.isVirtualizedChildOfAction(op._name_id));
+
+            // Skip if the operation is already a DIRECT support for the fact
+            auto it = dirSupports[i]->find(fact);
+            if (it != dirSupports[i]->end() && it->second.count(op)) continue;
+
+            int opVar = left.getVariableOrZero(VarType::OP, op);
+            USignature virtOp(_htn.getVirtualizedChildNameOfAction(op._name_id), op._args);
+            int virtOpVar = left.getVariableOrZero(VarType::OP, virtOp);
             
-            auto& support = eff._negated ? *supports[0] : *supports[1];
-            auto& indirectSupport = eff._negated ? indirectNegSupport : indirectPosSupport;
+            // Not an encoded action? (May have been pruned away)
+            if (opVar == 0 && virtOpVar == 0) continue;
 
-            for (const auto& decEff : _htn.getQFactDecodings(eff._usig)) {
-                
-                // TODO Check if this is a valid effect decoding indeed.
-                // (Might happen that it isn't.) 
-
-                // Are there any primitive ops at this position?
-                if (hasPrimitiveOps) {
-                    // Skip if the operation is already a DIRECT support for the fact
-                    auto it = support.find(decEff);
-                    if (it != support.end() && it->second.count(op)) continue;
-                
-                    // Convert into a vector of substitution variables
-                    Substitution s(eff._usig._args, decEff._args);
-                    std::vector<int> sVars(s.size());
-                    size_t i = 0;
-                    for (const auto& [src, dest] : s) {
-                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                    }
-                    std::sort(sVars.begin(), sVars.end());
-
-                    // Insert into according support tree
-                    indirectSupport[decEff][opVar].insert(std::move(sVars));
-                } else {
-                    // No frame axioms will be encoded: 
-                    // Just remember that there is some support for this fact
-                    indirectSupport[decEff];
+            // For each substitution leading to the desired ground effect:
+            for (const auto& sub : subs) {
+                std::vector<int> path(sub.size());
+                size_t i = 0;
+                for (const auto& [src, dest] : sub) {
+                    path[i++] = varSubstitution(sigSubstitute(src, dest));
                 }
+                if (opVar != 0) output[fact][opVar].insert(path);
+                if (virtOpVar != 0) output[fact][virtOpVar].insert(path);
             }
         }
     }
 
-    // Remember which of the (potentially large) support structures are empty
-    // such that no hash map retrieval will be attempted at all for these
-    const bool indirEmpty[2] = {indirectSupports[0]->empty(), indirectSupports[1]->empty()};
-    const bool dirEmpty[2] = {supports[0]->empty(), supports[1]->empty()};
-    
+    return result;
+}
+
+void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
+    static Position NULL_POS;
+
+    using Supports = const NodeHashMap<USignature, USigSet, USignatureHasher>;
+
+    begin(STAGE_DIRECTFRAMEAXIOMS);
+
+    bool nonprimFactSupport = _params.isNonzero("nps");
+    bool hasPrimitiveOps = left.hasPrimitiveOps();
+
+    int layerIdx = newPos.getLayerIndex();
+    int pos = newPos.getPositionIndex();
+    int prevVarPrim = getVarPrimitiveOrZero(layerIdx, pos-1);
+
+    // Check if frame axioms can be skipped because
+    // the above position had a superset of operations
+    Position& above = layerIdx > 0 ? _layers[layerIdx-1]->at(_old_pos) : NULL_POS;
+    Position& leftOfAbove = layerIdx > 0 && _old_pos > 0 ? _layers[layerIdx-1]->at(_old_pos-1) : NULL_POS;
+    bool skipRedundantFrameAxioms = _params.isNonzero("srfa") && _offset == 0
+        && !left.hasNonprimitiveOps() && !leftOfAbove.hasNonprimitiveOps() 
+        && left.getActions().size()+left.getReductions().size() <= leftOfAbove.getActions().size()+leftOfAbove.getReductions().size();
+
+    // Retrieve supports from left position
+    Supports* supp[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
+    IndirectFactSupportMap* iSupp[2] = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
+    // Retrieve indirect support substitutions
+    auto [negIS, posIS] = computeFactSupports(newPos, left);
+    IndirectSupport* iSuppTrees[2] = {&negIS, &posIS};
+
     // Find and encode frame axioms for each applicable fact from the left
+    size_t skipped = 0;
     for ([[maybe_unused]] const auto& [fact, var] : left.getVariableTable(VarType::FACT)) {
         if (_htn.hasQConstants(fact)) continue;
         
         int oldFactVars[2] = {-var, var};
-
         const USigSet* dir[2] = {nullptr, nullptr};
-        const NodeHashMap<int, LiteralTree>* indir[2] = {nullptr, nullptr};
+        const IndirectFactSupportMapEntry* indir[2] = {nullptr, nullptr};
+        const NodeHashMap<int, LiteralTree<int>>* tree[2] = {nullptr, nullptr};
 
         // Retrieve direct and indirect support for this fact
         bool reuse = true;
         for (int i = 0; i < 2; i++) {
-            if (!indirEmpty[i]) {
-                auto it = indirectSupports[i]->find(fact);
-                if (it != indirectSupports[i]->end()) {
-                    indir[i] = &(it->second);
+            if (!supp[i]->empty()) { // Direct support
+                auto it = supp[i]->find(fact);
+                if (it != supp[i]->end()) {
+                    dir[i] = &(it->second);
                     reuse = false;
                 } 
             }
-            if (!dirEmpty[i]) {
-                auto it = supports[i]->find(fact);
-                if (it != supports[i]->end()) {
-                    dir[i] = &(it->second);
-                    reuse = false;
-                }
+            if (!iSupp[i]->empty()) { // Indirect support & tree
+                auto it = iSupp[i]->find(fact);
+                if (it != iSupp[i]->end()) {
+                    auto itt = iSuppTrees[i]->find(fact);
+                    if (itt != iSuppTrees[i]->end()) {
+                        reuse = false;
+                        indir[i] = &(it->second);
+                        tree[i] = &(itt->second);
+                    }
+                } 
             }
         }
 
-        // Decide on the fact variable to use (reuse or encode)
         int factVar = newPos.getVariableOrZero(VarType::FACT, fact);
+
+        // Decide on the fact variable to use (reuse or encode)
         if (factVar == 0) {
             if (reuse) {
-                // No support for this fact -- variable can be reused
+                // No support for this fact -- variable can be reused from left
                 factVar = var;
                 newPos.setVariable(VarType::FACT, fact, var);
             } else {
@@ -321,8 +408,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 factVar = v;
             }
         }
-        if (var == factVar) continue; // Skip frame axiom encoding
-        
+
+        // Skip frame axiom encoding if nothing can change
+        if (var == factVar) continue; 
+        // Skip frame axioms if they were already encoded
+        if (skipRedundantFrameAxioms && above.hasVariable(VarType::FACT, fact)) continue;
         // No primitive ops at this position: No need for encoding frame axioms
         if (!hasPrimitiveOps) continue;
 
@@ -342,23 +432,27 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 }
                 // DIRECT support
                 if (dir[i] != nullptr) for (const USignature& opSig : *dir[i]) {
-                    int opVar = getVariable(VarType::OP, left, opSig);
-                    assert(opVar > 0);
-                    appendClause(opVar);
+                    int opVar = left.getVariableOrZero(VarType::OP, opSig);
+                    if (opVar > 0) appendClause(opVar);
+                    USignature virt = opSig.renamed(_htn.getVirtualizedChildNameOfAction(opSig._name_id));
+                    int virtOpVar = left.getVariableOrZero(VarType::OP, virt);
+                    if (virtOpVar > 0) appendClause(virtOpVar);
                 }
                 // INDIRECT support
-                if (indir[i] != nullptr) for (const auto& [opVar, subs] : *indir[i]) 
-                    appendClause(opVar);
+                if (tree[i] != nullptr) for (const auto& [var, tree] : *tree[i]) {
+                    appendClause(var);
+                }
             }
             endClause();
         }
 
         // Encode substitutions enabling indirect support for this fact
+        begin(STAGE_INDIRECTFRAMEAXIOMS);
         i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
             factVar *= -1;
-            if (indir[i] == nullptr) continue;
+            if (tree[i] == nullptr) continue;
 
             // -- 1st part of each clause: "head literals"
             std::vector<int> headLits;
@@ -373,7 +467,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             } 
 
             // Encode indirect support constraints
-            for (const auto& [opVar, tree] : *indir[i]) {
+            for (const auto& [opVar, tree] : *tree[i]) {
                 
                 // Unconditional effect?
                 if (tree.containsEmpty()) continue;
@@ -382,9 +476,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 for (const auto& cls : tree.encode(headLits)) addClause(cls);
             }
         }
+        end(STAGE_INDIRECTFRAMEAXIOMS);
     }
+    end(STAGE_DIRECTFRAMEAXIOMS);
 
-    end(STAGE_FRAMEAXIOMS);
+    Log::d("Skipped %i frame axioms\n", skipped);
 }
 
 void Encoding::encodeOperationConstraints(Position& newPos) {
@@ -398,142 +494,171 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
 
     begin(STAGE_ACTIONCONSTRAINTS);
     for (const auto& aSig : newPos.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
 
         int aVar = getVariable(VarType::OP, newPos, aSig);
-        for (int arg : aSig._args) encodeSubstitutionVars(aVar, arg, newPos);
         elementVars[numOccurringOps++] = aVar;
+        
+        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
+
+        for (int arg : aSig._args) encodeSubstitutionVars(aSig, aVar, arg, newPos);
 
         // Preconditions
         for (const Signature& pre : _htn.getAction(aSig).getPreconditions()) {
+            if (!isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             addClause(-aVar, (pre._negated?-1:1)*getVariable(VarType::FACT, newPos, pre._usig));
         }
     }
     end(STAGE_ACTIONCONSTRAINTS);
     begin(STAGE_REDUCTIONCONSTRAINTS);
     for (const auto& rSig : newPos.getReductions()) {
-        if (rSig == Position::NONE_SIG) continue;
+        if (rSig == Sig::NONE_SIG) continue;
 
         int rVar = getVariable(VarType::OP, newPos, rSig);
-        for (int arg : rSig._args) encodeSubstitutionVars(rVar, arg, newPos);
+        for (int arg : rSig._args) encodeSubstitutionVars(rSig, rVar, arg, newPos);
         elementVars[numOccurringOps++] = rVar;
 
         // Preconditions
         for (const Signature& pre : _htn.getReduction(rSig).getPreconditions()) {
+            if (!isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             addClause(-rVar, (pre._negated?-1:1)*getVariable(VarType::FACT, newPos, pre._usig));
         }
     }
     end(STAGE_REDUCTIONCONSTRAINTS);
+
+    _q_constants.insert(_new_q_constants.begin(), _new_q_constants.end());
+    _new_q_constants.clear();
     
-    if (numOccurringOps == 0 && pos+1 != _layers.back()->size()) {
-        Log::e("No operations to encode at (%i,%i)! Considering this problem UNSOLVABLE.\n", layerIdx, pos);
-        exit(1);
-    }
+    if (numOccurringOps == 0) return;
 
-    begin(STAGE_ATLEASTONEELEMENT);
-    size_t i = 0; 
-    while (i < elementVars.size() && elementVars[i] != 0) 
-        appendClause(elementVars[i++]);
-    endClause();
-    end(STAGE_ATLEASTONEELEMENT);
+    if ((int)elementVars.size() >= _params.getIntParam("bamot")) {
+        // Binary at-most-one
 
-    begin(STAGE_ATMOSTONEELEMENT);
-    for (size_t i = 0; i < elementVars.size(); i++) {
-        for (size_t j = i+1; j < elementVars.size(); j++) {
-            addClause(-elementVars[i], -elementVars[j]);
+        begin(STAGE_ATMOSTONEELEMENT);
+        auto bamo = BinaryAtMostOne(elementVars, elementVars.size()+1);
+        for (const auto& c : bamo.encode()) addClause(c);
+        end(STAGE_ATMOSTONEELEMENT);
+
+    } else {
+        // Naive at-most-one
+
+        begin(STAGE_ATMOSTONEELEMENT);
+        for (size_t i = 0; i < elementVars.size(); i++) {
+            for (size_t j = i+1; j < elementVars.size(); j++) {
+                addClause(-elementVars[i], -elementVars[j]);
+            }
         }
+        end(STAGE_ATMOSTONEELEMENT);
     }
-    end(STAGE_ATMOSTONEELEMENT);
 
     if (_params.isNonzero("svp")) setVariablePhases(elementVars);
 }
 
-void Encoding::encodeSubstitutionVars(int opVar, int arg, Position& pos) {
+void Encoding::encodeSubstitutionVars(const USignature& opSig, int opVar, int arg, Position& pos) {
 
     if (!_htn.isQConstant(arg)) return;
     if (_q_constants.count(arg)) return;
-    // arg is a *new* q-constant: initialize substitution logic
 
-    _q_constants.insert(arg);
+    // arg is a *new* q-constant: initialize substitution logic
+    _new_q_constants.insert(arg);
 
     std::vector<int> substitutionVars;
-    for (int c : _htn.getDomainOfQConstant(arg)) {
+    //Log::d("INITSUBVARS @(%i,%i) %s:%s [ ", pos.getLayerIndex(), pos.getPositionIndex(), TOSTR(opSig), TOSTR(arg));
+    for (int c : _htn.popOperationDependentDomainOfQConstant(arg, opSig)) {
 
         assert(!_htn.isVariable(c));
 
         // either of the possible substitutions must be chosen
         int varSubst = varSubstitution(sigSubstitute(arg, c));
         substitutionVars.push_back(varSubst);
+        //Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(sigSubstitute(arg, c)));
     }
+    //Log::log_notime(Log::V4_DEBUG, "]\n");
     assert(!substitutionVars.empty());
 
     // AT LEAST ONE substitution, or the parent op does NOT occur
-    Log::d("INITSUBVARS @(%i,%i) op=%i qc=%s\n", pos.getLayerIndex(), pos.getPositionIndex(), opVar, TOSTR(arg));
     appendClause(-opVar);
     for (int vSub : substitutionVars) appendClause(vSub);
     endClause();
 
     // AT MOST ONE substitution
-    for (int vSub1 : substitutionVars) {
-        for (int vSub2 : substitutionVars) {
-            if (vSub1 < vSub2) addClause(-vSub1, -vSub2);
+    if ((int)substitutionVars.size() >= _params.getIntParam("bamot")) {
+        // Binary at-most-one
+        auto bamo = BinaryAtMostOne(substitutionVars, substitutionVars.size()+1);
+        for (const auto& c : bamo.encode()) addClause(c);
+    } else {
+        // Naive at-most-one
+        for (int vSub1 : substitutionVars) {
+            for (int vSub2 : substitutionVars) {
+                if (vSub1 < vSub2) addClause(-vSub1, -vSub2);
+            }
         }
     }
-
-    if (_params.isNonzero("svp")) setVariablePhases(substitutionVars);
 }
 
 void Encoding::encodeQFactSemantics(Position& newPos) {
+    static Position NULL_POS;
 
     begin(STAGE_QFACTSEMANTICS);
-    bool useMutexes = _params.isNonzero("qcm");
     std::vector<int> substitutionVars; substitutionVars.reserve(128);
-    std::vector<int> qargs, qargIndices; 
     for (const auto& qfactSig : newPos.getQFacts()) {
         assert(_htn.hasQConstants(qfactSig));
-
+        
         int qfactVar = getVariable(VarType::FACT, newPos, qfactSig);
 
-        // Already encoded earlier?
-        if (!_new_fact_vars.count(qfactVar)) continue;
+        for (int sign = -1; sign <= 1; sign += 2) {
+            bool negated = sign < 0;
+            if (!newPos.hasQFactDecodings(qfactSig, negated)) 
+                continue;
 
-        if (useMutexes) {
-            qargs.clear();
-            qargIndices.clear();
-            for (size_t aIdx = 0; aIdx < qfactSig._args.size(); aIdx++) if (_htn.isQConstant(qfactSig._args[aIdx])) {
-                qargs.push_back(qfactSig._args[aIdx]);
-                qargIndices.push_back(aIdx);
-            } 
-        }
+            bool filterAbove = false;
+            Position& above = _offset == 0 && _layer_idx > 0 ? _layers[_layer_idx-1]->at(_old_pos) : NULL_POS;
+            if (!_new_fact_vars.count(qfactVar)) {
+                if (_offset == 0 && _layer_idx > 0 && above.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar
+                                && above.hasQFactDecodings(qfactSig, negated)) {
+                    filterAbove = true;
 
-        // For each possible fact decoding:
-        for (const auto& decFactSig : _htn.getQFactDecodings(qfactSig)) {
-            if (useMutexes) {
-                // Check if this decoding is valid
-                std::vector<int> decArgs; for (int idx : qargIndices) decArgs.push_back(decFactSig._args[idx]);
-                if (!_htn.getQConstantDatabase().test(qargs, decArgs)) continue;
+                    /*
+                    TODO
+                    vca=0 : qfact semantics are added once, then for each further layer
+                    they are skipped because they were already encoded.
+                    vca=1 : qfact semantics are added once, skipped once, then added again
+                    because the qfact (and decodings) do not occur above any more.
+                    */
+
+                }
+                if (!filterAbove && _pos > 0) {
+                    Position& left = _layers[_layer_idx]->at(_pos-1);
+                    if (left.getVariableOrZero(VarType::FACT, qfactSig) == qfactVar)
+                        continue;
+                }
             }
 
-            // Assemble list of substitution variables
-            int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
-            if (decFactVar == 0) continue;
-            for (size_t i = 0; i < qfactSig._args.size(); i++) {
-                if (qfactSig._args[i] != decFactSig._args[i])
-                    substitutionVars.push_back(
-                        varSubstitution(sigSubstitute(qfactSig._args[i], decFactSig._args[i]))
-                    );
-            }
-            
-            // If the substitution is chosen,
-            // the q-fact and the corresponding actual fact are equivalent
-            for (int sign = -1; sign <= 1; sign += 2) {
+            // For each possible fact decoding:
+            for (const auto& decFactSig : newPos.getQFactDecodings(qfactSig, negated)) {
+                
+                int decFactVar = newPos.getVariableOrZero(VarType::FACT, decFactSig);
+                if (decFactVar == 0) continue;
+                if (filterAbove && above.getQFactDecodings(qfactSig, negated).count(decFactSig)) continue;
+
+                // Assemble list of substitution variables
+                for (size_t i = 0; i < qfactSig._args.size(); i++) {
+                    if (qfactSig._args[i] != decFactSig._args[i])
+                        substitutionVars.push_back(
+                            varSubstitution(sigSubstitute(qfactSig._args[i], decFactSig._args[i]))
+                        );
+                }
+                
+                // If the substitution is chosen,
+                // the q-fact and the corresponding actual fact are equivalent
+                //Log::v("QFACTSEM (%i,%i) %s -> %s\n", _layer_idx, _pos, TOSTR(qfactSig), TOSTR(decFactSig));
                 for (const int& varSubst : substitutionVars) {
                     appendClause(-varSubst);
                 }
-                appendClause(sign*qfactVar, -sign*decFactVar);
+                appendClause(-sign*qfactVar, sign*decFactVar);
                 endClause();
+                substitutionVars.clear();
             }
-            substitutionVars.clear();
         }
     }
     end(STAGE_QFACTSEMANTICS);
@@ -544,17 +669,21 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
     bool treeConversion = _params.isNonzero("tc");
     begin(STAGE_ACTIONEFFECTS);
     for (const auto& aSig : left.getActions()) {
-        if (aSig == Position::NONE_SIG) continue;
+        if (aSig == Sig::NONE_SIG) continue;
+        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
         int aVar = getVariable(VarType::OP, left, aSig);
 
         for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
-                        
+            if (!isEncoded(VarType::FACT, _layer_idx, _pos, eff._usig)) continue;
+
             std::set<std::set<int>> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
                 for (const auto& posEff : _htn.getAction(aSig).getEffects()) {
                     if (posEff._negated) continue;
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
+                    if (!isEncoded(VarType::FACT, _layer_idx, _pos, posEff._usig)) continue;
+
                     bool fits = true;
                     std::set<int> s;
                     for (size_t i = 0; i < eff._usig._args.size(); i++) {
@@ -582,30 +711,32 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
                     if (fits) unifiersDnf.insert(s);
                 }
             }
-            if (unifiedUnconditionally) {
-                //addClause(-aVar, -getVariable(newPos, eff._usig));
-            } else if (unifiersDnf.empty()) {
+            if (unifiedUnconditionally) continue; // Always unified
+            if (unifiersDnf.empty()) {
+                // Positive or ununifiable negative effect: enforce it
                 addClause(-aVar, (eff._negated?-1:1)*getVariable(VarType::FACT, newPos, eff._usig));
+                continue;
+            }
+
+            // Negative effect which only holds in certain cases
+            if (treeConversion) {
+                LiteralTree<int> tree;
+                for (const auto& set : unifiersDnf) tree.insert(std::vector<int>(set.begin(), set.end()));
+                std::vector<int> headerLits;
+                headerLits.push_back(aVar);
+                headerLits.push_back(getVariable(VarType::FACT, newPos, eff._usig));
+                for (const auto& cls : tree.encode(headerLits)) addClause(cls);
             } else {
-                if (treeConversion) {
-                    LiteralTree tree;
-                    for (const auto& set : unifiersDnf) tree.insert(std::vector<int>(set.begin(), set.end()));
-                    std::vector<int> headerLits;
-                    headerLits.push_back(aVar);
-                    headerLits.push_back(getVariable(VarType::FACT, newPos, eff._usig));
-                    for (const auto& cls : tree.encode(headerLits)) addClause(cls);
-                } else {
-                    std::vector<int> dnf;
-                    for (const auto& set : unifiersDnf) {
-                        for (int lit : set) dnf.push_back(lit);
-                        dnf.push_back(0);
-                    }
-                    auto cnf = getCnf(dnf);
-                    for (const auto& clause : cnf) {
-                        appendClause(-aVar, -getVariable(VarType::FACT, newPos, eff._usig));
-                        for (int lit : clause) appendClause(lit);
-                        endClause();
-                    }
+                std::vector<int> dnf;
+                for (const auto& set : unifiersDnf) {
+                    for (int lit : set) dnf.push_back(lit);
+                    dnf.push_back(0);
+                }
+                auto cnf = getCnf(dnf);
+                for (const auto& clause : cnf) {
+                    appendClause(-aVar, -getVariable(VarType::FACT, newPos, eff._usig));
+                    for (int lit : clause) appendClause(lit);
+                    endClause();
                 }
             }
         }
@@ -618,11 +749,10 @@ void Encoding::encodeQConstraints(Position& newPos) {
     // Q-constants type constraints
     begin(STAGE_QTYPECONSTRAINTS);
     const auto& constraints = newPos.getQConstantsTypeConstraints();
-    for (const auto& pair : constraints) {
-        const USignature& opSig = pair.first;
+    for (const auto& [opSig, constraints] : constraints) {
         int opVar = newPos.getVariableOrZero(VarType::OP, opSig);
         if (opVar != 0) {
-            for (const TypeConstraint& c : pair.second) {
+            for (const TypeConstraint& c : constraints) {
                 int qconst = c.qconstant;
                 bool positiveConstraint = c.sign;
                 assert(_q_constants.count(qconst));
@@ -645,62 +775,48 @@ void Encoding::encodeQConstraints(Position& newPos) {
     }
     end(STAGE_QTYPECONSTRAINTS);
 
-    // Forbidden substitutions per operator
+    // Forbidden substitutions
     begin(STAGE_SUBSTITUTIONCONSTRAINTS);
 
     // For each operation (action or reduction)
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     for (const auto& set : ops) for (auto opSig : *set) {
 
-        // Get number of "good" and "bad" substitution options
-        size_t goodSize = 0;
+        // Get "good" and "bad" substitution options
         auto itValid = newPos.getValidSubstitutions().find(opSig);
-        if (itValid != newPos.getValidSubstitutions().end()) {
-            for (const auto& s : itValid->second) {
-                goodSize += s.size();
-            }
-        }
         auto itForb = newPos.getForbiddenSubstitutions().find(opSig);
-        size_t badSize = itForb != newPos.getForbiddenSubstitutions().end() ? itForb->second.size() : 0;
-        if (badSize == 0) continue;
+        
+        // Encode forbidden substitutions
 
-        // Which one to encode?
-        if (badSize <= goodSize) {
-            // Use forbidden substitutions
-            for (const Substitution& s : itForb->second) {
+        if (itForb != newPos.getForbiddenSubstitutions().end()) {
+            auto cls = itForb->second.encodeNegation();
+            for (const auto& sub : cls) {
                 appendClause(-getVariable(VarType::OP, newPos, opSig));
-                for (const auto& [src, dest] : s) {
+                for (const auto& [src, dest] : sub) {
                     appendClause(-varSubstitution(sigSubstitute(src, dest)));
                 }
                 endClause();
             }
-        } else {
-            // Use valid substitutions
-            
-            // For each set of valid substitution options
-            for (const auto& subs : itValid->second) {
-                // Build literal tree from this set of valid substitution options for this op
-                LiteralTree tree;
-                // For each substitution option:
-                for (const auto& s : subs) {
-                    std::vector<int> sVars(s.size()); 
-                    size_t i = 0;
-                    // For each atomic substitution:
-                    for (const auto& [src, dest] : s) {
-                        sVars[i++] = varSubstitution(sigSubstitute(src, dest));
-                    }
-                    tree.insert(sVars);
+        }
+        
+        // Encode valid substitutions
+        
+        // For each set of valid substitution options
+        if (itValid != newPos.getValidSubstitutions().end()) for (const auto& tree : itValid->second) {
+            auto cls = tree.encode();
+            for (auto& sub : cls) {
+                appendClause(-getVariable(VarType::OP, newPos, opSig));
+                for (auto& [src, dest] : sub) {
+                    bool negated = src < 0;
+                    if (negated) src *= -1;
+                    appendClause((negated ? -1 : 1) * varSubstitution(sigSubstitute(src, dest)));
                 }
-                // Encode set of valid substitution options into CNF
-                std::vector<std::vector<int>> cls = tree.encode(
-                    std::vector<int>(1, getVariable(VarType::OP, newPos, opSig))
-                );
-                for (const auto& c : cls) {
-                    addClause(c);
-                }
+                endClause();
             }
         }
     }
+    newPos.clearSubstitutions();
+
     // Globally forbidden substitutions
     for (const auto& sub : _htn.getForbiddenSubstitutions()) {
         assert(!sub.empty());
@@ -712,46 +828,78 @@ void Encoding::encodeQConstraints(Position& newPos) {
         _forbidden_substitutions.insert(sub);
     }
     _htn.clearForbiddenSubstitutions();
+    
     end(STAGE_SUBSTITUTIONCONSTRAINTS);
 }
 
 void Encoding::encodeSubtaskRelationships(Position& newPos, Position& above) {
 
+    if (newPos.getActions().size() == 1 && newPos.getReductions().empty() 
+            && newPos.hasAction(_htn.getBlankActionSig())) {
+        // This position contains the blank action and nothing else.
+        // No subtask relationships need to be encoded.
+        return;
+    }
+
     // expansions
     begin(STAGE_EXPANSIONS);
-    for (const auto& pair : newPos.getExpansions()) {
-        const USignature& parent = pair.first;
+    for (const auto& [parent, children] : newPos.getExpansions()) {
 
+        int parentVar = getVariable(VarType::OP, above, parent);
         bool forbidden = false;
-        for (const USignature& child : pair.second) {
-            if (child == Position::NONE_SIG) {
+        for (const USignature& child : children) {
+            if (child == Sig::NONE_SIG) {
                 // Forbid parent op that turned out to be impossible
-                int oldOpVar = getVariable(VarType::OP, above, parent);
-                addClause(-oldOpVar);
+                addClause(-parentVar);
                 forbidden = true;
                 break;
             }
         }
+
         if (forbidden) continue;
 
-        appendClause(-getVariable(VarType::OP, above, parent));
-        for (const USignature& child : pair.second) {
-            if (child == Position::NONE_SIG) continue;
+        appendClause(-parentVar);
+        for (const USignature& child : children) {
+            if (child == Sig::NONE_SIG) continue;
             appendClause(getVariable(VarType::OP, newPos, child));
         }
         endClause();
+
+        if (newPos.getExpansionSubstitutions().count(parent)) {
+            for (const auto& [child, s] : newPos.getExpansionSubstitutions().at(parent)) {
+                int childVar = newPos.getVariableOrZero(VarType::OP, child);
+                if (childVar == 0) continue;
+
+                for (const auto& [src, dest] : s) {
+                    assert(_htn.isQConstant(dest));
+
+                    // Q-constant dest has a larger domain than (q-)constant src.
+                    // Enforce that dest only takes values from the domain of src!
+                    //Log::d("DOM %s->%s : Enforce %s only to take values from domain of %s\n", TOSTR(parent), TOSTR(child), TOSTR(dest), TOSTR(src));
+
+                    if (!_htn.isQConstant(src)) {
+                        addClause(-parentVar, -childVar, varSubstitution(sigSubstitute(dest, src)));
+                    } else {
+                        addClause(-parentVar, -childVar, varQConstEquality(dest, src));
+                        /*
+                        for (int c : _htn.getDomainOfQConstant(src)) {
+                            appendClause(varSubstitution(sigSubstitute(dest, c)));
+                        }*/
+                    }
+                }
+            }
+        }
     }
     end(STAGE_EXPANSIONS);
 
     // predecessors
     if (_params.isNonzero("p")) {
         begin(STAGE_PREDECESSORS);
-        for (const auto& pair : newPos.getPredecessors()) {
-            const USignature& child = pair.first;
-            if (child == Position::NONE_SIG) continue;
+        for (const auto& [child, parents] : newPos.getPredecessors()) {
+            if (child == Sig::NONE_SIG) continue;
 
             appendClause(-getVariable(VarType::OP, newPos, child));
-            for (const USignature& parent : pair.second) {
+            for (const USignature& parent : parents) {
                 appendClause(getVariable(VarType::OP, above, parent));
             }
             endClause();
@@ -767,7 +915,7 @@ void Encoding::clearDonePositions() {
         positionToClearLeft = &_layers.at(_layer_idx-1)->last();
     } else if (_pos > 0) positionToClearLeft = &_layers.at(_layer_idx)->at(_pos-1);
     if (positionToClearLeft != nullptr) {
-        Log::v("Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
+        Log::v("  Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
         positionToClearLeft->clearAtPastPosition();
     }
 
@@ -782,25 +930,283 @@ void Encoding::clearDonePositions() {
         positionToClearAbove = &_layers.at(_layer_idx-1)->at(_old_pos-1);
     }
     if (positionToClearAbove != nullptr) {
-        Log::v("Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
+        Log::v("  Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
         positionToClearAbove->clearAtPastLayer();
     }
 }
 
-void Encoding::addAssumptions(int layerIdx) {
+void Encoding::optimizePlan(int upperBound, Plan& plan, ConstraintAddition mode) {
+
+    int layerIdx = _layers.size()-1;
+    Layer& l = *_layers.at(layerIdx);
+    int currentPlanLength = upperBound;
+    Log::v("PLO BEGIN %i\n", currentPlanLength);
+
+    // Add counting mechanism
+    begin(STAGE_PLANLENGTHCOUNTING);
+    int minPlanLength = 0;
+    int maxPlanLength = 0;
+    std::vector<int> planLengthVars(1, VariableDomain::nextVar());
+    Log::d("VARNAME %i (plan_length_equals %i %i)\n", planLengthVars[0], 0, 0);
+    // At position zero, the plan length is always equal to zero
+    addClause(planLengthVars[0]);
+    for (size_t pos = 0; pos+1 < l.size(); pos++) {
+
+        // Collect sets of potential operations
+        FlatHashSet<int> emptyActions, actualActions;
+        for (const auto& aSig : l.at(pos).getActions()) {
+            Log::d("PLO %i %s?\n", pos, TOSTR(aSig));
+            if (aSig == Sig::NONE_SIG) continue;
+            int aVar = l.at(pos).getVariable(VarType::OP, aSig);
+            if (isEmptyAction(aSig)) {
+                emptyActions.insert(aVar);
+            } else {
+                actualActions.insert(aVar);
+            }
+        }
+        for (const auto& rSig : l.at(pos).getReductions()) {
+            Log::d("PLO %i %s?\n", pos, TOSTR(rSig));
+            if (rSig == Sig::NONE_SIG) continue;
+            if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
+                // Empty reduction
+                emptyActions.insert(l.at(pos).getVariable(VarType::OP, rSig));
+            }
+        }
+
+        if (emptyActions.empty()) {
+            // Only actual actions here: Increment lower and upper bound, keep all variables.
+            minPlanLength++;
+            bool increaseUpperBound = maxPlanLength < currentPlanLength;
+            if (increaseUpperBound) maxPlanLength++;
+            else {
+                // Upper bound hit!
+                // Cut counter variables by one, forbid topmost one
+                addClause(-planLengthVars.back());
+                planLengthVars.resize(planLengthVars.size()-1);
+            }
+            Log::d("[no empty ops]\n");
+        } else if (actualActions.empty()) {
+            // Only empty actions here: Keep current bounds, keep all variables.
+            Log::d("[only empty ops]\n");
+        } else {
+            // Mix of actual and empty actions here: Increment upper bound, 
+            bool increaseUpperBound = maxPlanLength < currentPlanLength;
+            if (increaseUpperBound) maxPlanLength++;
+
+            int emptySpotVar = 0;
+            bool encodeDirectly = emptyActions.size() <= 3 || actualActions.size() <= 3;
+            bool encodeEmptiesOnly = emptyActions.size() < actualActions.size();
+            bool encodeActualsOnly = emptyActions.size() > actualActions.size();
+            if (!encodeDirectly) {
+                // Encode with a helper variable
+                emptySpotVar = VariableDomain::nextVar();
+
+                // Define for each action var whether it implies an empty spot or not
+                for (int v : emptyActions) {
+                    // IF the empty action occurs, THEN the spot is empty.
+                    addClause(-v, emptySpotVar);
+                }
+                for (int v : actualActions) {
+                    // IF the actual action occurs, THEN the spot is not empty.
+                    addClause(-v, -emptySpotVar);
+                }
+            }
+
+            // create new variables and constraints.
+            std::vector<int> newPlanLengthVars(planLengthVars.size()+(increaseUpperBound?1:0));
+            for (size_t i = 0; i < newPlanLengthVars.size(); i++) {
+                newPlanLengthVars[i] = VariableDomain::nextVar();
+            }
+
+            // Propagate plan length from previous position to new position
+            for (size_t i = 0; i < planLengthVars.size(); i++) {
+                int prevVar = planLengthVars[i];
+                int keptPlanLengthVar = newPlanLengthVars[i];
+
+                if (i+1 < newPlanLengthVars.size()) {
+                    // IF previous plan length is X AND spot is empty
+                    // THEN the plan length stays X 
+                    if (encodeDirectly) {
+                        if (encodeEmptiesOnly) {
+                            for (int v : emptyActions) {
+                                addClause(-prevVar, -v, keptPlanLengthVar);
+                            }
+                        } else {
+                            appendClause(-prevVar, keptPlanLengthVar);
+                            for (int v : actualActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, -emptySpotVar, keptPlanLengthVar);
+                    }
+                    
+                    // IF previous plan length is X AND here is a non-empty spot 
+                    // THEN the plan length becomes X+1
+                    int incrPlanLengthVar = newPlanLengthVars[i+1];
+                    if (encodeDirectly) {
+                        if (encodeActualsOnly) {
+                            for (int v : actualActions) {
+                                addClause(-prevVar, -v, incrPlanLengthVar);
+                            }
+                        } else {
+                            appendClause(-prevVar, incrPlanLengthVar);
+                            for (int v : emptyActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, emptySpotVar, incrPlanLengthVar);
+                    }
+
+                } else {
+                    // Limit hit -- no more actions are admitted
+                    // IF previous plan length is X THEN this spot must be empty
+                    if (encodeDirectly) {
+                        if (encodeActualsOnly) {
+                            for (int v : actualActions) {
+                                addClause(-prevVar, -v);
+                            }
+                        } else {
+                            appendClause(-prevVar);
+                            for (int v : emptyActions) appendClause(v);
+                            endClause();
+                        }
+                    } else {
+                        addClause(-prevVar, emptySpotVar);
+                    }
+                    // IF previous plan length is X THEN the plan length stays X
+                    addClause(-prevVar, keptPlanLengthVar);
+                }
+            }
+            planLengthVars = newPlanLengthVars;
+        }
+
+        Log::v("Position %i: Plan length bounds [%i,%i]\n", pos, minPlanLength, maxPlanLength);
+    }
+
+    Log::i("Tightened initial plan length bounds at layer %i: [0,%i] => [%i,%i]\n",
+            layerIdx, l.size()-1, minPlanLength, maxPlanLength);
+    assert((int)planLengthVars.size() == maxPlanLength-minPlanLength+1 || Log::e("%i != %i-%i+1\n", planLengthVars.size(), maxPlanLength, minPlanLength));
+    
+    // Add primitiveness of all positions at the final layer
+    // as unit literals (instead of assumptions)
+    addAssumptions(layerIdx, /*permanent=*/mode == ConstraintAddition::PERMANENT);
+    end(STAGE_PLANLENGTHCOUNTING);
+
+    int curr = currentPlanLength;
+    currentPlanLength = findMinBySat(minPlanLength, std::min(maxPlanLength, currentPlanLength), 
+        // Variable mapping
+        [&](int currentMax) {
+            return planLengthVars[currentMax-minPlanLength];
+        }, 
+        // Bound update on SAT 
+        [&]() {
+            // SAT: Shorter plan found!
+            plan = extractPlan();
+            int newPlanLength = getPlanLength(std::get<0>(plan));
+            Log::i("Shorter plan (length %i) found\n", newPlanLength);
+            assert(newPlanLength < curr);
+            curr = newPlanLength;
+            return newPlanLength;
+        }, mode);
+
+    float factor = (float)currentPlanLength / minPlanLength;
+    if (factor <= 1) {
+        Log::v("Plan is globally optimal (static lower bound: %i)\n", minPlanLength);
+    } else if (minPlanLength == 0) {
+        Log::v("Plan may be arbitrarily suboptimal (static lower bound: 0)\n");
+    } else {
+        Log::v("Plan may be suboptimal by a maximum factor of %.2f (static lower bound: %i)\n", factor, minPlanLength);
+    }
+}
+
+int Encoding::findMinBySat(int lower, int upper, std::function<int(int)> varMap, 
+            std::function<int(void)> boundUpdateOnSat, ConstraintAddition mode) {
+
+    int originalUpper = upper;
+    int current = upper;
+
+    // Solving iterations
+    while (true) {
+        // Hit lower bound of possible plan lengths? 
+        if (current == lower) {
+            Log::v("PLO END %i\n", current);
+            Log::i("Length of current plan is at lower bound (%i): finished\n", lower);
+            break;
+        }
+
+        // Assume a shorter plan by one
+        begin(STAGE_PLANLENGTHCOUNTING);
+
+        // Permanently forbid any plan lengths greater than / equal to the last found plan
+        if (mode == TRANSIENT) {
+            upper = originalUpper;
+        }
+        while (upper > current) {
+            Log::d("GUARANTEE PL!=%i\n", upper);
+            int probedVar = varMap(upper);
+            if (mode == TRANSIENT) assume(-probedVar);
+            else addClause(-probedVar);
+            upper--;
+        }
+        assert(upper == current);
+        
+        // Assume a plan length shorter than the last found plan
+        Log::d("GUARANTEE PL!=%i\n", upper);
+        int probedVar = varMap(upper);
+        if (mode == TRANSIENT) assume(-probedVar);
+        else addClause(-probedVar);
+
+        end(STAGE_PLANLENGTHCOUNTING);
+
+        Log::i("Searching for a plan of length < %i\n", upper);
+        int result = solve();
+
+        // Check result
+        if (result == 10) {
+            // SAT: Shorter plan found!
+            current = boundUpdateOnSat();
+            Log::v("PLO UPDATE %i\n", current);
+        } else if (result == 20) {
+            // UNSAT
+            Log::v("PLO END %i\n", current);
+            break;
+        } else {
+            // UNKNOWN
+            Log::v("PLO END %i\n", current);
+            break;
+        }
+    }
+
+    return current;
+}
+
+bool Encoding::isEmptyAction(const USignature& aSig) {
+    if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig)
+        return true;
+    if (_htn.getActionNameOfVirtualizedChild(aSig._name_id) == _htn.getBlankActionSig()._name_id)
+        return true;
+    return false;
+}
+
+void Encoding::addAssumptions(int layerIdx, bool permanent) {
     Layer& l = *_layers.at(layerIdx);
     if (_implicit_primitiveness) {
-        begin(STAGE_ASSUMPTIONS);
+        begin(STAGE_ACTIONCONSTRAINTS);
         for (size_t pos = 0; pos < l.size(); pos++) {
             appendClause(-encodeVarPrimitive(layerIdx, pos));
             for (int var : _primitive_ops) appendClause(var);
             endClause();
         }
-        end(STAGE_ASSUMPTIONS);
+        end(STAGE_ACTIONCONSTRAINTS);
     }
     for (size_t pos = 0; pos < l.size(); pos++) {
+        begin(STAGE_ASSUMPTIONS);
         int v = getVarPrimitiveOrZero(layerIdx, pos);
-        if (v != 0) assume(v);
+        if (v != 0) {
+            if (permanent) addClause(v);
+            else assume(v);
+        }
+        end(STAGE_ASSUMPTIONS);
     }
 }
 
@@ -884,7 +1290,8 @@ int Encoding::solve() {
     Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _num_cls, _num_lits, _num_asmpts);
     
-    ipasir_set_learn(_solver, this, /*maxLength=*/1, onClauseLearnt);
+    if (_params.isNonzero("plc"))
+        ipasir_set_learn(_solver, this, /*maxLength=*/100, onClauseLearnt);
 
     //for (const int& v: _no_decision_variables) ipasir_set_decision_var(_solver, v, false);
     _no_decision_variables.clear();
@@ -895,11 +1302,16 @@ int Encoding::solve() {
 
     if (_num_asmpts == 0) _last_assumptions.clear();
     _num_asmpts = 0;
+
+    _termination_callback();
+
     return result;
 }
 
 void Encoding::addUnitConstraint(int lit) {
+    begin(STAGE_FORBIDDENOPERATIONS);
     addClause(lit);
+    end(STAGE_FORBIDDENOPERATIONS);
 }
 
 float Encoding::getTimeSinceSatCallStart() {
@@ -950,9 +1362,9 @@ int Encoding::varQConstEquality(int q1, int q2) {
                 addClause(-varEq, v1, -v2);
                 addClause(-varEq, -v1, v2);
             }
-            // Any of the GOOD ones
+            // If any of the GOOD ones, then equality
             for (int c : good) addClause(-varSubstitution(sigSubstitute(q1, c)), -varSubstitution(sigSubstitute(q2, c)), varEq);
-            // None of the BAD ones
+            // If any of the BAD ones, then inequality
             for (int c : bad1) addClause(-varSubstitution(sigSubstitute(q1, c)), -varEq);
             for (int c : bad2) addClause(-varSubstitution(sigSubstitute(q2, c)), -varEq);
         }
@@ -968,6 +1380,10 @@ const USignature& Encoding::sigSubstitute(int qConstId, int trueConstId) {
     auto& args = _sig_substitution._args;
     assert(_htn.isQConstant(qConstId));
     assert(!_htn.isQConstant(trueConstId));
+    /*
+    auto it = _coarsened_q_constants.find(qConstId);
+    args[0] = it == _coarsened_q_constants.end() ? qConstId : it->second;
+    */
     args[0] = qConstId;
     args[1] = trueConstId;
     return _sig_substitution;
@@ -998,45 +1414,46 @@ void Encoding::printFailedVars(Layer& layer) {
     Log::d("\n");
 }
 
-std::vector<PlanItem> Encoding::extractClassicalPlan() {
+std::vector<PlanItem> Encoding::extractClassicalPlan(PlanExtraction mode) {
 
     Layer& finalLayer = *_layers.back();
     int li = finalLayer.index();
-    VariableDomain::lock();
+    //VariableDomain::lock();
 
     std::vector<PlanItem> plan(finalLayer.size());
     //log("(actions at layer %i)\n", li);
     for (size_t pos = 0; pos < finalLayer.size(); pos++) {
         //log("%i\n", pos);
-        if (!_implicit_primitiveness) assert(
-            getVarPrimitiveOrZero(li, pos) == 0 || 
-            value(VarType::OP, li, pos, _sig_primitive) || 
-            Log::e("Plan error: Position %i is not primitive!\n", pos)
-        );
+
+        // Print out the state
+        Log::d("PLANDBG %i,%i S ", li, pos);
+        for (const auto& [sig, fVar] : finalLayer[pos].getVariableTable(VarType::FACT)) {
+            if (ipasir_val(_solver, fVar) > 0) Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(sig));
+        }
+        Log::log_notime(Log::V4_DEBUG, "\n");
 
         int chosenActions = 0;
         //State newState = state;
-        for (const auto& [aSig, aVar] : finalLayer[pos].getVariableTable(VarType::OP)) {
-            if (!_htn.isAction(aSig)) continue;
+        for (const auto& [sig, aVar] : finalLayer[pos].getVariableTable(VarType::OP)) {
+            if (ipasir_val(_solver, aVar) <= 0) continue;
+
+            USignature aSig = sig;
+            if (mode == PRIMITIVE_ONLY && !_htn.isAction(aSig)) continue;
+
+            if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+                aSig._name_id = _htn.getActionNameOfVirtualizedChild(sig._name_id);
+            }
+
             //log("  %s ?\n", TOSTR(aSig));
 
-            if (ipasir_val(_solver, aVar) > 0) {
-                chosenActions++;
+            chosenActions++;
+            
+            Log::d("PLANDBG %i,%i A %s\n", li, pos, TOSTR(aSig));
 
-                // Decode q constants
-                USignature aDec = getDecodedQOp(li, pos, aSig);
-                if (aDec == Position::NONE_SIG) continue;
-
-                if (aDec != aSig) {
-
-                    const Action& a = _htn.getAction(aSig);
-                    HtnOp opDecoded = a.substitute(Substitution(a.getArguments(), aDec._args));
-                    Action aDecoded = (Action) opDecoded;
-                }
-
-                //Log::d("* %s @ %i\n", TOSTR(aDec), pos);
-                plan[pos] = {aVar, aDec, aDec, std::vector<int>()};
-            }
+            // Decode q constants
+            USignature aDec = getDecodedQOp(li, pos, aSig);
+            if (aDec == Sig::NONE_SIG) continue;
+            plan[pos] = {aVar, aDec, aDec, std::vector<int>()};
         }
 
         assert(chosenActions <= 1 || Log::e("Plan error: Added %i actions at step %i!\n", chosenActions, pos));
@@ -1058,9 +1475,9 @@ bool holds(State& state, const Signature& fact) {
     return state[fact._usig._name_id].count(fact) || !state[fact._usig._name_id].count(fact.opposite());
 }
 
-std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() {
+Plan Encoding::extractPlan() {
 
-    auto result = std::pair<std::vector<PlanItem>, std::vector<PlanItem>>();
+    auto result = Plan();
     auto& [classicalPlan, plan] = result;
     classicalPlan = extractClassicalPlan();
     
@@ -1095,6 +1512,9 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                         const USignature& aSig = opSig;
 
                         if (aSig == _htn.getBlankActionSig()) continue;
+                        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+                            continue;
+                        }
                         
                         int v = getVariable(VarType::OP, layerIdx, pos, aSig);
                         Action a = _htn.getAction(aSig);
@@ -1113,10 +1533,14 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                             //log("(%i,%i)\n", l, aPos);
                         }
                         v = classicalPlan[aPos].id; // *_layers.at(l-1)[aPos].getVariable(aSig);
-                        assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
+                        //assert(v > 0 || Log::e("%s : v=%i\n", TOSTR(aSig), v));
+                        if (v > 0 && layerIdx > 0) {
+                            itemsOldLayer[predPos].subtaskIds.push_back(v);
+                        } else if (v <= 0) {
+                            Log::d(" -- invalid: not part of classical plan\n");
+                        }
 
                         //itemsNewLayer[pos] = PlanItem({v, aSig, aSig, std::vector<int>()});
-                        if (layerIdx > 0) itemsOldLayer[predPos].subtaskIds.push_back(v);
 
                     } else if (_htn.isReduction(opSig)) {
                         // Reduction
@@ -1125,7 +1549,7 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
 
                         //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                         USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);
-                        if (decRSig == Position::NONE_SIG) continue;
+                        if (decRSig == Sig::NONE_SIG) continue;
 
                         Reduction rDecoded = r.substituteRed(Substitution(r.getArguments(), decRSig._args));
                         Log::d("[%i] %s:%s @ (%i,%i)\n", v, TOSTR(rDecoded.getTaskSignature()), TOSTR(decRSig), layerIdx, pos);
@@ -1163,14 +1587,14 @@ std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Encoding::extractPlan() 
                             reductionsThisPos++;
                         } else {
                             Log::d(" -- invalid : %s != %s\n", TOSTR(parentRed.getSubtasks()[offset]), TOSTR(rDecoded.getTaskSignature()));
-                        } 
+                        }
                     }
                 }
             }
 
             // At least an item per position 
-            assert( (actionsThisPos+reductionsThisPos >= 1)
-            || Log::e("Plan error: %i ops at (%i,%i)!\n", actionsThisPos+reductionsThisPos, layerIdx, pos));
+            //assert( (actionsThisPos+reductionsThisPos >= 1)
+            //|| Log::e("Plan error: %i ops at (%i,%i)!\n", actionsThisPos+reductionsThisPos, layerIdx, pos));
             
             // At most one action per position
             assert(actionsThisPos <= 1 || Log::e("Plan error: %i actions at (%i,%i)!\n", actionsThisPos, layerIdx, pos));
@@ -1196,6 +1620,21 @@ bool Encoding::value(VarType type, int layer, int pos, const USignature& sig) {
     return (ipasir_val(_solver, v) > 0);
 }
 
+int Encoding::getPlanLength(const std::vector<PlanItem>& classicalPlan) {
+    int currentPlanLength = 0;
+    for (size_t pos = 0; pos+1 < classicalPlan.size(); pos++) {
+        const auto& aSig = classicalPlan[pos].abstractTask;
+        Log::d("%s\n", TOSTR(aSig));
+        // Reduction with an empty expansion?
+        if (aSig._name_id < 0) continue;
+        // No blank action, no second part of a split action?
+        else if (!isEmptyAction(aSig)) {
+            currentPlanLength++;
+        }
+    }
+    return currentPlanLength;
+}
+
 void Encoding::printSatisfyingAssignment() {
     Log::d("SOLUTION_VALS ");
     for (int v = 1; v <= VariableDomain::getMaxVar(); v++) {
@@ -1205,8 +1644,8 @@ void Encoding::printSatisfyingAssignment() {
 }
 
 USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig) {
-    assert(isEncoded(VarType::OP, layer, pos, origSig));
-    assert(value(VarType::OP, layer, pos, origSig));
+    //assert(isEncoded(VarType::OP, layer, pos, origSig));
+    //assert(value(VarType::OP, layer, pos, origSig));
 
     USignature sig = origSig;
     while (true) {
@@ -1219,23 +1658,22 @@ USignature Encoding::getDecodedQOp(int layer, int pos, const USignature& origSig
             for (int argSubst : _htn.getDomainOfQConstant(arg)) {
                 const USignature& sigSubst = sigSubstitute(arg, argSubst);
                 if (isEncodedSubstitution(sigSubst) && ipasir_val(_solver, varSubstitution(sigSubst)) > 0) {
-                    //Log::d("%s/%s => %s ~~> ", TOSTR(arg), TOSTR(argSubst), TOSTR(sig));
+                    Log::d("SUBSTVAR [%s/%s] TRUE => %s ~~> ", TOSTR(arg), TOSTR(argSubst), TOSTR(sig));
                     numSubstitutions++;
                     Substitution sub;
                     sub[arg] = argSubst;
                     sig.apply(sub);
-                    //Log::d("%s\n", TOSTR(sig));
+                    Log::d("%s\n", TOSTR(sig));
                 } else {
                     //Log::d("%i FALSE\n", varSubstitution(sigSubst));
                 }
             }
 
-            int opVar = getVariable(VarType::OP, layer, pos, origSig);
             if (numSubstitutions == 0) {
-                Log::v("No substitutions for arg %s of %s (op=%i)\n", TOSTR(arg), TOSTR(origSig), opVar);
-                return Position::NONE_SIG;
+                Log::v("(%i,%i) No substitutions for arg %s of %s\n", layer, pos, TOSTR(arg), TOSTR(origSig));
+                return Sig::NONE_SIG;
             }
-            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s (op=%i)\n", numSubstitutions, TOSTR(arg), TOSTR(origSig), opVar));
+            assert(numSubstitutions == 1 || Log::e("%i substitutions for arg %s of %s\n", numSubstitutions, TOSTR(arg), TOSTR(origSig)));
         }
 
         if (!containsQConstants) break; // done
@@ -1278,7 +1716,7 @@ Encoding::~Encoding() {
 
     if (!_num_cls_per_stage.empty()) printStages();
 
-    if (_params.isNonzero("of")) {
+    if (_params.isNonzero("wf")) {
 
         // Append assumptions to written formula, close stream
         if (!_params.isNonzero("cs") && _last_assumptions.empty()) {

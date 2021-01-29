@@ -10,18 +10,20 @@
 #include "util/names.h"
 #include "sat/variable_domain.h"
 #include "util/log.h"
+#include "sat/literal_tree.h"
 
-typedef std::pair<int, int> IntPair;
+typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
+typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
+typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
+typedef NodeHashMap<USignature, Substitution, USignatureHasher> USigSubstitutionMap;
 
 enum VarType { FACT, OP };
 
 struct Position {
 
 public:
-    const static USignature NONE_SIG;
-    const static SigSet EMPTY_SIG_SET;
-    const static USigSet EMPTY_USIG_SET;
-    const static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
+    static NodeHashMap<USignature, USigSet, USignatureHasher> EMPTY_USIG_TO_USIG_SET_MAP;
+    static IndirectFactSupportMap EMPTY_INDIRECT_FACT_SUPPORT_MAP;
 
 private:
     size_t _layer_idx;
@@ -32,12 +34,15 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher> _expansions;
     NodeHashMap<USignature, USigSet, USignatureHasher> _predecessors;
-    NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes;
+    NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher> _expansion_substitutions;
 
     USigSet _axiomatic_ops;
 
     // All VIRTUAL facts potentially occurring at this position.
     USigSet _qfacts;
+    // Maps a q-fact to the set of possibly valid decoded facts.
+    NodeHashMap<USignature, USigSet, USignatureHasher> _pos_qfact_decodings;
+    NodeHashMap<USignature, USigSet, USignatureHasher> _neg_qfact_decodings;
 
     // All facts that are definitely true at this position.
     USigSet _true_facts;
@@ -46,17 +51,22 @@ private:
 
     NodeHashMap<USignature, USigSet, USignatureHasher>* _pos_fact_supports = nullptr;
     NodeHashMap<USignature, USigSet, USignatureHasher>* _neg_fact_supports = nullptr;
+    IndirectFactSupportMap* _pos_indir_fact_supports = nullptr;
+    IndirectFactSupportMap* _neg_indir_fact_supports = nullptr;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
 
-    NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher> _forbidden_substitutions_per_op;
-    NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher> _valid_substitutions_per_op;
+    NodeHashMap<USignature, IntPairTree, USignatureHasher> _forbidden_substitutions_per_op;
+    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher> _valid_substitutions_per_op;
 
     size_t _max_expansion_size = 1;
 
     // Prop. variable for each occurring signature.
     NodeHashMap<USignature, int, USignatureHasher> _op_variables;
     NodeHashMap<USignature, int, USignatureHasher> _fact_variables;
+
+    bool _has_primitive_ops = false;
+    bool _has_nonprimitive_ops = false;
 
 public:
 
@@ -71,29 +81,38 @@ public:
     void addFactSupport(const Signature& fact, const USignature& operation);
     void touchFactSupport(const Signature& fact);
     void touchFactSupport(const USignature& fact, bool negated);
-    void addIndirectFactSupport(const Signature& fact, const USignature& op, const Substitution& s);
+    void addIndirectFactSupport(const Signature& fact, const USignature& op, std::vector<IntPair>&& sub);
+    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, std::vector<IntPair>&& sub);
+    void setHasPrimitiveOps(bool has);
+    void setHasNonprimitiveOps(bool has);
+    bool hasPrimitiveOps();
+    bool hasNonprimitiveOps();
+
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
 
-    void addForbiddenSubstitution(const USignature& op, Substitution& s);
-    void addValidSubstitutions(const USignature& op, NodeHashSet<Substitution, Substitution::Hasher>& subs);
-    void clearForbiddenSubstitutions(const USignature& op);
-    void clearValidSubstitutions(const USignature& op);
+    void setForbiddenSubstitutions(const USignature &op, IntPairTree&& subs);
+    void setValidSubstitutions(const USignature &op, std::vector<IntPairTree>&& subs);
+
+    bool hasQFactDecodings(const USignature& qFact, bool negated);
+    void addQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated);
+    void removeQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated);
+    const USigSet& getQFactDecodings(const USignature& qfact, bool negated);
 
     void addAction(const USignature& action);
     void addAction(USignature&& action);
     void addReduction(const USignature& reduction);
     void addExpansion(const USignature& parent, const USignature& child);
+    void addExpansionSubstitution(const USignature& parent, const USignature& child, const Substitution& s);
+    void addExpansionSubstitution(const USignature& parent, const USignature& child, Substitution&& s);
     void addAxiomaticOp(const USignature& op);
     void addExpansionSize(size_t size);
-    void setFactChanges(const USignature& op, const SigSet& factChanges);
-    const SigSet& getFactChanges(const USignature& op) const;
-    bool hasFactChanges(const USignature& op) const;
-    void moveFactChanges(Position& dest, const USignature& op);
-
+    
     void removeActionOccurrence(const USignature& action);
     void removeReductionOccurrence(const USignature& reduction);
+    void replaceOperation(const USignature& from, const USignature& to, Substitution&& s);
 
     const NodeHashMap<USignature, int, USignatureHasher>& getVariableTable(VarType type) const;
+    void setVariableTable(VarType type, const NodeHashMap<USignature, int, USignatureHasher>& table);
     void moveVariableTable(VarType type, Position& destination);
 
     bool hasQFact(const USignature& fact) const;
@@ -104,26 +123,34 @@ public:
     int getNumQFacts() const;
     const USigSet& getTrueFacts() const;
     const USigSet& getFalseFacts() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports() const;
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getPosFactSupports();
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getNegFactSupports();
+    IndirectFactSupportMap& getPosIndirectFactSupports();
+    IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    const NodeHashMap<USignature, NodeHashSet<Substitution, Substitution::Hasher>, USignatureHasher>& 
-    getForbiddenSubstitutions() const;
-    const NodeHashMap<USignature, std::vector<NodeHashSet<Substitution, Substitution::Hasher>>, USignatureHasher>& 
-    getValidSubstitutions() const;
+    NodeHashMap<USignature, IntPairTree, USignatureHasher>& getForbiddenSubstitutions();
+    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& getValidSubstitutions();
 
     USigSet& getActions();
     const USigSet& getReductions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions() const;
-    const NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors() const;
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getExpansions();
+    NodeHashMap<USignature, USigSet, USignatureHasher>& getPredecessors();
+    const NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>& getExpansionSubstitutions() const;
     const USigSet& getAxiomaticOps() const;
     size_t getMaxExpansionSize() const;
 
     size_t getLayerIndex() const;
     size_t getPositionIndex() const;
     
+    void clearAfterInstantiation();
     void clearAtPastPosition();
     void clearAtPastLayer();
+    void clearSubstitutions() {
+        _forbidden_substitutions_per_op.clear();
+        _forbidden_substitutions_per_op.reserve(0);
+        _valid_substitutions_per_op.clear();
+        _valid_substitutions_per_op.reserve(0);
+    }
 
     inline int encode(VarType type, const USignature& sig) {
         auto& vars = type == OP ? _op_variables : _fact_variables;
@@ -160,6 +187,11 @@ public:
         const auto& it = vars.find(sig);
         if (it == vars.end()) return 0;
         return it->second;
+    }
+
+    inline void removeVariable(VarType type, const USignature& sig) {
+        auto& vars = type == OP ? _op_variables : _fact_variables;
+        vars.erase(sig);
     }
 };
 

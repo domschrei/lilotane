@@ -161,24 +161,6 @@ bool operator()(const QConstantCondition* left, const QConstantCondition* right)
 }
 };
 
-struct PositionedUSig {
-    size_t layer; size_t pos; USignature usig;
-    PositionedUSig() : layer(-1), pos(-1) {}
-    PositionedUSig(size_t layer, size_t pos, const USignature& usig) : layer(layer), pos(pos), usig(usig) {}
-    bool operator==(const PositionedUSig& other) const {
-        return layer == other.layer && pos == other.pos && usig == other.usig;
-    }
-};
-struct PositionedUSigHasher {
-    USignatureHasher usigHasher;
-    std::size_t operator()(const PositionedUSig& x) const {
-        size_t hash = x.layer;
-        hash_combine(hash, x.pos);
-        hash_combine(hash, usigHasher(x.usig));
-        return hash;
-    }
-};
-
 class QConstantDatabase {
 
 private:

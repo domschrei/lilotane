@@ -25,6 +25,12 @@ void USignature::apply(const Substitution& s) {
     }
 }
 
+USignature USignature::renamed(int nameId) const {
+    USignature sig(*this);
+    sig._name_id = nameId;
+    return sig;
+}
+
 USignature& USignature::operator=(const USignature& sig) {
     _name_id = sig._name_id;
     _args = sig._args;

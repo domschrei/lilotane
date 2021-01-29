@@ -4,18 +4,33 @@
 HtnOp::HtnOp() {}
 HtnOp::HtnOp(int id, const std::vector<int>& args) : _id(id), _args(args) {}
 HtnOp::HtnOp(int id, std::vector<int>&& args) : _id(id), _args(std::move(args)) {}
-HtnOp::HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions), _effects(op._effects) {}
+HtnOp::HtnOp(const HtnOp& op) : _id(op._id), _args(op._args), _preconditions(op._preconditions),
+        _extra_preconditions(op._extra_preconditions), _effects(op._effects) {}
 HtnOp::HtnOp(HtnOp&& op) : _id(op._id), _args(std::move(op._args)), 
-        _preconditions(std::move(op._preconditions)), _effects(std::move(op._effects)) {}
+        _preconditions(std::move(op._preconditions)), 
+        _extra_preconditions(std::move(op._extra_preconditions)), 
+        _effects(std::move(op._effects)) {}
 
 void HtnOp::setPreconditions(const SigSet& set) {
     _preconditions = set;
+}
+void HtnOp::setExtraPreconditions(const SigSet& set) {
+    _extra_preconditions = set;
+}
+void HtnOp::setEffects(const SigSet& set) {
+    _effects = set;
 }
 void HtnOp::addPrecondition(const Signature& sig) {
     _preconditions.insert(sig);
 }
 void HtnOp::addPrecondition(Signature&& sig) {
     _preconditions.insert(std::move(sig));
+}
+void HtnOp::addExtraPrecondition(const Signature& sig) {
+    _extra_preconditions.insert(sig);
+}
+void HtnOp::addExtraPrecondition(Signature&& sig) {
+    _extra_preconditions.insert(std::move(sig));
 }
 void HtnOp::addEffect(const Signature& sig) {
     _effects.insert(sig);
@@ -52,6 +67,9 @@ HtnOp HtnOp::substitute(const Substitution& s) const {
     for (const Signature& sig : _preconditions) {
         op.addPrecondition(sig.substitute(s));
     }
+    for (const Signature& sig : _extra_preconditions) {
+        op.addExtraPrecondition(sig.substitute(s));
+    }
     for (const Signature& sig : _effects) {
         op.addEffect(sig.substitute(s));
     }
@@ -60,6 +78,9 @@ HtnOp HtnOp::substitute(const Substitution& s) const {
 
 const SigSet& HtnOp::getPreconditions() const {
     return _preconditions;
+}
+const SigSet& HtnOp::getExtraPreconditions() const {
+    return _extra_preconditions;
 }
 const SigSet& HtnOp::getEffects() const {
     return _effects;
@@ -78,6 +99,7 @@ HtnOp& HtnOp::operator=(const HtnOp& op) {
     _id = op._id;
     _args = op._args;
     _preconditions = op._preconditions;
+    _extra_preconditions = op._extra_preconditions;
     _effects = op._effects;
     return *this;
 }

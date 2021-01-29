@@ -15,7 +15,7 @@ void Parameters::init(int argc, char** argv) {
             if (_domain_filename == "") _domain_filename = std::string(arg);
             else if (_problem_filename == "") _problem_filename = std::string(arg);
             else {
-                Log::e("Unrecognized parameter %s.", arg);
+                Log::w("Unrecognized parameter %s.", arg);
                 printUsage();
                 exit(1);
             }
@@ -34,74 +34,93 @@ void Parameters::init(int argc, char** argv) {
             _params[left] = right;
         }
     }
-    if (_problem_filename == "") {
-        Log::e("Please specify both a domain file and a problem file.\n");
-        printUsage();
-        exit(1);
-    }
 }
 
 void Parameters::setDefaults() {
-    setParam("amor", "100"); // Max. num reductions such that At-most-one constraints are added for reductions
+    setParam("alo", "0"); // explicitly encode "at-least-one" over elements at each position
+    setParam("bamot", "50"); // Binary at-most-one threshold
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
     setParam("d", "0"); // min depth to start SAT solving at
     setParam("D", "0"); // max depth (= num iterations)
+    setParam("edo", "1"); // eliminate dominated operations
+    setParam("el", "0"); // extra layers after initial solution (-1: expand indefinitely)
     setParam("ip", "0"); // implicit primitiveness
-    setParam("mp", "1"); // mine preconditions
+    setParam("mp", "2"); // mine preconditions
     setParam("nps", "0"); // non-primitive fact supports
-    setParam("of", "0"); // output formula to f.cnf
+    setParam("of", "0"); // optimization factor
     setParam("p", "1"); // encode predecessor operations
     setParam("pvn", "0"); // print variable names
     setParam("qcm", "0"); // q-constant mutexes: size threshold
+    setParam("plc", "0"); // print learnt clauses
     setParam("qit", "0"); // q-constant instantiation threshold
     setParam("qrf", "0"); // q-constant rating factor
     setParam("q", "0"); // q-constants while always instantiating all preconditions
     setParam("qq", "1"); // q-constants without instantiation of preconditions
     setParam("s", "0"); // random seed
     setParam("sace", "0"); // split actions with (potentially) conflicting effects
+    setParam("sqq", "1"); // share q-constants
+    setParam("srfa", "1"); // skip redundant frame axioms
+    setParam("stats", "0"); // output domain statistics and exit
     setParam("stl", "0"); // SAT time limit
     setParam("surr", "1"); // replace surrogate methods
     setParam("svp", "0"); // set variable phases
+    setParam("T", "0"); // max. time (secs) for finding an initial plan
     setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
+    setParam("vca", "1"); // virtualize children of actions
     setParam("vp", "0"); // verify plan before printing it
+    setParam("wf", "0"); // output formula to f.cnf
 }
 
 void Parameters::printUsage() {
 
-    Log::e("Usage: lilotane <domainfile> <problemfile> [options]\n");
-    Log::e("  <domainfile>  Path to domain file in HDDL format.\n");
-    Log::e("  <problemfile> Path to problem file in HDDL format.\n");
-    Log::e("\n");
-    Log::e("Option syntax: -OPTION or -OPTION=VALUE .\n");
-    Log::e(" -amor=<threshold>   Add At-most-one constraints for reductions if there are at most <threshold> reductions\n");
-    Log::e("                     at the current position (0 : no AMO constraints for reductions)\n");
-    Log::e(" -co=<0|1>           Colored terminal output\n");
-    Log::e(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
-    Log::e("                     to see whether the formula has become generally unsatisfiable\n");
-    Log::e(" -d=<depth>          Minimum depth to begin SAT solving at\n");
-    Log::e(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
-    Log::e(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
-    Log::e(" -mp=<0|1>           Mine preconditions for reductions from their (recursive) subtasks\n");
-    Log::e(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
-    Log::e(" -of=<0|1>           Output generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
-    Log::e(" -p=<0|1>            Encode predecessor operations\n");
-    Log::e(" -pvn=<0|1>          Print variable names\n");
-    Log::e(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
-    Log::e(" -qit=<threshold>    Q-constant instantiation threshold: fully instantiate up to <threshold> operations\n");
-    Log::e(" -qrf=<factor>       If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
-    Log::e(" -q=<0|1>            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
-    Log::e("                     after fully instantiating all preconditions\n");
-    Log::e(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
-    Log::e(" -s=<int>            Random seed\n");
-    Log::e(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
-    Log::e(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");
-    Log::e(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
-    Log::e(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
-    Log::e(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
-    Log::e(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
-    printParams(/*forcePrint=*/true);
+    Log::setForcePrint(true);
+
+    Log::i("Usage: lilotane <domainfile> <problemfile> [options]\n");
+    Log::i("  <domainfile>  Path to domain file in HDDL format.\n");
+    Log::i("  <problemfile> Path to problem file in HDDL format.\n");
+    Log::i("\n");
+    Log::i("Option syntax: -OPTION or -OPTION=VALUE .\n");
+    Log::i("\n");
+    Log::i(" -alo=<0|1>          Explicitly encode at-least-one constraints over operations at each position\n");
+    Log::i(" -bamot=<int>        Binary at-most-one threshold\n");
+    Log::i(" -co=<0|1>           Colored terminal output\n");
+    Log::i(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
+    Log::i("                     to see whether the formula has become generally unsatisfiable\n");
+    Log::i(" -d=<depth>          Minimum depth to begin SAT solving at\n");
+    Log::i(" -D=<depth>          Maximum depth to explore (0 : no limit)\n");
+    Log::i(" -el=<int>           Number of extra layers to encode after an initial solution was found (use with -of=...)\n");
+    Log::i(" -ip=<0|1>           Implicit primitiveness instead of defining each op as primitive XOR nonprimitive\n");
+    Log::i(" -mp=<0|1|2>         Mine preconditions for reductions from their (recursive) subtasks:\n");
+    Log::i("                     0=none, 1=use mined prec. for instantiation only, 2=use mined prec. everywhere\n");
+    Log::i(" -nps=<0|1>          Nonprimitive support: Enable encoding explicit fact supports for reductions\n");
+    Log::i(" -of=<factor>        Plan length optimization factor: spend up to <factor> * <original solving time> for optimization\n");
+    Log::i("                     (-1 for exhaustive optimization)\n");
+    Log::i(" -p=<0|1>            Encode predecessor operations\n");
+    Log::i(" -pvn=<0|1>          Print variable names\n");
+    Log::i(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
+    Log::i(" -qit=<threshold>    Q-constant instantiation threshold: fully instantiate up to <threshold> operations\n");
+    Log::i(" -qrf=<factor>       If -q or -qq, multiply precondition rating used for q-constant identification with <factor>\n");
+    Log::i(" -q=<0|1>            For each action and reduction, introduces q-constants for any ambiguous free parameters\n");
+    Log::i("                     after fully instantiating all preconditions\n");
+    Log::i(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
+    Log::i(" -s=<int>            Random seed\n");
+    Log::i(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
+    Log::i(" -sqq=<0|1>          Share q-constants among operations of a position if they have the same effective domain\n");
+    Log::i(" -srfa=<0|1>         Skip redundant frame axioms\n");
+    Log::i(" -stats=<0|1>        Output domain statistics and exit\n");
+    Log::i(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");
+    Log::i(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
+    Log::i(" -T=<0|secs>         Try finding an initial plan for up to #secs (without optimization: total allowed runtime; 0: no limit)\n");
+    Log::i(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
+    Log::i(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
+    Log::i(" -vca=<0|1>          Virtualize children of actions\n");
+    Log::i(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
+    Log::i(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
+    Log::i("\n");
+    printParams();
+    Log::setForcePrint(false);
 }
 
 std::string Parameters::getDomainFilename() {
@@ -111,17 +130,16 @@ std::string Parameters::getProblemFilename() {
   return _problem_filename;
 }
 
-void Parameters::printParams(bool forcePrint) {
+void Parameters::printParams() {
     std::string out = "";
-    for (std::map<std::string,std::string>::iterator it = _params.begin(); it != _params.end(); ++it) {
+    for (auto it = _params.begin(); it != _params.end(); ++it) {
         if (it->second.empty()) {
-            out += it->first + ", ";
+            out += "-" + it->first + " ";
         } else {
-            out += it->first + "=" + it->second + ", ";
+            out += "-" + it->first + "=" + it->second + " ";
         }
     }
-    out = out.substr(0, out.size()-2);
-    (forcePrint ? Log::e : Log::i)("Called with parameters: %s\n", out.c_str());
+    Log::i("Called with parameters: %s\n", out.c_str());
 }
 
 void Parameters::setParam(const char* name) {

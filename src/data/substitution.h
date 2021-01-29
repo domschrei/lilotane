@@ -36,6 +36,8 @@ public:
     size_t size() const;
     bool empty() const;
 
+    Substitution concatenate(const Substitution& second) const;
+
     std::forward_list<Entry>::const_iterator begin() const;
     std::forward_list<Entry>::const_iterator end() const;
 
@@ -123,6 +125,10 @@ public:
 
     inline bool operator!=(const Substitution& other) const {
         return !(*this == other);
+    }
+
+    inline void operator=(const Substitution& other) {
+        _entries = other._entries;
     }
 
 private:

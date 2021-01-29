@@ -50,6 +50,11 @@ namespace Names {
         return out;
     }
 
+    std::string to_string(const PositionedUSig& sig) {
+        std::string out = to_string(sig.usig) + "@(" + std::to_string(sig.layer) + "," + std::to_string(sig.pos) + ")";
+        return out;
+    }
+
     std::string to_string_nobrackets(const USignature& sig) {
         std::string out = "";
         out += to_string(sig._name_id);
@@ -115,5 +120,13 @@ namespace Names {
             }
         }
         return out + "}";
+    }
+
+    std::string to_string(const Substitution& s) {
+        std::string out = "";
+        for (const auto& [src, dest] : s) {
+            out += "[" + to_string(src) + "/" + to_string(dest) + "]";
+        }
+        return out;
     }
 }

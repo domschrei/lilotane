@@ -1,0 +1,127 @@
+(define (domain zeno-travel)
+
+(:requirements
+  :typing
+  :hierachie)
+
+(:types locatable city flevel - object person aircraft - locatable)
+
+(:predicates (at ?x - locatable ?c - city) (in ?p - person ?a - aircraft) (fuel-level ?a - aircraft ?l - flevel) (next ?l1 - flevel ?l2 - flevel))
+
+(:task do_carry_person
+  :parameters (?p - person ?to - city) )
+
+(:task do_fly
+  :parameters (?a - aircraft ?to - city) )
+
+(:task do_board
+  :parameters (?a - aircraft ?p - person ?c - city) )
+
+(:task do_debark
+  :parameters (?a - aircraft ?p - person ?c - city) )
+
+(:task do_check_city
+  :parameters (?a - aircraft ?c - city) )
+
+(:method m0_do_carry_person
+  :parameters ( ?p - person  ?to - city )
+  :task (do_carry_person ?p ?to)
+  :precondition(and (at ?p ?to))
+  :ordered-subtasks(and (t1 (nop))) ) 
+
+(:method m1_do_carry_person
+  :parameters ( ?p - person  ?to - city ?a - aircraft )
+  :task (do_carry_person ?p ?to)
+  :precondition(and (in ?p ?a))
+  :ordered-subtasks(and (t1 (do_fly ?a ?to)) (t2 (do_debark ?a ?p ?to))) ) 
+
+(:method m2_do_carry_person
+  :parameters ( ?p - person  ?to - city ?a - aircraft ?from - city )
+  :task (do_carry_person ?p ?to)
+  :precondition(and (not (at ?p ?to)) (at ?p ?from) (not (in ?p ?a)))
+  :ordered-subtasks(and (t1 (do_fly ?a ?from)) (t2 (do_board ?a ?p ?from)) (t3 (do_fly ?a ?to)) (t4 (do_debark ?a ?p ?to))) ) 
+
+(:method m3_do_carry_person
+  :parameters ( ?p - person  ?to - city ?a - aircraft ?from - city )
+  :task (do_carry_person ?p ?to)
+  :precondition(and (not (at ?p ?to)) (at ?p ?from) (at ?a ?from) (not (in ?p ?a)))
+  :ordered-subtasks(and (t1 (do_board ?a ?p ?from)) (t2 (do_fly ?a ?to)) (t3 (do_debark ?a ?p ?to))) ) 
+
+(:method m4_do_fly
+  :parameters ( ?a - aircraft  ?to - city )
+  :task (do_fly ?a ?to)
+  :precondition(and (at ?a ?to))
+  :ordered-subtasks(and (t1 (do_check_city ?a ?to))) ) 
+
+(:method m5_do_fly
+  :parameters ( ?a - aircraft  ?to - city ?from - city ?l2 - flevel ?l1 - flevel ?l3 - flevel )
+  :task (do_fly ?a ?to)
+  :precondition(and (not (at ?a ?to)) (at ?a ?from) (fuel-level ?a ?l1) (next ?l1 ?l2) (not (next ?l3 ?l1)))
+  :ordered-subtasks(and (t1 (do_check_city ?a ?from)) (t2 (refuel ?a ?from ?l1 ?l2)) (t3 (fly ?a ?from ?to ?l2 ?l1))) ) 
+
+(:method m6_do_fly
+  :parameters ( ?a - aircraft  ?to - city ?from - city ?l1 - flevel ?l2 - flevel )
+  :task (do_fly ?a ?to)
+  :precondition(and (not (at ?a ?to)) (at ?a ?from) (fuel-level ?a ?l1) (next ?l2 ?l1))
+  :ordered-subtasks(and (t1 (do_check_city ?a ?from)) (t2 (fly ?a ?from ?to ?l1 ?l2))) ) 
+
+(:method m7_do_board
+  :parameters ( ?a - aircraft  ?p - person  ?c - city )
+  :task (do_board ?a ?p ?c)
+  :precondition(and (at ?p ?c) (at ?a ?c) (not (in ?p ?a)))
+  :ordered-subtasks(and (t1 (board ?p ?a ?c)) (t2 (do_check_city ?a ?c))) ) 
+
+(:method m8_do_debark
+  :parameters ( ?a - aircraft  ?p - person  ?c - city )
+  :task (do_debark ?a ?p ?c)
+  :precondition(and (at ?a ?c) (in ?p ?a))
+  :ordered-subtasks(and (t1 (debark ?p ?a ?c)) (t2 (do_check_city ?a ?c))) ) 
+
+(:method m9_do_check_city
+  :parameters ( ?a - aircraft  ?c - city ?p - person )
+  :task (do_check_city ?a ?c)
+  :precondition(and (at ?a ?c) (in ?p ?a))
+  :ordered-subtasks(and (t1 (debark ?p ?a ?c))) ) 
+
+(:method m10_do_check_city
+  :parameters ( ?a - aircraft  ?c - city ?p - person )
+  :task (do_check_city ?a ?c)
+  :precondition(and (at ?a ?c) (not (in ?p ?a)))
+  :ordered-subtasks(and (t1 (board ?p ?a ?c)) (t2 (do_check_city ?a ?c))) ) 
+
+(:method m11_do_check_city
+  :parameters ( ?a - aircraft  ?c - city ?p - locatable )
+  :task (do_check_city ?a ?c)
+  :precondition(and (at ?a ?c) (not (at ?p ?c)))
+  :ordered-subtasks(and (t1 (nop))) ) 
+
+(:action board
+  :parameters (?p - person ?a - aircraft ?c - city)
+  :precondition (and (at ?p ?c) (at ?a ?c))
+  :effect (and (not (at ?p ?c)) (in ?p ?a)))
+
+(:action debark
+  :parameters (?p - person ?a - aircraft ?c - city)
+  :precondition (and (in ?p ?a) (at ?a ?c))
+  :effect (and (not (in ?p ?a)) (at ?p ?c)))
+
+(:action fly
+  :parameters (?a - aircraft ?c1 - city ?c2 - city ?l1 - flevel ?l2 - flevel)
+  :precondition (and (at ?a ?c1) (fuel-level ?a ?l1) (next ?l2 ?l1))
+  :effect (and (not (at ?a ?c1)) (at ?a ?c2) (not (fuel-level ?a ?l1)) (fuel-level ?a ?l2)))
+
+(:action zoom
+  :parameters (?a - aircraft ?c1 - city ?c2 - city ?l1 - flevel ?l2 - flevel ?l3 - flevel)
+  :precondition (and (at ?a ?c1) (fuel-level ?a ?l1) (next ?l2 ?l1) (next ?l3 ?l2))
+  :effect (and (not (at ?a ?c1)) (at ?a ?c2) (not (fuel-level ?a ?l1)) (fuel-level ?a ?l3)))
+
+(:action refuel
+  :parameters (?a - aircraft ?c - city ?l - flevel ?l1 - flevel)
+  :precondition (and (fuel-level ?a ?l) (next ?l ?l1) (at ?a ?c))
+  :effect (and (fuel-level ?a ?l1) (not (fuel-level ?a ?l))))
+
+(:action nop
+  :parameters ()
+  :precondition ()
+  :effect ())
+)
