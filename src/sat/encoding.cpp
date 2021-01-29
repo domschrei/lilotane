@@ -100,8 +100,9 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     _primitive_ops.clear();
     _nonprimitive_ops.clear();
 
+    // TODO Coarsening of q-constants; test and enable or remove 
+    /*
     NodeHashMap<USignature, FlatHashSet<int>> _forbidden_constants_per_op;
-
     auto getCoarsenedSignature = [&](const USignature& op) {
         USignature result(op);
         for (size_t i = 0; i < op._args.size(); i++) {
@@ -122,10 +123,14 @@ void Encoding::encodeOperationVariables(Position& newPos) {
         }
         return result;
     };
+    */
 
     begin(STAGE_ACTIONCONSTRAINTS);
     for (const auto& aSig : newPos.getActions()) {
         if (aSig == Sig::NONE_SIG) continue;
+        int aVar = encodeVariable(VarType::OP, newPos, aSig, true);
+        // TODO see above
+        /*
         auto cSig = getCoarsenedSignature(aSig);
         auto it = _coarsened_ops.find(cSig);
         int var;
@@ -135,6 +140,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
             var = it->second;
         }
         encodeVariable(VarType::OP, newPos, aSig, true);
+        */
 
         // If the action occurs, the position is primitive
         _primitive_ops.push_back(aVar);
@@ -1374,8 +1380,11 @@ const USignature& Encoding::sigSubstitute(int qConstId, int trueConstId) {
     auto& args = _sig_substitution._args;
     assert(_htn.isQConstant(qConstId));
     assert(!_htn.isQConstant(trueConstId));
+    /*
     auto it = _coarsened_q_constants.find(qConstId);
     args[0] = it == _coarsened_q_constants.end() ? qConstId : it->second;
+    */
+    args[0] = qConstId;
     args[1] = trueConstId;
     return _sig_substitution;
 }

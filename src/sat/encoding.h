@@ -66,7 +66,7 @@ private:
     FlatHashSet<int> _q_constants;
     FlatHashSet<int> _new_q_constants;
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
-    FlatHashMap<int, int> _coarsened_q_constants;
+    //FlatHashMap<int, int> _coarsened_q_constants;
 
     std::vector<int> _primitive_ops;
     std::vector<int> _nonprimitive_ops;
