@@ -84,7 +84,7 @@ mempeak: int (0 by default, if never measured)
 def report_and_exit(status, retcode, time, mempeak=0):
     if not status: status = "EXIT"
     if retcode == 33280: retcode = 130
-    print("\nRUNWATCH_RESULT",status,"RETVAL",retcode,"TIME_SECS","%.3f" % (time,),"MEMPEAK_KBS",mempeak)
+    print("\nRUNWATCH_RESULT",status,"RETVAL",retcode,"TIME_SECS","%.3f" % (max(0,time),),"MEMPEAK_KBS",mempeak)
     exit(retcode)
 
 
@@ -260,7 +260,6 @@ def main():
         old_cpuset = os.sched_getaffinity(0)
         os.sched_setaffinity(0, cpuset)
 
-    starttime = time.time()
     childpid = os.fork()
     if childpid == 0:
         # Child: Execute the provided command
@@ -279,6 +278,7 @@ def main():
     else:
         # Parent: Watch the child process
         signal.signal(signal.SIGINT, handle_signal_parent)
+        starttime = time.time()
         watch_child(childpid)
 
 if __name__ == "__main__":

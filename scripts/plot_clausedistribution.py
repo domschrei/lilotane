@@ -41,7 +41,26 @@ O   - large circle
 *   - stars
 """
 
-max_duration = 300
+nice_names = dict()
+nice_names["actionconstraints"] = "Action constraints"
+nice_names["actioneffects"] = "Action effects"
+nice_names["assumptions"] = "Assumptions"
+nice_names["atmostoneelement"] = "At most one op."
+nice_names["axiomaticops"] = "Axiomatic op."
+nice_names["directframeaxioms"] = "Dir. frame axioms"
+nice_names["expansions"] = "Expansions"
+nice_names["forbiddenoperations"] = "Pruned operations"
+nice_names["frameaxioms"] = "Frame axioms"
+nice_names["indirectframeaxioms"] = "Indir. frame axioms"
+nice_names["planlengthcounting"] = "Plan length counting"
+nice_names["predecessors"] = "Predecessors"
+nice_names["qconstequality"] = "Pseudo-const. equality"
+nice_names["qfactsemantics"] = "Pseudo-fact semantics"
+nice_names["qtypeconstraints"] = "Argument type constr."
+nice_names["reductionconstraints"] = "Reduction constr."
+nice_names["substitutionconstraints"] = "Substitution constr."
+nice_names["truefacts"] = "Axiomatic facts"
+
 
 basedir = sys.argv[1]
 files = [f for f in listdir(basedir) if isfile(join(basedir, f)) and (str(f).endswith("_cls") or str(f).startswith("cls_"))]
@@ -68,7 +87,7 @@ for file in files:
             print("[WARN] unparsed file %s" % file)
             continue
     index = int(match.group(1))
-    domain = match.group(2).lower().replace("_", "-")
+    domain = match.group(2) #.lower().replace("_", "-")
 
     print("%i (%s) : %s" % (index, domain, file))
     
@@ -117,7 +136,7 @@ for domain in clauses_by_domain:
 
 # Do plotting
 
-plt.figure(figsize=(4,3))
+plt.figure(figsize=(8,4.5))
 
 bars = []
 labels = []
@@ -145,7 +164,7 @@ for key in sorted(clauses, key=lambda x: -clauses[x]):
     print(bottom)
     (c, h) = style_by_key[key]
     bars += [plt.bar(Xs, Ys, width=0.65, bottom=bottom, color=c, hatch=h, alpha=.99)] # alpha trick as workaround that hatching is drawn in PDF
-    labels += [key]
+    labels += [nice_names[key]]
     for i in range(len(bottom)):
         bottom[i] += Ys[i]
 

@@ -263,6 +263,10 @@ public:
         return toString(sig._name_id).rfind("__LLT_SECOND") != std::string::npos;
     }
 
+    inline size_t getNumberOfQConstants() const {
+        return _q_constants_with_origin.size();
+    }
+
 
 private:
 
