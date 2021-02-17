@@ -1,1 +1,1 @@
--Llib/dummyfuncs -ldummyfuncs -lpthread
+-ldummyfuncs -lpthread

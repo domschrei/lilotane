@@ -2,6 +2,11 @@
 
 set -e
 
+if [ -f ../lib/libpandaPIparser.a ]; then
+    echo "../lib/libpandaPIparser.a already exists - skipping build"
+    exit
+fi
+
 # Fetch a clean state of pandaPIparser
 if [ ! -d pandaPIparser ]; then
     echo "Fetching pandaPIparser ..."

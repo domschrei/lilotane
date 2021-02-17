@@ -1,27 +1,24 @@
 cmake_minimum_required(VERSION 3.11.4)
 project (lilotane)
 
-find_package(MPI REQUIRED)
-
 set(CMAKE_CXX_STANDARD 17)
 
 
 if(NOT IPASIRSOLVER)
     set(IPASIRSOLVER "glucose4")
 endif()
-set(SOLVERLIB "lib/${IPASIRSOLVER}/libipasir${IPASIRSOLVER}.a")
 
 
 # Build-specific compile options
 
-add_definitions("-DIPASIRSOLVER=\"${IPASIRSOLVER}\"")
+set(MY_DEFINITIONS IPASIRSOLVER=\"${IPASIRSOLVER}\")
 if(CMAKE_BUILD_TYPE MATCHES DEBUG)
-    add_definitions("-DLILOTANE_VERSION=\"dbg-${IPASIRSOLVER}\"")
+    set(MY_DEFINITIONS ${MY_DEFINITIONS} LILOTANE_VERSION=\"dbg-${IPASIRSOLVER}\")
     set(MY_DEBUG_OPTIONS "-rdynamic -g -ggdb") 
 else()
-    add_definitions("-DLILOTANE_VERSION=\"rls-${IPASIRSOLVER}\"")
+    set(MY_DEFINITIONS ${MY_DEFINITIONS} LILOTANE_VERSION=\"rls-${IPASIRSOLVER}\")
     set(MY_DEBUG_OPTIONS "-rdynamic -g -ggdb") 
-    set(BASE_COMPILEFLAGS -O3 -flto)
+    set(BASE_COMPILEFLAGS -flto)
 endif()
 
 if(LILOTANE_USE_ASAN)
@@ -31,33 +28,60 @@ endif()
 
 # Libraries and includes
 
-link_directories(lib lib/${IPASIRSOLVER})
+link_directories(lib lib/${IPASIRSOLVER} build)
 set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m ipasir${IPASIRSOLVER} z pandaPIparser)
 set(BASE_INCLUDES ${MPI_CXX_INCLUDE_PATH} src src/pandaPIparser/src)
 file(READ lib/${IPASIRSOLVER}/LIBS SOLVERLIBS)
 
 
-# Source files
+# Source files (without main.cpp)
 
 set(BASE_SOURCES
     src/algo/arg_iterator.cpp src/algo/domination_resolver.cpp src/algo/fact_analysis.cpp src/algo/instantiator.cpp src/algo/network_traversal.cpp src/algo/planner.cpp src/algo/plan_writer.cpp src/algo/retroactive_pruning.cpp
     src/data/action.cpp src/data/htn_instance.cpp src/data/htn_op.cpp src/data/layer.cpp src/data/position.cpp src/data/reduction.cpp src/data/signature.cpp src/data/substitution.cpp
     src/sat/binary_amo.cpp src/sat/encoding.cpp src/sat/literal_tree.cpp src/sat/variable_domain.cpp
     src/util/log.cpp src/util/names.cpp src/util/params.cpp src/util/signal_manager.cpp src/util/timer.cpp
-    src/main.cpp
 )
+
+
+# Base library for Lilotane (liblotane)
+
+add_library(lotane STATIC ${BASE_SOURCES})
+target_include_directories(lotane PRIVATE ${BASE_INCLUDES})
+target_compile_options(lotane PRIVATE ${BASE_COMPILEFLAGS})
 
 
 # Executable
 
-add_executable(lilotane ${BASE_SOURCES})
+add_executable(lilotane src/main.cpp)
 target_include_directories(lilotane PRIVATE ${BASE_INCLUDES})
 target_compile_options(lilotane PRIVATE ${BASE_COMPILEFLAGS})
-target_link_libraries(lilotane ${BASE_LIBS})
+target_compile_definitions(lilotane PRIVATE ${MY_DEFINITIONS})
+
+if("${SOLVERLIBS}" MATCHES ".*dummyfuncs.*")
+    # "dummyfuncs" library for unimplemented extra IPASIR functions
+    add_library(dummyfuncs
+        STATIC lib/dummyfuncs/dummyfuncs.cpp
+    )
+    target_link_libraries(lilotane lotane dummyfuncs ${BASE_LIBS} ${SOLVERLIBS})
+else()
+    target_link_libraries(lilotane lotane ${BASE_LIBS} ${SOLVERLIBS})
+endif()
 
 
-# Debug flags to find line numbers in stack traces etc.
+# PandaPIparser
+
+add_custom_target(parser cd ../src/ && bash fetch_and_build_parser.sh)
+add_dependencies(lotane parser)
+
+
+# Solver library
+
+add_custom_target(solverlib cd ../lib/${IPASIRSOLVER}/ && bash fetch_and_build.sh)
+add_dependencies(lilotane solverlib)
+
+
+# Global debug flags
 
 add_definitions("${MY_DEBUG_OPTIONS}")
-add_definitions("${SOLVERLIBS}")
 SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${MY_DEBUG_OPTIONS}")
