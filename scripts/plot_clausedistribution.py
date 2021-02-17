@@ -88,6 +88,10 @@ for file in files:
             continue
     index = int(match.group(1))
     domain = match.group(2) #.lower().replace("_", "-")
+    if domain.endswith("G"):
+        domain = domain[:-1]
+    domain = domain.lower().replace("_new", "")
+    domain = domain[0:1].upper() + domain[1:]
 
     print("%i (%s) : %s" % (index, domain, file))
     
@@ -136,7 +140,9 @@ for domain in clauses_by_domain:
 
 # Do plotting
 
-plt.figure(figsize=(8,4.5))
+
+plt.figure(figsize=(4,3)) # Small plot
+#plt.figure(figsize=(8,4.5)) # Big plot
 
 bars = []
 labels = []

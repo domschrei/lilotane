@@ -196,10 +196,15 @@ void HtnInstance::printStatistics() {
 
 size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
     size_t freeArgs = 0;
-    for (int arg : r.getArguments()) {
+    for (size_t i = 0; i < r.getArguments().size(); i++) {
+        int arg = r.getArguments()[i];
         if (std::find(r.getTaskArguments().begin(), r.getTaskArguments().end(), arg) == r.getTaskArguments().end()) {
             // Argument is not contained in task arguments: Free variable
-            freeArgs++;
+            int sort = _signature_sorts_table[r.getSignature()._name_id][i];
+            if (_constants_by_sort[sort].size() > 1) {
+                // Argument has a non-trivial domain
+                freeArgs++;
+            }
         }
     }
     return freeArgs;
