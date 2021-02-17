@@ -7,8 +7,8 @@
 #include "util/log.h"
 #include "util/timer.h"
 
-Encoding::Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
-            _params(params), _htn(htn), _layers(layers), 
+Encoding::Encoding(Parameters& params, HtnInstance& htn, FactAnalysis& analysis, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
+            _params(params), _htn(htn), _analysis(analysis), _layers(layers), 
             _termination_callback(terminationCallback), 
             _print_formula(params.isNonzero("wf")),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
@@ -209,7 +209,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
         // Encode all relevant definitive facts
         const USigSet* defFacts[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()};
         for (auto set : defFacts) for (const auto& fact : *set) {
-            if (!newPos.hasVariable(VarType::FACT, fact) && _htn.isRelevant(fact)) 
+            if (!newPos.hasVariable(VarType::FACT, fact) && _analysis.isRelevant(fact)) 
                 _new_fact_vars.insert(encodeVariable(VarType::FACT, newPos, fact, false));
         }
     } else {
@@ -267,7 +267,7 @@ void Encoding::encodeFactVariables(Position& newPos, Position& left, Position& a
     begin(STAGE_TRUEFACTS);
     const USigSet* cHere[] = {&newPos.getTrueFacts(), &newPos.getFalseFacts()}; 
     for (int i = 0; i < 2; i++) 
-    for (const USignature& factSig : *cHere[i]) if (_htn.isRelevant(factSig)) {
+    for (const USignature& factSig : *cHere[i]) if (_analysis.isRelevant(factSig)) {
         int var = newPos.getVariableOrZero(VarType::FACT, factSig);
         if (var == 0) {
             // Variable is not encoded yet.
@@ -302,14 +302,14 @@ std::pair<IndirectSupport, IndirectSupport> Encoding::computeFactSupports(Positi
         // For each fact with some indirect support, for each action in the support
         auto& output = i == 0 ? negResult : posResult;
         for (const auto& [fact, entry] : *indirSupports[i]) for (const auto& [op, subs] : entry) {
-            assert(!_htn.isVirtualizedChildOfAction(op._name_id));
+            assert(!_htn.isActionRepetition(op._name_id));
 
             // Skip if the operation is already a DIRECT support for the fact
             auto it = dirSupports[i]->find(fact);
             if (it != dirSupports[i]->end() && it->second.count(op)) continue;
 
             int opVar = left.getVariableOrZero(VarType::OP, op);
-            USignature virtOp(_htn.getVirtualizedChildNameOfAction(op._name_id), op._args);
+            USignature virtOp(_htn.getRepetitionNameOfAction(op._name_id), op._args);
             int virtOpVar = left.getVariableOrZero(VarType::OP, virtOp);
             
             // Not an encoded action? (May have been pruned away)
@@ -434,7 +434,7 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                 if (dir[i] != nullptr) for (const USignature& opSig : *dir[i]) {
                     int opVar = left.getVariableOrZero(VarType::OP, opSig);
                     if (opVar > 0) appendClause(opVar);
-                    USignature virt = opSig.renamed(_htn.getVirtualizedChildNameOfAction(opSig._name_id));
+                    USignature virt = opSig.renamed(_htn.getRepetitionNameOfAction(opSig._name_id));
                     int virtOpVar = left.getVariableOrZero(VarType::OP, virt);
                     if (virtOpVar > 0) appendClause(virtOpVar);
                 }
@@ -499,7 +499,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
         int aVar = getVariable(VarType::OP, newPos, aSig);
         elementVars[numOccurringOps++] = aVar;
         
-        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
+        if (_htn.isActionRepetition(aSig._name_id)) continue;
 
         for (int arg : aSig._args) encodeSubstitutionVars(aSig, aVar, arg, newPos);
 
@@ -620,9 +620,9 @@ void Encoding::encodeQFactSemantics(Position& newPos) {
 
                     /*
                     TODO
-                    vca=0 : qfact semantics are added once, then for each further layer
+                    aar=0 : qfact semantics are added once, then for each further layer
                     they are skipped because they were already encoded.
-                    vca=1 : qfact semantics are added once, skipped once, then added again
+                    aar=1 : qfact semantics are added once, skipped once, then added again
                     because the qfact (and decodings) do not occur above any more.
                     */
 
@@ -670,7 +670,7 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
     begin(STAGE_ACTIONEFFECTS);
     for (const auto& aSig : left.getActions()) {
         if (aSig == Sig::NONE_SIG) continue;
-        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) continue;
+        if (_htn.isActionRepetition(aSig._name_id)) continue;
         int aVar = getVariable(VarType::OP, left, aSig);
 
         for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
@@ -1183,7 +1183,7 @@ int Encoding::findMinBySat(int lower, int upper, std::function<int(int)> varMap,
 bool Encoding::isEmptyAction(const USignature& aSig) {
     if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig)
         return true;
-    if (_htn.getActionNameOfVirtualizedChild(aSig._name_id) == _htn.getBlankActionSig()._name_id)
+    if (_htn.getActionNameFromRepetition(aSig._name_id) == _htn.getBlankActionSig()._name_id)
         return true;
     return false;
 }
@@ -1440,8 +1440,8 @@ std::vector<PlanItem> Encoding::extractClassicalPlan(PlanExtraction mode) {
             USignature aSig = sig;
             if (mode == PRIMITIVE_ONLY && !_htn.isAction(aSig)) continue;
 
-            if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
-                aSig._name_id = _htn.getActionNameOfVirtualizedChild(sig._name_id);
+            if (_htn.isActionRepetition(aSig._name_id)) {
+                aSig._name_id = _htn.getActionNameFromRepetition(sig._name_id);
             }
 
             //log("  %s ?\n", TOSTR(aSig));
@@ -1512,7 +1512,7 @@ Plan Encoding::extractPlan() {
                         const USignature& aSig = opSig;
 
                         if (aSig == _htn.getBlankActionSig()) continue;
-                        if (_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+                        if (_htn.isActionRepetition(aSig._name_id)) {
                             continue;
                         }
                         

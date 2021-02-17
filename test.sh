@@ -80,7 +80,7 @@ mkdir $outdir
 
 # Count instances
 for domain in $domains ; do
-    if [ -f instances/$domain/p*.hddl ]; do
+    if [ -f $(echo instances/$domain/p*.hddl|awk '{print $1}') ]; then
         for pfile in instances/$domain/p*.hddl; do
             all=$((all+1))
         done

@@ -11,7 +11,7 @@
 #include <signal.h>
 
 #include "data/htn_instance.h"
-#include "planner/planner.h"
+#include "algo/planner.h"
 #include "util/timer.h"
 #include "util/signal_manager.h"
 
@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
         outputBanner(params.isNonzero("co"));
         Log::log_notime(Log::V0_ESSENTIAL, "L i l o t a n e");
         Log::log_notime(Log::V0_ESSENTIAL, "  version %s\n", LILOTANE_VERSION);
-        Log::log_notime(Log::V0_ESSENTIAL, "by Dominik Schreiber <dominik.schreiber@kit.edu> 2020\n");
+        Log::log_notime(Log::V0_ESSENTIAL, "by Dominik Schreiber <dominik.schreiber@kit.edu> 2020-2021\n");
         Log::log_notime(Log::V0_ESSENTIAL, "using SAT solver %s\n", IPASIRSOLVER);
         Log::log_notime(Log::V0_ESSENTIAL, "\n");
     }

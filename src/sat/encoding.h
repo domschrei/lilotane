@@ -16,26 +16,12 @@ extern "C" {
 #include "data/signature.h"
 #include "data/htn_instance.h"
 #include "data/action.h"
+#include "data/plan.h"
 #include "sat/variable_domain.h"
 #include "sat/literal_tree.h"
-
-struct PlanItem {
-    PlanItem() {
-        id = -1;
-        abstractTask = Sig::NONE_SIG;
-        reduction = Sig::NONE_SIG;
-        subtaskIds = std::vector<int>(0);
-    }
-    PlanItem(int id, const USignature& abstractTask, const USignature& reduction, const std::vector<int> subtaskIds) :
-        id(id), abstractTask(abstractTask), reduction(reduction), subtaskIds(subtaskIds) {}
-    int id = -1;
-    USignature abstractTask;
-    USignature reduction;
-    std::vector<int> subtaskIds;
-};
+#include "algo/fact_analysis.h"
 
 typedef NodeHashMap<int, SigSet> State;
-typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
 typedef NodeHashMap<USignature, NodeHashMap<int, LiteralTree<int>>, USignatureHasher> IndirectSupport;
 
 class Encoding {
@@ -43,6 +29,7 @@ class Encoding {
 private:
     Parameters& _params;
     HtnInstance& _htn;
+    FactAnalysis& _analysis;
     std::vector<Layer*>& _layers;
 
     std::function<void()> _termination_callback;
@@ -115,7 +102,7 @@ private:
     bool _began_line = false;
 
 public:
-    Encoding(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers, std::function<void()> terminationCallback);
+    Encoding(Parameters& params, HtnInstance& htn, FactAnalysis& analysis, std::vector<Layer*>& layers, std::function<void()> terminationCallback);
     ~Encoding();
 
     std::pair<IndirectSupport, IndirectSupport> computeFactSupports(Position& newPos, Position& left);

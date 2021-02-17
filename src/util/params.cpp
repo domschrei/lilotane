@@ -68,7 +68,7 @@ void Parameters::setDefaults() {
     setParam("T", "0"); // max. time (secs) for finding an initial plan
     setParam("tc", "1"); // tree conversion for DNF2CNF
     setParam("v", "2"); // verbosity
-    setParam("vca", "1"); // virtualize children of actions
+    setParam("aar", "1"); // acknowledge action repetitions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
 }
@@ -83,6 +83,7 @@ void Parameters::printUsage() {
     Log::i("\n");
     Log::i("Option syntax: -OPTION or -OPTION=VALUE .\n");
     Log::i("\n");
+    Log::i(" -aar=<0|1>          Acknowledge action repetitions and encode them in a reduced form\n");
     Log::i(" -alo=<0|1>          Explicitly encode at-least-one constraints over operations at each position\n");
     Log::i(" -bamot=<int>        Binary at-most-one threshold\n");
     Log::i(" -co=<0|1>           Colored terminal output\n");
@@ -115,7 +116,6 @@ void Parameters::printUsage() {
     Log::i(" -T=<0|secs>         Try finding an initial plan for up to #secs (without optimization: total allowed runtime; 0: no limit)\n");
     Log::i(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::i(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");
-    Log::i(" -vca=<0|1>          Virtualize children of actions\n");
     Log::i(" -vp=<0|1>           Verify plan (using pandaPIparser) before printing it\n");
     Log::i(" -wf=<0|1>           Write generated formula to text file \"f.cnf\" (with assumptions used in final call)\n");
     Log::i("\n");

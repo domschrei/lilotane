@@ -1,16 +1,20 @@
 
 #ifndef DOMPASCH_TREE_REXX_PLANNER_H
 #define DOMPASCH_TREE_REXX_PLANNER_H
-
-#include <assert.h> 
  
 #include "util/names.h"
 #include "util/params.h"
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "data/layer.h"
 #include "data/htn_instance.h"
-#include "data/instantiator.h"
-#include "data/arg_iterator.h"
+#include "algo/instantiator.h"
+#include "algo/arg_iterator.h"
+#include "algo/precondition_inference.h"
+#include "algo/minres.h"
+#include "algo/fact_analysis.h"
+#include "algo/retroactive_pruning.h"
+#include "algo/domination_resolver.h"
+#include "algo/plan_writer.h"
 #include "sat/encoding.h"
 
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;
@@ -24,17 +28,15 @@ private:
     Parameters& _params;
     HtnInstance& _htn;
 
-    std::vector<Layer*> _layers;
-    Instantiator& _instantiator;
+    FactAnalysis _analysis;
+    Instantiator _instantiator;
     Encoding _enc;
+    MinRES _minres;
+    RetroactivePruning _pruning;
+    DominationResolver _domination_resolver;
+    PlanWriter _plan_writer;
 
-    USigSet _init_state;
-    USigSet _pos_layer_facts;
-    USigSet _neg_layer_facts;
-    USigSet _necessary_facts;
-    USigSet _defined_facts;
-
-    NodeHashMap<USignature, SigSet, USignatureHasher> _fact_changes_cache;
+    std::vector<Layer*> _layers;
 
     size_t _layer_idx;
     size_t _pos;
@@ -53,16 +55,24 @@ private:
     size_t _num_instantiated_positions = 0;
     size_t _num_instantiated_actions = 0;
     size_t _num_instantiated_reductions = 0;
-    size_t _num_dominated_ops = 0;
-    size_t _num_retroactive_prunings = 0;
-    size_t _num_retroactively_pruned_ops = 0;
-
 
 public:
     Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
-            _instantiator(_htn.getInstantiator()), _enc(_params, _htn, _layers, [this](){checkTermination();}), 
+            _analysis(_htn), 
+            _instantiator(params, htn, _analysis), 
+            _enc(_params, _htn, _analysis, _layers, [this](){checkTermination();}), 
+            _minres(_htn), 
+            _pruning(_layers, _enc),
+            _domination_resolver(_htn),
+            _plan_writer(_htn, _params),
             _init_plan_time_limit(_params.getFloatParam("T")), _nonprimitive_support(_params.isNonzero("nps")), 
-            _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {}
+            _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {
+
+        // Mine additional preconditions for reductions from their subtasks
+        PreconditionInference::infer(_htn, _analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
+
+        _minres.computeMinNumPrimitiveChildren();
+    }
     int findPlan();
 
     friend int terminateSatCall(void* state);
@@ -70,8 +80,6 @@ public:
     bool cancelOptimization();
 
 private:
-
-    void outputPlan();
 
     void createFirstLayer();
     void createNextLayer();
@@ -93,27 +101,17 @@ private:
     
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
     bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
-    bool addAction(Action& a);
+
     bool addReduction(Reduction& r, const USignature& task);
 
     void propagateInitialState();
     void propagateActions(size_t offset);
     void propagateReductions(size_t offset);
-    std::vector<USignature> getAllActionsOfTask(const USignature& task, const StateEvaluator& state);
-    std::vector<USignature> getAllReductionsOfTask(const USignature& task, const StateEvaluator& state);
-    void introduceNewFacts();
-    void introduceNewFact(Position& newPos, const USignature& fact);
+    std::vector<USignature> instantiateAllActionsOfTask(const USignature& task);
+    std::vector<USignature> instantiateAllReductionsOfTask(const USignature& task);
+    void initializeNextEffects();
+    void initializeFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
-
-    enum DominationStatus {DOMINATING, DOMINATED, DIFFERENT, EQUIVALENT};
-    DominationStatus getDominationStatus(const USignature& op, const USignature& other, Substitution& qconstSubstitutions);
-    void eliminateDominatedOperations();
-    void eliminateInvalidParentsAtCurrentState(size_t offset);
-    void prune(const USignature& op, int layerIdx, int pos);
-
-    USigSet& getCurrentState(bool negated);
-    StateEvaluator getStateEvaluator(int layer = -1, int pos = -1);
-    // Introduces "fact" as FALSE at newPos.
 
     std::vector<int> getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const;
     std::vector<IntPair> decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const;

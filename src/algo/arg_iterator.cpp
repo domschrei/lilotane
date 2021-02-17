@@ -1,5 +1,5 @@
 
-#include "data/arg_iterator.h"
+#include "algo/arg_iterator.h"
 #include "data/htn_instance.h"
 
 ArgIterator ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance& _htn) {

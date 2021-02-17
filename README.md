@@ -28,9 +28,19 @@ Lilotane outputs a plan in accordance to [4]. Basically everything in between "`
 
 ## Building
 
-Execute `make`. This will also fetch and build the SAT solver necessary for compiling the planner and solving problems.
+You need `pandaPIparser` as a dependency in order to build Lilotane. Execute `cd src/ && bash fetch_and_build_parser.sh` to fetch and build the library.
 
-The default SAT solver can be overwritten with the environment variable `IPASIRSOLVER`. Currently, `glucose4` and `lingeling` are valid choices.
+After you executed the above command to fetch `pandaPIparser`, you can build Lilotane like this:
+
+```
+mkdir -p build
+cd build
+cmake .. -DIPASIRSOLVER=glucose4
+make
+cd ..
+```
+
+The default SAT solver can be overwritten with the `IPASIRSOLVER` variable. Currently, `glucose4` and `lingeling` are valid choices.
 
 ## Usage
 

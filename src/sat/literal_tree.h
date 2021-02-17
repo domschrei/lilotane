@@ -5,8 +5,8 @@
 #include <vector>
 #include <functional>
 
-#include <data/hashmap.h>
-#include <util/log.h>
+#include "util/hashmap.h"
+#include "util/log.h"
 
 template <typename T, typename THash = robin_hood::hash<T>>
 class LiteralTree {

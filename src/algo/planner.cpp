@@ -1,11 +1,5 @@
 
-#include <iostream>
-#include <functional>
-#include <string>
-#include <sstream>
-
-#include "plan.hpp"
-#include "verify.hpp"
+#include <assert.h> 
 
 #include "planner.h"
 #include "util/log.h"
@@ -41,13 +35,13 @@ void Planner::checkTermination() {
     if (exitSet) {
         if (_has_plan) {
             Log::i("Termination signal caught - printing last found plan.\n");
-            outputPlan();
+            _plan_writer.outputPlan(_plan);
         } else {
             Log::i("Termination signal caught.\n");
         }
     } else if (cancelOpt) {
         Log::i("Cancelling optimization according to provided limit.\n");
-        outputPlan();
+        _plan_writer.outputPlan(_plan);
     } else if (_time_at_first_plan == 0 
             && _init_plan_time_limit > 0
             && Timer::elapsedSeconds() > _init_plan_time_limit) {
@@ -219,126 +213,10 @@ int Planner::findPlan() {
         }
     }
 
-    outputPlan();
+    _plan_writer.outputPlan(_plan);
     printStatistics();
     
     return 0;
-}
-
-void Planner::outputPlan() {
-
-    // Create stringstream which is being fed the plan
-    std::stringstream stream;
-
-    // Print plan into stream
-
-    // -- primitive part
-    stream << "==>\n";
-    FlatHashSet<int> actionIds;
-    FlatHashSet<int> idsToRemove;
-
-    FlatHashSet<int> surrogateIds;
-    std::vector<PlanItem> decompsToInsert;
-    size_t decompsToInsertIdx = 0;
-    size_t length = 0;
-    
-    for (PlanItem& item : std::get<0>(_plan)) {
-
-        if (item.id < 0) continue;
-        
-        if (_htn.toString(item.abstractTask._name_id).rfind("__LLT_SECOND") != std::string::npos) {
-            // Second part of a split action: discard
-            idsToRemove.insert(item.id);
-            continue;
-        }
-        if (_htn.toString(item.abstractTask._name_id).rfind("_FIRST") != std::string::npos) {
-            // First part of a split action: change name, then handle normally
-            item.abstractTask._name_id = _htn.getSplitAction(item.abstractTask._name_id);
-        }
-        
-        if (_htn.toString(item.abstractTask._name_id).rfind("__SURROGATE") != std::string::npos) {
-            // Surrogate action: Replace with actual action, remember represented method to include in decomposition
-
-            [[maybe_unused]] const auto& [parentId, childId] = _htn.getParentAndChildFromSurrogate(item.abstractTask._name_id);
-            const Reduction& parentRed = _htn.toReduction(parentId, item.abstractTask._args);
-            surrogateIds.insert(item.id);
-            
-            PlanItem parent;
-            parent.abstractTask = parentRed.getTaskSignature();  
-            parent.id = item.id-1;
-            parent.reduction = parentRed.getSignature();
-            parent.subtaskIds = std::vector<int>(1, item.id);
-            decompsToInsert.push_back(parent);
-
-            const USignature& childSig = parentRed.getSubtasks()[0];
-            item.abstractTask = childSig;
-        }
-
-        actionIds.insert(item.id);
-
-        // Do not write blank actions or the virtual goal action
-        if (item.abstractTask == _htn.getBlankActionSig()) continue;
-        if (item.abstractTask._name_id == _htn.nameId("<goal_action>")) continue;
-
-        stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << "\n";
-        length++;
-    }
-    // -- decomposition part
-    bool root = true;
-    for (size_t itemIdx = 0; itemIdx < _plan.second.size() || decompsToInsertIdx < decompsToInsert.size(); itemIdx++) {
-
-        // Pick next plan item to print
-        PlanItem item;
-        if (decompsToInsertIdx < decompsToInsert.size() && (itemIdx >= _plan.second.size() || decompsToInsert[decompsToInsertIdx].id < _plan.second[itemIdx].id)) {
-            // Pick plan item from surrogate decompositions
-            item = decompsToInsert[decompsToInsertIdx];
-            decompsToInsertIdx++;
-            itemIdx--;
-        } else {
-            // Pick plan item from "normal" plan list
-            item = _plan.second[itemIdx];
-        }
-        if (item.id < 0) continue;
-
-        std::string subtaskIdStr = "";
-        for (int subtaskId : item.subtaskIds) {
-            if (item.id+1 != subtaskId && surrogateIds.count(subtaskId)) subtaskId--;
-            if (!idsToRemove.count(subtaskId)) subtaskIdStr += " " + std::to_string(subtaskId);
-        }
-        
-        if (root) {
-            stream << "root " << subtaskIdStr << "\n";
-            root = false;
-            continue;
-        } else if (item.id <= 0 || actionIds.count(item.id)) continue;
-        
-        stream << item.id << " " << Names::to_string_nobrackets(_htn.cutNonoriginalTaskArguments(item.abstractTask)) << " -> " 
-            << Names::to_string_nobrackets(item.reduction) << subtaskIdStr << "\n";
-    }
-    stream << "<==\n";
-
-    // Feed plan into parser to convert it into a plan to the original problem
-    // (w.r.t. previous compilations the parser did)
-    std::ostringstream outstream;
-    convert_plan(stream, outstream);
-    std::string planStr = outstream.str();
-
-    if (_params.isNonzero("vp")) {
-        // Verify plan (by copying converted plan stream and putting it back into panda)
-        std::stringstream verifyStream;
-        verifyStream << planStr << std::endl;
-        bool ok = verify_plan(verifyStream, /*useOrderingInfo=*/true, /*lenientMode=*/false, /*debugMode=*/0);
-        if (!ok) {
-            Log::e("ERROR: Plan declared invalid by pandaPIparser! Exiting.\n");
-            exit(1);
-        }
-    }
-    
-    // Print plan
-    Log::log_notime(Log::V0_ESSENTIAL, planStr.c_str());
-    Log::log_notime(Log::V0_ESSENTIAL, "<==\n");
-    
-    Log::i("End of solution plan. (counted length of %i)\n", length);
 }
 
 void Planner::incrementPosition() {
@@ -360,14 +238,8 @@ void Planner::createFirstLayer() {
     
     /***** LAYER 0, POSITION 0 ******/
 
-    // Initial state
-    _init_state = _htn.getInitState();
-    for (const USignature& fact : _init_state) _pos_layer_facts.insert(fact);
-
     // Instantiate all possible init. reductions
-    std::vector<Reduction> roots = _instantiator.getApplicableInstantiations(
-            _htn.getInitReduction(), getStateEvaluator());
-    for (Reduction& r : roots) {
+    for (Reduction& r : _instantiator.getApplicableInstantiations(_htn.getInitReduction())) {
         if (addReduction(r, USignature())) {
             USignature sig = r.getSignature();
             initLayer[_pos].addReduction(sig);
@@ -376,7 +248,7 @@ void Planner::createFirstLayer() {
         }
     }
     addPreconditionConstraints();
-    introduceNewFacts();
+    initializeNextEffects();
     
     incrementPosition();
 
@@ -394,7 +266,7 @@ void Planner::createFirstLayer() {
     IntPairTree badSubs;
     std::vector<IntPairTree> goodSubs;
     for (const Signature& fact : goalAction.getPreconditions()) {
-        assert(getCurrentState(fact._negated).contains(fact._usig));
+        assert(_analysis.isReachable(fact));
         addPrecondition(goalSig, fact, goodSubs, badSubs);
     }
     assert(goodSubs.empty() && badSubs.empty());
@@ -448,7 +320,7 @@ void Planner::createNextLayer() {
     }
     if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
-    Log::i("Collected %i relevant facts at this layer\n", _htn.getRelevantFacts().size());
+    Log::i("Collected %i relevant facts at this layer\n", _analysis.getRelevantFacts().size());
 
     // Encode new layer
     Log::i("Encoding ...\n");
@@ -475,12 +347,14 @@ void Planner::createNextPosition() {
         createNextPositionFromAbove();
     }
 
-    if (_params.isNonzero("edo")) eliminateDominatedOperations();
+    // Eliminate operations which are dominated by another operation
+    if (_params.isNonzero("edo")) 
+        _domination_resolver.eliminateDominatedOperations(_layers[_layer_idx]->at(_pos));
 
     // In preparation for the upcoming position,
     // add all effects of the actions and reductions occurring HERE
     // as (initially false) facts to THIS position.  
-    introduceNewFacts();
+    initializeNextEffects();
 }
 
 void Planner::createNextPositionFromAbove() {
@@ -506,27 +380,28 @@ void Planner::createNextPositionFromLeft(Position& left) {
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
 
-            bool repeatedAction = isAction && _htn.isVirtualizedChildOfAction(aSig._name_id);
-            for (const Signature& fact : isAction ? _htn.getAction(aSig).getEffects() 
-                                                  : _fact_changes_cache[aSig]) {
+            bool repeatedAction = isAction && _htn.isActionRepetition(aSig._name_id);
+
+            for (const Signature& fact : _analysis.getPossibleFactChanges(aSig)) {
                 if (isAction && !addEffect(
-                        repeatedAction ? aSig.renamed(_htn.getActionNameOfVirtualizedChild(aSig._name_id)) : aSig, 
+                        repeatedAction ? aSig.renamed(_htn.getActionNameFromRepetition(aSig._name_id)) : aSig, 
                         fact, 
                         repeatedAction ? EffectMode::DIRECT_NO_QFACT : EffectMode::DIRECT)) {
+                    
                     // Impossible direct effect: forbid action retroactively.
                     Log::w("Retroactively prune action %s due to impossible effect %s\n", TOSTR(aSig), TOSTR(fact));
-                    //_enc.addUnitConstraint(-1*left.getVariable(VarType::OP, aSig));
                     actionsToRemove.insert(aSig);
+
                     // Also remove any virtualized actions corresponding to this action
-                    if (left.hasAction(aSig.renamed(_htn.getVirtualizedChildNameOfAction(aSig._name_id)))) 
-                        actionsToRemove.insert(aSig.renamed(_htn.getVirtualizedChildNameOfAction(aSig._name_id)));
+                    USignature repSig = aSig.renamed(_htn.getRepetitionNameOfAction(aSig._name_id));
+                    if (left.hasAction(repSig)) actionsToRemove.insert(repSig);
+                    
                     break;
                 }
                 if (!isAction && !addEffect(aSig, fact, EffectMode::INDIRECT)) {
                     // Impossible indirect effect: ignore.
                 }
             }
-            if (!isAction) _fact_changes_cache.erase(aSig);
 
             // Remove larger substitution constraint structure
             auto goodSubs = left.getValidSubstitutions().count(aSig) ? &left.getValidSubstitutions().at(aSig) : nullptr;
@@ -548,7 +423,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
     }
 
     for (const auto& aSig : actionsToRemove) {
-        prune(aSig, _layer_idx, _pos-1);
+        _pruning.prune(aSig, _layer_idx, _pos-1);
     }
 }
 
@@ -560,13 +435,13 @@ void Planner::addPreconditionConstraints() {
         // Add preconditions of action
         IntPairTree badSubs;
         std::vector<IntPairTree> goodSubs;
-        bool isVirtualized = _htn.isVirtualizedChildOfAction(aSig._name_id);
+        bool isRepetition = _htn.isActionRepetition(aSig._name_id);
         for (const Signature& fact : a.getPreconditions()) {
             addPrecondition(aSig, fact, goodSubs, badSubs, 
-                /*addQFact=*/!isVirtualized);
+                /*addQFact=*/!isRepetition);
         }
-        if (isVirtualized) {
-            USignature origSig(_htn.getActionNameOfVirtualizedChild(aSig._name_id), aSig._args);
+        if (isRepetition) {
+            USignature origSig(_htn.getActionNameFromRepetition(aSig._name_id), aSig._args);
             newPos.setValidSubstitutions(origSig, std::move(goodSubs));
             newPos.setForbiddenSubstitutions(origSig, std::move(badSubs));
         } else {
@@ -594,16 +469,14 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
 
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
-    const auto& state = getStateEvaluator();
 
     if (!_htn.hasQConstants(factAbs)) { 
-        assert(_instantiator.testWithNoVarsNoQConstants(factAbs, fact._negated, state)
-                || Log::e("%s not contained in state!\n", TOSTR(fact)));
+        assert(_analysis.isReachable(fact) || Log::e("Precondition %s not reachable!\n", TOSTR(fact)));
                 
-        if (_instantiator.testWithNoVarsNoQConstants(factAbs, !fact._negated, state)) {
-            // Negated prec. is not impossible: not statically resolvable
-            introduceNewFact(pos, factAbs);
-            _htn.addRelevantFact(factAbs);
+        if (_analysis.isReachable(factAbs, !fact._negated)) {
+            // Negated prec. is reachable: not statically resolvable
+            initializeFact(pos, factAbs);
+            _analysis.addRelevantFact(factAbs);
         }
         return;
     }
@@ -617,17 +490,17 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
         // Can the decoded fact occur as is?
-        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, fact._negated, state)) {
-            // Fact cannot be true here
+        if (_analysis.isReachable(decFactAbs, fact._negated)) {
+            goods.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
+        } else {
+            // Fact cannot hold here
             badSubs.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
             continue;
-        } else {
-            goods.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
         }
 
-        // If yes, can the decoded fact also occured in its opposite form?
-        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, !fact._negated, state)) {
-            // No! This precondition is trivially satisfied 
+        // If the fact is reachable, is it even invariant?
+        if (_analysis.isInvariant(decFactAbs, fact._negated)) {
+            // Yes! This precondition is trivially satisfied 
             // with above substitution restrictions
             continue;
         }
@@ -640,9 +513,9 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         if (addQFact) pos.addQFact(factAbs);
         for (const USignature& decFactAbs : relevants) {
             // Decoded fact may be new - initialize as necessary
-            introduceNewFact(pos, decFactAbs);
+            initializeFact(pos, decFactAbs);
             if (addQFact) pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
-            _htn.addRelevantFact(decFactAbs);
+            _analysis.addRelevantFact(decFactAbs);
         }
     } // else : encoding the precondition is not necessary!
 
@@ -680,15 +553,12 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     Position& left = (*_layers[_layer_idx])[_pos-1];
     USignature factAbs = fact.getUnsigned();
     bool isQFact = _htn.hasQConstants(factAbs);
-    const auto& state = getStateEvaluator();
 
     if (!isQFact) {
-        if (!_instantiator.testWithNoVarsNoQConstants(factAbs, !fact._negated, state)) {
-            // Always holds -- no need to encode
-            return true;
-        }
+        // Invariant fact? --> no need to encode
+        if (_analysis.isInvariant(fact)) return true;
 
-        if (mode != INDIRECT) _htn.addRelevantFact(factAbs);
+        if (mode != INDIRECT) _analysis.addRelevantFact(factAbs);
 
         // Depending on whether fact supports are encoded for primitive ops only,
         // add the ground fact to the op's support accordingly
@@ -699,7 +569,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             pos.touchFactSupport(fact);
         }
         
-        getCurrentState(fact._negated).insert(fact._usig);
+        _analysis.addReachableFact(fact);
         return true;
     }
 
@@ -718,14 +588,14 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         auto path = decodingToPath(factAbs._args, decFactAbs._args, argIndices);
         if (invalids != nullptr && invalids->contains(path)) continue;
 
-        if (!_instantiator.testWithNoVarsNoQConstants(decFactAbs, !fact._negated, state)) {
-            // Negation of this ground effect is impossible here -> effect holds trivially
+        if (_analysis.isInvariant(decFactAbs, fact._negated)) {
+            // Effect holds trivially
             anyGood = true;
             continue;
         }
 
         // Valid effect decoding
-        getCurrentState(fact._negated).insert(decFactAbs);
+        _analysis.addReachableFact(decFactAbs, /*negated=*/fact._negated);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
             pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(path));
         } else {
@@ -733,7 +603,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         }
         if (mode != INDIRECT) {
             if (mode == DIRECT) pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
-            _htn.addRelevantFact(decFactAbs);
+            _analysis.addRelevantFact(decFactAbs);
         }
         anyGood = true;
         staticallyResolvable = false;
@@ -753,24 +623,17 @@ void Planner::propagateInitialState() {
     Position& newPos = (*_layers[_layer_idx])[0];
     Position& above = (*_layers[_layer_idx-1])[0];
 
-    _defined_facts.clear();
-    
+    _analysis.resetReachability();
+
     // Propagate TRUE facts
     for (const USignature& fact : above.getTrueFacts()) {
         newPos.addTrueFact(fact);
-        _defined_facts.insert(fact);
+        _analysis.addInitializedFact(fact);
     }
     for (const USignature& fact : above.getFalseFacts()) {
         newPos.addFalseFact(fact);
-        _defined_facts.insert(fact);
+        _analysis.addInitializedFact(fact);
     }
-
-    // Set up layer facts: initial state only
-    _pos_layer_facts.clear();
-    _neg_layer_facts.clear();
-    for (const USignature& fact : _init_state) {
-        _pos_layer_facts.insert(fact);
-    }    
 }
 
 void Planner::propagateActions(size_t offset) {
@@ -785,8 +648,8 @@ void Planner::propagateActions(size_t offset) {
         const Action& a = _htn.getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
-        bool valid = _instantiator.hasValidPreconditions(a.getPreconditions(), getStateEvaluator())
-                && _instantiator.hasValidPreconditions(a.getExtraPreconditions(), getStateEvaluator());
+        bool valid = _analysis.hasValidPreconditions(a.getPreconditions())
+                && _analysis.hasValidPreconditions(a.getExtraPreconditions());
 
         // If not: forbid the action, i.e., its parent action
         if (!valid) {
@@ -797,7 +660,7 @@ void Planner::propagateActions(size_t offset) {
 
     // Prune invalid actions at above position
     for (const auto& aSig : actionsToPrune) {
-        prune(aSig, _layer_idx-1, _old_pos);
+        _pruning.prune(aSig, _layer_idx-1, _old_pos);
     }
     assert(above.getActions().size() == numActionsBefore - actionsToPrune.size() 
         || Log::e("%i != %i-%i\n", above.getActions().size(), numActionsBefore, actionsToPrune.size()));
@@ -806,10 +669,10 @@ void Planner::propagateActions(size_t offset) {
     for (const auto& aSig : above.getActions()) {
         if (offset < 1) {
             // proper action propagation
-            assert(_instantiator.isFullyGround(aSig));
-            if (_params.isNonzero("vca") && !_htn.isVirtualizedChildOfAction(aSig._name_id)) {
+            assert(_htn.isFullyGround(aSig));
+            if (_params.isNonzero("aar") && !_htn.isActionRepetition(aSig._name_id)) {
                 // Virtualize child of action
-                USignature vChildSig = _htn.getVirtualizedChildOfAction(aSig);
+                USignature vChildSig = _htn.getRepetitionOfAction(aSig);
                 newPos.addAction(vChildSig);
                 newPos.addExpansion(aSig, vChildSig);
             } else {
@@ -823,57 +686,6 @@ void Planner::propagateActions(size_t offset) {
             newPos.addAction(blankSig);
             newPos.addExpansion(aSig, blankSig);
         }
-    }
-}
-
-void Planner::eliminateInvalidParentsAtCurrentState(size_t offset) {
-
-    if (offset > 0) return;
-    Position& above = (*_layers[_layer_idx-1])[_old_pos];
-
-    USigSet reds = above.getReductions();
-    for (const auto& rSig : reds) {
-        if (!above.hasReduction(rSig)) continue;
-
-        NodeHashSet<PositionedUSig, PositionedUSigHasher> frontier;
-        NodeHashSet<PositionedUSig, PositionedUSigHasher> toPrune;
-        frontier.emplace(_layer_idx-1, _old_pos, rSig);
-
-        while (!frontier.empty()) {
-            auto op = *frontier.begin();
-            frontier.erase(op);
-            bool valid = true;
-
-            auto domains = _htn.getDomainsOfOpArgs(_htn.getReduction(op.usig), getStateEvaluator());
-            if (!op.usig._args.empty() && domains.empty()) valid = false;
-
-            if (!valid) {
-                // Overall invalid parent
-                Log::v("Invalid op %s detected!\n", TOSTR(op.usig));
-                toPrune.insert(op);
-            } else {
-                // Check if some q-constant's domain decreased
-                for (size_t i = 0; i < domains.size(); i++) {
-                    int arg = op.usig._args[i];
-                    if (_htn.isQConstant(arg) && domains[i].size() < _htn.getDomainOfQConstant(arg).size()) {
-                        Log::v("Decreased domain for q-constant %s of op %s detected! (%i->%i, %s)\n", TOSTR(arg), TOSTR(op.usig), 
-                                    _htn.getDomainOfQConstant(arg).size(), domains[i].size(), 
-                                    _htn.getOriginOfQConstant(arg) == IntPair(op.layer, op.pos) ? "origin" : "no origin");
-                    }
-                }
-                if (op.layer > 0) {
-                    // Valid parent: Go to parent's parents
-                    auto [upPos, upOffset] = _layers[op.layer-1]->getPredecessorPosAndOffset(op.pos);
-                    //Log::d("(%i,%i) ~> (%i,%i) (+%i)\n", op.layer, op.pos, op.layer-1, upPos, upOffset);
-                    if (upOffset == 0) {
-                        for (const auto& parent : _layers[op.layer]->at(op.pos).getPredecessors().at(op.usig)) {
-                            frontier.emplace(op.layer-1, upPos, parent);
-                        }
-                    }
-                }
-            }
-        }
-        for (const auto& op : frontier) prune(op.usig, op.layer, op.pos);
     }
 }
 
@@ -907,10 +719,10 @@ void Planner::propagateReductions(size_t offset) {
     for (const auto& [subtask, parents] : subtaskToParents) {
 
         // Calculate all possible actions fitting the subtask.
-        auto allActions = getAllActionsOfTask(subtask, getStateEvaluator());
+        auto allActions = instantiateAllActionsOfTask(subtask);
 
         // Any reduction(s) fitting the subtask?
-        for (const USignature& subRSig : getAllReductionsOfTask(subtask, getStateEvaluator())) {
+        for (const USignature& subRSig : instantiateAllReductionsOfTask(subtask)) {
 
             if (_htn.isAction(subRSig)) {
                 // Actually an action, not a reduction: remember for later
@@ -920,8 +732,7 @@ void Planner::propagateReductions(size_t offset) {
 
             const Reduction& subR = _htn.getReduction(subRSig);
             
-            assert(_htn.isReduction(subRSig) && subRSig == subR.getSignature() 
-                && _instantiator.isFullyGround(subRSig));
+            assert(_htn.isReduction(subRSig) && subRSig == subR.getSignature() && _htn.isFullyGround(subRSig));
             
             newPos.addReduction(subRSig);
             newPos.addExpansionSize(subR.getSubtasks().size());
@@ -934,7 +745,7 @@ void Planner::propagateReductions(size_t offset) {
 
         // Any action(s) fitting the subtask?
         for (const USignature& aSig : allActions) {
-            assert(_instantiator.isFullyGround(aSig));
+            assert(_htn.isFullyGround(aSig));
             newPos.addAction(aSig);
 
             for (const auto& rSig : parents) {
@@ -949,27 +760,44 @@ void Planner::propagateReductions(size_t offset) {
         if (!reductionsWithChildren.count(rSig)) {
             Log::i("Retroactively prune reduction %s@(%i,%i): no children at offset %i\n", 
                     TOSTR(rSig), _layer_idx-1, _old_pos, offset);
-            prune(rSig, _layer_idx-1, _old_pos);
+            _pruning.prune(rSig, _layer_idx-1, _old_pos);
         }
     }
 }
 
-std::vector<USignature> Planner::getAllActionsOfTask(const USignature& task, const StateEvaluator& state) {
+std::vector<USignature> Planner::instantiateAllActionsOfTask(const USignature& task) {
     std::vector<USignature> result;
 
     if (!_htn.isAction(task)) return result;
 
     const Action& a = _htn.toAction(task._name_id, task._args);
     
-    std::vector<Action> actions = _instantiator.getApplicableInstantiations(a, state);
-    for (Action& action : actions) {
+    for (Action& action : _instantiator.getApplicableInstantiations(a)) {
         //Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
-        if (addAction(action)) result.push_back(action.getSignature());
+
+        USignature sig = action.getSignature();
+
+        // Rename any remaining variables in each action as unique q-constants,
+        action = _htn.replaceVariablesWithQConstants(action, _analysis.getReducedArgumentDomains(action), _layer_idx, _pos);
+
+        // Remove any contradictory ground effects that were just created
+        action.removeInconsistentEffects();
+
+        // Check validity
+        if (!_htn.isFullyGround(action.getSignature())) continue;
+        if (!_htn.hasConsistentlyTypedArgs(sig)) continue;
+        if (!_analysis.hasValidPreconditions(action.getPreconditions())) continue;
+        if (!_analysis.hasValidPreconditions(action.getExtraPreconditions())) continue;
+        
+        // Action is valid
+        sig = action.getSignature();
+        _htn.addAction(action);
+        result.push_back(action.getSignature());
     }
     return result;
 }
 
-std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, const StateEvaluator& state) {
+std::vector<USignature> Planner::instantiateAllReductionsOfTask(const USignature& task) {
     std::vector<USignature> result;
 
     if (!_htn.hasReductions(task._name_id)) return result;
@@ -985,8 +813,7 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
                 USignature surrSig = a.getSignature().substitute(s);
-
-                for (const auto& sig : getAllActionsOfTask(surrSig, state)) {
+                for (const auto& sig : instantiateAllActionsOfTask(surrSig)) {
                     result.push_back(sig);
                 }
             }
@@ -999,10 +826,9 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
 
             Reduction rSub = r.substituteRed(s);
             USignature origSig = rSub.getSignature();
-            if (!_instantiator.hasConsistentlyTypedArgs(origSig)) continue;
+            if (!_htn.hasConsistentlyTypedArgs(origSig)) continue;
             
-            std::vector<Reduction> reductions = _instantiator.getApplicableInstantiations(rSub, state);
-            for (Reduction& red : reductions) {
+            for (Reduction& red : _instantiator.getApplicableInstantiations(rSub)) {
                 if (addReduction(red, task)) result.push_back(red.getSignature());
             }
         }
@@ -1010,40 +836,18 @@ std::vector<USignature> Planner::getAllReductionsOfTask(const USignature& task, 
     return result;
 }
 
-bool Planner::addAction(Action& action) {
-
-    USignature sig = action.getSignature();
-
-    // Rename any remaining variables in each action as unique q-constants,
-    action = _htn.replaceVariablesWithQConstants(action, _layer_idx, _pos, getStateEvaluator());
-
-    // Remove any contradictory ground effects that were just created
-    action.removeInconsistentEffects();
-
-    // Check validity
-    if (!_instantiator.isFullyGround(action.getSignature())) return false;
-    if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
-    if (!_instantiator.hasValidPreconditions(action.getPreconditions(), getStateEvaluator())) return false;
-    if (!_instantiator.hasValidPreconditions(action.getExtraPreconditions(), getStateEvaluator())) return false;
-    
-    sig = action.getSignature();
-    _htn.addAction(action);
-    
-    return true;
-}
-
 bool Planner::addReduction(Reduction& red, const USignature& task) {
     USignature sig = red.getSignature();
 
     // Rename any remaining variables in each action as new, unique q-constants 
-    red = _htn.replaceVariablesWithQConstants(red, _layer_idx, _pos, getStateEvaluator());
+    red = _htn.replaceVariablesWithQConstants(red, _analysis.getReducedArgumentDomains(red), _layer_idx, _pos);
 
     // Check validity
     if (task._name_id >= 0 && red.getTaskSignature() != task) return false;
-    if (!_instantiator.isFullyGround(red.getSignature())) return false;
-    if (!_instantiator.hasConsistentlyTypedArgs(sig)) return false;
-    if (!_instantiator.hasValidPreconditions(red.getPreconditions(), getStateEvaluator())) return false;
-    if (!_instantiator.hasValidPreconditions(red.getExtraPreconditions(), getStateEvaluator())) return false;
+    if (!_htn.isFullyGround(red.getSignature())) return false;
+    if (!_htn.hasConsistentlyTypedArgs(sig)) return false;
+    if (!_analysis.hasValidPreconditions(red.getPreconditions())) return false;
+    if (!_analysis.hasValidPreconditions(red.getExtraPreconditions())) return false;
 
     sig = red.getSignature();
     _htn.addReduction(red);
@@ -1051,7 +855,7 @@ bool Planner::addReduction(Reduction& red, const USignature& task) {
     return true;
 }
 
-void Planner::introduceNewFacts() {
+void Planner::initializeNextEffects() {
     Position& newPos = (*_layers[_layer_idx])[_pos];
     
     // For each possible operation effect:
@@ -1059,21 +863,17 @@ void Planner::introduceNewFacts() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            if (aSig == Sig::NONE_SIG) continue;
-            if (!isAction) {
-                _fact_changes_cache[aSig] = _instantiator.getPossibleFactChanges(aSig);
-            }
-            for (const Signature& eff : isAction ? _htn.getAction(aSig).getEffects() 
-                                                 : _fact_changes_cache[aSig]) {
+            SigSet pfc = _analysis.getPossibleFactChanges(aSig, FactAnalysis::FULL, isAction ? FactAnalysis::ACTION : FactAnalysis::REDUCTION);
+            for (const Signature& eff : pfc) {
 
                 if (!_htn.hasQConstants(eff._usig)) {
-                    // New fact: set before the action may happen
-                    introduceNewFact(newPos, eff._usig); 
+                    // New ground fact: set before the action may happen
+                    initializeFact(newPos, eff._usig); 
                 } else {
                     std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
                     for (const USignature& decEff : _htn.decodeObjects(eff._usig, sorts)) {           
-                        // New fact: set before the action may happen
-                        introduceNewFact(newPos, decEff);
+                        // New ground fact: set before the action may happen
+                        initializeFact(newPos, decEff);
                     }
                 }
             }
@@ -1082,308 +882,25 @@ void Planner::introduceNewFacts() {
     }
 }
 
-void Planner::introduceNewFact(Position& newPos, const USignature& fact) {
+void Planner::initializeFact(Position& newPos, const USignature& fact) {
     assert(!_htn.hasQConstants(fact));
 
-    // New fact is to be introduce as initially FALSE
-    // if its positive form is not contained in the initial state
-    bool initiallyFalse = !_init_state.contains(fact);
-    if (initiallyFalse) _neg_layer_facts.insert(fact);
-    
     // Has the fact already been defined? -> Not new!
-    if (_defined_facts.count(fact)) return;
+    if (_analysis.isInitialized(fact)) return;
 
-    _defined_facts.insert(fact);
-    if (initiallyFalse) newPos.addFalseFact(fact);
+    _analysis.addInitializedFact(fact);
+
+    if (_analysis.isReachable(fact, /*negated=*/true)) newPos.addFalseFact(fact);
     else newPos.addTrueFact(fact);
 }
 
 void Planner::addQConstantTypeConstraints(const USignature& op) {
     // Add type constraints for q constants
-    std::vector<TypeConstraint> cs = _instantiator.getQConstantTypeConstraints(op);
+    std::vector<TypeConstraint> cs = _htn.getQConstantTypeConstraints(op);
     // Add to this position's data structure
     for (const TypeConstraint& c : cs) {
         (*_layers[_layer_idx])[_pos].addQConstantTypeConstraint(op, c);
     }
-}
-
-Planner::DominationStatus Planner::getDominationStatus(const USignature& op, const USignature& other, 
-        Substitution& qconstSubstitutions) {
-    
-    if (op._name_id != other._name_id) return DIFFERENT;
-    assert(op._args.size() == other._args.size());
-    
-    DominationStatus status = EQUIVALENT;
-    FlatHashSet<int> dummyDomain;
-    std::vector<int> sameDomainQConstArgIndices;
-
-    for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
-        int arg = op._args[argIdx];
-        int otherArg = other._args[argIdx];
-
-        // TODO Every q-constant must have a globally invariant domain for this to work.
-        if (arg == otherArg) continue; 
-        
-        bool isQ = _htn.isQConstant(arg);
-        bool isOtherQ = _htn.isQConstant(otherArg);
-        if (!isQ && !isOtherQ) return DIFFERENT; // Different ground constants
-
-        // Check whether both q-constants originate from the same position
-        IntPair position(_layer_idx, _pos);
-        if (isQ && isOtherQ && _htn.getOriginOfQConstant(arg) != _htn.getOriginOfQConstant(otherArg)) {
-            return DIFFERENT;
-        }
-        
-        // Compare domains of pseudo-constants
-        
-        const auto& domain = isQ ? _htn.getDomainOfQConstant(arg) : dummyDomain;
-        if (!isQ) dummyDomain.insert(arg);
-        const auto& otherDomain = isOtherQ ? _htn.getDomainOfQConstant(otherArg) : dummyDomain;
-        if (!isOtherQ) dummyDomain.insert(otherArg);
-        assert(dummyDomain.size() <= 1);
-
-        if (domain.size() > otherDomain.size()) {
-            // This op may dominate the other op
-
-            // Contradicts previous argument indices -> ops are different
-            if (status == DOMINATED) return DIFFERENT;
-            // Check if this domain actually contains the other domain
-            for (int c : otherDomain) if (!domain.count(c)) return DIFFERENT;
-            // Yes: Dominating w.r.t. this position
-            status = DOMINATING;
-            qconstSubstitutions[otherArg] = arg;
-
-        } else if (domain.size() < otherDomain.size()) {
-            // This op may be dominated by the other op
-
-            // Contradicts previous argument indices -> ops are different
-            if (status == DOMINATED) return DIFFERENT;
-            // Check if the other domain actually contains this domain
-            for (int c : domain) if (!otherDomain.count(c)) return DIFFERENT;
-            // Yes: Dominated w.r.t. this position
-            status = DOMINATED;
-            qconstSubstitutions[arg] = otherArg;
-
-        } else if (domain != otherDomain) {
-            // Different domains
-            return DIFFERENT;
-
-        } else {
-            // The two pseudo-constants are not equal, but share the same domain
-            sameDomainQConstArgIndices.push_back(argIdx);
-        }
-        // Domains are equal
-
-        if (!isQ || !isOtherQ) dummyDomain.clear();
-    }
-
-    if (status == EQUIVALENT) {
-        // The operations are equal. Both dominate another.
-        // Tie break using lexicographic ordering of arguments
-        for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
-            if (op._args[argIdx] != other._args[argIdx]) {
-                status = op._args[argIdx] < other._args[argIdx] ? DOMINATED : DOMINATING;
-                break;
-            }    
-        }
-        for (size_t argIdx = 0; argIdx < op._args.size(); argIdx++) {
-            if (_htn.isQConstant(status == DOMINATED ? other._args[argIdx] : op._args[argIdx])) {
-                if (status == DOMINATED) qconstSubstitutions[op._args[argIdx]] = other._args[argIdx];
-                else qconstSubstitutions[other._args[argIdx]] = op._args[argIdx];
-            } 
-        }
-        return status;
-    } else {
-        // Add to substitution all q-constant pairs with identical domain
-        for (int argIdx : sameDomainQConstArgIndices) {
-            if (status == DOMINATED) qconstSubstitutions[op._args[argIdx]] = other._args[argIdx];
-            else qconstSubstitutions[other._args[argIdx]] = op._args[argIdx];
-        }
-    }
-    return status;
-}
-
-void Planner::eliminateDominatedOperations() {
-    Position& newPos = _layers.at(_layer_idx)->at(_pos);
-
-    // Map of an op name id to (map of a dominating op to a set of dominated ops)
-    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>> dominatingActionsByName;
-    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>> dominatingReductionsByName;
-
-    // For each operation
-    const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
-    NodeHashMap<int, NodeHashMap<USignature, USigSubstitutionMap, USignatureHasher>>* dMaps[2] = {
-        &dominatingActionsByName, &dominatingReductionsByName
-    };
-    for (size_t i = 0; i < 2; i++) {
-
-        for (const auto& op : *ops[i]) {
-            auto& dominatingOps = (*dMaps[i])[op._name_id];
-
-            // Compare operation with each currently dominating op of the same name
-            USigSubstitutionMap dominated;
-            
-            if (dominatingOps.empty()) {
-                dominatingOps[op];
-                continue;
-            }
-
-            for (auto& [other, dominatedByOther] : dominatingOps) {
-                Substitution s;
-                auto status = getDominationStatus(op, other, s);
-                if (status == DOMINATED) {
-                    // This op is being dominated; mark for deletion
-                    //Log::d("DOM %s << %s\n", TOSTR(op), TOSTR(other));
-                    dominatedByOther[op] = s;
-                    dominated.clear();
-                    break;
-                }
-                if (status == DOMINATING) {
-                    // This op dominates the other op
-                    //Log::d("DOM %s >> %s\n", TOSTR(op), TOSTR(other));
-                    dominated[other] = s;
-                }
-            }
-            // Delete all ops transitively dominated by this op
-            assert(!dominatingOps.count(op));
-            for (const auto& [other, s] : dominated) {
-                std::vector<USignature> dominatedVec(1, other);
-                std::vector<Substitution> subVec(1, s);
-                for (size_t j = 0; j < dominatedVec.size(); j++) {
-                    auto dominatedOp = dominatedVec[j];
-                    auto domS = subVec[j];
-                    //Log::d("DOM %s, j=%i : %s\n", TOSTR(op), j, TOSTR(dominatedOp));
-                    //Log::d("DOM sub: %s\n", TOSTR(domS));
-                    if (!dominatingOps[op].count(dominatedOp) || domS.size() < dominatingOps[op][dominatedOp].size()) 
-                        dominatingOps[op][dominatedOp] = domS;
-                    //assert(dominatedOp.substitute(domS) == op || Log::e("%s -> %s != %s\n", TOSTR(dominatedOp), TOSTR(dominatedOp.substitute(domS)), TOSTR(op)));
-                    if (dominatingOps.count(dominatedOp)) {
-                        for (const auto& [domDomOp, domDomS] : dominatingOps[dominatedOp]) {
-                            dominatedVec.push_back(domDomOp);
-                            Substitution cat = domDomS.concatenate(domS);
-                            //Log::d("DOM concat (%s , %s) ~> %s\n", TOSTR(domDomS), TOSTR(domS), TOSTR(cat));
-                            subVec.push_back(cat); 
-                        }
-                        dominatingOps.erase(dominatedOp);
-                    }
-                }
-            }
-        }
-
-        // Remove all dominated ops
-        for (auto& [nameId, dMap] : *dMaps[i]) for (auto& [op, dominated] : dMap) {
-            for (auto& [other, s] : dominated) {
-                Log::v("%s dominates %s (%s)\n", TOSTR(op), TOSTR(other), TOSTR(s));
-                //assert(other.substitute(s) == op);
-                newPos.replaceOperation(other, op, std::move(s));
-                _num_dominated_ops++;
-            }
-        }
-    }
-}
-
-void Planner::prune(const USignature& op, int layerIdx, int pos) {
-
-    NodeHashSet<PositionedUSig, PositionedUSigHasher> opsToRemove;
-    NodeHashSet<PositionedUSig, PositionedUSigHasher> openOps;
-    openOps.emplace(layerIdx, pos, op);
-    NodeHashMap<PositionedUSig, USigSet, PositionedUSigHasher> removedExpansionsOfParents;
-
-    // Traverse the hierarchy upwards, removing expansions/predecessors
-    // and marking all "root" operations whose induces subtrees should be pruned 
-
-    while (!openOps.empty()) {
-        PositionedUSig psig = *openOps.begin();
-        openOps.erase(psig);
-        Log::d("PRUNE_UP %s\n", TOSTR(psig));
-
-        if (psig.layer == 0) {
-            // Top of the hierarchy hit
-            opsToRemove.insert(psig);
-            continue;
-        }
-
-        Position& position = _layers[psig.layer]->at(psig.pos);
-        assert(position.hasAction(psig.usig) || position.hasReduction(psig.usig));
-        int oldPos = 0;
-        Layer& oldLayer = *_layers.at(psig.layer-1);
-        while (oldPos+1 < (int)oldLayer.size() && oldLayer.getSuccessorPos(oldPos+1) <= psig.pos) 
-            oldPos++;
-
-        bool pruneSomeParent = false;
-        assert(position.getPredecessors().count(psig.usig) || Log::e("%s has no predecessors!\n", TOSTR(psig)));
-        for (const auto& parent : position.getPredecessors().at(psig.usig)) {
-            PositionedUSig parentPSig(psig.layer-1, oldPos, parent);
-            //assert(oldLayer.at(oldPos).hasAction(parent) || oldLayer.at(oldPos).hasReduction(parent) || Log::e("%s\n", TOSTR(parentPSig)));
-            const auto& siblings = position.getExpansions().at(parent);
-
-            // Mark op for removal from expansion of the parent
-            assert(siblings.count(psig.usig));
-            removedExpansionsOfParents[parentPSig].insert(psig.usig);
-
-            if (removedExpansionsOfParents[parentPSig].size() == siblings.size()) {
-                // Siblings become empty -> prune parent as well
-                openOps.insert(std::move(parentPSig));
-                pruneSomeParent = true;
-            }
-        }
-
-        // No parent pruned? -> This op is a root of a subtree to be pruned
-        if (!pruneSomeParent) opsToRemove.insert(psig);
-    }
-
-    // Traverse the hierarchy downwards, pruning all children who became impossible
-
-    while (!opsToRemove.empty()) {
-        PositionedUSig psig = *opsToRemove.begin();
-        opsToRemove.erase(psig);
-        Position& position = _layers[psig.layer]->at(psig.pos);
-        Log::d("PRUNE_DOWN %s\n", TOSTR(psig));
-        assert(position.hasAction(psig.usig) || position.hasReduction(psig.usig));
-
-        // Go down one layer and mark all children for removal which have only one predecessor left
-        if (psig.layer+1 < _layers.size()) {
-            int belowPosIdx = _layers.at(psig.layer)->getSuccessorPos(psig.pos);
-            while (belowPosIdx < (int)_layers.at(psig.layer)->getSuccessorPos(psig.pos+1)) {
-
-                Position& below = _layers.at(psig.layer+1)->at(belowPosIdx);
-                if (below.getExpansions().count(psig.usig)) for (auto& child : below.getExpansions().at(psig.usig)) {
-                    assert(below.getPredecessors().at(child).count(psig.usig));
-                    if (psig.layer+1 == (size_t)layerIdx && belowPosIdx == pos && child == op) {
-                        // Arrived back at original op to prune
-                        opsToRemove.emplace(layerIdx, pos, op);
-                    } else if (below.getPredecessors().at(child).size() == 1) {
-                        // Child has this op as its only predecessor -> prune
-                        opsToRemove.emplace(psig.layer+1, belowPosIdx, child);
-                    } else Log::d("PRUNE %i pred left for %s@(%i,%i)\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
-                } else Log::d("PRUNE No expansions for %s @ (%i,%i)\n", TOSTR(psig), psig.layer+1, belowPosIdx);
-
-                belowPosIdx++;
-            }
-        }
-
-        // Remove the operation's occurrence itself,
-        // together with its expansions and predecessors
-        int opVar = position.getVariableOrZero(VarType::OP, psig.usig);
-        if (opVar != 0) _enc.addUnitConstraint(-opVar);
-        position.removeActionOccurrence(psig.usig);
-        position.removeReductionOccurrence(psig.usig);
-        _num_retroactively_pruned_ops++;
-    }
-
-    _num_retroactive_prunings++;
-}
-
-USigSet& Planner::getCurrentState(bool negated) {
-    return negated ? _neg_layer_facts : _pos_layer_facts;
-}
-
-Planner::StateEvaluator Planner::getStateEvaluator(int layer, int pos) {
-    if (layer == -1) layer = _layer_idx;
-    if (pos == -1) pos = _pos;
-    return [this](const USignature& sig, bool negated) {
-        return getCurrentState(negated).contains(sig);
-    };
 }
 
 void Planner::printStatistics() {
@@ -1392,7 +909,7 @@ void Planner::printStatistics() {
     Log::i("# instantiated actions: %i\n", _num_instantiated_actions);
     Log::i("# instantiated reductions: %i\n", _num_instantiated_reductions);
     Log::i("# introduced pseudo-constants: %i\n", _htn.getNumberOfQConstants());
-    Log::i("# retroactive prunings: %i\n", _num_retroactive_prunings);
-    Log::i("# retroactively pruned operations: %i\n", _num_retroactively_pruned_ops);
-    Log::i("# dominated operations: %i\n", _num_dominated_ops);
+    Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
+    Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
+    Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
 }

@@ -4,19 +4,16 @@
 
 #include <assert.h>
 
-#include "data/code_table.h"
 #include "data/action.h"
 #include "data/reduction.h"
 #include "data/signature.h"
 #include "util/names.h"
 #include "util/params.h"
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 
-#include "data/arg_iterator.h"
-#include "data/q_constant_condition.h"
+#include "algo/arg_iterator.h"
 
 // Forward definitions
-class Instantiator;
 class ParsedProblem;
 struct predicate_definition;
 struct task;
@@ -25,18 +22,11 @@ struct literal;
 
 class HtnInstance {
 
-public:
-    typedef std::function<bool(const USignature&, bool)> StateEvaluator;
-
 private:
-
     Parameters& _params;
 
     // The raw parsed problem.
     ParsedProblem& _p;
-
-    QConstantDatabase _q_db;
-    Instantiator* _instantiator;
     
     // Maps a string to its name ID within the problem.
     FlatHashMap<std::string, int> _name_table;
@@ -98,19 +88,14 @@ private:
     // and the replaced child name ID.
     FlatHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
 
-    FlatHashMap<int, int> _virtualized_to_actual_action;
+    FlatHashMap<int, int> _repeated_to_actual_action;
 
     // The initial reduction of the problem.
     Reduction _init_reduction;
     // Signature of the BLANK virtual action.
     USignature _blank_action_sig;
     
-    // Whether q constant mutexes are created and used.
-    const bool _use_q_constant_mutexes;
-
     const bool _share_q_constants;
-
-    USigSet _relevant_facts;
 
 public:
 
@@ -129,9 +114,8 @@ public:
     void printStatistics();
     size_t getNumFreeArguments(const Reduction& r);
     
-    const NodeHashMap<int, Action> getActionTemplates() const;
-    const NodeHashMap<int, Reduction> getReductionTemplates() const;
-    int getMinRES(int nameId);
+    const NodeHashMap<int, Action>& getActionTemplates() const;
+    NodeHashMap<int, Reduction>& getReductionTemplates();
 
     Action toAction(int actionName, const std::vector<int>& args) const;
     Reduction toReduction(int reductionName, const std::vector<int>& args) const;
@@ -149,11 +133,11 @@ public:
     bool hasSurrogate(int reductionId) const;
     const Action& getSurrogate(int reductionId) const;
 
-    bool isVirtualizedChildOfAction(int actionId) const;
-    int getVirtualizedChildNameOfAction(int actionId);
-    USignature getVirtualizedChildOfAction(const USignature& action);
-    const Action& getActionOfVirtualizedChild(int vChildId) const;
-    int getActionNameOfVirtualizedChild(int vChildId) const;
+    bool isActionRepetition(int actionId) const;
+    int getRepetitionNameOfAction(int actionId);
+    USignature getRepetitionOfAction(const USignature& action);
+    int getActionNameFromRepetition(int vChildId) const;
+    const Action& getActionFromRepetition(int vChildId) const;
 
     const std::vector<int>& getSorts(int nameId) const;
     const FlatHashSet<int>& getConstantsOfSort(int sort) const;
@@ -163,7 +147,6 @@ public:
     std::vector<int> popOperationDependentDomainOfQConstant(int qconst, const USignature& op);
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
-    std::vector<FlatHashSet<int>> getDomainsOfOpArgs(const HtnOp& op, const StateEvaluator& state);
 
     ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 
@@ -171,32 +154,14 @@ public:
     const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
     void clearForbiddenSubstitutions();
 
-    Action replaceVariablesWithQConstants(const Action& a, int layerIdx, int pos, const StateEvaluator& state);
-    Reduction replaceVariablesWithQConstants(const Reduction& red, int layerIdx, int pos, const StateEvaluator& state);    
+    Action replaceVariablesWithQConstants(const Action& a, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
+    Reduction replaceVariablesWithQConstants(const Reduction& red, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);    
     
-    void addQConstantConditions(const HtnOp& op, const PositionedUSig& psig, const PositionedUSig& parentPSig, 
-            int offset, const StateEvaluator& state);
-
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
     
     USignature cutNonoriginalTaskArguments(const USignature& sig);
     int getSplitAction(int firstActionName);
     const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
-
-    inline const USigSet& getRelevantFacts() const {
-        return _relevant_facts;
-    }
-
-    inline void addRelevantFact(const USignature& sig) {
-        _relevant_facts.insert(sig);
-    }
-
-    inline bool isRelevant(const USignature& sig) {
-        return _relevant_facts.count(sig);
-    }
-
-    Instantiator& getInstantiator();
-    QConstantDatabase& getQConstantDatabase();
 
     int nameId(const std::string& name, bool createQConstant = false, int layerIdx = -1, int pos = -1);
     std::string toString(int id) const;
@@ -221,8 +186,7 @@ public:
         if (concrete._args.size() != abstraction._args.size()) return false;
         
         // Check syntactical fit
-        std::vector<int> qArgs, decArgs;
-        for (int i = 0; i < concrete._args.size(); i++) {
+        for (size_t i = 0; i < concrete._args.size(); i++) {
             const int& qarg = abstraction._args[i];
             const int& carg = concrete._args[i];
             
@@ -231,19 +195,96 @@ public:
             // Different args, no q-constant arg?
             if (!isQConstant(qarg)) return false;
             
-            if (_use_q_constant_mutexes) {
-                qArgs.push_back(qarg);
-                decArgs.push_back(carg);
-            }
-
             // A q-constant that does not fit the concrete argument?
             if (!getDomainOfQConstant(qarg).count(carg)) return false;
         }
 
-        // Check that q-constant assignment is valid
-        if (_use_q_constant_mutexes && !_q_db.test(qArgs, decArgs)) return false;
-
         // A-OK
+        return true;
+    }
+
+    bool isUnifiable(const Signature& from, const Signature& to, FlatHashMap<int, int>* substitution = nullptr) {
+        if (from._negated != to._negated) return false;
+        return isUnifiable(from._usig, to._usig, substitution);
+    }
+
+    bool isUnifiable(const USignature& from, const USignature& to, FlatHashMap<int, int>* substitution = nullptr) {
+        if (from._name_id != to._name_id) return false;
+        if (from._args.size() != to._args.size()) return false;
+
+        for (size_t i = 0; i < from._args.size(); i++) {
+
+            if (!isVariable(from._args[i])) {
+                // Constant parameter: must be equal
+                if (from._args[i] != to._args[i]) return false;
+
+            } else if (isVariable(to._args[i])) {
+                // Both are variables: fine
+                if (substitution != nullptr) {
+                    (*substitution)[from._args[i]] = to._args[i];
+                }
+            
+            } else {
+                // Variable to constant: fine
+                if (substitution != nullptr) {
+                    (*substitution)[from._args[i]] = to._args[i];
+                }
+            }
+        }
+        return true;
+    }
+
+    std::vector<int> getFreeArgPositions(const std::vector<int>& sigArgs) {
+        std::vector<int> argPositions;
+        for (size_t i = 0; i < sigArgs.size(); i++) {
+            int arg = sigArgs[i];
+            if (isVariable(arg)) argPositions.push_back(i);
+        }
+        return argPositions;
+    }
+
+    inline bool isFullyGround(const USignature& sig) {
+        for (int arg : sig._args) if (isVariable(arg)) return false;
+        return true;
+    }
+
+    inline bool hasSomeInstantiation(const USignature& sig) {
+        const std::vector<int>& types = getSorts(sig._name_id);
+        //log("%s , %i\n", TOSTR(sig), types.size());
+        assert(types.size() == sig._args.size());
+        for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
+            int sort = types[argPos];
+            if (getConstantsOfSort(sort).empty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool hasConsistentlyTypedArgs(const USignature& sig) {
+        const std::vector<int>& taskSorts = getSorts(sig._name_id);
+        for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
+            int sort = taskSorts[argPos];
+            int arg = sig._args[argPos];
+            if (isVariable(arg)) continue; // skip variable
+            bool valid = false;
+            if (isQConstant(arg)) {
+                // q constant: TODO check if SOME SUBSTITUTEABLE CONSTANT has the correct sort
+                for (int cnst : getDomainOfQConstant(arg)) {
+                    if (getConstantsOfSort(sort).count(cnst)) {
+                        valid = true;
+                        break;
+                    }
+                }
+            } else {
+                // normal constant: check if it is contained in the correct sort
+                valid = getConstantsOfSort(sort).count(arg);
+            }
+            if (!valid) {
+                //log("arg %s not of sort %s => %s invalid\n", TOSTR(arg), TOSTR(sort), TOSTR(sig));
+                return false;
+            } 
+        }
         return true;
     }
 
@@ -267,14 +308,54 @@ public:
         return _q_constants_with_origin.size();
     }
 
+    std::vector<TypeConstraint> getQConstantTypeConstraints(const USignature& sig) {
+
+        std::vector<TypeConstraint> constraints;
+
+        const std::vector<int>& taskSorts = getSorts(sig._name_id);
+        for (size_t argPos = 0; argPos < sig._args.size(); argPos++) {
+            int sigSort = taskSorts[argPos];
+            int arg = sig._args[argPos];
+            
+            // Not a q-constant here
+            if (!isQConstant(arg)) {
+                // Must be of valid type
+                assert(getConstantsOfSort(sigSort).count(arg));
+                continue;
+            }
+
+            // Type is fine no matter which substitution is chosen
+            if (getSortsOfQConstant(arg).count(sigSort)) continue;
+
+            // Type is NOT fine, at least for some substitutions
+            std::vector<int> good;
+            std::vector<int> bad;
+            const FlatHashSet<int>& validConstants = getConstantsOfSort(sigSort);
+            // For each value the qconstant can assume:
+            for (int c : getDomainOfQConstant(arg)) {
+                // Is that constant of correct type?
+                if (validConstants.count(c)) good.push_back(c);
+                else bad.push_back(c);
+            }
+
+            if (good.size() >= bad.size()) {
+                // arg must be EITHER of the GOOD ones
+                constraints.emplace_back(arg, true, std::move(good));
+            } else {
+                // arg must be NEITHER of the BAD ones
+                constraints.emplace_back(arg, false, std::move(bad));
+            }
+        }
+
+        return constraints;
+    }
+
 
 private:
 
     void replaceSurrogateReductionsWithAction();
     void splitActionsWithConflictingEffects();
-    enum MinePrecMode { NO_MINING, USE_FOR_INSTANTIATION, USE_EVERYWHERE };
-    void minePreconditions(MinePrecMode mode);
-
+    
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
     std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);
     USignature convertSignature(const task& task);
@@ -291,7 +372,7 @@ private:
     Reduction& createReduction(method& method);
     Action& createAction(const task& task);
 
-    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, int layerIdx, int pos, const StateEvaluator& state);
+    std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
     void addQConstant(int id, const FlatHashSet<int>& domain);
 
 };

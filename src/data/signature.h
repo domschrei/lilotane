@@ -6,7 +6,7 @@
 #include <assert.h>
 #include <limits>
 
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "util/hash.h"
 #include "substitution.h"
 

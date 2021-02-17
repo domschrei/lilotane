@@ -4,7 +4,7 @@
 
 #include <vector>
 
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "data/htn_op.h"
 #include "data/signature.h"
 

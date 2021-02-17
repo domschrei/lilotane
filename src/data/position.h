@@ -5,7 +5,7 @@
 #include <vector>
 #include <set>
 
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "data/signature.h"
 #include "util/names.h"
 #include "sat/variable_domain.h"

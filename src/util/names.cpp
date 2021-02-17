@@ -1,7 +1,7 @@
 
 #include <iostream>
 
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "util/names.h"
 #include "util/log.h"
 

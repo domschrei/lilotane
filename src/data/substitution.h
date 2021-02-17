@@ -5,7 +5,7 @@
 #include <vector>
 #include <forward_list>
 
-#include "data/hashmap.h"
+#include "util/hashmap.h"
 #include "util/hash.h"
 
 class Substitution {
