@@ -33,7 +33,7 @@ You can build Lilotane like this:
 ```
 mkdir -p build
 cd build
-cmake .. -DIPASIRSOLVER=glucose4
+cmake .. -DCMAKE_BUILD_TYPE=RELEASE -DIPASIRSOLVER=glucose4
 make
 cd ..
 ```

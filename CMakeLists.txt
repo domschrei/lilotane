@@ -18,7 +18,7 @@ if(CMAKE_BUILD_TYPE MATCHES DEBUG)
 else()
     set(MY_DEFINITIONS ${MY_DEFINITIONS} LILOTANE_VERSION=\"rls-${IPASIRSOLVER}\")
     set(MY_DEBUG_OPTIONS "-rdynamic -g -ggdb") 
-    set(BASE_COMPILEFLAGS -flto)
+    #set(BASE_COMPILEFLAGS -flto)
 endif()
 
 if(LILOTANE_USE_ASAN)
