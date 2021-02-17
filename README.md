@@ -28,19 +28,7 @@ Lilotane outputs a plan in accordance to [4]. Basically everything in between "`
 
 ## Building
 
-### 1. PandaPIparser
-
-You need `pandaPIparser` as a dependency in order to build Lilotane. Execute `cd src/ && bash fetch_and_build_parser.sh` to fetch and build the library.
-
-### 2. SAT Solvers
-
-Lilotane can be linked with different SAT solvers. The supported solvers as of now are `cadical`, `cryptominisat`, `glucose4`, `lingeling`, and `riss` (but you can add any other solver supporting the interface IPASIR).
-
-To build all solvers, you can execute `cd lib && bash fetch_and_build_solvers.sh`. To build a single solver, execute `cd lib/<solver>/ && fetch_and_build.sh`.
-
-### 3. Lilotane
-
-After you followed the above steps, you can build Lilotane like this:
+You can build Lilotane like this:
 
 ```
 mkdir -p build
@@ -50,7 +38,7 @@ make
 cd ..
 ```
 
-The SAT solver to link Lilotane with can be overwritten with the `IPASIRSOLVER` variable.
+The SAT solver to link Lilotane with can be set with the `IPASIRSOLVER` variable. Valid values are `cadical`, `cryptominisat`, `glucose4`, `lingeling`, and `riss`.
 
 ## Usage
 
@@ -72,12 +60,11 @@ Here are the more interesting options for normal general purpose usage of the pl
 * `-cs`: Check solvability. When this option is set and Lilotane finds unsatisfiability at layer k, it will re-run the SAT solver, this time without assumptions. If this SAT call returns unsatisfiability, too, then the formula is generally unsatisfiable and it will always remain unsatisfiable no matter the following iterations. In that case, wither something is wrong with the internals of the used Lilotane configuration, or the provided planning problem is unsolvable. Lilotane exits in that case. If the SAT call returns satisfiability, Lilotane proceeds to instantiate the next layer.
 * `-wf`: Write the generated formula to `./f.cnf`. As Lilotane works incrementally, the formula will consist of all clauses added during program execution. Additionally, when the program exits, the assumptions used in the final SAT call will be added to the formula as well.
 * `-pvn` Print variable names – prints one line `VARMAP <int> <Signature>` for each encoded propositional variable. Remember to set verbosity to DEBUG (`-v=4`). Useful for debugging together with `-cs -wf`: You can use a SAT solver such as picosat to extract the UNSAT core of an unsolvable problem formula (`./picosat f.cnf -c <core-output>`) and then translate the core back into the original variable names with `python3 get_failed_reason.py <core-output> <planner-output-file>`.
-* `-qq=0`: Use this option to turn off pseudo-constants ("q-constants") during instantiation and encoding. Lilotane then does a full instantiation of all actions and reductions (but still lazily whenever needed). On complex domains this may lead to significant performance degradation and potentially huge memory footprints, but for some simpler domains it saves the overhead of a structurally more complex encoding.
 
 ## License
 
 The code of Lilotane is published under the GNU GPLv3. Consult the LICENSE file for details.  
-The planner uses the [pandaPIparser project](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
+The planner uses [pandaPIparser](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
 
 Note that depending on the SAT solver compiled into the planner, usage and redistribution rights may be subject to their licensing.
 If you want to make sure that everything is Free and Open Source, I suggest to use MIT-licensed lingeling as the solver.
