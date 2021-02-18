@@ -3,7 +3,6 @@
 
 SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode, OperationType opType) {
     
-    if (sig == Sig::NONE_SIG) return SigSet();
     if (opType == UNKNOWN) opType = _htn.isAction(sig) ? ACTION : REDUCTION;
     
     if (opType == ACTION) {
@@ -48,8 +47,8 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantia
                     } else {
                         a = _htn.toAction(nodeSig._name_id, nodeSig._args);
                     }
-                } else if (_htn.hasSurrogate(nodeSig._name_id)) {
-                    a = _htn.getSurrogate(nodeSig._name_id);
+                } else if (_htn.isReductionPrimitivizable(nodeSig._name_id)) {
+                    a = _htn.getReductionPrimitivization(nodeSig._name_id);
                     a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
                 }
 

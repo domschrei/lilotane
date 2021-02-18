@@ -74,6 +74,7 @@ public:
         _minres.computeMinNumPrimitiveChildren();
     }
     int findPlan();
+    void improvePlan(int& iteration);
 
     friend int terminateSatCall(void* state);
     void checkTermination();
@@ -116,6 +117,8 @@ private:
     std::vector<int> getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const;
     std::vector<IntPair> decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const;
 
+    int getTerminateSatCall();
+    void clearDonePositions(int offset);
     void printStatistics();
 
 };

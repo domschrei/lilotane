@@ -82,11 +82,11 @@ private:
 
     // Maps a virtual "_FIRST" action ID to the original action that was split into parts.  
     FlatHashMap<int, int> _split_action_from_first;
-    // Maps a reduction name ID to the surrogate action that replaces it.
-    FlatHashMap<int, int> _reduction_to_surrogate;
-    // Maps a surrogate action name ID to its original reduction name ID
+    // Maps a reduction name ID to the primitivization (action name ID) that replaces it.
+    FlatHashMap<int, int> _reduction_to_primitivization;
+    // Maps a primitivization (action name ID) to its original reduction name ID
     // and the replaced child name ID.
-    FlatHashMap<int, std::pair<int, int>> _surrogate_to_orig_parent_and_child;
+    FlatHashMap<int, std::pair<int, int>> _primitivization_to_parent_and_child;
 
     FlatHashMap<int, int> _repeated_to_actual_action;
 
@@ -130,8 +130,8 @@ public:
     bool hasReductions(int taskId) const;
     const std::vector<int>& getReductionIdsOfTaskId(int taskId) const;
 
-    bool hasSurrogate(int reductionId) const;
-    const Action& getSurrogate(int reductionId) const;
+    bool isReductionPrimitivizable(int reductionId) const;
+    const Action& getReductionPrimitivization(int reductionId) const;
 
     bool isActionRepetition(int actionId) const;
     int getRepetitionNameOfAction(int actionId);
@@ -161,7 +161,7 @@ public:
     
     USignature cutNonoriginalTaskArguments(const USignature& sig);
     int getSplitAction(int firstActionName);
-    const std::pair<int, int>& getParentAndChildFromSurrogate(int surrogateActionName);
+    const std::pair<int, int>& getReductionAndActionFromPrimitivization(int primitivizationName);
 
     int nameId(const std::string& name, bool createQConstant = false, int layerIdx = -1, int pos = -1);
     std::string toString(int id) const;
@@ -177,30 +177,6 @@ public:
     inline bool hasQConstants(const USignature& sig) const {
         for (const int& arg : sig._args) if (isQConstant(arg)) return true;
         return false;
-    }
-
-    inline bool isAbstraction(const USignature& concrete, const USignature& abstraction) {
-        
-        // Different predicates?
-        if (concrete._name_id != abstraction._name_id) return false;
-        if (concrete._args.size() != abstraction._args.size()) return false;
-        
-        // Check syntactical fit
-        for (size_t i = 0; i < concrete._args.size(); i++) {
-            const int& qarg = abstraction._args[i];
-            const int& carg = concrete._args[i];
-            
-            // Same argument?
-            if (qarg == carg) continue;
-            // Different args, no q-constant arg?
-            if (!isQConstant(qarg)) return false;
-            
-            // A q-constant that does not fit the concrete argument?
-            if (!getDomainOfQConstant(qarg).count(carg)) return false;
-        }
-
-        // A-OK
-        return true;
     }
 
     bool isUnifiable(const Signature& from, const Signature& to, FlatHashMap<int, int>* substitution = nullptr) {
@@ -350,10 +326,9 @@ public:
         return constraints;
     }
 
-
 private:
 
-    void replaceSurrogateReductionsWithAction();
+    void primitivizeSimpleReductions();
     void splitActionsWithConflictingEffects();
     
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);

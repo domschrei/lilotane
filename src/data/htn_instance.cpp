@@ -71,8 +71,8 @@ HtnInstance::HtnInstance(Parameters& params) :
         exit(0);
     }
 
-    // Create replacements for surrogate methods with only one subtask
-    if (_params.isNonzero("surr")) replaceSurrogateReductionsWithAction();
+    // Create replacements for simple methods with only one subtask
+    if (_params.isNonzero("psr")) primitivizeSimpleReductions();
 
     // If necessary, compile out actions which have some effect predicate
     // in positive AND negative form: create two new actions in these cases
@@ -201,13 +201,13 @@ size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
     return freeArgs;
 }
 
-void HtnInstance::replaceSurrogateReductionsWithAction() {
+void HtnInstance::primitivizeSimpleReductions() {
 
     for (const auto& entry : _reductions) {
         const Reduction& red = entry.second;
         if (red.getSubtasks().size() != 1) continue;
         
-        // Surrogate method
+        // Single-subtask method
         USignature childSig = red.getSubtasks().at(0);
         int childId = childSig._name_id;
         if (!_actions.count(childId)) continue;
@@ -224,12 +224,9 @@ void HtnInstance::replaceSurrogateReductionsWithAction() {
         for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
         for (const auto& pre : childAct.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
         for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
-        _reduction_to_surrogate[entry.first] = id;
+        _reduction_to_primitivization[entry.first] = id;
         _signature_sorts_table[id] = _signature_sorts_table[entry.first];
-        //Log::d("SURROGATE par: %s\n", TOSTR(red));
-        //Log::d("SURROGATE src: %s\n", TOSTR(_actions[childId]));
-        //Log::d("SURROGATE des: %s\n", TOSTR(_actions[id]));
-        _surrogate_to_orig_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
+        _primitivization_to_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
     }
 }
 
@@ -308,11 +305,6 @@ void HtnInstance::splitActionsWithConflictingEffects() {
             } 
         }
 
-        /*
-        log("REPLACE_ACTION %s => \n  <\n    %s,\n    %s\n  >\n", TOSTR(a), 
-                TOSTR(aFirst), 
-                TOSTR(aSecond));
-        */
         // Remember original action name ID
         _split_action_from_first[idFirst] = aId;
     }
@@ -722,12 +714,12 @@ const std::vector<int>& HtnInstance::getReductionIdsOfTaskId(int taskId) const {
     return _task_id_to_reduction_ids.at(taskId);
 }
 
-bool HtnInstance::hasSurrogate(int reductionId) const {
-    return _reduction_to_surrogate.count(reductionId);
+bool HtnInstance::isReductionPrimitivizable(int reductionId) const {
+    return _reduction_to_primitivization.count(reductionId);
 }
 
-const Action& HtnInstance::getSurrogate(int reductionId) const {
-    return _actions.at(_reduction_to_surrogate.at(reductionId));
+const Action& HtnInstance::getReductionPrimitivization(int reductionId) const {
+    return _actions.at(_reduction_to_primitivization.at(reductionId));
 }
 
 bool HtnInstance::isActionRepetition(int actionId) const {
@@ -1026,8 +1018,8 @@ int HtnInstance::getSplitAction(int firstActionName) {
     return _split_action_from_first[firstActionName];
 }
 
-const std::pair<int, int>& HtnInstance::getParentAndChildFromSurrogate(int surrogateActionName) {
-    return _surrogate_to_orig_parent_and_child[surrogateActionName];
+const std::pair<int, int>& HtnInstance::getReductionAndActionFromPrimitivization(int primitivizationName) {
+    return _primitivization_to_parent_and_child[primitivizationName];
 }
 
 USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs) {

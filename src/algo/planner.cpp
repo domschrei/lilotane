@@ -5,60 +5,9 @@
 #include "util/log.h"
 #include "util/signal_manager.h"
 #include "util/timer.h"
+#include "sat/plan_optimizer.h"
 
-int terminateSatCall(void* state) {
-    Planner* planner = (Planner*) state;
-
-    // Breaking out of first SAT call after some time
-    if (planner->_sat_time_limit > 0 &&
-        planner->_enc.getTimeSinceSatCallStart() > planner->_sat_time_limit) {
-        return 1;
-    }
-    // Termination due to initial planning time limit (-T)
-    if (planner->_time_at_first_plan == 0 &&
-        planner->_init_plan_time_limit > 0 &&
-        Timer::elapsedSeconds() > planner->_init_plan_time_limit) {
-        return 1;
-    }
-    // Plan length optimization limit hit
-    if (planner->cancelOptimization()) {
-        return 1;
-    }
-    // Termination by interruption signal
-    if (SignalManager::isExitSet()) return 1;
-    return 0;
-}
-
-void Planner::checkTermination() {
-    bool exitSet = SignalManager::isExitSet();
-    bool cancelOpt = cancelOptimization();
-    if (exitSet) {
-        if (_has_plan) {
-            Log::i("Termination signal caught - printing last found plan.\n");
-            _plan_writer.outputPlan(_plan);
-        } else {
-            Log::i("Termination signal caught.\n");
-        }
-    } else if (cancelOpt) {
-        Log::i("Cancelling optimization according to provided limit.\n");
-        _plan_writer.outputPlan(_plan);
-    } else if (_time_at_first_plan == 0 
-            && _init_plan_time_limit > 0
-            && Timer::elapsedSeconds() > _init_plan_time_limit) {
-        Log::i("Time limit to find an initial plan exceeded.\n");
-        exitSet = true;
-    }
-    if (exitSet || cancelOpt) {
-        printStatistics();
-        Log::i("Exiting happily.\n");
-    }
-}
-
-bool Planner::cancelOptimization() {
-    return _time_at_first_plan > 0 &&
-            _optimization_factor > 0 &&
-            Timer::elapsedSeconds() > (1+_optimization_factor) * _time_at_first_plan;
-}
+int terminateSatCall(void* state) {return ((Planner*) state)->getTerminateSatCall();}
 
 int Planner::findPlan() {
     
@@ -133,7 +82,18 @@ int Planner::findPlan() {
     Log::i("Found a solution at layer %i.\n", _layers.size()-1);
     _time_at_first_plan = Timer::elapsedSeconds();
 
+    improvePlan(iteration);
+
+    _plan_writer.outputPlan(_plan);
+    printStatistics();    
+    return 0;
+}
+
+void Planner::improvePlan(int& iteration) {
+
     // Compute extra layers after initial solution as desired
+    PlanOptimizer optimizer(_htn, _layers, _enc);
+    int maxIterations = _params.getIntParam("D");
     int extraLayers = _params.getIntParam("el");
     int upperBound = _layers.back()->size()-1;
     if (extraLayers != 0) {
@@ -141,7 +101,7 @@ int Planner::findPlan() {
         // Extract initial plan (for anytime purposes)
         _plan = _enc.extractPlan();
         _has_plan = true;
-        upperBound = _enc.getPlanLength(std::get<0>(_plan));
+        upperBound = optimizer.getPlanLength(std::get<0>(_plan));
         Log::i("Initial plan at most shallow layer has length %i\n", upperBound);
         
         if (extraLayers == -1) {
@@ -161,7 +121,7 @@ int Planner::findPlan() {
                 if (result != 10) break;
                 // Extract plan at layer, update bound
                 auto thisLayerPlan = _enc.extractPlan();
-                int newLength = _enc.getPlanLength(std::get<0>(thisLayerPlan));
+                int newLength = optimizer.getPlanLength(std::get<0>(thisLayerPlan));
                 // Update plan only if it is better than any previous plan
                 if (newLength < upperBound || !_has_plan) {
                     upperBound = newLength;
@@ -170,7 +130,7 @@ int Planner::findPlan() {
                 }
                 Log::i("Initial plan at layer %i has length %i\n", iteration, newLength);
                 // Optimize
-                _enc.optimizePlan(upperBound, _plan, Encoding::ConstraintAddition::TRANSIENT);
+                optimizer.optimizePlan(upperBound, _plan, PlanOptimizer::ConstraintAddition::TRANSIENT);
                 // Double number of extra layers in next iteration
                 el *= 2;
             } while (maxIterations == 0 || iteration < maxIterations);
@@ -194,7 +154,7 @@ int Planner::findPlan() {
 
             // Extract plan at final layer, update bound
             auto finalLayerPlan = _enc.extractPlan();
-            int newLength = _enc.getPlanLength(std::get<0>(finalLayerPlan));
+            int newLength = optimizer.getPlanLength(std::get<0>(finalLayerPlan));
             // Update plan only if it is better than any previous plan
             if (newLength < upperBound || !_has_plan) {
                 upperBound = newLength;
@@ -203,7 +163,7 @@ int Planner::findPlan() {
             }
             Log::i("Initial plan at final layer has length %i\n", newLength);
             // Optimize
-            _enc.optimizePlan(upperBound, _plan, Encoding::ConstraintAddition::PERMANENT);
+            optimizer.optimizePlan(upperBound, _plan, PlanOptimizer::ConstraintAddition::PERMANENT);
 
         } else {
             // Just extract plan
@@ -211,11 +171,6 @@ int Planner::findPlan() {
             _has_plan = true;
         }
     }
-
-    _plan_writer.outputPlan(_plan);
-    printStatistics();
-    
-    return 0;
 }
 
 void Planner::incrementPosition() {
@@ -323,9 +278,15 @@ void Planner::createNextLayer() {
 
     // Encode new layer
     Log::i("Encoding ...\n");
-    for (_pos = 0; _pos < newLayer.size(); _pos++) {
-        Log::v("- Position (%i,%i)\n", _layer_idx, _pos);
-        _enc.encode(_layer_idx, _pos);
+    for (_old_pos = 0; _old_pos < oldLayer.size(); _old_pos++) {
+        size_t newPos = oldLayer.getSuccessorPos(_old_pos);
+        size_t maxOffset = oldLayer[_old_pos].getMaxExpansionSize();
+        for (size_t offset = 0; offset < maxOffset; offset++) {
+            _pos = newPos + offset;
+            Log::v("- Position (%i,%i)\n", _layer_idx, _pos);
+            _enc.encode(_layer_idx, _pos);
+            clearDonePositions(offset);
+        }
     }
 
     newLayer.consolidate();
@@ -643,7 +604,6 @@ void Planner::propagateActions(size_t offset) {
     std::vector<USignature> actionsToPrune;
     size_t numActionsBefore = above.getActions().size();
     for (const auto& aSig : above.getActions()) {
-        if (aSig == Sig::NONE_SIG) continue;
         const Action& a = _htn.getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
@@ -697,7 +657,6 @@ void Planner::propagateReductions(size_t offset) {
 
     // Collect all possible subtasks and remember their possible parents
     for (const auto& rSig : above.getReductions()) {
-        if (rSig == Sig::NONE_SIG) continue;
 
         const Reduction r = _htn.getReduction(rSig);
         
@@ -806,13 +765,13 @@ std::vector<USignature> Planner::instantiateAllReductionsOfTask(const USignature
     for (int redId : _htn.getReductionIdsOfTaskId(task._name_id)) {
         Reduction r = _htn.getReductionTemplate(redId);
 
-        if (_htn.hasSurrogate(redId)) {
-            const Action& a = _htn.getSurrogate(redId);
+        if (_htn.isReductionPrimitivizable(redId)) {
+            const Action& a = _htn.getReductionPrimitivization(redId);
 
             std::vector<Substitution> subs = Substitution::getAll(r.getTaskArguments(), task._args);
             for (const Substitution& s : subs) {
-                USignature surrSig = a.getSignature().substitute(s);
-                for (const auto& sig : instantiateAllActionsOfTask(surrSig)) {
+                USignature primSig = a.getSignature().substitute(s);
+                for (const auto& sig : instantiateAllActionsOfTask(primSig)) {
                     result.push_back(sig);
                 }
             }
@@ -902,7 +861,88 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
     }
 }
 
+void Planner::clearDonePositions(int offset) {
+
+    Position* positionToClearLeft = nullptr;
+    if (_pos == 0 && _layer_idx > 0) {
+        positionToClearLeft = &_layers.at(_layer_idx-1)->last();
+    } else if (_pos > 0) positionToClearLeft = &_layers.at(_layer_idx)->at(_pos-1);
+    if (positionToClearLeft != nullptr) {
+        Log::v("  Freeing some memory of (%i,%i) ...\n", positionToClearLeft->getLayerIndex(), positionToClearLeft->getPositionIndex());
+        positionToClearLeft->clearAtPastPosition();
+    }
+
+    if (_layer_idx == 0 || offset > 0) return;
+    
+    Position* positionToClearAbove = nullptr;
+    if (_old_pos == 0) {
+        // Clear rightmost position of "above above" layer
+        if (_layer_idx > 1) positionToClearAbove = &_layers.at(_layer_idx-2)->at(_layers.at(_layer_idx-2)->size()-1);
+    } else {
+        // Clear previous parent position of "above" layer
+        positionToClearAbove = &_layers.at(_layer_idx-1)->at(_old_pos-1);
+    }
+    if (positionToClearAbove != nullptr) {
+        Log::v("  Freeing most memory of (%i,%i) ...\n", positionToClearAbove->getLayerIndex(), positionToClearAbove->getPositionIndex());
+        positionToClearAbove->clearAtPastLayer();
+    }
+}
+
+void Planner::checkTermination() {
+    bool exitSet = SignalManager::isExitSet();
+    bool cancelOpt = cancelOptimization();
+    if (exitSet) {
+        if (_has_plan) {
+            Log::i("Termination signal caught - printing last found plan.\n");
+            _plan_writer.outputPlan(_plan);
+        } else {
+            Log::i("Termination signal caught.\n");
+        }
+    } else if (cancelOpt) {
+        Log::i("Cancelling optimization according to provided limit.\n");
+        _plan_writer.outputPlan(_plan);
+    } else if (_time_at_first_plan == 0 
+            && _init_plan_time_limit > 0
+            && Timer::elapsedSeconds() > _init_plan_time_limit) {
+        Log::i("Time limit to find an initial plan exceeded.\n");
+        exitSet = true;
+    }
+    if (exitSet || cancelOpt) {
+        printStatistics();
+        Log::i("Exiting happily.\n");
+        exit(0);
+    }
+}
+
+bool Planner::cancelOptimization() {
+    return _time_at_first_plan > 0 &&
+            _optimization_factor > 0 &&
+            Timer::elapsedSeconds() > (1+_optimization_factor) * _time_at_first_plan;
+}
+
+int Planner::getTerminateSatCall() {
+    // Breaking out of first SAT call after some time
+    if (_sat_time_limit > 0 &&
+        _enc.getTimeSinceSatCallStart() > _sat_time_limit) {
+        return 1;
+    }
+    // Termination due to initial planning time limit (-T)
+    if (_time_at_first_plan == 0 &&
+        _init_plan_time_limit > 0 &&
+        Timer::elapsedSeconds() > _init_plan_time_limit) {
+        return 1;
+    }
+    // Plan length optimization limit hit
+    if (cancelOptimization()) {
+        return 1;
+    }
+    // Termination by interruption signal
+    if (SignalManager::isExitSet()) return 1;
+    return 0;
+}
+
 void Planner::printStatistics() {
+    _enc.printStatistics();
     Log::i("# instantiated positions: %i\n", _num_instantiated_positions);
     Log::i("# instantiated actions: %i\n", _num_instantiated_actions);
     Log::i("# instantiated reductions: %i\n", _num_instantiated_reductions);

@@ -63,7 +63,7 @@ void Parameters::setDefaults() {
     setParam("srfa", "1"); // skip redundant frame axioms
     setParam("stats", "0"); // output domain statistics and exit
     setParam("stl", "0"); // SAT time limit
-    setParam("surr", "1"); // replace surrogate methods
+    setParam("psr", "1"); // primitivize simple reductions
     setParam("svp", "0"); // set variable phases
     setParam("T", "0"); // max. time (secs) for finding an initial plan
     setParam("tc", "1"); // tree conversion for DNF2CNF
@@ -99,6 +99,7 @@ void Parameters::printUsage() {
     Log::i(" -of=<factor>        Plan length optimization factor: spend up to <factor> * <original solving time> for optimization\n");
     Log::i("                     (-1 for exhaustive optimization)\n");
     Log::i(" -p=<0|1>            Encode predecessor operations\n");
+    Log::i(" -psr=<0|1>          Primitivize simple reductions\n");
     Log::i(" -pvn=<0|1>          Print variable names\n");
     Log::i(" -qcm=<limit>        Collect up to <limit> q-constant mutexes per tuple of q-constants\n");
     Log::i(" -qit=<threshold>    Q-constant instantiation threshold: fully instantiate up to <threshold> operations\n");
@@ -112,7 +113,6 @@ void Parameters::printUsage() {
     Log::i(" -srfa=<0|1>         Skip redundant frame axioms\n");
     Log::i(" -stats=<0|1>        Output domain statistics and exit\n");
     Log::i(" -stl=<limit>        SAT time limit: Set limit in seconds for a SAT solver call. Limit is discarded after first such interrupt.\n");
-    Log::i(" -surr=<0|1>         Replace surrogate methods with their only subtask (supplied with additional preconditions)\n");
     Log::i(" -T=<0|secs>         Try finding an initial plan for up to #secs (without optimization: total allowed runtime; 0: no limit)\n");
     Log::i(" -tc=<0|1>           Use tree conversion for DNF 2 CNF transformation instead of distributive law\n");
     Log::i(" -v=<verb>           Verbosity: 0=essential 1=warnings 2=information 3=verbose 4=debug\n");

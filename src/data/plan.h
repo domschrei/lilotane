@@ -5,6 +5,11 @@
 #include "data/signature.h"
 
 struct PlanItem {
+    int id = -1;
+    USignature abstractTask;
+    USignature reduction;
+    std::vector<int> subtaskIds;
+    
     PlanItem() {
         id = -1;
         abstractTask = Sig::NONE_SIG;
@@ -13,10 +18,6 @@ struct PlanItem {
     }
     PlanItem(int id, const USignature& abstractTask, const USignature& reduction, const std::vector<int> subtaskIds) :
         id(id), abstractTask(abstractTask), reduction(reduction), subtaskIds(subtaskIds) {}
-    int id = -1;
-    USignature abstractTask;
-    USignature reduction;
-    std::vector<int> subtaskIds;
 };
 
 typedef std::pair<std::vector<PlanItem>, std::vector<PlanItem>> Plan;

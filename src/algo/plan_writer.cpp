@@ -17,7 +17,7 @@ void PlanWriter::outputPlan(Plan& _plan) {
     FlatHashSet<int> actionIds;
     FlatHashSet<int> idsToRemove;
 
-    FlatHashSet<int> surrogateIds;
+    FlatHashSet<int> primitivizationIds;
     std::vector<PlanItem> decompsToInsert;
     size_t decompsToInsertIdx = 0;
     size_t length = 0;
@@ -37,11 +37,11 @@ void PlanWriter::outputPlan(Plan& _plan) {
         }
         
         if (_htn.toString(item.abstractTask._name_id).rfind("__SURROGATE") != std::string::npos) {
-            // Surrogate action: Replace with actual action, remember represented method to include in decomposition
+            // Primitivized reduction: Replace with actual action, remember represented method to include in decomposition
 
-            [[maybe_unused]] const auto& [parentId, childId] = _htn.getParentAndChildFromSurrogate(item.abstractTask._name_id);
+            [[maybe_unused]] const auto& [parentId, childId] = _htn.getReductionAndActionFromPrimitivization(item.abstractTask._name_id);
             const Reduction& parentRed = _htn.toReduction(parentId, item.abstractTask._args);
-            surrogateIds.insert(item.id);
+            primitivizationIds.insert(item.id);
             
             PlanItem parent;
             parent.abstractTask = parentRed.getTaskSignature();  
@@ -70,7 +70,7 @@ void PlanWriter::outputPlan(Plan& _plan) {
         // Pick next plan item to print
         PlanItem item;
         if (decompsToInsertIdx < decompsToInsert.size() && (itemIdx >= _plan.second.size() || decompsToInsert[decompsToInsertIdx].id < _plan.second[itemIdx].id)) {
-            // Pick plan item from surrogate decompositions
+            // Pick plan item from primitivized decompositions
             item = decompsToInsert[decompsToInsertIdx];
             decompsToInsertIdx++;
             itemIdx--;
@@ -82,7 +82,7 @@ void PlanWriter::outputPlan(Plan& _plan) {
 
         std::string subtaskIdStr = "";
         for (int subtaskId : item.subtaskIds) {
-            if (item.id+1 != subtaskId && surrogateIds.count(subtaskId)) subtaskId--;
+            if (item.id+1 != subtaskId && primitivizationIds.count(subtaskId)) subtaskId--;
             if (!idsToRemove.count(subtaskId)) subtaskIdStr += " " + std::to_string(subtaskId);
         }
         
