@@ -51,7 +51,6 @@ void Planner::checkTermination() {
     if (exitSet || cancelOpt) {
         printStatistics();
         Log::i("Exiting happily.\n");
-        exit(0);
     }
 }
 
@@ -904,7 +903,6 @@ void Planner::addQConstantTypeConstraints(const USignature& op) {
 }
 
 void Planner::printStatistics() {
-    _enc.printStages();
     Log::i("# instantiated positions: %i\n", _num_instantiated_positions);
     Log::i("# instantiated actions: %i\n", _num_instantiated_actions);
     Log::i("# instantiated reductions: %i\n", _num_instantiated_reductions);
