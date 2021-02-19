@@ -29,7 +29,6 @@ public:
         int& minNumChildren = _min_recursive_expansion_sizes[sigName];
         minNumChildren = sigName == blankId
                         ||  _htn.getActionNameFromRepetition(sigName) == blankId
-                        || _htn.isSecondPartOfSplitAction(USignature(sigName, std::vector<int>()))
                     ? 0 : 1;
         return minNumChildren;
     }

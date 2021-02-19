@@ -91,7 +91,7 @@ void Encoding::encodeOperationVariables(Position& newPos) {
     for (const auto& rSig : newPos.getReductions()) {
         int rVar = _vars.encodeVariable(VarType::OP, newPos, rSig);
 
-        bool trivialReduction = _htn.getReduction(rSig).getSubtasks().size() == 0;
+        bool trivialReduction = _htn.getOpTable().getReduction(rSig).getSubtasks().size() == 0;
         if (trivialReduction) {
             // If a trivial reduction occurs, the position is primitive
             _primitive_ops.push_back(rVar);
@@ -298,12 +298,14 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
             }
         }
 
+        skipped++;
         // Skip frame axiom encoding if nothing can change
         if (var == factVar) continue; 
         // Skip frame axioms if they were already encoded
         if (skipRedundantFrameAxioms && above.hasVariable(VarType::FACT, fact)) continue;
         // No primitive ops at this position: No need for encoding frame axioms
         if (!hasPrimitiveOps) continue;
+        skipped--;
 
         // Encode general frame axioms for this fact
         int i = -1;
@@ -392,7 +394,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
         for (int arg : aSig._args) encodeSubstitutionVars(aSig, aVar, arg);
 
         // Preconditions
-        for (const Signature& pre : _htn.getAction(aSig).getPreconditions()) {
+        for (const Signature& pre : _htn.getOpTable().getAction(aSig).getPreconditions()) {
             if (!_vars.isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             _sat.addClause(-aVar, (pre._negated?-1:1)*_vars.getVariable(VarType::FACT, newPos, pre._usig));
         }
@@ -406,7 +408,7 @@ void Encoding::encodeOperationConstraints(Position& newPos) {
         elementVars[numOccurringOps++] = rVar;
 
         // Preconditions
-        for (const Signature& pre : _htn.getReduction(rSig).getPreconditions()) {
+        for (const Signature& pre : _htn.getOpTable().getReduction(rSig).getPreconditions()) {
             if (!_vars.isEncoded(VarType::FACT, layerIdx, pos, pre._usig)) continue;
             _sat.addClause(-rVar, (pre._negated?-1:1)*_vars.getVariable(VarType::FACT, newPos, pre._usig));
         }
@@ -557,13 +559,15 @@ void Encoding::encodeActionEffects(Position& newPos, Position& left) {
         if (_htn.isActionRepetition(aSig._name_id)) continue;
         int aVar = _vars.getVariable(VarType::OP, left, aSig);
 
-        for (const Signature& eff : _htn.getAction(aSig).getEffects()) {
+        const SigSet& effects = _htn.getOpTable().getAction(aSig).getEffects();
+
+        for (const Signature& eff : effects) {
             if (!_vars.isEncoded(VarType::FACT, _layer_idx, _pos, eff._usig)) continue;
 
             std::set<std::set<int>> unifiersDnf;
             bool unifiedUnconditionally = false;
             if (eff._negated) {
-                for (const auto& posEff : _htn.getAction(aSig).getEffects()) {
+                for (const auto& posEff : effects) {
                     if (posEff._negated) continue;
                     if (posEff._usig._name_id != eff._usig._name_id) continue;
                     if (!_vars.isEncoded(VarType::FACT, _layer_idx, _pos, posEff._usig)) continue;
@@ -700,18 +704,6 @@ void Encoding::encodeQConstraints(Position& newPos) {
         }
     }
     newPos.clearSubstitutions();
-
-    // Globally forbidden substitutions
-    for (const auto& sub : _htn.getForbiddenSubstitutions()) {
-        assert(!sub.empty());
-        if (_forbidden_substitutions.count(sub)) continue;
-        for (const auto& [src, dest] : sub) {
-            _sat.appendClause(-_vars.varSubstitution(src, dest));
-        }
-        _sat.endClause();
-        _forbidden_substitutions.insert(sub);
-    }
-    _htn.clearForbiddenSubstitutions();
     
     _stats.end(STAGE_SUBSTITUTIONCONSTRAINTS);
 }

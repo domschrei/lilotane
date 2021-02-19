@@ -193,8 +193,10 @@ void Planner::createFirstLayer() {
     /***** LAYER 0, POSITION 0 ******/
 
     // Instantiate all possible init. reductions
-    for (Reduction& r : _instantiator.getApplicableInstantiations(_htn.getInitReduction())) {
-        if (addReduction(r, USignature())) {
+    for (USignature& rSig : _instantiator.getApplicableInstantiations(_htn.getInitReduction())) {
+        auto rOpt = createValidReduction(rSig, USignature());
+        if (rOpt) {
+            auto& r = rOpt.value();
             USignature sig = r.getSignature();
             initLayer[_pos].addReduction(sig);
             initLayer[_pos].addAxiomaticOp(sig);
@@ -362,6 +364,7 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     // Impossible indirect effect: ignore.
                 }
             }
+            _analysis.eraseCachedPossibleFactChanges(aSig);
 
             // Remove larger substitution constraint structure
             auto goodSubs = left.getValidSubstitutions().count(aSig) ? &left.getValidSubstitutions().at(aSig) : nullptr;
@@ -391,7 +394,7 @@ void Planner::addPreconditionConstraints() {
     Position& newPos = _layers[_layer_idx]->at(_pos);
 
     for (const auto& aSig : newPos.getActions()) {
-        const Action& a = _htn.getAction(aSig);
+        const Action& a = _htn.getOpTable().getAction(aSig);
         // Add preconditions of action
         IntPairTree badSubs;
         std::vector<IntPairTree> goodSubs;
@@ -415,7 +418,7 @@ void Planner::addPreconditionConstraints() {
         // Add preconditions of reduction
         IntPairTree badSubs;
         std::vector<IntPairTree> goodSubs;
-        for (const Signature& fact : _htn.getReduction(rSig).getPreconditions()) {
+        for (const Signature& fact : _htn.getOpTable().getReduction(rSig).getPreconditions()) {
             addPrecondition(rSig, fact, goodSubs, badSubs);
         }
         newPos.setValidSubstitutions(rSig, std::move(goodSubs));
@@ -604,7 +607,7 @@ void Planner::propagateActions(size_t offset) {
     std::vector<USignature> actionsToPrune;
     size_t numActionsBefore = above.getActions().size();
     for (const auto& aSig : above.getActions()) {
-        const Action& a = _htn.getAction(aSig);
+        const Action& a = _htn.getOpTable().getAction(aSig);
 
         // Can the action occur here w.r.t. the current state?
         bool valid = _analysis.hasValidPreconditions(a.getPreconditions())
@@ -658,7 +661,7 @@ void Planner::propagateReductions(size_t offset) {
     // Collect all possible subtasks and remember their possible parents
     for (const auto& rSig : above.getReductions()) {
 
-        const Reduction r = _htn.getReduction(rSig);
+        const Reduction r = _htn.getOpTable().getReduction(rSig);
         
         if (offset < r.getSubtasks().size()) {
             // Proper expansion
@@ -688,7 +691,7 @@ void Planner::propagateReductions(size_t offset) {
                 continue;
             }
 
-            const Reduction& subR = _htn.getReduction(subRSig);
+            const Reduction& subR = _htn.getOpTable().getReduction(subRSig);
             
             assert(_htn.isReduction(subRSig) && subRSig == subR.getSignature() && _htn.isFullyGround(subRSig));
             
@@ -727,13 +730,10 @@ std::vector<USignature> Planner::instantiateAllActionsOfTask(const USignature& t
     std::vector<USignature> result;
 
     if (!_htn.isAction(task)) return result;
-
-    const Action& a = _htn.toAction(task._name_id, task._args);
     
-    for (Action& action : _instantiator.getApplicableInstantiations(a)) {
+    for (USignature& sig : _instantiator.getApplicableInstantiations(_htn.toAction(task._name_id, task._args))) {
         //Log::d("ADDACTION %s ?\n", TOSTR(action.getSignature()));
-
-        USignature sig = action.getSignature();
+        Action action = _htn.toAction(sig._name_id, sig._args);
 
         // Rename any remaining variables in each action as unique q-constants,
         action = _htn.replaceVariablesWithQConstants(action, _analysis.getReducedArgumentDomains(action), _layer_idx, _pos);
@@ -749,7 +749,7 @@ std::vector<USignature> Planner::instantiateAllActionsOfTask(const USignature& t
         
         // Action is valid
         sig = action.getSignature();
-        _htn.addAction(action);
+        _htn.getOpTable().addAction(action);
         result.push_back(action.getSignature());
     }
     return result;
@@ -786,31 +786,35 @@ std::vector<USignature> Planner::instantiateAllReductionsOfTask(const USignature
             USignature origSig = rSub.getSignature();
             if (!_htn.hasConsistentlyTypedArgs(origSig)) continue;
             
-            for (Reduction& red : _instantiator.getApplicableInstantiations(rSub)) {
-                if (addReduction(red, task)) result.push_back(red.getSignature());
+            for (USignature& red : _instantiator.getApplicableInstantiations(rSub)) {
+                auto rOpt = createValidReduction(red, task);
+                if (rOpt) result.push_back(rOpt.value().getSignature());
             }
         }
     }
     return result;
 }
 
-bool Planner::addReduction(Reduction& red, const USignature& task) {
-    USignature sig = red.getSignature();
+std::optional<Reduction> Planner::createValidReduction(const USignature& sig, const USignature& task) {
+    std::optional<Reduction> rOpt;
 
     // Rename any remaining variables in each action as new, unique q-constants 
+    Reduction red = _htn.toReduction(sig._name_id, sig._args);
     red = _htn.replaceVariablesWithQConstants(red, _analysis.getReducedArgumentDomains(red), _layer_idx, _pos);
 
     // Check validity
-    if (task._name_id >= 0 && red.getTaskSignature() != task) return false;
-    if (!_htn.isFullyGround(red.getSignature())) return false;
-    if (!_htn.hasConsistentlyTypedArgs(sig)) return false;
-    if (!_analysis.hasValidPreconditions(red.getPreconditions())) return false;
-    if (!_analysis.hasValidPreconditions(red.getExtraPreconditions())) return false;
+    bool isValid = true;
+    if (task._name_id >= 0 && red.getTaskSignature() != task) isValid = false;
+    else if (!_htn.isFullyGround(red.getSignature())) isValid = false;
+    else if (!_htn.hasConsistentlyTypedArgs(red.getSignature())) isValid = false;
+    else if (!_analysis.hasValidPreconditions(red.getPreconditions())) isValid = false;
+    else if (!_analysis.hasValidPreconditions(red.getExtraPreconditions())) isValid = false;
 
-    sig = red.getSignature();
-    _htn.addReduction(red);
-    
-    return true;
+    if (isValid) {
+        _htn.getOpTable().addReduction(red);
+        rOpt.emplace(red);
+    }
+    return rOpt;
 }
 
 void Planner::initializeNextEffects() {
@@ -821,7 +825,7 @@ void Planner::initializeNextEffects() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            SigSet pfc = _analysis.getPossibleFactChanges(aSig, FactAnalysis::FULL, isAction ? FactAnalysis::ACTION : FactAnalysis::REDUCTION);
+            const SigSet& pfc = _analysis.getPossibleFactChanges(aSig, FactAnalysis::FULL, isAction ? FactAnalysis::ACTION : FactAnalysis::REDUCTION);
             for (const Signature& eff : pfc) {
 
                 if (!_htn.hasQConstants(eff._usig)) {

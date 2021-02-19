@@ -31,10 +31,6 @@ void PlanWriter::outputPlan(Plan& _plan) {
             idsToRemove.insert(item.id);
             continue;
         }
-        if (_htn.toString(item.abstractTask._name_id).rfind("_FIRST") != std::string::npos) {
-            // First part of a split action: change name, then handle normally
-            item.abstractTask._name_id = _htn.getSplitAction(item.abstractTask._name_id);
-        }
         
         if (_htn.toString(item.abstractTask._name_id).rfind("__SURROGATE") != std::string::npos) {
             // Primitivized reduction: Replace with actual action, remember represented method to include in decomposition

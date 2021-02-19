@@ -103,7 +103,7 @@ private:
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
     bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
 
-    bool addReduction(Reduction& r, const USignature& task);
+    std::optional<Reduction> createValidReduction(const USignature& rSig, const USignature& task);
 
     void propagateInitialState();
     void propagateActions(size_t offset);

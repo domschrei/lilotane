@@ -71,12 +71,12 @@ public:
         _q_const_instantiation_limit = _params.getIntParam("qit");
     }
 
-    std::vector<Reduction> getApplicableInstantiations(const Reduction& r, int mode = -1);
-    std::vector<Action> getApplicableInstantiations(const Action& a, int mode = -1);
+    std::vector<USignature> getApplicableInstantiations(const Reduction& r, int mode = -1);
+    std::vector<USignature> getApplicableInstantiations(const Action& a, int mode = -1);
 
 private:
-    USigSet instantiate(const HtnOp& op);
-    USigSet instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
+    std::vector<USignature> instantiate(const HtnOp& op);
+    std::vector<USignature> instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
             size_t limit, bool returnUnfinished);
     
     const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);

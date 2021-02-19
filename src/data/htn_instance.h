@@ -10,6 +10,7 @@
 #include "util/names.h"
 #include "util/params.h"
 #include "util/hashmap.h"
+#include "data/op_table.h"
 
 #include "algo/arg_iterator.h"
 
@@ -63,25 +64,17 @@ private:
     // Lookup table for the possible decodings of a fact signature with normalized arguments.    
     NodeHashMap<USignature, std::vector<USignature>, USignatureHasher> _fact_sig_decodings;
 
-    // Collection of a set of q-constant substitutions which are invalid. 
-    // Periodically cleared after being encoded.
-    NodeHashSet<Substitution, Substitution::Hasher> _forbidden_substitutions;
-
     // Maps an action name ID to its action object.
-    NodeHashMap<int, Action> _actions;
+    NodeHashMap<int, Action> _operators;
     // Maps a reduction name ID to its reduction object.
-    NodeHashMap<int, Reduction> _reductions;
+    NodeHashMap<int, Reduction> _methods;
 
-    // Maps a signature of a ground or pseudo-ground action to the actual action object.
-    NodeHashMap<USignature, Action, USignatureHasher> _actions_by_sig;
-    // Maps a signature of a ground or pseudo-ground reduction to the actual reduction object.
-    NodeHashMap<USignature, Reduction, USignatureHasher> _reductions_by_sig;
+    // Lookup for all actions and reductions instantiated so far.
+    OpTable _op_table;
 
     // Maps a task name ID to the name IDs of possible reductions for the task.
     NodeHashMap<int, std::vector<int>> _task_id_to_reduction_ids;
 
-    // Maps a virtual "_FIRST" action ID to the original action that was split into parts.  
-    FlatHashMap<int, int> _split_action_from_first;
     // Maps a reduction name ID to the primitivization (action name ID) that replaces it.
     FlatHashMap<int, int> _reduction_to_primitivization;
     // Maps a primitivization (action name ID) to its original reduction name ID
@@ -122,10 +115,7 @@ public:
     HtnOp& getOp(const USignature& opSig);
     const Action& getActionTemplate(int nameId) const;
     const Reduction& getReductionTemplate(int nameId) const;
-    const Action& getAction(const USignature& sig) const;
-    const Reduction& getReduction(const USignature& sig) const;
-    void addAction(const Action& a);
-    void addReduction(const Reduction& r);
+    OpTable& getOpTable() {return _op_table;}
 
     bool hasReductions(int taskId) const;
     const std::vector<int>& getReductionIdsOfTaskId(int taskId) const;
@@ -150,17 +140,12 @@ public:
 
     ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
 
-    void addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs);
-    const NodeHashSet<Substitution, Substitution::Hasher>& getForbiddenSubstitutions();
-    void clearForbiddenSubstitutions();
-
     Action replaceVariablesWithQConstants(const Action& a, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
-    Reduction replaceVariablesWithQConstants(const Reduction& red, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);    
-    
+    Reduction replaceVariablesWithQConstants(const Reduction& red, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
+
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
     
     USignature cutNonoriginalTaskArguments(const USignature& sig);
-    int getSplitAction(int firstActionName);
     const std::pair<int, int>& getReductionAndActionFromPrimitivization(int primitivizationName);
 
     int nameId(const std::string& name, bool createQConstant = false, int layerIdx = -1, int pos = -1);
@@ -269,15 +254,11 @@ public:
     }
 
     inline bool isAction(const USignature& sig) const {
-        return _actions.count(sig._name_id);
+        return _operators.count(sig._name_id);
     }
 
     inline bool isReduction(const USignature& sig) const {
-        return _reductions.count(sig._name_id);
-    }
-
-    inline bool isSecondPartOfSplitAction(const USignature& sig) const {
-        return toString(sig._name_id).rfind("__LLT_SECOND") != std::string::npos;
+        return _methods.count(sig._name_id);
     }
 
     inline size_t getNumberOfQConstants() const {
@@ -329,7 +310,6 @@ public:
 private:
 
     void primitivizeSimpleReductions();
-    void splitActionsWithConflictingEffects();
     
     std::vector<int> convertArguments(int predNameId, const std::vector<std::pair<std::string, std::string>>& vars);
     std::vector<int> convertArguments(int predNameId, const std::vector<std::string>& vars);
@@ -348,7 +328,7 @@ private:
     Action& createAction(const task& task);
 
     std::vector<int> replaceVariablesWithQConstants(const HtnOp& op, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
-    void addQConstant(int id, const FlatHashSet<int>& domain);
+    void initQConstantSorts(int id, const FlatHashSet<int>& domain);
 
 };
 

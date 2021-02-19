@@ -95,7 +95,9 @@ public:
 
     enum FactInstantiationMode {FULL, LIFTED};
     enum OperationType {ACTION, REDUCTION, UNKNOWN};
-    SigSet getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode = FULL, OperationType opType = UNKNOWN);
+    const SigSet& getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode = FULL, OperationType opType = UNKNOWN);
+
+    void eraseCachedPossibleFactChanges(const USignature& sig);
 
     SigSet inferPreconditions(const USignature& op) {
         static USigSet EMPTY_USIG_SET;

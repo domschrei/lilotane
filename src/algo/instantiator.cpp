@@ -10,36 +10,21 @@
 
 USigSet Instantiator::EMPTY_USIG_SET;
 
-std::vector<Reduction> Instantiator::getApplicableInstantiations(const Reduction& r, int mode) {
+std::vector<USignature> Instantiator::getApplicableInstantiations(const Reduction& r, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
-
-    std::vector<Reduction> result;
-
-    for (const USignature& sig : instantiate(r)) {
-        //log("%s\n", TOSTR(sig));
-        result.push_back(r.substituteRed(Substitution(r.getArguments(), sig._args)));
-    }
+    auto result = instantiate(r);
     _inst_mode = oldMode;
 
     return result;
 }
 
-std::vector<Action> Instantiator::getApplicableInstantiations(const Action& a, int mode) {
+std::vector<USignature> Instantiator::getApplicableInstantiations(const Action& a, int mode) {
 
     int oldMode = _inst_mode;
     if (mode >= 0) _inst_mode = mode;
-
-    std::vector<Action> result;
-
-    for (const USignature& sig : instantiate(a)) {
-        //log("%s\n", TOSTR(sig));
-        //assert(isFullyGround(sig) || Log::e("%s is not fully ground!\n", TOSTR(sig)));
-        HtnOp newOp = a.substitute(Substitution(a.getArguments(), sig._args));
-        result.push_back((Action&&) std::move(newOp));
-    }
-
+    auto result = instantiate(a);
     _inst_mode = oldMode;
 
     return result;
@@ -66,7 +51,7 @@ struct CompArgs {
     }
 };
 
-USigSet Instantiator::instantiate(const HtnOp& op) {
+std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
     __op = &op;
 
     /*
@@ -84,13 +69,13 @@ USigSet Instantiator::instantiate(const HtnOp& op) {
 
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
-    USigSet inst = instantiateLimited(op, argsByPriority, 1, /*returnUnfinished=*/true);
+    std::vector<USignature> inst = instantiateLimited(op, argsByPriority, 1, /*returnUnfinished=*/true);
     if (inst.empty()) return inst;
 
     // b) Try if the number of valid instantiations is below the user-defined threshold
     //    -- in that case, return that full instantiation
     if (_q_const_instantiation_limit > 0) {
-        USigSet inst = instantiateLimited(op, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
+        std::vector<USignature> inst = instantiateLimited(op, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
         if (!inst.empty()) return inst;
     }
     
@@ -151,17 +136,17 @@ USigSet Instantiator::instantiate(const HtnOp& op) {
     */
 }
 
-USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
+std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
         size_t limit, bool returnUnfinished) {
 
-    USigSet instantiation;
+    std::vector<USignature> instantiation;
     size_t doneInstSize = argsByPriority.size();
     
     if (doneInstSize == 0) {
         if (_analysis.hasValidPreconditions(op.getPreconditions()) 
             && _analysis.hasValidPreconditions(op.getExtraPreconditions()) 
             && _htn.hasSomeInstantiation(op.getSignature())) 
-            instantiation.insert(op.getSignature());
+            instantiation.emplace_back(op.getSignature());
         //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
         return instantiation;
     }
@@ -213,7 +198,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>
 
                 // This instantiation is finished:
                 // Assemble instantiated signature
-                instantiation.insert(newOp.getSignature());
+                instantiation.emplace_back(newOp.getSignature());
 
                 if (limit > 0) {
                     if (returnUnfinished && instantiation.size() == limit) {
@@ -222,7 +207,7 @@ USigSet Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>
                     }
                     if (!returnUnfinished && instantiation.size() > limit) {
                         // Limit exceeded -- return failure
-                        return USigSet();
+                        return std::vector<USignature>();
                     }
                 }
 

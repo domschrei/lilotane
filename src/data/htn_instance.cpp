@@ -22,8 +22,8 @@ HtnInstance::HtnInstance(Parameters& params) :
     // Create blank action without any preconditions or effects
     int blankId = nameId("__BLANK___");
     BLANK_ACTION = Action(blankId, std::vector<int>());
-    _actions[blankId] = BLANK_ACTION;
-    addAction(BLANK_ACTION);
+    _operators[blankId] = BLANK_ACTION;
+    _op_table.addAction(BLANK_ACTION);
     _blank_action_sig = BLANK_ACTION.getSignature();
     _signature_sorts_table[blankId];
 
@@ -58,7 +58,7 @@ HtnInstance::HtnInstance(Parameters& params) :
     }
 
     // Instantiate possible "root" / "top" methods
-    for (const auto& rPair : _reductions) {
+    for (const auto& rPair : _methods) {
         const Reduction& r = rPair.second;
         if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
             // Initial "top" method
@@ -74,11 +74,7 @@ HtnInstance::HtnInstance(Parameters& params) :
     // Create replacements for simple methods with only one subtask
     if (_params.isNonzero("psr")) primitivizeSimpleReductions();
 
-    // If necessary, compile out actions which have some effect predicate
-    // in positive AND negative form: create two new actions in these cases
-    if (_params.isNonzero("sace")) splitActionsWithConflictingEffects();
-
-    Log::i("%i operators and %i methods created.\n", _actions.size(), _reductions.size());
+    Log::i("%i operators and %i methods created.\n", _operators.size(), _methods.size());
 }
 
 ParsedProblem* HtnInstance::parse(std::string domainFile, std::string problemFile) {
@@ -130,7 +126,7 @@ void HtnInstance::printStatistics() {
     }
 
     FlatHashMap<int, size_t> numMethodsMatchingTaskNameId;
-    for (const auto& [nameId, r] : _reductions) {
+    for (const auto& [nameId, r] : _methods) {
         if (_name_back_table[r.getNameId()].rfind("__top_method") == 0)
             continue;
         minExpansionSize = std::min(minExpansionSize, r.getSubtasks().size());
@@ -144,7 +140,7 @@ void HtnInstance::printStatistics() {
             numMethodsMatchingTaskNameId[taskNameId] = 1;
         else numMethodsMatchingTaskNameId[taskNameId]++;
     }
-    for (const auto& [nameId, a] : _actions) {
+    for (const auto& [nameId, a] : _operators) {
         maxActionPreconditions = std::max(maxActionPreconditions, a.getPreconditions().size());
         maxActionEffects = std::max(maxActionEffects, a.getEffects().size());
         maxActionArity = std::max(maxActionArity, a.getArguments().size());
@@ -163,8 +159,8 @@ void HtnInstance::printStatistics() {
 
     Log::e("Domain stats:\n");
 
-    Log::e("STATS numoperators %lu\n", _actions.size()-1); // minus blank action
-    Log::e("STATS nummethods %lu\n", _reductions.size()-1); // minus __top_method
+    Log::e("STATS numoperators %lu\n", _operators.size()-1); // minus blank action
+    Log::e("STATS nummethods %lu\n", _methods.size()-1); // minus __top_method
     
     Log::e("STATS maxexpansionsize %lu\n", maxExpansionSize);
     Log::e("STATS maxliftedbranchingfactor %lu\n", maxLiftedBranchingFactor);
@@ -203,113 +199,31 @@ size_t HtnInstance::getNumFreeArguments(const Reduction& r) {
 
 void HtnInstance::primitivizeSimpleReductions() {
 
-    for (const auto& entry : _reductions) {
+    for (const auto& entry : _methods) {
         const Reduction& red = entry.second;
         if (red.getSubtasks().size() != 1) continue;
         
         // Single-subtask method
         USignature childSig = red.getSubtasks().at(0);
         int childId = childSig._name_id;
-        if (!_actions.count(childId)) continue;
+        if (!_operators.count(childId)) continue;
         
         // Primitive subtask
-        Substitution s(_actions.at(childId).getArguments(), childSig._args);
-        Action childAct = _actions.at(childId).substitute(s);
+        Substitution s(_operators.at(childId).getArguments(), childSig._args);
+        Action childAct = _operators.at(childId).substitute(s);
         std::string name = "__SURROGATE*" + std::string(TOSTR(entry.first)) + "*" + std::string(TOSTR(childId)) + "*";
         int id = nameId(name);
         Log::d("SURROGATE %s %i\n", name.c_str(), entry.first);
-        _actions[id] = Action(id, red.getArguments());
-        for (const auto& pre : red.getPreconditions()) _actions[id].addPrecondition(pre);
-        for (const auto& pre : red.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
-        for (const auto& pre : childAct.getPreconditions()) _actions[id].addPrecondition(pre);
-        for (const auto& pre : childAct.getExtraPreconditions()) _actions[id].addExtraPrecondition(pre);
-        for (const auto& eff : childAct.getEffects()) _actions[id].addEffect(eff);
+        _operators[id] = Action(id, red.getArguments());
+        for (const auto& pre : red.getPreconditions()) _operators[id].addPrecondition(pre);
+        for (const auto& pre : red.getExtraPreconditions()) _operators[id].addExtraPrecondition(pre);
+        for (const auto& pre : childAct.getPreconditions()) _operators[id].addPrecondition(pre);
+        for (const auto& pre : childAct.getExtraPreconditions()) _operators[id].addExtraPrecondition(pre);
+        for (const auto& eff : childAct.getEffects()) _operators[id].addEffect(eff);
         _reduction_to_primitivization[entry.first] = id;
         _signature_sorts_table[id] = _signature_sorts_table[entry.first];
         _primitivization_to_parent_and_child[id] = std::pair<int, int>(entry.first, childId);
     }
-}
-
-void HtnInstance::splitActionsWithConflictingEffects() {
-
-    NodeHashMap<int, Action> newActions;
-
-    for (const auto& pair : _actions) {
-        int aId = pair.first;
-        std::vector<int> aSorts = _signature_sorts_table[aId];
-        const Action& a = pair.second;
-        const USignature& aSig = a.getSignature();
-
-        // Find all negative effects to move
-        FlatHashSet<int> posEffPreds;
-        FlatHashSet<Signature, SignatureHasher> negEffsToMove;
-        // Collect positive effect predicates
-        for (const Signature& eff : a.getEffects()) {
-            if (eff._negated) continue;
-            posEffPreds.insert(eff._usig._name_id);
-        }
-        // Match against negative effects
-        for (const Signature& eff : a.getEffects()) {
-            if (!eff._negated) continue;
-            if (posEffPreds.count(eff._usig._name_id)) {
-                // Must be factorized
-                negEffsToMove.insert(eff);
-            }
-        }
-        
-        if (negEffsToMove.empty()) {
-            // Nothing to do
-            newActions[aId] = a;
-            continue;
-        }
-
-        // Create two new actions
-        std::string oldName = _name_back_table[aId];
-
-        // First action: all preconditions, only the neg. effects to be moved
-        int idFirst = nameId(oldName + "_FIRST");
-        Action aFirst = Action(idFirst, aSig._args);
-        aFirst.setPreconditions(a.getPreconditions());
-        for (const Signature& eff : negEffsToMove) aFirst.addEffect(eff);
-        _signature_sorts_table[aFirst.getNameId()] = aSorts;
-        newActions[idFirst] = aFirst;
-
-        // Second action: no preconditions, all other effects
-        int idSecond = nameId(oldName + "__LLT_SECOND");
-        Action aSecond = Action(idSecond, aSig._args);
-        for (const Signature& eff : a.getEffects()) {
-            if (!negEffsToMove.count(eff)) aSecond.addEffect(eff);
-        }
-        _signature_sorts_table[aSecond.getNameId()] = aSorts;
-        newActions[idSecond] = aSecond;
-
-        // Replace all occurrences of the action with BOTH new actions in correct order
-        for (auto& rPair : _reductions) {
-            Reduction& r = rPair.second;
-            bool change = false;
-            std::vector<USignature> newSubtasks;
-            for (size_t i = 0; i < r.getSubtasks().size(); i++) {
-                const USignature& subtask = r.getSubtasks()[i];
-                if (subtask._name_id == aId) {
-                    // Replace
-                    change = true;
-                    Substitution s(aSig._args, subtask._args);
-                    newSubtasks.push_back(aFirst.getSignature().substitute(s));
-                    newSubtasks.push_back(aSecond.getSignature().substitute(s));
-                } else {
-                    newSubtasks.push_back(subtask);
-                }
-            }
-            if (change) {
-                r.setSubtasks(std::move(newSubtasks));
-            } 
-        }
-
-        // Remember original action name ID
-        _split_action_from_first[idFirst] = aId;
-    }
-
-    _actions = newActions;
 }
 
 int HtnInstance::nameId(const std::string& name, bool createQConstant, int layerIdx, int pos) {
@@ -415,8 +329,8 @@ Action HtnInstance::getGoalAction() {
     for (Signature& fact : extractGoals()) {
         goalAction.addPrecondition(std::move(fact));
     }
-    _actions_by_sig[goalSig] = goalAction;
-    _actions[goalSig._name_id] = goalAction;
+    _op_table.addAction(goalAction);
+    _operators[goalSig._name_id] = goalAction;
     _signature_sorts_table[goalSig._name_id];
 
     return goalAction;
@@ -485,16 +399,16 @@ Reduction& HtnInstance::createReduction(method& method) {
     _task_id_to_reduction_ids[taskId].push_back(id);
     {
         std::vector<int> taskArgs = convertArguments(id, method.atargs);
-        assert(_reductions.count(id) == 0);
-        _reductions[id] = Reduction(id, args, USignature(taskId, std::move(taskArgs)));
+        assert(_methods.count(id) == 0);
+        _methods[id] = Reduction(id, args, USignature(taskId, std::move(taskArgs)));
     }
-    Reduction& r = _reductions[id];
+    Reduction& r = _methods[id];
 
     std::vector<literal> condLiterals;
 
     // Extract (in)equality constraints, put into preconditions to process later   
     for (const literal& lit : method.constraints) {            
-        assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"\"!\n", lit.predicate.c_str()));
+        assert(lit.predicate == "__equal" || Log::e("Unknown constraint predicate \"%s\"!\n", lit.predicate.c_str()));
         condLiterals.push_back(lit);
     }
 
@@ -558,21 +472,21 @@ Reduction& HtnInstance::createReduction(method& method) {
 
         } else {
             // Actual subtask
-            _reductions[id].addSubtask(USignature(nameId(st.task), convertArguments(id, st.args)));
+            _methods[id].addSubtask(USignature(nameId(st.task), convertArguments(id, st.args)));
             subtaskTagToIndex[st.id] = subtaskTagToIndex.size();
         }
     }
 
     // Process constraints of the method
     for (auto& pre : extractEqualityConstraints(id, condLiterals, method.vars))
-        _reductions[id].addPrecondition(std::move(pre));
+        _methods[id].addPrecondition(std::move(pre));
 
     // Process preconditions of the method
     for (const literal& lit : condLiterals) {
         if (lit.predicate == dummy_equal_literal) continue;
 
         // Normal precondition
-        _reductions[id].addPrecondition(convertSignature(id, lit));
+        _methods[id].addPrecondition(convertSignature(id, lit));
     }
 
     // Order subtasks
@@ -581,48 +495,48 @@ Reduction& HtnInstance::createReduction(method& method) {
         for (const auto& order : method.ordering) {
             size_t indexLeft = subtaskTagToIndex[order.first];
             size_t indexRight = subtaskTagToIndex[order.second];
-            assert(indexLeft < _reductions[id].getSubtasks().size());
-            assert(indexRight < _reductions[id].getSubtasks().size());
+            assert(indexLeft < _methods[id].getSubtasks().size());
+            assert(indexRight < _methods[id].getSubtasks().size());
             orderingNodelist[indexLeft];
             orderingNodelist[indexLeft].push_back(indexRight);
         }
-        _reductions[id].orderSubtasks(orderingNodelist);
+        _methods[id].orderSubtasks(orderingNodelist);
     }
 
-    Log::d(" %s : %i preconditions, %i subtasks\n", TOSTR(_reductions[id].getSignature()), 
-                _reductions[id].getPreconditions().size(), 
-                _reductions[id].getSubtasks().size());
+    Log::d(" %s : %i preconditions, %i subtasks\n", TOSTR(_methods[id].getSignature()), 
+                _methods[id].getPreconditions().size(), 
+                _methods[id].getSubtasks().size());
     Log::d("  PRE ");
     for (const Signature& sig : r.getPreconditions()) {
         Log::log_notime(Log::V4_DEBUG, "%s ", TOSTR(sig));
     }
     Log::log_notime(Log::V4_DEBUG, "\n");
 
-    return _reductions[id];
+    return _methods[id];
 }
 
 Action& HtnInstance::createAction(const task& task) {
     int id = nameId(task.name);
     std::vector<int> args = convertArguments(id, task.vars);
 
-    assert(_actions.count(id) == 0);
-    _actions[id] = Action(id, std::move(args));
+    assert(_operators.count(id) == 0);
+    _operators[id] = Action(id, std::move(args));
 
     // Process (equality) constraints
     for (auto& pre : extractEqualityConstraints(id, task.constraints, task.vars))
-        _actions[id].addPrecondition(std::move(pre));
+        _operators[id].addPrecondition(std::move(pre));
     for (auto& pre : extractEqualityConstraints(id, task.prec, task.vars))
-        _actions[id].addPrecondition(std::move(pre));
+        _operators[id].addPrecondition(std::move(pre));
 
     // Process preconditions
     for (const auto& p : task.prec) {
-        _actions[id].addPrecondition(convertSignature(id, p));
+        _operators[id].addPrecondition(convertSignature(id, p));
     }
     for (const auto& p : task.eff) {
-        _actions[id].addEffect(convertSignature(id, p));
+        _operators[id].addEffect(convertSignature(id, p));
     }
-    _actions[id].removeInconsistentEffects();
-    return _actions[id];
+    _operators[id].removeInconsistentEffects();
+    return _operators[id];
 }
 
 SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<literal>& lits, const std::vector<std::pair<std::string, std::string>>& vars) { 
@@ -676,34 +590,17 @@ SigSet HtnInstance::extractEqualityConstraints(int opId, const std::vector<liter
 }
 
 HtnOp& HtnInstance::getOp(const USignature& opSig) {
-    auto it = _actions.find(opSig._name_id);
-    if (it != _actions.end()) return (HtnOp&)it->second;
-    else return (HtnOp&)_reductions.at(opSig._name_id);
+    auto it = _operators.find(opSig._name_id);
+    if (it != _operators.end()) return (HtnOp&)it->second;
+    else return (HtnOp&)_methods.at(opSig._name_id);
 }
 
 const Action& HtnInstance::getActionTemplate(int nameId) const {
-    return _actions.at(nameId);
+    return _operators.at(nameId);
 }
 
 const Reduction& HtnInstance::getReductionTemplate(int nameId) const {
-    return _reductions.at(nameId);
-}
-
-const Action& HtnInstance::getAction(const USignature& sig) const {
-    assert(_actions_by_sig.count(sig) || Log::e("No action created for %s yet!\n", TOSTR(sig)));
-    return _actions_by_sig.at(sig);
-}
-
-const Reduction& HtnInstance::getReduction(const USignature& sig) const {
-    return _reductions_by_sig.at(sig);
-}
-
-void HtnInstance::addAction(const Action& a) {
-    _actions_by_sig[a.getSignature()] = a;
-}
-
-void HtnInstance::addReduction(const Reduction& r) {
-    _reductions_by_sig[r.getSignature()] = r;
+    return _methods.at(nameId);
 }
 
 bool HtnInstance::hasReductions(int taskId) const {
@@ -719,7 +616,7 @@ bool HtnInstance::isReductionPrimitivizable(int reductionId) const {
 }
 
 const Action& HtnInstance::getReductionPrimitivization(int reductionId) const {
-    return _actions.at(_reduction_to_primitivization.at(reductionId));
+    return _operators.at(_reduction_to_primitivization.at(reductionId));
 }
 
 bool HtnInstance::isActionRepetition(int actionId) const {
@@ -735,31 +632,31 @@ USignature HtnInstance::getRepetitionOfAction(const USignature& action) {
     int repOpNameId = getRepetitionNameOfAction(action._name_id);
     USignature sig(repOpNameId, action._args);
 
-    if (!_actions_by_sig.count(sig)) {
+    if (!_op_table.hasAction(sig)) {
 
         // Define the operator
-        if (!_actions.count(repOpNameId)) {
-            const Action& op = _actions[action._name_id];
+        if (!_operators.count(repOpNameId)) {
+            const Action& op = _operators[action._name_id];
             Action a(repOpNameId, op.getArguments());
             a.setPreconditions(op.getPreconditions());
             a.setExtraPreconditions(op.getExtraPreconditions());
             a.setEffects(op.getEffects());
-            _actions[repOpNameId] = std::move(a);
+            _operators[repOpNameId] = std::move(a);
             _repeated_to_actual_action[repOpNameId] = action._name_id;
             const auto& sorts = _signature_sorts_table[action._name_id];
             _signature_sorts_table[repOpNameId] = sorts;
         }
 
         // Define the action
-        Action a = _actions[repOpNameId];
-        _actions_by_sig[sig] = a.substitute(Substitution(a.getArguments(), sig._args));
+        Action a = _operators[repOpNameId];
+        _op_table.addAction(a.substitute(Substitution(a.getArguments(), sig._args)));
     }
 
     return sig;
 }
 
 const Action& HtnInstance::getActionFromRepetition(int vChildId) const {
-    return _actions.at(_repeated_to_actual_action.at(vChildId));
+    return _operators.at(_repeated_to_actual_action.at(vChildId));
 }
 
 int HtnInstance::getActionNameFromRepetition(int vChildId) const {
@@ -837,7 +734,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op,
             
             // Initialize q-constant
             args[i] = nameId(qConstName, /*createQConstant=*/true, layerIdx, pos);
-            addQConstant(args[i], domain);
+            initQConstantSorts(args[i], domain);
             domainsPerQConst[args[i]] = std::move(domainVec);
             assert(domain == getDomainOfQConstant(args[i]));
             assert(getOriginOfQConstant(args[i]) == IntPair(layerIdx, pos));
@@ -860,7 +757,7 @@ std::vector<int> HtnInstance::replaceVariablesWithQConstants(const HtnOp& op,
     return args;
 }
 
-void HtnInstance::addQConstant(int id, const FlatHashSet<int>& domain) {
+void HtnInstance::initQConstantSorts(int id, const FlatHashSet<int>& domain) {
 
     // Create or retrieve the exact sort (= domain of constants) for this q-constant
     std::string qSortName = "qsort_" + _name_back_table[id];
@@ -979,32 +876,20 @@ std::vector<int> HtnInstance::popOperationDependentDomainOfQConstant(int qconst,
     return domain;
 }
 
-void HtnInstance::addForbiddenSubstitution(const std::vector<int>& qArgs, const std::vector<int>& decArgs) {
-    _forbidden_substitutions.emplace(qArgs, decArgs);
-}
-
-const NodeHashSet<Substitution, Substitution::Hasher>& HtnInstance::getForbiddenSubstitutions() {
-    return _forbidden_substitutions;
-}
-
-void HtnInstance::clearForbiddenSubstitutions() {
-    _forbidden_substitutions.clear();
-}
-
 const NodeHashMap<int, Action>& HtnInstance::getActionTemplates() const {
-    return _actions;
+    return _operators;
 }
 NodeHashMap<int, Reduction>& HtnInstance::getReductionTemplates() {
-    return _reductions;
+    return _methods;
 }
 
 Action HtnInstance::toAction(int actionName, const std::vector<int>& args) const {
-    const auto& op = _actions.at(actionName);
+    const auto& op = _operators.at(actionName);
     return op.substitute(Substitution(op.getArguments(), args));
 }
 
 Reduction HtnInstance::toReduction(int reductionName, const std::vector<int>& args) const {
-    const auto& op = _reductions.at(reductionName);
+    const auto& op = _methods.at(reductionName);
     return op.substituteRed(Substitution(op.getArguments(), args));
 }
 
@@ -1012,10 +897,6 @@ USignature HtnInstance::cutNonoriginalTaskArguments(const USignature& sig) {
     USignature sigCut(sig);
     sigCut._args.resize(_original_n_taskvars[sig._name_id]);
     return sigCut;
-}
-
-int HtnInstance::getSplitAction(int firstActionName) {
-    return _split_action_from_first[firstActionName];
 }
 
 const std::pair<int, int>& HtnInstance::getReductionAndActionFromPrimitivization(int primitivizationName) {
@@ -1027,12 +908,12 @@ USignature HtnInstance::getNormalizedLifted(const USignature& opSig, std::vector
     
     // Get original signature of this operator (fully lifted)
     USignature origSig;
-    if (_reductions.count(nameId)) {
+    if (_methods.count(nameId)) {
         // Reduction
-        origSig = _reductions.at(nameId).getSignature();
+        origSig = _methods.at(nameId).getSignature();
     } else {
         // Action
-        origSig = _actions.at(nameId).getSignature();
+        origSig = _operators.at(nameId).getSignature();
     }
 
     // Substitution mapping

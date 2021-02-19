@@ -1,17 +1,15 @@
 
 #include "fact_analysis.h"
 
-SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode, OperationType opType) {
+const SigSet& FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode, OperationType opType) {
     
     if (opType == UNKNOWN) opType = _htn.isAction(sig) ? ACTION : REDUCTION;
     
     if (opType == ACTION) {
-        return _htn.getAction(sig).getEffects();
+        return _htn.getOpTable().getAction(sig).getEffects();
     }
     if (_fact_changes_cache.count(sig)) {
-        SigSet result = std::move(_fact_changes_cache[sig]);
-        _fact_changes_cache.erase(sig);
-        return result;
+        return _fact_changes_cache[sig];
     }
 
     int nameId = sig._name_id;
@@ -39,21 +37,22 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantia
             _traversal.traverse(normSig.substitute(Substitution(normSig._args, placeholderArgs)), 
             NetworkTraversal::TRAVERSE_PREORDER,
             [&](const USignature& nodeSig, int depth) { // NOLINT
-                Action a;
                 if (_htn.isAction(nodeSig)) {
+                    
+                    Action a;
                     if (_htn.isActionRepetition(nameId)) {
                         // Special case: Action repetition
                         a = _htn.toAction(_htn.getActionNameFromRepetition(nameId), nodeSig._args);
                     } else {
                         a = _htn.toAction(nodeSig._name_id, nodeSig._args);
                     }
+                    for (const Signature& eff : a.getEffects()) facts.insert(eff);
+                
                 } else if (_htn.isReductionPrimitivizable(nodeSig._name_id)) {
-                    a = _htn.getReductionPrimitivization(nodeSig._name_id);
-                    a = a.substitute(Substitution(a.getArguments(), nodeSig._args));
-                }
 
-                for (const Signature& eff : a.getEffects()) {
-                    facts.insert(eff);
+                    const Action& op = _htn.getReductionPrimitivization(nodeSig._name_id);
+                    Action action = op.substitute(Substitution(op.getArguments(), nodeSig._args));
+                    for (const Signature& eff : action.getEffects()) facts.insert(eff);
                 }
             });
         }
@@ -71,13 +70,15 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig, FactInstantia
     }
 
     // Get fact changes, substitute arguments
-    SigSet out = factChanges.at(nameId);
-    for (Signature& sig : out) {
+    _fact_changes_cache[sig] = factChanges.at(nameId);
+    for (Signature& sig : _fact_changes_cache[sig]) {
         sig.apply(sFromPlaceholder);
     }
+    return _fact_changes_cache[sig];
+}
 
-    _fact_changes_cache[sig] = out;
-    return out;
+void FactAnalysis::eraseCachedPossibleFactChanges(const USignature& sig) {
+    _fact_changes_cache.erase(sig);
 }
 
 

@@ -115,7 +115,7 @@ public:
                             }
                             
                             int v = _vars.getVariable(VarType::OP, layerIdx, pos, aSig);
-                            Action a = _htn.getAction(aSig);
+                            Action a = _htn.getOpTable().getAction(aSig);
 
                             // TODO check this is a valid subtask relationship
 
@@ -143,7 +143,7 @@ public:
                         } else if (_htn.isReduction(opSig)) {
                             // Reduction
                             const USignature& rSig = opSig;
-                            const Reduction& r = _htn.getReduction(rSig);
+                            const Reduction& r = _htn.getOpTable().getReduction(rSig);
 
                             //log("%s:%s @ (%i,%i)\n", TOSTR(r.getTaskSignature()), TOSTR(rSig), layerIdx, pos);
                             USignature decRSig = getDecodedQOp(layerIdx, pos, rSig);

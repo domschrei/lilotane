@@ -108,7 +108,6 @@ void Parameters::printUsage() {
     Log::i("                     after fully instantiating all preconditions\n");
     Log::i(" -qq=<0|1>           For each action and reduction, introduces q-constants for ALL ambiguous free parameters (replaces -q)\n");
     Log::i(" -s=<int>            Random seed\n");
-    Log::i(" -sace=<0|1>         Split actions with (potentially) conflicting effects into two actions\n");
     Log::i(" -sqq=<0|1>          Share q-constants among operations of a position if they have the same effective domain\n");
     Log::i(" -srfa=<0|1>         Skip redundant frame axioms\n");
     Log::i(" -stats=<0|1>        Output domain statistics and exit\n");

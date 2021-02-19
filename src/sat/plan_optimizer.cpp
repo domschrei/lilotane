@@ -31,7 +31,7 @@ void PlanOptimizer::optimizePlan(int upperBound, Plan& plan, ConstraintAddition 
         }
         for (const auto& rSig : l.at(pos).getReductions()) {
             Log::d("PLO %i %s?\n", pos, TOSTR(rSig));
-            if (_htn.getReduction(rSig).getSubtasks().size() == 0) {
+            if (_htn.getOpTable().getReduction(rSig).getSubtasks().size() == 0) {
                 // Empty reduction
                 emptyActions.insert(l.at(pos).getVariable(VarType::OP, rSig));
             }
@@ -245,7 +245,7 @@ int PlanOptimizer::findMinBySat(int lower, int upper, std::function<int(int)> va
 }
 
 bool PlanOptimizer::isEmptyAction(const USignature& aSig) {
-    if (_htn.isSecondPartOfSplitAction(aSig) || _htn.getBlankActionSig() == aSig)
+    if (_htn.getBlankActionSig() == aSig)
         return true;
     if (_htn.getActionNameFromRepetition(aSig._name_id) == _htn.getBlankActionSig()._name_id)
         return true;
