@@ -102,6 +102,7 @@ public:
     SigSet inferPreconditions(const USignature& op) {
         static USigSet EMPTY_USIG_SET;
         auto factFrame = getFactFrame(op, /*simpleMode=*/true, EMPTY_USIG_SET);
+        EMPTY_USIG_SET.clear();
         return factFrame.preconditions;
     }
 

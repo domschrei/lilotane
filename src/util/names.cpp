@@ -23,7 +23,7 @@ namespace Names {
         std::string out = "(";
         bool first = true;
         for (const int& id : nameIds) {
-            out += (first ? "" : " ") + Names::to_string(id);
+            out += (first ? "" : " ") + std::string(id < 0 ? "-" : "") + Names::to_string(std::abs(id));
             first = false;
         }
         return out + ")";

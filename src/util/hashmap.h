@@ -34,4 +34,14 @@ size_t operator()(const std::pair<int, int>& pair) const {
 }
 };
 
+struct IntVecHasher {
+    inline std::size_t operator()(const std::vector<int>& s) const {
+        size_t hash = s.size();
+        for (const int& arg : s) {
+            hash_combine(hash, arg);
+        }
+        return hash;
+    }
+};
+
 #endif

@@ -17,7 +17,6 @@ public:
         for (auto& [rId, r] : htn.getReductionTemplates()) {
             precondsBefore += r.getPreconditions().size();
             // Mine additional preconditions, if possible
-            USigSet empty;
             for (auto& pre : analysis.inferPreconditions(r.getSignature())) {
                 if (!r.getPreconditions().count(pre)) {
                     

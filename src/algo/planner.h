@@ -92,13 +92,8 @@ private:
     void incrementPosition();
 
     void addPreconditionConstraints();
-    void addPrecondition(const USignature& op, const Signature& fact, 
-            std::vector<IntPairTree>& goodSubs, 
-            IntPairTree& badSubs, 
-            bool addQFact = true);
-    void addSubstitutionConstraints(const USignature& op, 
-            std::vector<IntPairTree>& goodSubs, 
-            IntPairTree& badSubs);
+    void addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool addQFact);
+    std::optional<SubstitutionConstraint> addPrecondition(const USignature& op, const Signature& fact, bool addQFact = true);
     
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };
     bool addEffect(const USignature& op, const Signature& fact, EffectMode mode);
@@ -113,9 +108,6 @@ private:
     void initializeNextEffects();
     void initializeFact(Position& newPos, const USignature& fact);
     void addQConstantTypeConstraints(const USignature& op);
-
-    std::vector<int> getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const;
-    std::vector<IntPair> decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const;
 
     int getTerminateSatCall();
     void clearDonePositions(int offset);

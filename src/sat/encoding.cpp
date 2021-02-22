@@ -670,36 +670,30 @@ void Encoding::encodeQConstraints(Position& newPos) {
     const USigSet* ops[2] = {&newPos.getActions(), &newPos.getReductions()};
     for (const auto& set : ops) for (auto opSig : *set) {
 
-        // Get "good" and "bad" substitution options
-        auto itValid = newPos.getValidSubstitutions().find(opSig);
-        auto itForb = newPos.getForbiddenSubstitutions().find(opSig);
+        auto it = newPos.getSubstitutionConstraints().find(opSig);
+        if (it == newPos.getSubstitutionConstraints().end()) continue;
         
-        // Encode forbidden substitutions
-
-        if (itForb != newPos.getForbiddenSubstitutions().end()) {
-            auto cls = itForb->second.encodeNegation();
-            for (const auto& sub : cls) {
-                _sat.appendClause(-_vars.getVariable(VarType::OP, newPos, opSig));
-                for (const auto& [src, dest] : sub) {
-                    _sat.appendClause(-_vars.varSubstitution(src, dest));
+        for (const auto& [involvedQConsts, cs] : it->second) {
+            for (const auto& c : cs) {
+                auto f = c.getEncoding();
+                auto polarity = c.getPolarity();
+                for (const auto& cls : f) {
+                    //std::string out = (polarity == SubstitutionConstraint::ANY_VALID ? "+" : "-") + std::string("SUBSTITUTION ") 
+                    //        + Names::to_string(opSig) + " ";
+                    _sat.appendClause(-_vars.getVariable(VarType::OP, newPos, opSig));        
+                    size_t idx = 0;
+                    for (auto lit : cls) {
+                        bool negated = lit < 0;
+                        //out += (negated ? "-" : "+")
+                        //        + Names::to_string(involvedQConsts[idx]) + "/" + Names::to_string(std::abs(lit)) + " ";
+                        _sat.appendClause((polarity == SubstitutionConstraint::NO_INVALID ? -1 : (negated ? -1 : 1)) 
+                                * _vars.varSubstitution(involvedQConsts[idx], std::abs(lit)));
+                        if (polarity == SubstitutionConstraint::NO_INVALID || negated) idx++;
+                    }
+                    _sat.endClause();
+                    //out += "\n";
+                    //Log::d(out.c_str());
                 }
-                _sat.endClause();
-            }
-        }
-        
-        // Encode valid substitutions
-        
-        // For each set of valid substitution options
-        if (itValid != newPos.getValidSubstitutions().end()) for (const auto& tree : itValid->second) {
-            auto cls = tree.encode();
-            for (auto& sub : cls) {
-                _sat.appendClause(-_vars.getVariable(VarType::OP, newPos, opSig));
-                for (auto& [src, dest] : sub) {
-                    bool negated = src < 0;
-                    if (negated) src *= -1;
-                    _sat.appendClause((negated ? -1 : 1) * _vars.varSubstitution(src, dest));
-                }
-                _sat.endClause();
             }
         }
     }

@@ -178,6 +178,26 @@ public:
         _root.insert(lits, 0);
     }
 
+    void merge(LiteralTree<T, THash>&& other) {
+        std::vector<std::pair<Node*, Node*>> nodeStack;
+        nodeStack.emplace_back(&_root, &other._root);
+        while (!nodeStack.empty()) {
+            auto [node, otherNode] = nodeStack.back();
+            nodeStack.pop_back();
+            if (otherNode->validLeaf) node->validLeaf = true;
+            for (auto& [key, val] : otherNode->children) {
+                if (node->children.count(key)) {
+                    // Already contained: recurse
+                    nodeStack.emplace_back(node->children.at(key), val);
+                } else {
+                    // Key is not contained yet: just insert
+                    node->children[key] = val;
+                }
+            }
+        }
+        other._root.children.clear(); // TODO clean up memory
+    }
+
     bool empty() const {
         return _root.children.empty() && !_root.validLeaf;
     }

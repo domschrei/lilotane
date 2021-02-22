@@ -11,8 +11,8 @@
 #include "sat/variable_domain.h"
 #include "util/log.h"
 #include "sat/literal_tree.h"
+#include "data/substitution_constraint.h"
 
-typedef LiteralTree<IntPair, IntPairHasher> IntPairTree;
 typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 typedef NodeHashMap<USignature, Substitution, USignatureHasher> USigSubstitutionMap;
@@ -55,9 +55,7 @@ private:
     IndirectFactSupportMap* _neg_indir_fact_supports = nullptr;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
-
-    NodeHashMap<USignature, IntPairTree, USignatureHasher> _forbidden_substitutions_per_op;
-    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher> _valid_substitutions_per_op;
+    NodeHashMap<USignature, NodeHashMap<std::vector<int>, std::vector<SubstitutionConstraint>, IntVecHasher>, USignatureHasher> _substitution_constraints;
 
     size_t _max_expansion_size = 1;
 
@@ -89,9 +87,7 @@ public:
     bool hasNonprimitiveOps();
 
     void addQConstantTypeConstraint(const USignature& op, const TypeConstraint& c);
-
-    void setForbiddenSubstitutions(const USignature &op, IntPairTree&& subs);
-    void setValidSubstitutions(const USignature &op, std::vector<IntPairTree>&& subs);
+    void addSubstitutionConstraint(const USignature& op, SubstitutionConstraint&& constr);
 
     bool hasQFactDecodings(const USignature& qFact, bool negated);
     void addQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated);
@@ -128,8 +124,9 @@ public:
     IndirectFactSupportMap& getPosIndirectFactSupports();
     IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    NodeHashMap<USignature, IntPairTree, USignatureHasher>& getForbiddenSubstitutions();
-    NodeHashMap<USignature, std::vector<IntPairTree>, USignatureHasher>& getValidSubstitutions();
+    const NodeHashMap<USignature, NodeHashMap<std::vector<int>, std::vector<SubstitutionConstraint>, IntVecHasher>, USignatureHasher>& getSubstitutionConstraints() const {
+        return _substitution_constraints;
+    }
 
     USigSet& getActions();
     const USigSet& getReductions() const;
@@ -146,10 +143,8 @@ public:
     void clearAtPastPosition();
     void clearAtPastLayer();
     void clearSubstitutions() {
-        _forbidden_substitutions_per_op.clear();
-        _forbidden_substitutions_per_op.reserve(0);
-        _valid_substitutions_per_op.clear();
-        _valid_substitutions_per_op.reserve(0);
+        _substitution_constraints.clear();
+        _substitution_constraints.reserve(0);
     }
 
     inline int encode(VarType type, const USignature& sig) {

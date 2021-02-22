@@ -217,15 +217,7 @@ void Planner::createFirstLayer() {
     USignature goalSig = goalAction.getSignature();
     initLayer[_pos].addAction(goalSig);
     initLayer[_pos].addAxiomaticOp(goalSig);
-    
-    // Extract primitive goals, add to preconds of goal action
-    IntPairTree badSubs;
-    std::vector<IntPairTree> goodSubs;
-    for (const Signature& fact : goalAction.getPreconditions()) {
-        assert(_analysis.isReachable(fact));
-        addPrecondition(goalSig, fact, goodSubs, badSubs);
-    }
-    assert(goodSubs.empty() && badSubs.empty());
+    addPreconditionConstraints();
     
     /***** LAYER 0 END ******/
 
@@ -365,22 +357,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
                 }
             }
             _analysis.eraseCachedPossibleFactChanges(aSig);
-
-            // Remove larger substitution constraint structure
-            auto goodSubs = left.getValidSubstitutions().count(aSig) ? &left.getValidSubstitutions().at(aSig) : nullptr;
-            auto badSubs = left.getForbiddenSubstitutions().count(aSig) ? &left.getForbiddenSubstitutions().at(aSig) : nullptr;
-            size_t goodSize = 0;
-            if (goodSubs != nullptr) for (const auto& subs : *goodSubs) goodSize += subs.getSizeOfEncoding();
-            size_t badSize = badSubs != nullptr ? badSubs->getSizeOfNegationEncoding() : 0;
-            if (goodSubs != nullptr && badSize > goodSize) {
-                // More bad subs than good ones:
-                // Remember good ones instead (although encoding them can be more complex)
-                left.getForbiddenSubstitutions().erase(aSig);
-                Log::d("SUBCONSTR : %i good (instead of %i bad)\n", goodSize, badSize);
-            } else if (badSubs != nullptr) {
-                left.getValidSubstitutions().erase(aSig);
-                Log::d("SUBCONSTR : %i bad (instead of %i good)\n", badSize, goodSize);
-            }
         }
         isAction = false;
     }
@@ -396,39 +372,29 @@ void Planner::addPreconditionConstraints() {
     for (const auto& aSig : newPos.getActions()) {
         const Action& a = _htn.getOpTable().getAction(aSig);
         // Add preconditions of action
-        IntPairTree badSubs;
-        std::vector<IntPairTree> goodSubs;
         bool isRepetition = _htn.isActionRepetition(aSig._name_id);
-        for (const Signature& fact : a.getPreconditions()) {
-            addPrecondition(aSig, fact, goodSubs, badSubs, 
-                /*addQFact=*/!isRepetition);
-        }
-        if (isRepetition) {
-            USignature origSig(_htn.getActionNameFromRepetition(aSig._name_id), aSig._args);
-            newPos.setValidSubstitutions(origSig, std::move(goodSubs));
-            newPos.setForbiddenSubstitutions(origSig, std::move(badSubs));
-        } else {
-            newPos.setValidSubstitutions(aSig, std::move(goodSubs));
-            newPos.setForbiddenSubstitutions(aSig, std::move(badSubs));
-            addQConstantTypeConstraints(aSig);
-        }
+        addPreconditionsAndConstraints(aSig, a.getPreconditions(), /*addQFact=*/!isRepetition);
     }
 
     for (const auto& rSig : newPos.getReductions()) {
         // Add preconditions of reduction
-        IntPairTree badSubs;
-        std::vector<IntPairTree> goodSubs;
-        for (const Signature& fact : _htn.getOpTable().getReduction(rSig).getPreconditions()) {
-            addPrecondition(rSig, fact, goodSubs, badSubs);
-        }
-        newPos.setValidSubstitutions(rSig, std::move(goodSubs));
-        newPos.setForbiddenSubstitutions(rSig, std::move(badSubs));
-        addQConstantTypeConstraints(rSig);
+        addPreconditionsAndConstraints(rSig, _htn.getOpTable().getReduction(rSig).getPreconditions(), true);
     }
 }
 
-void Planner::addPrecondition(const USignature& op, const Signature& fact, 
-        std::vector<IntPairTree>& goodSubs, IntPairTree& badSubs, bool addQFact) {
+void Planner::addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool addQFact) {
+    Position& newPos = _layers[_layer_idx]->at(_pos);
+    
+    USignature constrOp = addQFact ? op : USignature(_htn.getActionNameFromRepetition(op._name_id), op._args);
+
+    for (const Signature& fact : preconditions) {
+        auto cOpt = addPrecondition(op, fact, addQFact);
+        if (cOpt) newPos.addSubstitutionConstraint(constrOp, std::move(cOpt.value()));
+    }
+    if (addQFact) addQConstantTypeConstraints(op);
+}
+
+std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature& op, const Signature& fact, bool addQFact) {
 
     Position& pos = (*_layers[_layer_idx])[_pos];
     const USignature& factAbs = fact.getUnsigned();
@@ -441,23 +407,27 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
             initializeFact(pos, factAbs);
             _analysis.addRelevantFact(factAbs);
         }
-        return;
+        return std::optional<SubstitutionConstraint>();
     }
-
-    // For each fact decoded from the q-fact:
+    
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, op);
-    std::vector<int> sortedArgIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
-    IntPairTree goods;
+    std::vector<int> sortedArgIndices = SubstitutionConstraint::getSortedSubstitutedArgIndices(_htn, factAbs._args, sorts);
+    std::vector<int> involvedQConsts(sortedArgIndices.size());
+    for (size_t i = 0; i < sortedArgIndices.size(); i++) involvedQConsts[i] = factAbs._args[sortedArgIndices[i]];
+    SubstitutionConstraint c(involvedQConsts);
+
     bool staticallyResolvable = true;
     USigSet relevants;
+    
+    // For each fact decoded from the q-fact:
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
         // Can the decoded fact occur as is?
         if (_analysis.isReachable(decFactAbs, fact._negated)) {
-            goods.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
+            c.addValid(SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices));
         } else {
             // Fact cannot hold here
-            badSubs.insert(decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
+            c.addInvalid(SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices));
             continue;
         }
 
@@ -482,32 +452,8 @@ void Planner::addPrecondition(const USignature& op, const Signature& fact,
         }
     } // else : encoding the precondition is not necessary!
 
-    goodSubs.push_back(std::move(goods));
-}
-
-std::vector<int> Planner::getSortedSubstitutedArgIndices(const std::vector<int>& qargs, const std::vector<int>& sorts) const {
-
-    // Collect indices of arguments which will be substituted
-    std::vector<int> argIndices;
-    for (size_t i = 0; i < qargs.size(); i++) {
-        if (_htn.isQConstant(qargs[i])) argIndices.push_back(i);
-    }
-
-    // Sort argument indices by the potential size of their domain
-    std::sort(argIndices.begin(), argIndices.end(), 
-            [&](int i, int j) {return _htn.getConstantsOfSort(sorts[i]).size() < _htn.getConstantsOfSort(sorts[j]).size();});
-    return argIndices;
-}
-
-std::vector<IntPair> Planner::decodingToPath(const std::vector<int>& qargs, const std::vector<int>& decArgs, const std::vector<int>& sortedIndices) const {
-    
-    // Write argument substitutions into the result in correct order
-    std::vector<IntPair> path;
-    for (size_t x = 0; x < sortedIndices.size(); x++) {
-        size_t argIdx = sortedIndices[x];
-        path.emplace_back(qargs[argIdx], decArgs[argIdx]);
-    }
-    return path;
+    c.fixPolarity();
+    return std::optional<SubstitutionConstraint>(std::move(c));
 }
 
 bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMode mode) {
@@ -536,20 +482,30 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         return true;
     }
 
-    // Get forbidden substitutions for this operation
-    const auto* invalids = left.getForbiddenSubstitutions().count(opSig) ? 
-            &left.getForbiddenSubstitutions().at(opSig) : nullptr;
-
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
-    std::vector<int> argIndices = getSortedSubstitutedArgIndices(factAbs._args, sorts);
+    std::vector<int> sortedArgIndices = SubstitutionConstraint::getSortedSubstitutedArgIndices(_htn, factAbs._args, sorts);
+    std::vector<int> involvedQConsts(sortedArgIndices.size());
+    for (size_t i = 0; i < sortedArgIndices.size(); i++) involvedQConsts[i] = factAbs._args[sortedArgIndices[i]];
+    bool isConstrained = left.getSubstitutionConstraints().count(opSig) && left.getSubstitutionConstraints().at(opSig).count(involvedQConsts);
+
     bool anyGood = false;
     bool staticallyResolvable = true;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
-        // Check if this decoding is known to be invalid
-        auto path = decodingToPath(factAbs._args, decFactAbs._args, argIndices);
-        if (invalids != nullptr && invalids->contains(path)) continue;
+        auto path = SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices);
+
+        // Check if this decoding is known to be invalid due to some precondition
+        if (isConstrained) {
+            bool isValid = true;
+            for (const auto& c : left.getSubstitutionConstraints().at(opSig).at(involvedQConsts)) {
+                if (!c.isValid(path)) {
+                    isValid = false;
+                    break;
+                }
+            }
+            if (!isValid) continue;
+        }
 
         if (_analysis.isInvariant(decFactAbs, fact._negated)) {
             // Effect holds trivially
@@ -560,7 +516,9 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         // Valid effect decoding
         _analysis.addReachableFact(decFactAbs, /*negated=*/fact._negated);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
-            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(path));
+            std::vector<IntPair> vec(path.size());
+            for (size_t i = 0; i < vec.size(); i++) vec[i] = IntPair(factAbs._args[sortedArgIndices[i]], path[i]);
+            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(vec));
         } else {
             pos.touchFactSupport(decFactAbs, fact._negated);
         }
@@ -800,7 +758,8 @@ std::optional<Reduction> Planner::createValidReduction(const USignature& sig, co
 
     // Rename any remaining variables in each action as new, unique q-constants 
     Reduction red = _htn.toReduction(sig._name_id, sig._args);
-    red = _htn.replaceVariablesWithQConstants(red, _analysis.getReducedArgumentDomains(red), _layer_idx, _pos);
+    auto domains = _analysis.getReducedArgumentDomains(red);
+    red = _htn.replaceVariablesWithQConstants(red, domains, _layer_idx, _pos);
 
     // Check validity
     bool isValid = true;
