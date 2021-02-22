@@ -18,21 +18,23 @@ public:
             precondsBefore += r.getPreconditions().size();
             // Mine additional preconditions, if possible
             for (auto& pre : analysis.inferPreconditions(r.getSignature())) {
-                if (!r.getPreconditions().count(pre)) {
+                if (r.getPreconditions().count(pre)) continue;
                     
-                    bool hasFreeArgs = false;
-                    for (int arg : pre._usig._args) hasFreeArgs |= arg == htn.nameId("??_");
-                    if (hasFreeArgs) continue;
-
-                    Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
-                    if (mode == USE_FOR_INSTANTIATION) {
-                        r.addExtraPrecondition(std::move(pre));
-                    }
-                    if (mode == USE_EVERYWHERE) {
-                        r.addPrecondition(std::move(pre));
-                    }
-                    minedPreconds++;
+                bool hasFreeArgs = false;
+                for (int arg : pre._usig._args) {
+                    hasFreeArgs |= arg == htn.nameId("??_");
+                    //if (!hasFreeArgs) assert(std::find(r.getSignature()._args.begin(), r.getSignature()._args.end(), arg) != r.getSignature()._args.end());
                 }
+                if (hasFreeArgs) continue;
+
+                Log::d("%s : MINED_PRE %s\n", TOSTR(r.getSignature()), TOSTR(pre));
+                if (mode == USE_FOR_INSTANTIATION) {
+                    r.addExtraPrecondition(std::move(pre));
+                }
+                if (mode == USE_EVERYWHERE) {
+                    r.addPrecondition(std::move(pre));
+                }
+                minedPreconds++;
             }
         }
 

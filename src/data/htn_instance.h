@@ -152,6 +152,7 @@ public:
     std::string toString(int id) const;
 
     inline bool isVariable(int c) const {
+        assert(_name_back_table.count(c));
         return _var_ids.count(c);
     }
 

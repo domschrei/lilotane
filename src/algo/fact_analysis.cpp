@@ -5,12 +5,8 @@ const SigSet& FactAnalysis::getPossibleFactChanges(const USignature& sig, FactIn
     
     if (opType == UNKNOWN) opType = _htn.isAction(sig) ? ACTION : REDUCTION;
     
-    if (opType == ACTION) {
-        return _htn.getOpTable().getAction(sig).getEffects();
-    }
-    if (_fact_changes_cache.count(sig)) {
-        return _fact_changes_cache[sig];
-    }
+    if (opType == ACTION) return _htn.getOpTable().getAction(sig).getEffects();
+    if (_fact_changes_cache.count(sig)) return _fact_changes_cache[sig];
 
     int nameId = sig._name_id;
     
@@ -71,8 +67,8 @@ const SigSet& FactAnalysis::getPossibleFactChanges(const USignature& sig, FactIn
 
     // Get fact changes, substitute arguments
     _fact_changes_cache[sig] = factChanges.at(nameId);
-    for (Signature& sig : _fact_changes_cache[sig]) {
-        sig.apply(sFromPlaceholder);
+    for (Signature& s : _fact_changes_cache[sig]) {
+        s.apply(sFromPlaceholder);
     }
     return _fact_changes_cache[sig];
 }
@@ -213,6 +209,7 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
 
                     // Recursively get child frame of the child
                     FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), simpleMode, EMPTY_USIG_SET);
+                    EMPTY_USIG_SET.clear();
                     
                     if (firstChild) {
                         // Add all preconditions of child that are not yet part of the parent's effects
@@ -225,7 +222,7 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
                                     break;
                                 } 
                             }
-                            if (isNew) frameOfOffset.preconditions.insert(std::move(pre));
+                            if (isNew) frameOfOffset.preconditions.insert(pre);
                         }
                         firstChild = false;
                     } else {
@@ -233,7 +230,7 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
                         SigSet newPrec;
                         for (auto& pre : childFrame.preconditions) {
                             if (frameOfOffset.preconditions.count(pre)) {
-                                newPrec.insert(std::move(pre));
+                                newPrec.insert(pre);
                             }
                         }
                         frameOfOffset.preconditions = std::move(newPrec);
