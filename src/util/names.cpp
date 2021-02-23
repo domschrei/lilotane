@@ -105,19 +105,8 @@ namespace Names {
             out += "  " + to_string(pre) + "\n";
         }
         out += "} " + to_string(f.sig) + " {\n";
-        if (f.causalEffects.empty() && !f.flatEffects.empty()) {
-            // Simple mode
-            for (const auto& pre : f.flatEffects) {
-                out += "  " + to_string(pre) + "\n";
-            }
-        } else {
-            for (const auto& [pres, effs] : f.causalEffects) {
-                out += "  (\n";
-                for (const auto& pre : pres) out += "    " + to_string(pre) + "\n";
-                out += "  ) => (\n";
-                for (const auto& eff : effs) out += "    " + to_string(eff) + "\n";
-                out += "  )\n";
-            }
+        for (const auto& eff : f.effects) {
+            out += "  " + to_string(eff) + "\n";
         }
         return out + "}";
     }

@@ -57,15 +57,6 @@ HtnInstance::HtnInstance(Parameters& params) :
         createReduction(method);
     }
 
-    // Instantiate possible "root" / "top" methods
-    for (const auto& rPair : _methods) {
-        const Reduction& r = rPair.second;
-        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
-            // Initial "top" method
-            _init_reduction = r;
-        }
-    }
-
     if (_params.isNonzero("stats")) {
         printStatistics();
         exit(0);
@@ -337,6 +328,14 @@ Action HtnInstance::getGoalAction() {
 }
 
 const Reduction& HtnInstance::getInitReduction() {
+    // Instantiate possible "root" / "top" methods
+    for (const auto& rPair : _methods) {
+        const Reduction& r = rPair.second;
+        if (_name_back_table[r.getNameId()].rfind("__top_method") == 0) {
+            // Initial "top" method
+            _init_reduction = r;
+        }
+    }
     return _init_reduction;
 }
 

@@ -65,21 +65,30 @@ std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
     std::vector<int> argsByPriority(argsToInstantiate.begin(), argsToInstantiate.end());
     std::sort(argsByPriority.begin(), argsByPriority.end(), CompArgs());
     */
-    std::vector<int> argsByPriority;
+    std::vector<int> argIndicesByPriority;
+    /*
+    const auto& sorts = _htn.getSorts(op.getSignature()._name_id);
+    for (size_t i = 0; i < sorts.size(); i++) {
+        int arg = op.getArguments()[i];
+        if (_htn.isVariable(arg) && _htn.getConstantsOfSort(sorts[i]).size() == 1) {
+            // Argument is trivial: insert only possible constant
+            argIndicesByPriority.push_back(i); 
+        }
+    }*/
 
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
-    std::vector<USignature> inst = instantiateLimited(op, argsByPriority, 1, /*returnUnfinished=*/true);
+    std::vector<USignature> inst = instantiateLimited(op, argIndicesByPriority, 1, /*returnUnfinished=*/true);
     if (inst.empty()) return inst;
 
     // b) Try if the number of valid instantiations is below the user-defined threshold
     //    -- in that case, return that full instantiation
     if (_q_const_instantiation_limit > 0) {
-        std::vector<USignature> inst = instantiateLimited(op, argsByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
+        std::vector<USignature> inst = instantiateLimited(op, argIndicesByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
         if (!inst.empty()) return inst;
     }
     
-    return instantiateLimited(op, argsByPriority, 0, false);
+    return instantiateLimited(op, argIndicesByPriority, 0, false);
 
     /*
     // Collect all arguments which should be instantiated
@@ -136,11 +145,12 @@ std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
     */
 }
 
-std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
+std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>& argIndicesByPriority, 
         size_t limit, bool returnUnfinished) {
 
     std::vector<USignature> instantiation;
-    size_t doneInstSize = argsByPriority.size();
+    size_t doneInstSize = argIndicesByPriority.size();
+    //Log::d("DIS=%i\n", doneInstSize);
     
     if (doneInstSize == 0) {
         if (_analysis.hasValidPreconditions(op.getPreconditions()) 
@@ -151,17 +161,6 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
         return instantiation;
     }
 
-    // Create back transformation of argument positions
-    FlatHashMap<int, int> argPosBackMapping;
-    for (size_t j = 0; j < argsByPriority.size(); j++) {
-        for (size_t i = 0; i < op.getArguments().size(); i++) {
-            if (op.getArguments()[i] == argsByPriority[j]) {
-                argPosBackMapping[j] = i;
-                break;
-            }
-        }   
-    }
-
     std::vector<std::vector<int>> assignmentsStack;
     assignmentsStack.push_back(std::vector<int>()); // begin with empty assignment
     while (!assignmentsStack.empty()) {
@@ -170,7 +169,7 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
         //for (int a : assignment) log("%i ", a); log("\n");
 
         // Loop over possible choices for the next argument position
-        int argPos = argPosBackMapping[assignment.size()];
+        int argPos = argIndicesByPriority[assignment.size()];
         int sort = _htn.getSorts(op.getNameId()).at(argPos);
         for (int c : _htn.getConstantsOfSort(sort)) {
 
@@ -181,8 +180,9 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
             // Create corresponding op
             Substitution s;
             for (size_t i = 0; i < newAssignment.size(); i++) {
-                assert(i < argsByPriority.size());
-                s[argsByPriority[i]] = newAssignment[i];
+                assert(i < argIndicesByPriority.size());
+                int arg = op.getArguments()[argIndicesByPriority[i]];
+                s[arg] = newAssignment[i];
             }
             HtnOp newOp = op.substitute(s);
 
@@ -192,6 +192,7 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
 
             // All ok -- add to stack
             if (newAssignment.size() == doneInstSize) {
+
                 // If there are remaining variables: 
                 // is there some valid constant for each of them?
                 if (!_htn.hasSomeInstantiation(newOp.getSignature())) continue;

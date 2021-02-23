@@ -148,7 +148,7 @@ std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnO
     return domainPerVariable;
 }
 
-FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USigSet& currentOps) {
+FactFrame FactAnalysis::getFactFrame(const USignature& sig, USigSet& currentOps) {
     static USigSet EMPTY_USIG_SET;
 
     //Log::d("GET_FACT_FRAME %s\n", TOSTR(sig));
@@ -170,8 +170,7 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
             // Action
             const Action& a = _htn.toAction(op._name_id, op._args);
             result.preconditions = a.getPreconditions();
-            result.flatEffects = a.getEffects();
-            if (!simpleMode) result.causalEffects[std::vector<Signature>()] = a.getEffects();
+            result.effects = a.getEffects();
 
         } else if (currentOps.count(op)) {
 
@@ -179,15 +178,13 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
             // without recursing on subtasks
             const Reduction& r = _htn.toReduction(op._name_id, op._args);
             result.preconditions = r.getPreconditions();
-            result.flatEffects = getPossibleFactChanges(r.getSignature(), LIFTED);
-            Log::d("RECURSIVE_FACT_FRAME %s\n", TOSTR(result.flatEffects));
-            if (!simpleMode) result.causalEffects[std::vector<Signature>()] = result.flatEffects;
+            result.effects = getPossibleFactChanges(r.getSignature(), LIFTED);
+            //Log::d("RECURSIVE_FACT_FRAME %s\n", TOSTR(result.effects));
 
         } else {
-
             currentOps.insert(op);
+            
             const Reduction& r = _htn.toReduction(op._name_id, op._args);
-            result.sig = op;
             result.preconditions.insert(r.getPreconditions().begin(), r.getPreconditions().end());
             
             // For each subtask position ("offset")
@@ -208,17 +205,17 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
                     }
 
                     // Recursively get child frame of the child
-                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), simpleMode, EMPTY_USIG_SET);
+                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), EMPTY_USIG_SET);
                     EMPTY_USIG_SET.clear();
                     
                     if (firstChild) {
                         // Add all preconditions of child that are not yet part of the parent's effects
                         for (const auto& pre : childFrame.preconditions) {
                             bool isNew = true;
-                            for (const auto& eff : result.flatEffects) {
+                            for (const auto& eff : result.effects) {
                                 if (_htn.isUnifiable(eff, pre) || _htn.isUnifiable(pre, eff)) {
                                     isNew = false;
-                                    Log::d("FACT_FRAME Precondition %s absorbed by effect %s of %s\n", TOSTR(pre), TOSTR(eff), TOSTR(child));
+                                    //Log::d("FACT_FRAME Precondition %s absorbed by effect %s of %s\n", TOSTR(pre), TOSTR(eff), TOSTR(child));
                                     break;
                                 } 
                             }
@@ -229,49 +226,24 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, bool simpleMode, USi
                         // Intersect preconditions
                         SigSet newPrec;
                         for (auto& pre : childFrame.preconditions) {
-                            if (frameOfOffset.preconditions.count(pre)) {
-                                newPrec.insert(pre);
-                            }
+                            if (frameOfOffset.preconditions.count(pre)) newPrec.insert(pre);
                         }
                         frameOfOffset.preconditions = std::move(newPrec);
                     }
 
-                    if (simpleMode) {
-                        // Add all of the child's effects to the parent's effects
-                        frameOfOffset.flatEffects.insert(childFrame.flatEffects.begin(), childFrame.flatEffects.end());
-                    } else {
-                        // Add all effects with (child's precondition + eff. preconditions) minus the parent's effects
-                        for (const auto& [pres, effs] : childFrame.causalEffects) {
-                            SigSet newPres;
-                            for (const auto& pre : childFrame.preconditions) {
-                                if (!result.flatEffects.count(pre) && !frameOfOffset.preconditions.count(pre)) 
-                                    newPres.insert(pre);
-                            }
-                            for (const auto& pre : pres) {
-                                if (!result.flatEffects.count(pre) && !frameOfOffset.preconditions.count(pre)) 
-                                    newPres.insert(pre);
-                            }
-                            frameOfOffset.causalEffects[std::vector<Signature>(newPres.begin(), newPres.end())] = effs;
-                            frameOfOffset.flatEffects.insert(effs.begin(), effs.end());
-                        }
-                    }
+                    // Add all of the child's effects to the parent's effects
+                    frameOfOffset.effects.insert(childFrame.effects.begin(), childFrame.effects.end());
                 }
 
                 // Write into parent's fact frame
                 result.preconditions.insert(frameOfOffset.preconditions.begin(), frameOfOffset.preconditions.end());
-                if (simpleMode) {
-                    result.flatEffects.insert(frameOfOffset.flatEffects.begin(), frameOfOffset.flatEffects.end());
-                } else {
-                    for (const auto& [pres, effs] : frameOfOffset.causalEffects) {
-                        result.causalEffects[pres].insert(effs.begin(), effs.end());
-                        result.flatEffects.insert(effs.begin(), effs.end());
-                    }
-                }
+                result.effects.insert(frameOfOffset.effects.begin(), frameOfOffset.effects.end());
             }
+
+            currentOps.erase(sig);
         }
 
         _fact_frames[nameId] = std::move(result);
-        currentOps.erase(sig);
 
         //Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));
     }

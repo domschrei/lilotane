@@ -71,7 +71,7 @@ public:
         // Mine additional preconditions for reductions from their subtasks
         PreconditionInference::infer(_htn, _analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
 
-        _minres.computeMinNumPrimitiveChildren();
+        //_minres.computeMinNumPrimitiveChildren();
     }
     int findPlan();
     void improvePlan(int& iteration);

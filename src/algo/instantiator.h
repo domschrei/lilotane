@@ -76,7 +76,7 @@ public:
 
 private:
     std::vector<USignature> instantiate(const HtnOp& op);
-    std::vector<USignature> instantiateLimited(const HtnOp& op, const std::vector<int>& argsByPriority, 
+    std::vector<USignature> instantiateLimited(const HtnOp& op, const std::vector<int>& argIndicesByPriority, 
             size_t limit, bool returnUnfinished);
     
     const FlatHashMap<int, float>& getPreconditionRatings(const USignature& opSig);
