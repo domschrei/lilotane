@@ -122,7 +122,7 @@ std::vector<FlatHashSet<int>> FactAnalysis::getReducedArgumentDomains(const HtnO
         // Check possible decodings of precondition
         bool any = false;
         bool anyValid = false;
-        for (const auto& decUSig : _htn.decodeObjects(preSig._usig, /*restrictiveSorts=*/preSorts)) {
+        for (const auto& decUSig : _htn.decodeObjects(preSig._usig, _htn.getEligibleArgs(preSig._usig, preSorts))) {
             any = true;
             assert(_htn.isFullyGround(decUSig));
 

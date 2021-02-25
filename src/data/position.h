@@ -124,7 +124,7 @@ public:
     IndirectFactSupportMap& getPosIndirectFactSupports();
     IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    const NodeHashMap<USignature, std::vector<SubstitutionConstraint>, USignatureHasher>& getSubstitutionConstraints() const {
+    NodeHashMap<USignature, std::vector<SubstitutionConstraint>, USignatureHasher>& getSubstitutionConstraints() {
         return _substitution_constraints;
     }
 

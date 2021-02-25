@@ -789,13 +789,13 @@ void HtnInstance::initQConstantSorts(int id, const FlatHashSet<int>& domain) {
 
 const std::vector<USignature> SIGVEC_EMPTY; 
 
-ArgIterator HtnInstance::decodeObjects(const USignature& qSig,
+std::vector<std::vector<int>> HtnInstance::getEligibleArgs(const USignature& qSig, 
         const std::vector<int>& restrictiveSorts) {
 
     std::vector<std::vector<int>> eligibleArgs;
 
     if (!hasQConstants(qSig) && isFullyGround(qSig)) 
-        return ArgIterator(qSig._name_id, std::move(eligibleArgs));
+        return eligibleArgs;
 
     eligibleArgs.resize(qSig._args.size());
     size_t numChoices = 1;
@@ -819,12 +819,19 @@ ArgIterator HtnInstance::decodeObjects(const USignature& qSig,
         }
         //assert(eligibleArgs[argPos].size() > 0);
         if (eligibleArgs[argPos].empty()) {
-            return ArgIterator(qSig._name_id, std::vector<std::vector<int>>());
+            return std::vector<std::vector<int>>();
         }
         numChoices *= eligibleArgs[argPos].size();
     }
+    return eligibleArgs;
+}
 
+ArgIterator HtnInstance::decodeObjects(const USignature& qSig, std::vector<std::vector<int>> eligibleArgs) {
     return ArgIterator(qSig._name_id, std::move(eligibleArgs));
+}
+
+SampleArgIterator HtnInstance::decodeObjects(const USignature& qSig, std::vector<std::vector<int>> eligibleArgs, size_t numSamples) {
+    return SampleArgIterator(qSig._name_id, std::move(eligibleArgs), numSamples);
 }
 
 const std::vector<int>& HtnInstance::getSorts(int nameId) const {

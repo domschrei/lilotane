@@ -3,7 +3,8 @@
 #include "util/log.h"
 #include "util/params.h"
 
-#include "data/arg_iterator.h"
+#include "algo/arg_iterator.h"
+#include "algo/sample_arg_iterator.h"
 
 void printSig(const USignature& sig) {
     Log::i("(%i", sig._name_id);
@@ -93,5 +94,33 @@ int main(int argc, char** argv) {
             numInstantiations++;
         }
         assert(numInstantiations == args1.size() * args2.size() * args3.size() * args4.size());
+    }
+
+
+    /////// SampleArgIterator ////////
+
+    {
+        Random::init(1, 1);
+
+        std::vector<int> args1{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        std::vector<int> args2{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        std::vector<int> args3{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        std::vector<int> args4{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+        std::vector<std::vector<int>> eligibleArgs{args1, args2, args3, args4};
+
+        size_t numInstantiations = 0;
+        size_t numSamples = 100;
+        auto c = eligibleArgs;
+        for (const auto& sig : SampleArgIterator(nameId, std::move(c), numSamples)) {
+            printSig(sig);
+            assert(sig._name_id == nameId);
+            assert(sig._args.size() == eligibleArgs.size());
+            for (size_t i = 0; i < sig._args.size(); i++) {
+                const auto& a = eligibleArgs[i];
+                assert(std::find(a.begin(), a.end(), sig._args[i]) != a.end());
+            }
+            numInstantiations++;
+        }
+        assert(numInstantiations == numSamples);
     }
 }

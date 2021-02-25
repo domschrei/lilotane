@@ -14,6 +14,7 @@
 #include "algo/planner.h"
 #include "util/timer.h"
 #include "util/signal_manager.h"
+#include "util/random.h"
 
 #ifndef LILOTANE_VERSION
 #define LILOTANE_VERSION "(dbg)"
@@ -75,6 +76,8 @@ int main(int argc, char** argv) {
 
     Parameters params;
     params.init(argc, argv);
+    
+    Random::init(params.getIntParam("s"), params.getIntParam("s"));
 
     int verbosity = params.getIntParam("v");
     Log::init(verbosity, /*coloredOutput=*/params.isNonzero("co"));

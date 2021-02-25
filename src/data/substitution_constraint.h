@@ -31,9 +31,10 @@ public:
         _invalid_substitutions.insert(vals);
     }
 
-    void fixPolarity() {
-        Log::d("%i valids, %i invalids\n", _valid_substitutions.getSizeOfEncoding(), _invalid_substitutions.getSizeOfNegationEncoding());
-        if (_invalid_substitutions.getSizeOfNegationEncoding() > _valid_substitutions.getSizeOfEncoding()) {
+    void fixPolarity(Polarity polarity = UNDECIDED) {
+        size_t negSize = _invalid_substitutions.getSizeOfNegationEncoding();
+        size_t posSize = _valid_substitutions.getSizeOfEncoding();
+        if (polarity == ANY_VALID || (polarity == UNDECIDED && negSize > posSize)) {
             // More invalids
             _invalid_substitutions = IntPairTree();
             _polarity = ANY_VALID;
@@ -44,7 +45,8 @@ public:
         }
     }
 
-    bool isValid(const std::vector<IntPair>& sub) const {
+    bool isValid(const std::vector<IntPair>& sub, const std::vector<int> involvedQConstants) const {
+        bool sameReference = _involved_q_consts == involvedQConstants;
         if (_polarity == ANY_VALID) {
             // Every q-constant in the query must also be in the involved q-constants
             // (in the same order), otherwise no meaningful check can be done
@@ -55,9 +57,27 @@ public:
                 if (j == _involved_q_consts.size()) return true;
             }
             // Same involved q-constants: Can perform exact (in)validity check
-            return _valid_substitutions.subsumes(sub);
+            return sameReference ? _valid_substitutions.contains(sub) : _valid_substitutions.subsumes(sub);
         } else {
-            return !_invalid_substitutions.hasPathSubsumedBy(sub);
+            return sameReference ? !_invalid_substitutions.contains(sub) : !_invalid_substitutions.hasPathSubsumedBy(sub);
+        }
+    }
+
+    bool canMerge(const SubstitutionConstraint& other) const {
+        if (_polarity != other._polarity) return false;
+        if (_polarity == UNDECIDED) return false;
+        // Must have same _involved_q_consts
+        return _involved_q_consts == other._involved_q_consts;
+    }
+
+    void merge(SubstitutionConstraint&& other) {
+        if (_polarity == ANY_VALID) {
+            // intersect paths of both literal trees
+            _valid_substitutions.intersect(std::move(other._valid_substitutions));
+        }
+        if (_polarity == NO_INVALID) {
+            // unite paths of both literal trees
+            _invalid_substitutions.merge(std::move(other._invalid_substitutions));
         }
     }
 

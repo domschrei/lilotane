@@ -65,13 +65,14 @@ std::vector<std::vector<int>> BinaryAtMostOne::encode() {
     }
     assert(firstForbiddenState == _num_states);
 
+    /*
     Log::d("BAMO =>\n");    
     for (auto c : cls) {
         Log::d("BAMO ");
         for (auto lit : c) Log::log_notime(Log::V4_DEBUG, "%i ", lit);
         Log::log_notime(Log::V4_DEBUG, "\n");
     }
-    Log::d("<= BAMO\n");  
+    Log::d("<= BAMO\n");*/
 
     return cls;
 }

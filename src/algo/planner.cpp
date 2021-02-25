@@ -392,6 +392,29 @@ void Planner::addPreconditionsAndConstraints(const USignature& op, const SigSet&
         if (cOpt) newPos.addSubstitutionConstraint(constrOp, std::move(cOpt.value()));
     }
     if (!isRepetition) addQConstantTypeConstraints(op);
+
+    if (!newPos.getSubstitutionConstraints().count(op)) return;
+
+    // Merge substitution constraints as far as possible
+    auto& constraints = newPos.getSubstitutionConstraints().at(op);
+    //Log::d("MERGE? %i constraints\n", constraints.size());
+    for (size_t i = 0; i < constraints.size(); i++) {
+        for (size_t j = i+1; j < constraints.size(); j++) {
+            auto& iTree = constraints[i];
+            auto& jTree = constraints[j];
+            if (iTree.canMerge(jTree)) {
+                //Log::d("MERGE %s %i,%i sizes %i,%i\n", 
+                //    iTree.getPolarity() == SubstitutionConstraint::ANY_VALID ? "ANY_VALID" : "NO_INVALID", 
+                //    i, j, iTree.getEncodedSize(), jTree.getEncodedSize());
+                iTree.merge(std::move(jTree));
+                //Log::d("MERGED: new size %i\n", iTree.getEncodedSize());
+                if (j+1 < constraints.size()) 
+                    constraints[j] = std::move(constraints.back());
+                constraints.erase(constraints.begin()+constraints.size()-1);
+                j--;
+            }
+        }
+    }
 }
 
 std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature& op, const Signature& fact, bool addQFact) {
@@ -419,15 +442,33 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
     bool staticallyResolvable = true;
     USigSet relevants;
     
+    auto eligibleArgs = _htn.getEligibleArgs(factAbs, sorts);
+
+    auto polarity = SubstitutionConstraint::UNDECIDED;
+    size_t totalSize = 1; for (auto& args : eligibleArgs) totalSize *= args.size();
+    size_t sampleSize = 25;
+    bool doSample = totalSize > 2*sampleSize;
+    if (doSample) {
+        size_t valids = 0;
+        // Check out a random sample of the possible decoded objects
+        for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, eligibleArgs, sampleSize)) {
+            if (_analysis.isReachable(decFactAbs, fact._negated)) valids++;
+        }
+        polarity = valids < sampleSize/2 ? SubstitutionConstraint::ANY_VALID : SubstitutionConstraint::NO_INVALID;
+        c.fixPolarity(polarity);
+    }
+
     // For each fact decoded from the q-fact:
-    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, eligibleArgs)) {
 
         // Can the decoded fact occur as is?
         if (_analysis.isReachable(decFactAbs, fact._negated)) {
-            c.addValid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
+            if (polarity != SubstitutionConstraint::NO_INVALID)
+                c.addValid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
         } else {
             // Fact cannot hold here
-            c.addInvalid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
+            if (polarity != SubstitutionConstraint::ANY_VALID)
+                c.addInvalid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
             continue;
         }
 
@@ -452,7 +493,7 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
         }
     } // else : encoding the precondition is not necessary!
 
-    c.fixPolarity();
+    if (!doSample) c.fixPolarity();
     return std::optional<SubstitutionConstraint>(std::move(c));
 }
 
@@ -486,10 +527,13 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     std::vector<int> sortedArgIndices = SubstitutionConstraint::getSortedSubstitutedArgIndices(_htn, factAbs._args, sorts);
     bool isConstrained = left.getSubstitutionConstraints().count(opSig);
+    
+    std::vector<int> involvedQConsts(sortedArgIndices.size());
+    for (size_t i = 0; i < sortedArgIndices.size(); i++) involvedQConsts[i] = factAbs._args[sortedArgIndices[i]];
 
     bool anyGood = false;
     bool staticallyResolvable = true;
-    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
+    for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, _htn.getEligibleArgs(factAbs, sorts))) {
 
         auto path = SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices);
 
@@ -497,7 +541,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         if (isConstrained) {
             bool isValid = true;
             for (const auto& c : left.getSubstitutionConstraints().at(opSig)) {
-                if (!c.isValid(path)) {
+                if (!c.isValid(path, involvedQConsts)) {
                     //Log::d("INVALID_EFF %s (%s)\n", TOSTR(decFactAbs), c.getPolarity() == SubstitutionConstraint::ANY_VALID ? "anyvalid" : "noinvalid");
                     isValid = false;
                     break;
@@ -789,7 +833,7 @@ void Planner::initializeNextEffects() {
                     initializeFact(newPos, eff._usig); 
                 } else {
                     std::vector<int> sorts = _htn.getOpSortsForCondition(eff._usig, aSig);
-                    for (const USignature& decEff : _htn.decodeObjects(eff._usig, sorts)) {           
+                    for (const USignature& decEff : _htn.decodeObjects(eff._usig, _htn.getEligibleArgs(eff._usig, sorts))) {           
                         // New ground fact: set before the action may happen
                         initializeFact(newPos, decEff);
                     }

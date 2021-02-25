@@ -13,6 +13,7 @@
 #include "data/op_table.h"
 
 #include "algo/arg_iterator.h"
+#include "algo/sample_arg_iterator.h"
 
 // Forward definitions
 class ParsedProblem;
@@ -138,7 +139,9 @@ public:
 
     std::vector<int> getOpSortsForCondition(const USignature& sig, const USignature& op);
 
-    ArgIterator decodeObjects(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    std::vector<std::vector<int>> getEligibleArgs(const USignature& qFact, const std::vector<int>& restrictiveSorts = std::vector<int>());
+    ArgIterator decodeObjects(const USignature& qSig, std::vector<std::vector<int>> eligibleArgs);
+    SampleArgIterator decodeObjects(const USignature& qSig, std::vector<std::vector<int>> eligibleArgs, size_t numSamples);
 
     Action replaceVariablesWithQConstants(const Action& a, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
     Reduction replaceVariablesWithQConstants(const Reduction& red, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);

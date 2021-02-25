@@ -113,7 +113,7 @@ public:
         
         // Q-Fact:
         if (_htn.hasQConstants(sig)) {
-            for (const auto& decSig : _htn.decodeObjects(sig)) {
+            for (const auto& decSig : _htn.decodeObjects(sig, _htn.getEligibleArgs(sig))) {
                 if (isReachable(decSig, negated)) return true;
             }
             return false;

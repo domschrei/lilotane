@@ -262,8 +262,34 @@ public:
                     node->children[key] = val;
                 }
             }
+            otherNode->children.clear();
+            if (node != &_root) delete otherNode;
         }
-        other._root.children.clear(); // TODO clean up memory
+    }
+
+    void intersect(LiteralTree<T, THash>&& other) {
+        std::vector<std::pair<Node*, Node*>> nodeStack;
+        nodeStack.emplace_back(&_root, &other._root);
+        while (!nodeStack.empty()) {
+            auto [node, otherNode] = nodeStack.back();
+            nodeStack.pop_back();
+            node->validLeaf = node->validLeaf && otherNode->validLeaf;
+            std::vector<T> keysToRemove;
+            for (auto& [key, val] : node->children) {
+                if (!otherNode->children.count(key)) {
+                    // Not contained in both: remove!
+                    delete val;
+                    delete otherNode->children[key];
+                    keysToRemove.push_back(key);
+                } else {
+                    // Contained in both: Check children
+                    nodeStack.emplace_back(val, otherNode->children.at(key));
+                }
+            }
+            for (auto& key : keysToRemove) node->children.erase(key);
+            otherNode->children.clear();
+            if (node != &_root) delete otherNode;
+        }
     }
 
     bool empty() const {
