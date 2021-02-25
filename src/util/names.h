@@ -14,6 +14,7 @@ namespace Names {
     void init(NodeHashMap<int, std::string>& nameBackTable);
     std::string to_string(int nameId);
     std::string to_string(const std::vector<int>& nameIds);
+    std::string to_string(const std::vector<IntPair>& nameIds);
     std::string to_string(const USignature& sig);
     std::string to_string(const Signature& sig);
     std::string to_string(const PositionedUSig& sig);

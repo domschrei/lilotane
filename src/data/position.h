@@ -55,7 +55,7 @@ private:
     IndirectFactSupportMap* _neg_indir_fact_supports = nullptr;
 
     NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher> _q_constants_type_constraints;
-    NodeHashMap<USignature, NodeHashMap<std::vector<int>, std::vector<SubstitutionConstraint>, IntVecHasher>, USignatureHasher> _substitution_constraints;
+    NodeHashMap<USignature, std::vector<SubstitutionConstraint>, USignatureHasher> _substitution_constraints;
 
     size_t _max_expansion_size = 1;
 
@@ -124,7 +124,7 @@ public:
     IndirectFactSupportMap& getPosIndirectFactSupports();
     IndirectFactSupportMap& getNegIndirectFactSupports();
     const NodeHashMap<USignature, std::vector<TypeConstraint>, USignatureHasher>& getQConstantsTypeConstraints() const;
-    const NodeHashMap<USignature, NodeHashMap<std::vector<int>, std::vector<SubstitutionConstraint>, IntVecHasher>, USignatureHasher>& getSubstitutionConstraints() const {
+    const NodeHashMap<USignature, std::vector<SubstitutionConstraint>, USignatureHasher>& getSubstitutionConstraints() const {
         return _substitution_constraints;
     }
 

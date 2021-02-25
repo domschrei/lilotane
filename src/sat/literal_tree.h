@@ -64,6 +64,74 @@ class LiteralTree {
             return it->second->contains(lits, idx+1);
         }
 
+        /*
+        Returns true if the tree has a path of which <lits> is a subpath.
+        */
+        bool subsumes(const std::vector<T>& lits, size_t idx) const {
+            if constexpr (std::is_same<T, std::pair<int, int>>::value) {
+                
+                // No literals left in the given path?
+                if (idx == lits.size()) {
+                    if (validLeaf) return true;
+                    // If any (transitive) child is a valid leaf, return true
+                    for (auto& [key, child] : children) {
+                        //Log::d("(1) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                        //    idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
+                        if (child->subsumes(lits, idx)) return true;
+                    }
+                    //Log::d("(1) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
+                    return false;
+                }
+
+                // Valid child node according to next literal present?
+                auto it = children.find(lits[idx]);
+                if (it != children.end()) {
+                    // Yes: check if it subsumes the remaining path
+                    //Log::d("(2) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                    //        idx, lits.size(), TOSTR(it->first.first), TOSTR(it->first.second), TOSTR(lits));
+                    if (it->second->subsumes(lits, idx+1)) return true;
+                }
+
+                // No valid child node:
+                // Any (transitive) child must subsume the same path
+                for (auto& [key, child] : children) {
+                    //Log::d("(3) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                    //        idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
+                    if (child->subsumes(lits, idx)) return true;
+                }
+                //Log::d("(2) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
+                return false;
+
+            } else {
+                return contains(lits, idx);
+            }
+        }
+
+        /*
+        Returns true if the tree has a path which is a sub-path of <lits>.
+        */
+        bool hasPathSubsumedBy(const std::vector<T>& lits, size_t idx) const {
+            if constexpr (std::is_same<T, std::pair<int, int>>::value) {
+                
+                // No literals left in the given path? -> Path completed.
+                if (idx == lits.size()) return validLeaf;
+
+                // Direct valid child?
+                auto it = children.find(lits[idx]);
+                if (it != children.end() && it->second->hasPathSubsumedBy(lits, idx+1))
+                    return true;
+
+                // No valid child: try a later position
+                for (size_t i = idx+1; i < lits.size(); i++) {
+                    if (hasPathSubsumedBy(lits, i)) return true;
+                }
+                return false;
+
+            } else {
+                return contains(lits, idx);
+            }
+        }
+
         std::pair<size_t, size_t> getSizeOfEncoding() const {
             std::pair<size_t, size_t> result;
             if (validLeaf) return result;
@@ -211,6 +279,14 @@ public:
 
     bool contains(const std::vector<T>& lits) const {
         return _root.contains(lits, 0);
+    }
+
+    bool subsumes(const std::vector<T>& lits) const {
+        return _root.subsumes(lits, 0);
+    }
+
+    bool hasPathSubsumedBy(const std::vector<T>& lits) const {
+        return _root.hasPathSubsumedBy(lits, 0);
     }
 
     bool containsEmpty() const {

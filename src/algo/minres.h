@@ -15,7 +15,7 @@ private:
 
 public:
     MinRES(HtnInstance& htn) : _htn(htn) {
-        computeMinNumPrimitiveChildren();
+        //computeMinNumPrimitiveChildren();
     }
 
     int getMinNumPrimitiveChildren(int sigName) {

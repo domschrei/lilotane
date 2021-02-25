@@ -16,7 +16,7 @@ public:
         int minedPreconds = 0;
         int initRedId = htn.getInitReduction().getSignature()._name_id;
         for (auto& [rId, r] : htn.getReductionTemplates()) {
-            if (initRedId == rId) continue; // Skip init reduction FIXME
+            if (initRedId == rId) continue; // FIXME Skip init reduction
 
             precondsBefore += r.getPreconditions().size();
             // Mine additional preconditions, if possible

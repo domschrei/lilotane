@@ -205,8 +205,7 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, USigSet& currentOps)
                     }
 
                     // Recursively get child frame of the child
-                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), EMPTY_USIG_SET);
-                    EMPTY_USIG_SET.clear();
+                    FactFrame childFrame = getFactFrame(USignature(child._name_id, std::move(newChildArgs)), currentOps);
                     
                     if (firstChild) {
                         // Add all preconditions of child that are not yet part of the parent's effects
@@ -240,9 +239,9 @@ FactFrame FactAnalysis::getFactFrame(const USignature& sig, USigSet& currentOps)
                 result.effects.insert(frameOfOffset.effects.begin(), frameOfOffset.effects.end());
             }
 
-            currentOps.erase(sig);
         }
 
+        currentOps.erase(sig);
         _fact_frames[nameId] = std::move(result);
 
         //Log::d("FACT_FRAME %s\n", TOSTR(_fact_frames[nameId]));

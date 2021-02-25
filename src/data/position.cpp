@@ -61,8 +61,7 @@ void Position::addQConstantTypeConstraint(const USignature& op, const TypeConstr
 }
 
 void Position::addSubstitutionConstraint(const USignature& op, SubstitutionConstraint&& constr) {
-    auto& map = _substitution_constraints[op];
-    map[constr.getInvolvedQConstants()].emplace_back(std::move(constr));
+    _substitution_constraints[op].emplace_back(std::move(constr));
 }
 
 void Position::addQFactDecoding(const USignature& qFact, const USignature& decFact, bool negated) {

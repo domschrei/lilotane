@@ -17,9 +17,9 @@ ArgIterator ArgIterator::getFullInstantiation(const USignature& sig, HtnInstance
 
     for (size_t pos = 0; pos < sorts.size(); pos++) {
         int arg = sig._args[pos];
-
-        if (_htn.isVariable(arg)) {
-            // free argument
+        
+        if (arg > 0 && _htn.isVariable(arg)) {
+            // free argument and no placeholder
 
             int sort = sorts[pos];
 

@@ -70,8 +70,6 @@ public:
 
         // Mine additional preconditions for reductions from their subtasks
         PreconditionInference::infer(_htn, _analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
-
-        //_minres.computeMinNumPrimitiveChildren();
     }
     int findPlan();
     void improvePlan(int& iteration);
@@ -92,7 +90,7 @@ private:
     void incrementPosition();
 
     void addPreconditionConstraints();
-    void addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool addQFact);
+    void addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool isActionRepetition);
     std::optional<SubstitutionConstraint> addPrecondition(const USignature& op, const Signature& fact, bool addQFact = true);
     
     enum EffectMode { INDIRECT, DIRECT, DIRECT_NO_QFACT };

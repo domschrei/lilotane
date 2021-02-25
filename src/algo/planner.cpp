@@ -373,25 +373,25 @@ void Planner::addPreconditionConstraints() {
         const Action& a = _htn.getOpTable().getAction(aSig);
         // Add preconditions of action
         bool isRepetition = _htn.isActionRepetition(aSig._name_id);
-        addPreconditionsAndConstraints(aSig, a.getPreconditions(), /*addQFact=*/!isRepetition);
+        addPreconditionsAndConstraints(aSig, a.getPreconditions(), isRepetition);
     }
 
     for (const auto& rSig : newPos.getReductions()) {
         // Add preconditions of reduction
-        addPreconditionsAndConstraints(rSig, _htn.getOpTable().getReduction(rSig).getPreconditions(), true);
+        addPreconditionsAndConstraints(rSig, _htn.getOpTable().getReduction(rSig).getPreconditions(), /*isRepetition=*/false);
     }
 }
 
-void Planner::addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool addQFact) {
+void Planner::addPreconditionsAndConstraints(const USignature& op, const SigSet& preconditions, bool isRepetition) {
     Position& newPos = _layers[_layer_idx]->at(_pos);
     
-    USignature constrOp = addQFact ? op : USignature(_htn.getActionNameFromRepetition(op._name_id), op._args);
+    USignature constrOp = isRepetition ? USignature(_htn.getActionNameFromRepetition(op._name_id), op._args) : op;
 
     for (const Signature& fact : preconditions) {
-        auto cOpt = addPrecondition(op, fact, addQFact);
+        auto cOpt = addPrecondition(op, fact, !isRepetition);
         if (cOpt) newPos.addSubstitutionConstraint(constrOp, std::move(cOpt.value()));
     }
-    if (addQFact) addQConstantTypeConstraints(op);
+    if (!isRepetition) addQConstantTypeConstraints(op);
 }
 
 std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature& op, const Signature& fact, bool addQFact) {
@@ -424,10 +424,10 @@ std::optional<SubstitutionConstraint> Planner::addPrecondition(const USignature&
 
         // Can the decoded fact occur as is?
         if (_analysis.isReachable(decFactAbs, fact._negated)) {
-            c.addValid(SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices));
+            c.addValid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
         } else {
             // Fact cannot hold here
-            c.addInvalid(SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices));
+            c.addInvalid(SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices));
             continue;
         }
 
@@ -485,24 +485,23 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     std::vector<int> sortedArgIndices = SubstitutionConstraint::getSortedSubstitutedArgIndices(_htn, factAbs._args, sorts);
-    std::vector<int> involvedQConsts(sortedArgIndices.size());
-    for (size_t i = 0; i < sortedArgIndices.size(); i++) involvedQConsts[i] = factAbs._args[sortedArgIndices[i]];
-    bool isConstrained = left.getSubstitutionConstraints().count(opSig) && left.getSubstitutionConstraints().at(opSig).count(involvedQConsts);
+    bool isConstrained = left.getSubstitutionConstraints().count(opSig);
 
     bool anyGood = false;
     bool staticallyResolvable = true;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, sorts)) {
 
-        auto path = SubstitutionConstraint::decodingToPath(decFactAbs._args, sortedArgIndices);
+        auto path = SubstitutionConstraint::decodingToPath(factAbs._args, decFactAbs._args, sortedArgIndices);
 
         // Check if this decoding is known to be invalid due to some precondition
         if (isConstrained) {
             bool isValid = true;
-            for (const auto& c : left.getSubstitutionConstraints().at(opSig).at(involvedQConsts)) {
+            for (const auto& c : left.getSubstitutionConstraints().at(opSig)) {
                 if (!c.isValid(path)) {
+                    //Log::d("INVALID_EFF %s (%s)\n", TOSTR(decFactAbs), c.getPolarity() == SubstitutionConstraint::ANY_VALID ? "anyvalid" : "noinvalid");
                     isValid = false;
                     break;
-                }
+                } //else Log::d("VALID_EFF %s\n", TOSTR(decFactAbs));
             }
             if (!isValid) continue;
         }
@@ -516,9 +515,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         // Valid effect decoding
         _analysis.addReachableFact(decFactAbs, /*negated=*/fact._negated);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
-            std::vector<IntPair> vec(path.size());
-            for (size_t i = 0; i < vec.size(); i++) vec[i] = IntPair(factAbs._args[sortedArgIndices[i]], path[i]);
-            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(vec));
+            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(path));
         } else {
             pos.touchFactSupport(decFactAbs, fact._negated);
         }

@@ -29,6 +29,20 @@ namespace Names {
         return out + ")";
     }
 
+    std::string to_string(const std::vector<IntPair>& nameIdPairs) {
+        std::string out = "(";
+        bool first = true;
+        for (const auto& [left, right] : nameIdPairs) {
+            out += (first ? "(" : " (") 
+                    + std::string(left < 0 ? "-" : "") + Names::to_string(std::abs(left))
+                    + "," 
+                    + std::string(right < 0 ? "-" : "") + Names::to_string(std::abs(right))
+                + ")";
+            first = false;
+        }
+        return out + ")";
+    }
+
     std::string to_string(const USignature& sig) {
         std::string out = "";
         out += "(" + to_string(sig._name_id);
