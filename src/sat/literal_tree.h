@@ -204,7 +204,7 @@ class LiteralTree {
         }
 
         template <typename U, typename UHash = robin_hood::hash<U>>
-        typename LiteralTree<U, UHash>::Node* convert(std::function<U(T)> map) const {
+        typename LiteralTree<U, UHash>::Node* convert(std::function<U(const T&)> map) const {
             using NNode = typename LiteralTree<U, UHash>::Node;
             NNode *newNode = new NNode();
             newNode->validLeaf = validLeaf;
@@ -376,12 +376,9 @@ public:
         return cls;
     }
 
-    //template <typename T, typename Hash = robin_hood::hash<T>>
     template <typename U, typename UHash = robin_hood::hash<U>>
-    LiteralTree<U, UHash> convert(std::function<U(T)> map) const {
-        LiteralTree<U, UHash> tree;
-        tree._root = *_root.convert(map);
-        return tree;
+    void convert(std::function<U(const T&)> map, LiteralTree<U, UHash>& result) const {
+        result._root = *_root.convert(map);
     }
 };
 

@@ -245,9 +245,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
     // Retrieve supports from left position
     Supports* supp[2] = {&newPos.getNegFactSupports(), &newPos.getPosFactSupports()};
     IndirectFactSupportMap* iSupp[2] = {&newPos.getNegIndirectFactSupports(), &newPos.getPosIndirectFactSupports()};
-    // Retrieve indirect support substitutions
-    auto [negIS, posIS] = _indir_support.computeFactSupports(newPos, left);
-    IndirectSupportMap* iSuppTrees[2] = {&negIS, &posIS};
 
     // Find and encode frame axioms for each applicable fact from the left
     size_t skipped = 0;
@@ -257,7 +254,6 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int oldFactVars[2] = {-var, var};
         const USigSet* dir[2] = {nullptr, nullptr};
         const IndirectFactSupportMapEntry* indir[2] = {nullptr, nullptr};
-        const NodeHashMap<int, LiteralTree<int>>* tree[2] = {nullptr, nullptr};
 
         // Retrieve direct and indirect support for this fact
         bool reuse = true;
@@ -269,15 +265,11 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
                     reuse = false;
                 } 
             }
-            if (!iSupp[i]->empty()) { // Indirect support & tree
+            if (!iSupp[i]->empty()) { // Indirect support
                 auto it = iSupp[i]->find(fact);
                 if (it != iSupp[i]->end()) {
-                    auto itt = iSuppTrees[i]->find(fact);
-                    if (itt != iSuppTrees[i]->end()) {
-                        reuse = false;
-                        indir[i] = &(it->second);
-                        tree[i] = &(itt->second);
-                    }
+                    indir[i] = &(it->second);
+                    reuse = false;
                 } 
             }
         }
@@ -311,67 +303,73 @@ void Encoding::encodeFrameAxioms(Position& newPos, Position& left) {
         int i = -1;
         for (int sign = -1; sign <= 1; sign += 2) {
             i++;
+            std::vector<int> cls;
             // Fact change:
-            if (oldFactVars[i] != 0) _sat.appendClause(oldFactVars[i]);
-            _sat.appendClause(-sign*factVar);
+            if (oldFactVars[i] != 0) cls.push_back(oldFactVars[i]);
+            cls.push_back(-sign*factVar);
             if (dir[i] != nullptr || indir[i] != nullptr) {
+                std::vector<int> headerLits = cls;
                 // Non-primitiveness wildcard
                 if (!nonprimFactSupport) {
                     if (_implicit_primitiveness) {
-                        for (int var : _nonprimitive_ops) _sat.appendClause(var);
-                    } else if (prevVarPrim != 0) _sat.appendClause(-prevVarPrim);
+                        for (int var : _nonprimitive_ops) cls.push_back(var);
+                    } else if (prevVarPrim != 0) cls.push_back(-prevVarPrim);
+                }
+                // INDIRECT support
+                if (indir[i] != nullptr) {                    
+                    for (const auto& [op, tree] : *indir[i]) {
+                        // Skip if the operation is already a DIRECT support for the fact
+                        if (dir[i] != nullptr && dir[i]->count(op)) continue;
+
+                        // Encode substitutions enabling indirect support for this fact
+                        int opVar = left.getVariableOrZero(VarType::OP, op);
+                        USignature virtOp(_htn.getRepetitionNameOfAction(op._name_id), op._args);
+                        int virtOpVar = left.getVariableOrZero(VarType::OP, virtOp);
+                        if (opVar != 0) {
+                            cls.push_back(opVar);
+                            encodeIndirectFrameAxioms(headerLits, opVar, tree);
+                        }
+                        if (virtOpVar != 0) {
+                            cls.push_back(virtOpVar);
+                            encodeIndirectFrameAxioms(headerLits, virtOpVar, tree);
+                        }
+                    }
                 }
                 // DIRECT support
                 if (dir[i] != nullptr) for (const USignature& opSig : *dir[i]) {
                     int opVar = left.getVariableOrZero(VarType::OP, opSig);
-                    if (opVar > 0) _sat.appendClause(opVar);
+                    if (opVar != 0) cls.push_back(opVar);
                     USignature virt = opSig.renamed(_htn.getRepetitionNameOfAction(opSig._name_id));
                     int virtOpVar = left.getVariableOrZero(VarType::OP, virt);
-                    if (virtOpVar > 0) _sat.appendClause(virtOpVar);
-                }
-                // INDIRECT support
-                if (tree[i] != nullptr) for (const auto& [var, tree] : *tree[i]) {
-                    _sat.appendClause(var);
+                    if (virtOpVar != 0) cls.push_back(virtOpVar);
                 }
             }
-            _sat.endClause();
+            _sat.addClause(cls);
         }
-
-        // Encode substitutions enabling indirect support for this fact
-        _stats.begin(STAGE_INDIRECTFRAMEAXIOMS);
-        i = -1;
-        for (int sign = -1; sign <= 1; sign += 2) {
-            i++;
-            factVar *= -1;
-            if (tree[i] == nullptr) continue;
-
-            // -- 1st part of each clause: "head literals"
-            std::vector<int> headLits;
-            // IF fact change AND the operation is applied,
-            headLits.push_back(0); // operation var goes here
-            if (oldFactVars[i] != 0) headLits.push_back(-oldFactVars[i]);
-            headLits.push_back(factVar);
-            if (!nonprimFactSupport) {
-                if (_implicit_primitiveness) {
-                    for (int var : _nonprimitive_ops) headLits.push_back(-var);
-                } else if (prevVarPrim != 0) headLits.push_back(prevVarPrim);
-            } 
-
-            // Encode indirect support constraints
-            for (const auto& [opVar, tree] : *tree[i]) {
-                
-                // Unconditional effect?
-                if (tree.containsEmpty()) continue;
-
-                headLits[0] = opVar;                
-                for (const auto& cls : tree.encode(headLits)) _sat.addClause(cls);
-            }
-        }
-        _stats.end(STAGE_INDIRECTFRAMEAXIOMS);
     }
     _stats.end(STAGE_DIRECTFRAMEAXIOMS);
 
     Log::d("Skipped %i frame axioms\n", skipped);
+}
+
+void Encoding::encodeIndirectFrameAxioms(const std::vector<int>& headerLits, int opVar, const IntPairTree& tree) {
+       
+    // Unconditional effect?
+    if (tree.containsEmpty()) return;
+
+    _stats.begin(STAGE_INDIRECTFRAMEAXIOMS);
+            
+    // Transform header and tree into a set of clauses
+    for (const auto& cls : tree.encode()) {
+        for (int lit : headerLits) _sat.appendClause(lit);
+        _sat.appendClause(-opVar);
+        for (const auto& [src, dest] : cls) {
+            _sat.appendClause((src<0 ? -1 : 1) * _vars.varSubstitution(std::abs(src), dest));
+        }
+        _sat.endClause();
+    }
+    
+    _stats.end(STAGE_INDIRECTFRAMEAXIOMS);
 }
 
 void Encoding::encodeOperationConstraints(Position& newPos) {

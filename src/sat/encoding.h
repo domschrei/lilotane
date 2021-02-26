@@ -10,7 +10,6 @@
 #include "sat/literal_tree.h"
 #include "sat/sat_interface.h"
 #include "algo/fact_analysis.h"
-#include "algo/indirect_fact_support.h"
 #include "sat/variable_provider.h"
 #include "sat/decoder.h"
 
@@ -26,7 +25,6 @@ private:
     EncodingStatistics _stats;
     SatInterface _sat;
     VariableProvider _vars;
-    IndirectFactSupport _indir_support;
     Decoder _decoder;
 
     std::function<void()> _termination_callback;
@@ -53,7 +51,7 @@ private:
 public:
     Encoding(Parameters& params, HtnInstance& htn, FactAnalysis& analysis, std::vector<Layer*>& layers, std::function<void()> terminationCallback) : 
             _params(params), _htn(htn), _analysis(analysis), _layers(layers),
-            _sat(params, _stats), _vars(_params, _htn, _layers), _indir_support(_htn, _vars),
+            _sat(params, _stats), _vars(_params, _htn, _layers),
             _decoder(_htn, _layers, _sat, _vars),
             _termination_callback(terminationCallback),
             _use_q_constant_mutexes(_params.getIntParam("qcm") > 0), 
@@ -90,6 +88,7 @@ private:
     void encodeOperationVariables(Position& pos);
     void encodeFactVariables(Position& pos, Position& left, Position& above);
     void encodeFrameAxioms(Position& pos, Position& left);
+    void encodeIndirectFrameAxioms(const std::vector<int>& headerLits, int opVar, const IntPairTree& tree);
     void encodeOperationConstraints(Position& pos);
     void encodeSubstitutionVars(const USignature& opSig, int opVar, int qconst);
     void encodeQFactSemantics(Position& pos);

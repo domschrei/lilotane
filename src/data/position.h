@@ -13,7 +13,7 @@
 #include "sat/literal_tree.h"
 #include "data/substitution_constraint.h"
 
-typedef NodeHashMap<USignature, std::vector<std::vector<IntPair>>, USignatureHasher> IndirectFactSupportMapEntry;
+typedef NodeHashMap<USignature, IntPairTree, USignatureHasher> IndirectFactSupportMapEntry;
 typedef NodeHashMap<USignature, IndirectFactSupportMapEntry, USignatureHasher> IndirectFactSupportMap;
 typedef NodeHashMap<USignature, Substitution, USignatureHasher> USigSubstitutionMap;
 
@@ -79,8 +79,7 @@ public:
     void addFactSupport(const Signature& fact, const USignature& operation);
     void touchFactSupport(const Signature& fact);
     void touchFactSupport(const USignature& fact, bool negated);
-    void addIndirectFactSupport(const Signature& fact, const USignature& op, std::vector<IntPair>&& sub);
-    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, std::vector<IntPair>&& sub);
+    void addIndirectFactSupport(const USignature& fact, bool negated, const USignature& op, const std::vector<IntPair>& path);
     void setHasPrimitiveOps(bool has);
     void setHasNonprimitiveOps(bool has);
     bool hasPrimitiveOps();

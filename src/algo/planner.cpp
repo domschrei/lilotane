@@ -538,7 +538,7 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
                 otherConstrs.push_back(&c);
         }
     }
-
+    
     bool anyGood = false;
     bool staticallyResolvable = true;
     for (const USignature& decFactAbs : _htn.decodeObjects(factAbs, _htn.getEligibleArgs(factAbs, sorts))) {
@@ -563,16 +563,16 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             if (!isValid) continue;
         }
 
+        anyGood = true;
         if (_analysis.isInvariant(decFactAbs, fact._negated)) {
             // Effect holds trivially
-            anyGood = true;
             continue;
         }
 
         // Valid effect decoding
         _analysis.addReachableFact(decFactAbs, /*negated=*/fact._negated);
         if (_nonprimitive_support || _htn.isAction(opSig)) {
-            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, std::move(path));
+            pos.addIndirectFactSupport(decFactAbs, fact._negated, opSig, path);
         } else {
             pos.touchFactSupport(decFactAbs, fact._negated);
         }
@@ -580,7 +580,6 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
             if (mode == DIRECT) pos.addQFactDecoding(factAbs, decFactAbs, fact._negated);
             _analysis.addRelevantFact(decFactAbs);
         }
-        anyGood = true;
         staticallyResolvable = false;
     }
     // Not a single valid decoding of the effect? -> Invalid effect.
