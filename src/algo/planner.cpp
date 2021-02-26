@@ -526,10 +526,18 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
     // Create the full set of valid decodings for this qfact
     std::vector<int> sorts = _htn.getOpSortsForCondition(factAbs, opSig);
     std::vector<int> sortedArgIndices = SubstitutionConstraint::getSortedSubstitutedArgIndices(_htn, factAbs._args, sorts);
-    bool isConstrained = left.getSubstitutionConstraints().count(opSig);
+    const bool isConstrained = left.getSubstitutionConstraints().count(opSig);
     
     std::vector<int> involvedQConsts(sortedArgIndices.size());
     for (size_t i = 0; i < sortedArgIndices.size(); i++) involvedQConsts[i] = factAbs._args[sortedArgIndices[i]];
+    std::vector<SubstitutionConstraint*> fittingConstrs, otherConstrs;
+    if (isConstrained) {
+        for (auto& c : left.getSubstitutionConstraints().at(opSig)) {
+            if (c.getInvolvedQConstants() == involvedQConsts) fittingConstrs.push_back(&c);
+            else if (c.getPolarity() == SubstitutionConstraint::NO_INVALID || c.involvesSupersetOf(involvedQConsts)) 
+                otherConstrs.push_back(&c);
+        }
+    }
 
     bool anyGood = false;
     bool staticallyResolvable = true;
@@ -540,12 +548,17 @@ bool Planner::addEffect(const USignature& opSig, const Signature& fact, EffectMo
         // Check if this decoding is known to be invalid due to some precondition
         if (isConstrained) {
             bool isValid = true;
-            for (const auto& c : left.getSubstitutionConstraints().at(opSig)) {
-                if (!c.isValid(path, involvedQConsts)) {
-                    //Log::d("INVALID_EFF %s (%s)\n", TOSTR(decFactAbs), c.getPolarity() == SubstitutionConstraint::ANY_VALID ? "anyvalid" : "noinvalid");
+            for (const auto& c : fittingConstrs) {
+                if (!c->isValid(path, /*sameReference=*/true)) {
                     isValid = false;
                     break;
-                } //else Log::d("VALID_EFF %s\n", TOSTR(decFactAbs));
+                }
+            }
+            if (isValid) for (const auto& c : otherConstrs) {
+                if (!c->isValid(path, /*sameReference=*/false)) {
+                    isValid = false;
+                    break;
+                }
             }
             if (!isValid) continue;
         }

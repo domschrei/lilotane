@@ -22,6 +22,24 @@ private:
 public:
     SubstitutionConstraint(const std::vector<int>& involvedQConsts) : _involved_q_consts(involvedQConsts) {}
     SubstitutionConstraint(std::vector<int>&& involvedQConsts) : _involved_q_consts(std::move(involvedQConsts)) {}
+    SubstitutionConstraint(const SubstitutionConstraint& other) : 
+        _involved_q_consts(other._involved_q_consts), 
+        _valid_substitutions(other._valid_substitutions),
+        _invalid_substitutions(other._invalid_substitutions),
+        _polarity(other._polarity) {}
+    SubstitutionConstraint(SubstitutionConstraint&& other) : 
+        _involved_q_consts(other._involved_q_consts), 
+        _valid_substitutions(std::move(other._valid_substitutions)),
+        _invalid_substitutions(std::move(other._invalid_substitutions)),
+        _polarity(other._polarity) {}
+
+    SubstitutionConstraint& operator=(const SubstitutionConstraint& other) {
+        _involved_q_consts = other._involved_q_consts;
+        _valid_substitutions = other._valid_substitutions;
+        _invalid_substitutions = other._invalid_substitutions;
+        _polarity = other._polarity;
+        return *this;
+    }
 
     void addValid(const std::vector<IntPair>& vals) {
         _valid_substitutions.insert(vals);
@@ -45,17 +63,20 @@ public:
         }
     }
 
-    bool isValid(const std::vector<IntPair>& sub, const std::vector<int> involvedQConstants) const {
-        bool sameReference = _involved_q_consts == involvedQConstants;
+    bool involvesSupersetOf(const std::vector<int>& involvedQConsts) const {
+        // Every q-constant in the query must also be in the involved q-constants
+        // (in the same order), otherwise no meaningful check can be done
+        size_t j = 0;
+        for (size_t i = 0; i < involvedQConsts.size(); i++) {
+            while (j < _involved_q_consts.size() && _involved_q_consts[j] != involvedQConsts[i])
+                j++;
+            if (j == _involved_q_consts.size()) return false;
+        }
+        return true;
+    }
+
+    bool isValid(const std::vector<IntPair>& sub, bool sameReference) const {
         if (_polarity == ANY_VALID) {
-            // Every q-constant in the query must also be in the involved q-constants
-            // (in the same order), otherwise no meaningful check can be done
-            size_t j = 0;
-            for (size_t i = 0; i < sub.size(); i++) {
-                while (j < _involved_q_consts.size() && _involved_q_consts[j] != sub[i].first)
-                    j++;
-                if (j == _involved_q_consts.size()) return true;
-            }
             // Same involved q-constants: Can perform exact (in)validity check
             return sameReference ? _valid_substitutions.contains(sub) : _valid_substitutions.subsumes(sub);
         } else {

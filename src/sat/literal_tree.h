@@ -8,6 +8,10 @@
 #include "util/hashmap.h"
 #include "util/log.h"
 
+/*
+On an abstract level, this class template represents a set of sequences whereas some global order
+is imposed on the elements that may occur in a sequence, and all sequences are sorted accordingly.
+*/
 template <typename T, typename THash = robin_hood::hash<T>>
 class LiteralTree {
 
@@ -68,68 +72,58 @@ class LiteralTree {
         Returns true if the tree has a path of which <lits> is a subpath.
         */
         bool subsumes(const std::vector<T>& lits, size_t idx) const {
-            if constexpr (std::is_same<T, std::pair<int, int>>::value) {
-                
-                // No literals left in the given path?
-                if (idx == lits.size()) {
-                    if (validLeaf) return true;
-                    // If any (transitive) child is a valid leaf, return true
-                    for (auto& [key, child] : children) {
-                        //Log::d("(1) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
-                        //    idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
-                        if (child->subsumes(lits, idx)) return true;
-                    }
-                    //Log::d("(1) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
-                    return false;
-                }
 
-                // Valid child node according to next literal present?
-                auto it = children.find(lits[idx]);
-                if (it != children.end()) {
-                    // Yes: check if it subsumes the remaining path
-                    //Log::d("(2) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
-                    //        idx, lits.size(), TOSTR(it->first.first), TOSTR(it->first.second), TOSTR(lits));
-                    if (it->second->subsumes(lits, idx+1)) return true;
-                }
-
-                // No valid child node:
-                // Any (transitive) child must subsume the same path
+            // No literals left in the given path?
+            if (idx == lits.size()) {
+                if (validLeaf) return true;
+                // If any (transitive) child is a valid leaf, return true
                 for (auto& [key, child] : children) {
-                    //Log::d("(3) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
-                    //        idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
+                    //Log::d("(1) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                    //    idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
                     if (child->subsumes(lits, idx)) return true;
                 }
-                //Log::d("(2) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
+                //Log::d("(1) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
                 return false;
-
-            } else {
-                return contains(lits, idx);
             }
+
+            // Valid child node according to next literal present?
+            auto it = children.find(lits[idx]);
+            if (it != children.end()) {
+                // Yes: check if it subsumes the remaining path
+                //Log::d("(2) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                //        idx, lits.size(), TOSTR(it->first.first), TOSTR(it->first.second), TOSTR(lits));
+                if (it->second->subsumes(lits, idx+1)) return true;
+            }
+
+            // No valid child node:
+            // Any (transitive) child must subsume the same path
+            for (auto& [key, child] : children) {
+                //Log::d("(3) i=%i n=%i Does child node (%s,%s) subsume %s?\n", 
+                //        idx, lits.size(), TOSTR(key.first), TOSTR(key.second), TOSTR(lits));    
+                if (child->subsumes(lits, idx)) return true;
+            }
+            //Log::d("(2) i=%i n=%i Node does not subsume %s\n", idx, lits.size(), TOSTR(lits));
+            return false;
         }
 
         /*
         Returns true if the tree has a path which is a sub-path of <lits>.
         */
         bool hasPathSubsumedBy(const std::vector<T>& lits, size_t idx) const {
-            if constexpr (std::is_same<T, std::pair<int, int>>::value) {
                 
-                // No literals left in the given path? -> Path completed.
-                if (idx == lits.size()) return validLeaf;
+            // No literals left in the given path? -> Path completed.
+            if (idx == lits.size()) return validLeaf;
 
-                // Direct valid child?
-                auto it = children.find(lits[idx]);
-                if (it != children.end() && it->second->hasPathSubsumedBy(lits, idx+1))
-                    return true;
+            // Direct valid child?
+            auto it = children.find(lits[idx]);
+            if (it != children.end() && it->second->hasPathSubsumedBy(lits, idx+1))
+                return true;
 
-                // No valid child: try a later position
-                for (size_t i = idx+1; i < lits.size(); i++) {
-                    if (hasPathSubsumedBy(lits, i)) return true;
-                }
-                return false;
-
-            } else {
-                return contains(lits, idx);
+            // No valid child: try a later position
+            for (size_t i = idx+1; i < lits.size(); i++) {
+                if (hasPathSubsumedBy(lits, i)) return true;
             }
+            return false;
         }
 
         std::pair<size_t, size_t> getSizeOfEncoding() const {
@@ -227,13 +221,14 @@ public:
 
     LiteralTree() = default;
     LiteralTree(const LiteralTree& other) : _root(other._root) {}
+    LiteralTree(LiteralTree&& other) : _root(std::move(other._root)) {}
 
     void operator=(LiteralTree<T, THash>&& other) {
         _root.children = std::move(other._root.children);
         _root.validLeaf = other._root.validLeaf;
     }
 
-    void operator=(const LiteralTree<T>& other) {
+    void operator=(const LiteralTree<T, THash>& other) {
         _root = other._root;
     }
 
