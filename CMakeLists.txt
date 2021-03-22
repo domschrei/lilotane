@@ -29,7 +29,7 @@ endif()
 # Libraries and includes
 
 link_directories(lib lib/${IPASIRSOLVER} build)
-set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m ipasir${IPASIRSOLVER} z pandaPIparser)
+set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m z pandaPIparser)
 set(BASE_INCLUDES ${MPI_CXX_INCLUDE_PATH} src src/pandaPIparser/src)
 file(READ lib/${IPASIRSOLVER}/LIBS SOLVERLIBS)
 
@@ -63,9 +63,11 @@ if("${SOLVERLIBS}" MATCHES ".*dummyfuncs.*")
     add_library(dummyfuncs
         STATIC lib/dummyfuncs/dummyfuncs.cpp
     )
-    target_link_libraries(lilotane lotane dummyfuncs ${BASE_LIBS} ${SOLVERLIBS})
+    target_link_libraries(lilotane lotane dummyfuncs ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
+elseif("${SOLVERLIBS}" MATCHES ".*[A-Za-z].*")
+    target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
 else()
-    target_link_libraries(lilotane lotane ${BASE_LIBS} ${SOLVERLIBS})
+    target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER})
 endif()
 
 
