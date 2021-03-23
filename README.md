@@ -9,21 +9,21 @@ NOTE: The main (development) repository of this project is [located here on Gith
 
 This planner for totally-ordered HTN planning problems makes use of incremental Satisfiability (SAT) solving. In short, it reads a given planning problem and encodes a small portion of it into propositional logic. If an internally launched SAT solver reports that the formula is unsatisfiable, the next layer of the problem is encoded and added to the existing formula. This procedure is repeated until a plan is found or the problem is deemed to be overall unsatisfiable.
 
-Lilotane introduces new techniques to the field of SAT-based HTN planning, namely lazy instantiation and a lifted encoding that enables it to skip the full grounding of the problem. More information is provided in the accompanying paper [0].
+Lilotane introduces new techniques to the field of SAT-based HTN planning, namely lazy instantiation and a lifted encoding that enables it to skip the full grounding of the problem. More information is provided in the JAIR paper [0] and, to a lesser extent, in Lilotane's IPC planner description [1].
 
 Lilotane was runner-up in the Total Order track of the [International Planning Conference (IPC) 2020](http://ipc2020.hierarchical-task.net/), performing best on a diverse set of planning domains.
 
 ### Valid Inputs
 
-Lilotane operates on totally-ordered HTN planning problems given as HDDL files [1]. The provided HTN domain may be recursive or non-recursive.
+Lilotane operates on totally-ordered HTN planning problems given as HDDL files [2]. The provided HTN domain may be recursive or non-recursive.
 
-In short, Lilotane supports exactly the HDDL specification from the International Planning Competition (IPC) 2020 provided in [2] and [3].
+In short, Lilotane supports exactly the HDDL specification from the International Planning Competition (IPC) 2020 provided in [3] and [4].
 It handles type systems, STRIPS-style actions with positive and negative conditions, method preconditions, equality and "sort-of" constraints, and universal quantifications in preconditions and effects.
 Lilotane _cannot_ handle conditional effects, existential quantifications, or any other extended formalisms going beyond the mentioned concepts.
 
 ### Output
 
-Lilotane outputs a plan in accordance to [4]. Basically everything in between "`==>`" and "`<==`" is the found plan, and everything inside that plan in front of the word `root` is the sequence of classical actions to execute. 
+Lilotane outputs a plan in accordance to [5]. Basically everything in between "`==>`" and "`<==`" is the found plan, and everything inside that plan in front of the word `root` is the sequence of classical actions to execute. 
 (Don't worry about the weird IDs which are assigned to the actions and reductions – they correspond (more or less) to the Boolean variables they were encoded with.)
 
 ## Building
@@ -64,27 +64,31 @@ Here are the more interesting options for normal general purpose usage of the pl
 ## License
 
 The code of Lilotane is published under the GNU GPLv3. Consult the LICENSE file for details.  
-The planner uses [pandaPIparser](https://github.com/panda-planner-dev/pandaPIparser) [1] which is also GPLv3 licensed.
+The planner uses [pandaPIparser](https://github.com/panda-planner-dev/pandaPIparser) [2] which is also GPLv3 licensed.
 
 Note that depending on the SAT solver compiled into the planner, usage and redistribution rights may be subject to their licensing.
-If you want to make sure that everything is Free and Open Source, I suggest to use MIT-licensed lingeling as the solver.
+Specifically: CaDiCaL, Cryptominisat, Lingeling and Riss are Free Software while Glucose technically is not.
 
 ## Background and References
 
-This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>. Its direct predecessor is Tree-REX which originated from [5] and was published in [6]. Lilotane is an entirely new codebase, written from scratch in C++ (in contrast to Tree-REX which was partially written in Java).
+This planner is being developed by Dominik Schreiber <dominik.schreiber@kit.edu>. Its direct predecessor is Tree-REX which originated from [6] and was published in [7]. Lilotane is an entirely new codebase, written from scratch in C++ (in contrast to Tree-REX which was partially written in Java).
+
+If you use Lilotane in academic work, please cite [0]. If you specifically reference Lilotane as a participant of the IPC, you can additionally cite [1].
 
 ---
 
-[0] Schreiber, D. (2020). [**Lifted Logic for Task Networks: TOHTN Planner Lilotane Entering IPC 2020.**](https://github.com/domschrei/lilotane/blob/master/lilotane.pdf) In International Planning Competition (IPC) 2020.
+[0] Schreiber, D. (2021). [**Lilotane: A Lifted SAT-based Approach to Hierarchical Planning.**](https://doi.org/10.1613/jair.1.12520)
 
-[1] Behnke, G., Höller, D., Schmid, A., Bercher, P., & Biundo, S. (2020). [**On Succinct Groundings of HTN Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2020/AAAI-BehnkeG.1770.pdf) In AAAI (pp. 9775-9784).
+[1] Schreiber, D. (2020). [**Lifted Logic for Task Networks: TOHTN Planner Lilotane Entering IPC 2020.**](https://dominikschreiber.de/papers/2020-ipc-lilotane.pdf) In International Planning Competition (IPC) 2020.**
 
-[2] Höller, D., Behnke, G., Bercher, P., Biundo, S., Fiorino, H., Pellier, D., & Alford, R. (2020). [**HDDL: An Extension to PDDL for Expressing Hierarchical Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2020/Hoeller2020HDDL.pdf) In AAAI (pp. 9883-9891).
+[2] Behnke, G., Höller, D., Schmid, A., Bercher, P., & Biundo, S. (2020). [**On Succinct Groundings of HTN Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2020/AAAI-BehnkeG.1770.pdf) In AAAI (pp. 9775-9784).
 
-[3] Behnke, G. et al. (2020). [**HDDL - Addendum.**](http://gki.informatik.uni-freiburg.de/competition/hddl.pdf) Universität Freiburg.
+[3] Höller, D., Behnke, G., Bercher, P., Biundo, S., Fiorino, H., Pellier, D., & Alford, R. (2020). [**HDDL: An Extension to PDDL for Expressing Hierarchical Planning Problems.**](https://www.uni-ulm.de/fileadmin/website_uni_ulm/iui.inst.090/Publikationen/2020/Hoeller2020HDDL.pdf) In AAAI (pp. 9883-9891).
 
-[4] Behnke, G. et al. (2020). [**Plan verification.**](http://gki.informatik.uni-freiburg.de/ipc2020/format.pdf) Universität Freiburg.
+[4] Behnke, G. et al. (2020). [**HDDL - Addendum.**](http://gki.informatik.uni-freiburg.de/competition/hddl.pdf) Universität Freiburg.
 
-[5] Schreiber, D. (2018). [**Hierarchical task network planning using SAT techniques.**](https://baldur.iti.kit.edu/theses/schreiber.pdf) Master’s thesis, Grenoble Institut National Polytechnique, Karlsruhe Institute of Technology. Also see code and resources in [this repository](https://gitlab.com/domschrei/htn-sat).
+[5] Behnke, G. et al. (2020). [**Plan verification.**](http://gki.informatik.uni-freiburg.de/ipc2020/format.pdf) Universität Freiburg.
 
-[6] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. (2019). [**Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.**](https://algo2.iti.kit.edu/balyo/papers/treerex.pdf) In ICAPS, volume 29. No. 1. 2019.
+[6] Schreiber, D. (2018). [**Hierarchical task network planning using SAT techniques.**](https://baldur.iti.kit.edu/theses/schreiber.pdf) Master’s thesis, Grenoble Institut National Polytechnique, Karlsruhe Institute of Technology. Also see code and resources in [this repository](https://gitlab.com/domschrei/htn-sat).
+
+[7] Schreiber, D.; Balyo, T.; Pellier, D.; and Fiorino, H. (2019). [**Tree-REX: SAT-based tree exploration for efficient and high-quality HTN planning.**](https://algo2.iti.kit.edu/balyo/papers/treerex.pdf) In ICAPS, volume 29. No. 1. 2019.
