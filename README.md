@@ -77,7 +77,7 @@ If you use Lilotane in academic work, please cite [0]. If you specifically refer
 
 ---
 
-[0] Schreiber, D. (2021). [**Lilotane: A Lifted SAT-based Approach to Hierarchical Planning.**](https://doi.org/10.1613/jair.1.12520)
+[0] Schreiber, D. (2021). [**Lilotane: A Lifted SAT-based Approach to Hierarchical Planning.**](https://doi.org/10.1613/jair.1.12520) In Journal of Artificial Intelligence Research (JAIR) 2021 (70), pp. 1117-1181.
 
 [1] Schreiber, D. (2020). [**Lifted Logic for Task Networks: TOHTN Planner Lilotane Entering IPC 2020.**](https://dominikschreiber.de/papers/2020-ipc-lilotane.pdf) In International Planning Competition (IPC) 2020.**
 
