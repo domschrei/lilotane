@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 if(NOT IPASIRSOLVER)
     set(IPASIRSOLVER "glucose4")
 endif()
-
+if(NOT IPASIRDIR)
+    set(IPASIRDIR "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+endif()
 
 # Build-specific compile options
 
@@ -28,11 +30,17 @@ endif()
 
 # Libraries and includes
 
-link_directories(lib lib/${IPASIRSOLVER} build)
+link_directories(lib ${IPASIRDIR}/${IPASIRSOLVER} build)
 set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m z pandaPIparser)
 set(BASE_INCLUDES ${MPI_CXX_INCLUDE_PATH} src src/pandaPIparser/src)
-file(READ lib/${IPASIRSOLVER}/LIBS SOLVERLIBS)
-
+if(EXISTS ${IPASIRDIR}/${IPASIRSOLVER}/LIBS)
+    message(STATUS "${IPASIRDIR}/${IPASIRSOLVER}/LIBS exists")
+    file(READ ${IPASIRDIR}/${IPASIRSOLVER}/LIBS SOLVERLIBS)
+else()
+    message(STATUS "${IPASIRDIR}/${IPASIRSOLVER}/LIBS does not exist")
+    # Assume that dummy functions are required
+    set(SOLVERLIBS "-ldummyfuncs")
+endif()
 
 # Source files (without main.cpp)
 
@@ -63,8 +71,8 @@ if("${SOLVERLIBS}" MATCHES ".*dummyfuncs.*")
     add_library(dummyfuncs
         STATIC lib/dummyfuncs/dummyfuncs.cpp
     )
-    target_link_libraries(lilotane lotane dummyfuncs ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
-elseif("${SOLVERLIBS}" MATCHES ".*[A-Za-z].*")
+endif()
+if("${SOLVERLIBS}" MATCHES ".*[A-Za-z].*")
     target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
 else()
     target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER})
@@ -79,7 +87,7 @@ add_dependencies(lotane parser)
 
 # Solver library
 
-add_custom_target(solverlib cd ../lib/${IPASIRSOLVER}/ && bash fetch_and_build.sh)
+add_custom_target(solverlib cd .. && cd ${IPASIRDIR}/${IPASIRSOLVER}/ && [ ! -f fetch_and_build.sh ] || bash fetch_and_build.sh)
 add_dependencies(lilotane solverlib)
 
 
