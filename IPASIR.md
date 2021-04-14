@@ -5,6 +5,8 @@ This is to document the employment of Lilotane as an application benchmark for i
 
 ## Setting up
 
+Due to pandaPIparser, `flex` and `bison` must be installed as dependencies (e.g., via `apt install`).
+
 The cloned directory `lilotane` can be moved to [app/](https://github.com/biotomas/ipasir/tree/master/app) and can then be built normally with `mkone.sh` or `mkall.sh`. This build will also produce an executable called `pandaPIparser` which is used to verify found plans.
 
 ## Benchmarks
@@ -32,3 +34,5 @@ The output of Lilotane should be verified as follows:
 `./pandaPIparser path/to/domain.hddl path/to/problem.hddl -verify path/to/output`
 
 (If a verification error does occur, please do not immediately blame the SAT solver but maybe contact me with the concerned benchmark instance and/or test the same instance with one of Lilotane's default solvers such as Glucose or Lingeling.)
+
+In the IPC 2020 all planners were executed on a time limit of 1800 seconds. Lower time limits can also be acceptable (e.g., down to maybe 300 seconds), but for lower time limits the SAT solver performance tends to have a lower relative impact on the total run time of Lilotane.
