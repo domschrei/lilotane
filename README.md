@@ -40,6 +40,8 @@ cd ..
 
 The SAT solver to link Lilotane with can be set with the `IPASIRSOLVER` variable. Valid values are `cadical`, `cryptominisat`, `glucose4`, `lingeling`, and `riss`.
 
+Note that the Makefile in the base directory is only supposed to be used for building Lilotane [as an IPASIR application](https://github.com/biotomas/ipasir).
+
 ## Usage
 
 Lilotane uses the HDDL file format.

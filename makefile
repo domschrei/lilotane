@@ -1,4 +1,7 @@
 
+# Makefile for building Lilotane as an IPASIR application
+# (see github.com/biotomas/ipasir )
+
 TARGET=$(shell basename "`pwd`")
 IPASIRSOLVER ?= picosat961
 
