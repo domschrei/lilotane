@@ -65,8 +65,8 @@ nunsolved=0
 all=0
 score=0
 
-#inputfile=instances/ipc/instances_ipc_to.txt
-inputfile=instances/instances_test.txt
+inputfile=instances/ipc/instances_ipc_to.txt
+#inputfile=instances/instances_test.txt
 outdir=tests/tests_$(date +%s)
 mkdir -p $outdir
 

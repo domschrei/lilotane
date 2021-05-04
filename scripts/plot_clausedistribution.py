@@ -10,7 +10,7 @@ import functools
 
 import matplotlib
 # ['GTK3Agg', 'GTK3Cairo', 'MacOSX', 'nbAgg', 'Qt4Agg', 'Qt4Cairo', 'Qt5Agg', 'Qt5Cairo', 'TkAgg', 'TkCairo', 'WebAgg', 'WX', 'WXAgg', 'WXCairo', 'agg', 'cairo', 'pdf', 'pgf', 'ps', 'svg', 'template']
-matplotlib.use('pdf')
+matplotlib.use('ps')
 matplotlib.rcParams['hatch.linewidth'] = 0.5  # previous pdf hatch linewidth
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -68,6 +68,8 @@ files = [f for f in listdir(basedir) if isfile(join(basedir, f)) and (str(f).end
 clause_cat_file = sys.argv[2]
 categories = [line.rstrip() for line in open(clause_cat_file, "r").readlines()]
 
+ipc_plot = len(sys.argv) >= 4 and sys.argv[3] == "ipc"
+
 clauses_by_domain = dict()
 problems_by_domain = dict()
 
@@ -88,10 +90,11 @@ for file in files:
             continue
     index = int(match.group(1))
     domain = match.group(2) #.lower().replace("_", "-")
-    if domain.endswith("G"):
-        domain = domain[:-1]
-    domain = domain.lower().replace("_new", "")
-    domain = domain[0:1].upper() + domain[1:]
+    if not ipc_plot:
+        if domain.endswith("G"):
+            domain = domain[:-1]
+        domain = domain.lower().replace("_new", "")
+        domain = domain[0:1].upper() + domain[1:]
 
     print("%i (%s) : %s" % (index, domain, file))
     
@@ -140,9 +143,10 @@ for domain in clauses_by_domain:
 
 # Do plotting
 
-
-plt.figure(figsize=(4,3)) # Small plot
-#plt.figure(figsize=(8,4.5)) # Big plot
+if ipc_plot:
+    plt.figure(figsize=(8,4.5)) # Big plot
+else:
+    plt.figure(figsize=(4,3)) # Small plot
 
 bars = []
 labels = []
@@ -169,7 +173,7 @@ for key in sorted(clauses, key=lambda x: -clauses[x]):
     print(Ys)
     print(bottom)
     (c, h) = style_by_key[key]
-    bars += [plt.bar(Xs, Ys, width=0.65, bottom=bottom, color=c, hatch=h, alpha=.99)] # alpha trick as workaround that hatching is drawn in PDF
+    bars += [plt.bar(Xs, Ys, width=0.65, bottom=bottom, color=c, hatch=h)] # alpha trick as workaround that hatching is drawn in PDF
     labels += [nice_names[key]]
     for i in range(len(bottom)):
         bottom[i] += Ys[i]
@@ -185,7 +189,7 @@ if title:
     plt.title(title)
 plt.tight_layout()
 #plt.show()
-plt.savefig('clause_distribution.pdf')
+plt.savefig('clause_distribution.png', dpi=600)
 
 
 
@@ -220,4 +224,4 @@ figlegend = plt.figure()
 figlegend.legend(newbars, newlabels, 'center', ncol=ncols, edgecolor='#000000')
 figlegend.set_edgecolor('b')
 figlegend.tight_layout()
-figlegend.savefig('clause_distribution_legend.pdf', bbox_inches='tight')
+figlegend.savefig('clause_distribution_legend.png', bbox_inches='tight', dpi=600)
