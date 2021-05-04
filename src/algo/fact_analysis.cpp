@@ -214,8 +214,6 @@ SigSet FactAnalysis::getPossibleFactChanges(const USignature& sig) {
     for (const auto& fact : getFactFrame(sig).effects) {
         if (fact._usig._args.empty()) result.insert(fact);
         else for (const USignature& groundFact : ArgIterator::getFullInstantiation(fact._usig, _htn)) {
-            // TODO This could be a comparably simple and convenient place
-            // to filter out impossible rigid predicates.
             result.emplace(groundFact, fact._negated);
         }
     }
