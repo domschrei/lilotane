@@ -68,6 +68,9 @@ public:
             _init_plan_time_limit(_params.getFloatParam("T")), _nonprimitive_support(_params.isNonzero("nps")), 
             _optimization_factor(_params.getFloatParam("of")), _has_plan(false) {
 
+        _htn.getGoalAction();
+        _analysis.computeFactFrames();
+
         // Mine additional preconditions for reductions from their subtasks
         PreconditionInference::infer(_htn, _analysis, PreconditionInference::MinePrecMode(_params.getIntParam("mp")));
     }

@@ -123,6 +123,7 @@ public:
 
     bool isReductionPrimitivizable(int reductionId) const;
     const Action& getReductionPrimitivization(int reductionId) const;
+    int getReductionPrimitivizationName(int reductionId) const;
 
     bool isActionRepetition(int actionId) const;
     int getRepetitionNameOfAction(int actionId);
@@ -147,7 +148,18 @@ public:
     Reduction replaceVariablesWithQConstants(const Reduction& red, const std::vector<FlatHashSet<int>>& opArgDomains, int layerIdx, int pos);
 
     USignature getNormalizedLifted(const USignature& opSig, std::vector<int>& placeholderArgs);
-    
+    std::vector<int> getAnonymousArglist(size_t size) {
+        std::vector<int> args(size);
+        for (size_t i = 0; i < size; i++) args[i] = nameId("?_" + std::to_string(i));
+        return args;
+    }
+    Action getAnonymousAction(int aId) {
+        return toAction(aId, getAnonymousArglist(getActionTemplate(aId).getArguments().size()));
+    }
+    Reduction getAnonymousReduction(int rId) {
+        return toReduction(rId, getAnonymousArglist(getReductionTemplate(rId).getArguments().size()));
+    }
+
     USignature cutNonoriginalTaskArguments(const USignature& sig);
     const std::pair<int, int>& getReductionAndActionFromPrimitivization(int primitivizationName);
 
@@ -258,10 +270,15 @@ public:
         return _predicate_ids.count(nameId);
     }
 
+    inline bool isAction(int id) const {
+        return _operators.count(id);
+    }
     inline bool isAction(const USignature& sig) const {
         return _operators.count(sig._name_id);
     }
-
+    inline bool isReduction(int id) const {
+        return _methods.count(id);
+    }
     inline bool isReduction(const USignature& sig) const {
         return _methods.count(sig._name_id);
     }

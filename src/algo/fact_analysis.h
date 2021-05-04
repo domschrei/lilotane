@@ -93,17 +93,10 @@ public:
         return _initialized_facts.count(fact);
     }
 
-    enum FactInstantiationMode {FULL, LIFTED};
-    enum OperationType {ACTION, REDUCTION, UNKNOWN};
-    const SigSet& getPossibleFactChanges(const USignature& sig, FactInstantiationMode mode = FULL, OperationType opType = UNKNOWN);
-
-    void eraseCachedPossibleFactChanges(const USignature& sig);
+    SigSet getPossibleFactChanges(const USignature& sig);
 
     SigSet inferPreconditions(const USignature& op) {
-        static USigSet EMPTY_USIG_SET;
-        auto factFrame = getFactFrame(op, EMPTY_USIG_SET);
-        EMPTY_USIG_SET.clear();
-        return factFrame.preconditions;
+        return getFactFrame(op).preconditions;
     }
 
     std::vector<FlatHashSet<int>> getReducedArgumentDomains(const HtnOp& op);
@@ -133,8 +126,10 @@ public:
         return true;
     }
 
+    void computeFactFrames();
+
 private:
-    FactFrame getFactFrame(const USignature& sig, USigSet& currentOps);
+    FactFrame getFactFrame(const USignature& sig);
 };
 
 #endif

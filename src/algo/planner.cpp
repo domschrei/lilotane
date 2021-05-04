@@ -356,7 +356,6 @@ void Planner::createNextPositionFromLeft(Position& left) {
                     // Impossible indirect effect: ignore.
                 }
             }
-            _analysis.eraseCachedPossibleFactChanges(aSig);
         }
         isAction = false;
     }
@@ -837,7 +836,7 @@ void Planner::initializeNextEffects() {
     bool isAction = true;
     for (const auto& set : ops) {
         for (const auto& aSig : *set) {
-            const SigSet& pfc = _analysis.getPossibleFactChanges(aSig, FactAnalysis::FULL, isAction ? FactAnalysis::ACTION : FactAnalysis::REDUCTION);
+            const SigSet pfc = _analysis.getPossibleFactChanges(aSig);
             for (const Signature& eff : pfc) {
 
                 if (!_htn.hasQConstants(eff._usig)) {

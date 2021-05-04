@@ -139,6 +139,11 @@ namespace Sig {
     const static USignature NONE_SIG = USignature(-1, std::vector<int>());
     const static SigSet EMPTY_SIG_SET;
     const static USigSet EMPTY_USIG_SET;
+
+    void unite(const SigSet& from, SigSet& into);
+    void unite(const USigSet& from, USigSet& into);
+    void intersect(const SigSet& from, SigSet& into);
+    void intersect(const USigSet& from, USigSet& into);
 }
 
 #endif

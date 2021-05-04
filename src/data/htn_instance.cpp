@@ -614,6 +614,10 @@ bool HtnInstance::isReductionPrimitivizable(int reductionId) const {
     return _reduction_to_primitivization.count(reductionId);
 }
 
+int HtnInstance::getReductionPrimitivizationName(int reductionId) const {
+    return _reduction_to_primitivization.at(reductionId);
+}
+
 const Action& HtnInstance::getReductionPrimitivization(int reductionId) const {
     return _operators.at(_reduction_to_primitivization.at(reductionId));
 }
