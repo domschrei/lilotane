@@ -59,11 +59,12 @@ void run(Parameters& params) {
     Planner planner(params, htn);
     int result = planner.findPlan();
 
-    if (result == 0) {
+    if (result == 0 && !params.isNonzero("cleanup")) {
         // Exit directly -- avoid to clean up :)
-        Log::i("Exiting happily.\n");
+        Log::i("Exiting happily (no cleaning up).\n");
         exit(result);
     }
+    Log::i("Exiting happily.\n");
     return;
 }
 
@@ -102,5 +103,5 @@ int main(int argc, char** argv) {
     }
 
     run(params);
-    return 1; // something went wrong if run() returns
+    return 0;
 }
