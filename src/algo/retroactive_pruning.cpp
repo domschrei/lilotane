@@ -74,7 +74,10 @@ void RetroactivePruning::prune(const USignature& op, int layerIdx, int pos) {
                     } else if (below.getPredecessors().at(child).size() == 1) {
                         // Child has this op as its only predecessor -> prune
                         opsToRemove.emplace(psig.layer+1, belowPosIdx, child);
-                    } else Log::d("PRUNE %i pred left for %s@(%i,%i)\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
+                    } else {
+                        Log::d("PRUNE %i pred left for %s@(%i,%i): %s\n", below.getPredecessors().at(child).size()-1, TOSTR(child), psig.layer+1, belowPosIdx);
+                        below.getPredecessors().at(child).erase(psig.usig);
+                    }
                 } else Log::d("PRUNE No expansions for %s @ (%i,%i)\n", TOSTR(psig), psig.layer+1, belowPosIdx);
 
                 belowPosIdx++;
