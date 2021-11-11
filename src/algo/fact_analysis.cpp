@@ -203,7 +203,6 @@ void FactAnalysis::computeFactFrames() {
 }
 
 FactFrame FactAnalysis::getFactFrame(const USignature& sig) {
-
     const FactFrame& f = _fact_frames.at(sig._name_id);
     return f.substitute(Substitution(f.sig._args, sig._args));
 }
