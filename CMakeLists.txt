@@ -71,6 +71,7 @@ if("${SOLVERLIBS}" MATCHES ".*dummyfuncs.*")
     add_library(dummyfuncs
         STATIC lib/dummyfuncs/dummyfuncs.cpp
     )
+    add_dependencies(lilotane dummyfuncs)
 endif()
 if("${SOLVERLIBS}" MATCHES ".*[A-Za-z].*")
     target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
