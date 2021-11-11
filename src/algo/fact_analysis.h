@@ -57,7 +57,7 @@ public:
     
     bool isReachable(const USignature& fact, bool negated) {
         if (negated) {
-            return _neg_layer_facts.count(fact) || !_pos_layer_facts.count(fact);
+            return _neg_layer_facts.count(fact) || !_init_state.count(fact);
         }
         return _pos_layer_facts.count(fact);
     }
