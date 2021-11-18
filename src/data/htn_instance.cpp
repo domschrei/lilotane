@@ -15,6 +15,9 @@ HtnInstance::HtnInstance(Parameters& params) :
              _params(params), _p(*parse(params.getDomainFilename(), params.getProblemFilename())), 
             _share_q_constants(_params.isNonzero("sqq")) {
 
+    // Transfer random seed to the hash function for any kind of signature
+    USignatureHasher::seed = _params.getIntParam("s");
+
     Log::i("Parser finished.\n");
 
     Names::init(_name_back_table);

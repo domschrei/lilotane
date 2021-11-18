@@ -85,3 +85,5 @@ Signature& Signature::operator=(Signature&& sig) {
     _negated = sig._negated;
     return *this;
 }
+
+int USignatureHasher::seed = 1;

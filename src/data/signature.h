@@ -97,8 +97,9 @@ struct PositionedUSig {
 };
 
 struct USignatureHasher {
+    static int seed;
     inline std::size_t operator()(const USignature& s) const {
-        size_t hash = s._args.size();
+        size_t hash = seed + s._args.size();
         for (const int& arg : s._args) {
             hash_combine(hash, arg);
         }
