@@ -31,12 +31,14 @@ int Planner::findPlan() {
             _sat_time_limit = 0;
         }
         solved = result == 10;
-    } 
+    }
+
+    int branchDegree = _params.getIntParam("branch");
     
     // Next layers
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
 
-        if (iteration >= firstSatCallIteration) {
+        if (branchDegree == 0 && iteration >= firstSatCallIteration) {
 
             _enc.printFailedVars(*_layers.back());
 
@@ -65,7 +67,12 @@ int Planner::findPlan() {
         if (iteration >= firstSatCallIteration) {
             _enc.addAssumptions(_layer_idx);
             int result = _enc.solve();
-            if (result == 0) {
+            while (result == -1) {
+                // Retry
+                checkTermination();
+                result = _enc.solve();
+            }
+            if (result == 0 && _params.getIntParam("branch") == 0) {
                 Log::w("Solver was interrupted. Discarding time limit for next solving attempts.\n");
                 _sat_time_limit = 0;
             }
@@ -905,8 +912,10 @@ void Planner::clearDonePositions(int offset) {
 }
 
 void Planner::checkTermination() {
+
     bool exitSet = SignalManager::isExitSet();
     bool cancelOpt = cancelOptimization();
+    
     if (exitSet) {
         if (_has_plan) {
             Log::i("Termination signal caught - printing last found plan.\n");
@@ -923,6 +932,19 @@ void Planner::checkTermination() {
         Log::i("Time limit to find an initial plan exceeded.\n");
         exitSet = true;
     }
+
+    if (_params.getIntParam("branch") > 0) {
+        bool done = _enc.getSatInterface().checkBranches();
+        if (done) {
+            Log::i("Found a solution at layer %i.\n", _enc.getSatInterface().getSolvedLayerIdx());
+            _time_at_first_plan = Timer::elapsedSeconds();
+            _plan = _enc.extractPlan();
+            _has_plan = true;
+            _plan_writer.outputPlan(_plan);
+            exitSet = true;
+        }
+    }
+
     if (exitSet || cancelOpt) {
         printStatistics();
         Log::i("Exiting happily.\n");

@@ -31,7 +31,7 @@ endif()
 # Libraries and includes
 
 link_directories(lib ${IPASIRDIR}/${IPASIRSOLVER} build)
-set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m z pandaPIparser)
+set(BASE_LIBS ${MPI_CXX_LIBRARIES} ${MPI_CXX_LINK_FLAGS} m z pandaPIparser pthread)
 set(BASE_INCLUDES ${MPI_CXX_INCLUDE_PATH} src src/pandaPIparser/src)
 if(EXISTS ${IPASIRDIR}/${IPASIRSOLVER}/LIBS)
     message(STATUS "${IPASIRDIR}/${IPASIRSOLVER}/LIBS exists")
@@ -47,7 +47,7 @@ endif()
 set(BASE_SOURCES
     src/algo/arg_iterator.cpp src/algo/domination_resolver.cpp src/algo/fact_analysis.cpp src/algo/instantiator.cpp src/algo/network_traversal.cpp src/algo/planner.cpp src/algo/plan_writer.cpp src/algo/retroactive_pruning.cpp
     src/data/action.cpp src/data/htn_instance.cpp src/data/htn_op.cpp src/data/layer.cpp src/data/position.cpp src/data/reduction.cpp src/data/signature.cpp src/data/substitution.cpp
-    src/sat/binary_amo.cpp src/sat/encoding.cpp src/sat/literal_tree.cpp src/sat/plan_optimizer.cpp src/sat/variable_domain.cpp
+    src/sat/binary_amo.cpp src/sat/encoding.cpp src/sat/literal_tree.cpp src/sat/plan_optimizer.cpp src/sat/sat_interface.cpp src/sat/variable_domain.cpp
     src/util/log.cpp src/util/names.cpp src/util/params.cpp src/util/random.cpp src/util/signal_manager.cpp src/util/timer.cpp
 )
 

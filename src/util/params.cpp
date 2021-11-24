@@ -39,6 +39,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     setParam("alo", "0"); // explicitly encode "at-least-one" over elements at each position
     setParam("bamot", "50"); // Binary at-most-one threshold
+    setParam("branch", "0");
     setParam("cleanup", "0"); // clean up before exit?
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)

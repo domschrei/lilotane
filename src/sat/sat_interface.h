@@ -8,6 +8,7 @@
 #include <iostream>
 #include <assert.h>
 #include <vector>
+#include <mutex>
 
 #include "util/params.h"
 #include "util/log.h"
@@ -18,8 +19,19 @@ extern "C" {
     #include "sat/ipasir.h"
 }
 
+int callbackShouldTerminate(void* data);
+void callbackFinished(int result, void* solver, void* data);
+
 class SatInterface {
 
+public:
+    struct BranchData {
+        int branchIdx;
+        SatInterface* interface;
+        void* solver;
+        int result = -1;
+    };
+    
 private:
     Parameters& _params;
     void* _solver;
@@ -32,10 +44,20 @@ private:
     std::vector<int> _last_assumptions;
     std::vector<int> _no_decision_variables;
 
+    std::mutex _branch_mutex;
+    std::vector<BranchData*> _branches;
+    int _max_branch_interrupt_index = -1;
+    int _num_active_branches = 0;
+    int _solved_layer = -1;
+
 public:
     SatInterface(Parameters& params, EncodingStatistics& stats) : 
                 _params(params), _stats(stats), _print_formula(params.isNonzero("wf")) {
-        _solver = ipasir_init();
+        if (_params.getIntParam("branch") > 0) {
+            _solver = mallob_ipasir_init(/*incremental=*/false);
+        } else {
+            _solver = ipasir_init();
+        }
         ipasir_set_seed(_solver, params.getIntParam("s"));
         if (_print_formula) _out.open("formula.cnf");
     }
@@ -150,8 +172,96 @@ public:
         int result = ipasir_solve(_solver);
         if (_stats._num_asmpts == 0) _last_assumptions.clear();
         _stats._num_asmpts = 0;
+        _solved_layer++;
         return result;
     }
+
+
+
+
+
+    
+
+    bool branchedSolve() {
+        if (_num_active_branches >= _params.getIntParam("branch")) return false;
+
+        _branch_mutex.lock();
+
+        int branchIdx = _branches.size();
+        Log::i("Branching off #%i\n", branchIdx);
+        BranchData* data = new BranchData();
+        data->branchIdx = branchIdx;
+        data->interface = this;
+        _branches.push_back(data);
+
+        mallob_ipasir_branched_solve(_solver, data, callbackShouldTerminate, callbackFinished);
+        
+        _branch_mutex.unlock();
+
+        _num_active_branches++;
+        return true;
+    }
+
+    bool shouldBranchTerminate(const BranchData& data) {
+        _branch_mutex.lock();
+        bool terminate = data.branchIdx <= _max_branch_interrupt_index;
+        _branch_mutex.unlock();
+        return terminate;
+    }
+
+    void branchDone(int result, void* solver, BranchData& data) {
+        int idx = data.branchIdx;
+        _branch_mutex.lock();
+        data.solver = solver;
+        data.result = result;
+        _branch_mutex.unlock();
+    }
+
+    bool checkBranches() {
+        bool done = false;
+        _branch_mutex.lock();
+        for (size_t i = 0; i < _branches.size(); i++) {
+            if (!_branches[i]) continue;
+            if (_branches[i]->result >= 0) {
+                // This branch finished
+                BranchData& data = *_branches[i];
+                Log::i("Branch #%i done, result %s\n", i, 
+                    data.result == 0 ? "UNKNOWN" : (data.result == 10 ? "SAT" : "UNSAT"));
+
+                if (data.result == 10) {
+                    // SAT: done! 
+                    // Replace internal solver with "winning" branch
+                    _solver = data.solver;
+                    _solved_layer = i;
+                    // Interrupt ALL branches
+                    _max_branch_interrupt_index = INT32_MAX;
+                    done = true;
+                }
+                if (data.result == 20) {
+                    // UNSAT: Interrupt all smaller branches
+                    _max_branch_interrupt_index = i;
+                }
+
+                // Clean up branch
+                delete _branches[i];
+                _branches[i] = nullptr;
+                _num_active_branches--;
+
+                if (done) break;
+            }
+        }
+        _branch_mutex.unlock();
+        return done;
+    }
+
+    int getSolvedLayerIdx() const {
+        return _solved_layer;
+    }
+
+
+
+
+
 
     ~SatInterface() {
         

@@ -23,8 +23,10 @@ public:
     enum PlanExtraction {ALL, PRIMITIVE_ONLY};
     std::vector<PlanItem> extractClassicalPlan(PlanExtraction mode = PRIMITIVE_ONLY) {
 
-        Layer& finalLayer = *_layers.back();
+        int solvedLayerIdx = _sat.getSolvedLayerIdx();
+        Layer& finalLayer = *_layers.at(solvedLayerIdx);
         int li = finalLayer.index();
+        assert(solvedLayerIdx == li);
         //VariableDomain::lock();
 
         std::vector<PlanItem> plan(finalLayer.size());
@@ -78,10 +80,12 @@ public:
         auto result = Plan();
         auto& [classicalPlan, plan] = result;
         classicalPlan = extractClassicalPlan();
+
+        int maxLayer = _sat.getSolvedLayerIdx();
         
         std::vector<PlanItem> itemsOldLayer, itemsNewLayer;
 
-        for (size_t layerIdx = 0; layerIdx < _layers.size(); layerIdx++) {
+        for (size_t layerIdx = 0; layerIdx <= maxLayer; layerIdx++) {
             Layer& l = *_layers.at(layerIdx);
             //log("(decomps at layer %i)\n", l.index());
 
@@ -124,7 +128,7 @@ public:
                             // Find the actual action variable at the final layer, not at this (inner) layer
                             size_t l = layerIdx;
                             int aPos = pos;
-                            while (l+1 < _layers.size()) {
+                            while (l+1 <= maxLayer) {
                                 //log("(%i,%i) => ", l, aPos);
                                 aPos = _layers.at(l)->getSuccessorPos(aPos);
                                 l++;

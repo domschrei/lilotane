@@ -825,19 +825,28 @@ void onClauseLearnt(void* state, int* cls) {
 }
 
 int Encoding::solve() {
-    Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
+
+    if (_params.getIntParam("branch") > 0) {
+
+        bool success = _sat.branchedSolve();
+        return success ? 0 : -1;
+
+    } else {
+
+        Log::i("Attempting to solve formula with %i clauses (%i literals) and %i assumptions\n", 
                 _stats._num_cls, _stats._num_lits, _stats._num_asmpts);
-    
-    if (_params.isNonzero("plc"))
-        _sat.setLearnCallback(/*maxLength=*/100, this, onClauseLearnt);
 
-    _sat_call_start_time = Timer::elapsedSeconds();
-    int result = _sat.solve();
-    _sat_call_start_time = 0;
+        if (_params.isNonzero("plc"))
+            _sat.setLearnCallback(/*maxLength=*/100, this, onClauseLearnt);
 
-    _termination_callback();
+        _sat_call_start_time = Timer::elapsedSeconds();
+        int result = _sat.solve();
+        _sat_call_start_time = 0;
 
-    return result;
+        _termination_callback();
+
+        return result;
+    }
 }
 
 void Encoding::addUnitConstraint(int lit) {
