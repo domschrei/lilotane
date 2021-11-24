@@ -39,7 +39,7 @@ void Parameters::init(int argc, char** argv) {
 void Parameters::setDefaults() {
     setParam("alo", "0"); // explicitly encode "at-least-one" over elements at each position
     setParam("bamot", "50"); // Binary at-most-one threshold
-    setParam("branch", "0");
+    setParam("branch", "0"); // makespan-branching approach
     setParam("cleanup", "0"); // clean up before exit?
     setParam("co", "1"); // colored output
     setParam("cs", "0"); // check solvability (without assumptions)
@@ -88,6 +88,7 @@ void Parameters::printUsage() {
     Log::i(" -aar=<0|1>          Acknowledge action repetitions and encode them in a reduced form\n");
     Log::i(" -alo=<0|1>          Explicitly encode at-least-one constraints over operations at each position\n");
     Log::i(" -bamot=<int>        Binary at-most-one threshold\n");
+    Log::i(" -branch=<int>       Branch off up to k makespans without waiting for solver results (k > 0 requires Mallob backend)\n");
     Log::i(" -cleanup=<0|1>      0 to immediately exit through syscall after solution has been printed; 1 to exit normally\n");
     Log::i(" -co=<0|1>           Colored terminal output\n");
     Log::i(" -cs=<0|1>           Check solvability: When some layer is UNSAT, re-run SAT solver without assumptions\n");
