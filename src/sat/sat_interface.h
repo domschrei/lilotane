@@ -53,11 +53,8 @@ private:
 public:
     SatInterface(Parameters& params, EncodingStatistics& stats) : 
                 _params(params), _stats(stats), _print_formula(params.isNonzero("wf")) {
-        if (_params.getIntParam("branch") > 0) {
-            _solver = mallob_ipasir_init(/*incremental=*/false);
-        } else {
-            _solver = ipasir_init();
-        }
+        
+        _solver = mallob_ipasir_init(/*incremental=*/_params.getIntParam("branch") == 0);
         ipasir_set_seed(_solver, params.getIntParam("s"));
         if (_print_formula) _out.open("formula.cnf");
     }
