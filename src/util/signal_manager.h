@@ -16,7 +16,7 @@ public:
         numSignals++;
         if (numSignals == 5) {
             // Forced exit
-            exit(0);
+            abort();
         }
     }
     static inline bool isExitSet() {
