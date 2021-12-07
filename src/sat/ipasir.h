@@ -128,5 +128,6 @@ void ipasir_set_decision_var (void * s, unsigned int v, bool decision_var);
 
 void* mallob_ipasir_init (bool incremental);
 void mallob_ipasir_branched_solve (void * solver, void * data, int (*terminate)(void * data), void (*callback_done)(int result, void* child_solver, void* data));
+void mallob_ipasir_presubmit (void * solver);
 
 #endif

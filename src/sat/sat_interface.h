@@ -54,9 +54,13 @@ public:
     SatInterface(Parameters& params, EncodingStatistics& stats) : 
                 _params(params), _stats(stats), _print_formula(params.isNonzero("wf")) {
         
-        _solver = mallob_ipasir_init(/*incremental=*/_params.getIntParam("branch") == 0);
+        bool incremental = _params.getIntParam("branch") == 0;
+        _solver = mallob_ipasir_init(/*incremental=*/incremental);
         ipasir_set_seed(_solver, params.getIntParam("s"));
         if (_print_formula) _out.open("formula.cnf");
+
+        if (incremental && _params.isNonzero("presubmit"))
+            mallob_ipasir_presubmit(_solver);
     }
     
     inline void addClause(int lit) {
@@ -170,6 +174,8 @@ public:
         if (_stats._num_asmpts == 0) _last_assumptions.clear();
         _stats._num_asmpts = 0;
         _solved_layer++;
+        if (result != 10 && _params.getIntParam("branch") == 0 && _params.isNonzero("presubmit")) 
+            mallob_ipasir_presubmit(_solver);
         return result;
     }
 

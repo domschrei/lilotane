@@ -52,6 +52,7 @@ void Parameters::setDefaults() {
     setParam("nps", "0"); // non-primitive fact supports
     setParam("of", "0"); // optimization factor
     setParam("p", "1"); // encode predecessor operations
+    setParam("presubmit", "1"); // presubmit formula over Mallob interface before it is encoded
     setParam("pvn", "0"); // print variable names
     setParam("qcm", "0"); // q-constant mutexes: size threshold
     setParam("plc", "0"); // print learnt clauses
