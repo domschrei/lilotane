@@ -36,6 +36,7 @@ set(BASE_INCLUDES ${MPI_CXX_INCLUDE_PATH} src src/pandaPIparser/src)
 if(EXISTS ${IPASIRDIR}/${IPASIRSOLVER}/LIBS)
     message(STATUS "${IPASIRDIR}/${IPASIRSOLVER}/LIBS exists")
     file(READ ${IPASIRDIR}/${IPASIRSOLVER}/LIBS SOLVERLIBS)
+    string(STRIP ${SOLVERLIBS} SOLVERLIBS)
 else()
     message(STATUS "${IPASIRDIR}/${IPASIRSOLVER}/LIBS does not exist")
     # Assume that dummy functions are required
