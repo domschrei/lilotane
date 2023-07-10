@@ -72,11 +72,12 @@ if("${SOLVERLIBS}" MATCHES ".*dummyfuncs.*")
     add_library(dummyfuncs
         STATIC lib/dummyfuncs/dummyfuncs.cpp
     )
+    set(DUMMYFUNCSLIB "dummyfuncs")
 endif()
 if("${SOLVERLIBS}" MATCHES ".*[A-Za-z].*")
-    target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
+    target_link_libraries(lilotane lotane ${DUMMYFUNCSLIB} ${BASE_LIBS} ipasir${IPASIRSOLVER} ${SOLVERLIBS})
 else()
-    target_link_libraries(lilotane lotane ${BASE_LIBS} ipasir${IPASIRSOLVER})
+    target_link_libraries(lilotane lotane ${DUMMYFUNCSLIB} ${BASE_LIBS} ipasir${IPASIRSOLVER})
 endif()
 
 
