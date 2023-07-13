@@ -74,6 +74,7 @@ void Parameters::setDefaults() {
     setParam("aar", "1"); // acknowledge action repetitions
     setParam("vp", "0"); // verify plan before printing it
     setParam("wf", "0"); // output formula to f.cnf
+    setParam("MM", "0"); // Max. Memory (in Megabytes)
 }
 
 void Parameters::printUsage() {

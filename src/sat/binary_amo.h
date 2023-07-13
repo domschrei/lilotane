@@ -3,6 +3,7 @@
 #define DOMSCHREI_LILOTANE_BINARY_AMO_H
 
 #include <vector>
+#include <cstddef>
 
 class BinaryAtMostOne {
 

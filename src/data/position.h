@@ -187,6 +187,14 @@ public:
         auto& vars = type == OP ? _op_variables : _fact_variables;
         vars.erase(sig);
     }
+
+    inline size_t getMemoryFootprintEstimate() const {
+        return _reductions.size() + _actions.size() + _qfacts.size()
+            + _expansions.size() + _predecessors.size()
+            + _pos_qfact_decodings.size() + _neg_qfact_decodings.size()
+            + (_pos_fact_supports?_pos_fact_supports->size():0)
+            + (_neg_fact_supports?_neg_fact_supports->size():0);
+    }
 };
 
 

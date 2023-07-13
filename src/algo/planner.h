@@ -2,6 +2,8 @@
 #ifndef DOMPASCH_TREE_REXX_PLANNER_H
 #define DOMPASCH_TREE_REXX_PLANNER_H
  
+#include <optional>
+
 #include "util/names.h"
 #include "util/params.h"
 #include "util/hashmap.h"
@@ -55,6 +57,10 @@ private:
     size_t _num_instantiated_positions = 0;
     size_t _num_instantiated_actions = 0;
     size_t _num_instantiated_reductions = 0;
+
+    unsigned long _mem_footprint_estimate {0};
+    unsigned long _mem_footprint_estimate_last_memcheck {0};
+    bool _exit_set {false};
 
 public:
     Planner(Parameters& params, HtnInstance& htn) : _params(params), _htn(htn),
@@ -110,6 +116,8 @@ private:
     int getTerminateSatCall();
     void clearDonePositions(int offset);
     void printStatistics();
+
+    bool checkExceedsMemory() const;
 
 };
 

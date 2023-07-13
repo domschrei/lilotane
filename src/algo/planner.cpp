@@ -6,6 +6,7 @@
 #include "util/signal_manager.h"
 #include "util/timer.h"
 #include "sat/plan_optimizer.h"
+#include "util/memusage.h"
 
 int terminateSatCall(void* state) {return ((Planner*) state)->getTerminateSatCall();}
 
@@ -34,7 +35,7 @@ int Planner::findPlan() {
     }
 
     int branchDegree = _params.getIntParam("branch");
-    
+
     // Next layers
     while (!solved && (maxIterations == 0 || iteration < maxIterations)) {
 
@@ -63,6 +64,7 @@ int Planner::findPlan() {
         Log::i("Iteration %i.\n", iteration);
         
         createNextLayer();
+        if (_exit_set) break;
 
         if (iteration >= firstSatCallIteration) {
             _enc.addAssumptions(_layer_idx);
@@ -70,6 +72,7 @@ int Planner::findPlan() {
             while (result == -1) {
                 // Retry
                 checkTermination();
+                if (_exit_set) break;
                 result = _enc.solve();
             }
             if (result == 0 && _params.getIntParam("branch") == 0) {
@@ -77,11 +80,13 @@ int Planner::findPlan() {
                 _sat_time_limit = 0;
             }
             solved = result == 10;
-        } 
+        }
+        if (_exit_set) break;
     }
 
     if (!solved) {
-        if (iteration >= firstSatCallIteration) _enc.printFailedVars(*_layers.back());
+        if (!_exit_set && iteration >= firstSatCallIteration)
+            _enc.printFailedVars(*_layers.back());
         Log::w("No success. Exiting.\n");
         return 1;
     }
@@ -183,6 +188,7 @@ void Planner::improvePlan(int& iteration) {
 void Planner::incrementPosition() {
     _num_instantiated_actions += _layers[_layer_idx]->at(_pos).getActions().size();
     _num_instantiated_reductions += _layers[_layer_idx]->at(_pos).getReductions().size();
+    _mem_footprint_estimate += _layers[_layer_idx]->at(_pos).getMemoryFootprintEstimate();
     _pos++; _num_instantiated_positions++;
 }
 
@@ -271,8 +277,11 @@ void Planner::createNextLayer() {
 
             incrementPosition();
             checkTermination();
+            if (_exit_set) break;
         }
+        if (_exit_set) break;
     }
+    if (_exit_set) return;
     if (_pos > 0) _layers[_layer_idx]->at(_pos-1).clearAfterInstantiation();
 
     Log::i("Collected %i relevant facts at this layer\n", _analysis.getRelevantFacts().size());
@@ -287,7 +296,11 @@ void Planner::createNextLayer() {
             Log::v("- Position (%i,%i)\n", _layer_idx, _pos);
             _enc.encode(_layer_idx, _pos);
             clearDonePositions(offset);
+
+            checkTermination();
+            if (_exit_set) break;
         }
+        if (_exit_set) break;
     }
 
     newLayer.consolidate();
@@ -913,10 +926,10 @@ void Planner::clearDonePositions(int offset) {
 
 void Planner::checkTermination() {
 
-    bool exitSet = SignalManager::isExitSet();
+    _exit_set |= SignalManager::isExitSet();
     bool cancelOpt = cancelOptimization();
     
-    if (exitSet) {
+    if (_exit_set) {
         if (_has_plan) {
             Log::i("Termination signal caught - printing last found plan.\n");
             _plan_writer.outputPlan(_plan);
@@ -930,7 +943,19 @@ void Planner::checkTermination() {
             && _init_plan_time_limit > 0
             && Timer::elapsedSeconds() > _init_plan_time_limit) {
         Log::i("Time limit to find an initial plan exceeded.\n");
-        exitSet = true;
+        _exit_set = true;
+    }
+    _exit_set |= cancelOpt;
+
+    // Simple heuristic for memory usage: accounts for # instantiated positions and operations
+    // and for the number of encoded clauses.
+    unsigned long memEstimate = (_enc.getEncodingStatistics()._num_lits/10) + _mem_footprint_estimate;
+    if (_mem_footprint_estimate_last_memcheck == 0 || (
+        (memEstimate - _mem_footprint_estimate_last_memcheck > 8192) &&
+        (memEstimate / (double)_mem_footprint_estimate_last_memcheck >= 1.1)
+    )) {
+        _exit_set |= checkExceedsMemory();
+        _mem_footprint_estimate_last_memcheck = memEstimate;
     }
 
     if (_params.getIntParam("branch") > 0) {
@@ -941,14 +966,8 @@ void Planner::checkTermination() {
             _plan = _enc.extractPlan();
             _has_plan = true;
             _plan_writer.outputPlan(_plan);
-            exitSet = true;
+            _exit_set = true;
         }
-    }
-
-    if (exitSet || cancelOpt) {
-        printStatistics();
-        Log::i("Exiting happily.\n");
-        exit(0);
     }
 }
 
@@ -988,4 +1007,20 @@ void Planner::printStatistics() {
     Log::i("# retroactive prunings: %i\n", _pruning.getNumRetroactivePunings());
     Log::i("# retroactively pruned operations: %i\n", _pruning.getNumRetroactivelyPrunedOps());
     Log::i("# dominated operations: %i\n", _domination_resolver.getNumDominatedOps());
+}
+
+bool Planner::checkExceedsMemory() const {
+    int maxMemoryMbs = _params.getIntParam("MM");
+    if (maxMemoryMbs > 0) {
+        double vmKbs, rssKbs;
+        process_mem_usage(vmKbs, rssKbs);
+        int myMemUsageMbs = (int) (rssKbs / 1024);
+        Log::i("Using %i MiB of memory\n", myMemUsageMbs);
+        if (myMemUsageMbs > maxMemoryMbs) {
+            Log::w("Used memory (%i MiB) exceeds max. memory (%i MiB)!\n",
+                myMemUsageMbs, maxMemoryMbs);
+            return true;
+        }
+    }
+    return false;
 }
