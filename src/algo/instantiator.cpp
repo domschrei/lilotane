@@ -10,48 +10,62 @@
 
 USigSet Instantiator::EMPTY_USIG_SET;
 
-std::vector<USignature> Instantiator::getApplicableInstantiations(const Reduction& r, int mode) {
+std::vector<USignature> Instantiator::getApplicableInstantiations(const Reduction &r, int mode)
+{
 
     int oldMode = _inst_mode;
-    if (mode >= 0) _inst_mode = mode;
+    if (mode >= 0)
+        _inst_mode = mode;
     auto result = instantiate(r);
     _inst_mode = oldMode;
 
     return result;
 }
 
-std::vector<USignature> Instantiator::getApplicableInstantiations(const Action& a, int mode) {
+std::vector<USignature> Instantiator::getApplicableInstantiations(const Action &a, int mode)
+{
 
     int oldMode = _inst_mode;
-    if (mode >= 0) _inst_mode = mode;
+    if (mode >= 0)
+        _inst_mode = mode;
     auto result = instantiate(a);
     _inst_mode = oldMode;
 
     return result;
 }
 
-const HtnOp* __op;
-struct CompArgs {
-    bool operator()(const int& a, const int& b) const {
+const HtnOp *__op;
+struct CompArgs
+{
+    bool operator()(const int &a, const int &b) const
+    {
         return rating(a) > rating(b);
     }
-    int rating(int arg) const {
+    int rating(int arg) const
+    {
         int r = 0;
-        for (const Signature& pre : __op->getPreconditions()) {
-            for (int preArg : pre._usig._args) {
-                if (preArg == arg) r++;
-            } 
+        for (const Signature &pre : __op->getPreconditions())
+        {
+            for (int preArg : pre._usig._args)
+            {
+                if (preArg == arg)
+                    r++;
+            }
         }
-        for (const Signature& eff : __op->getEffects()) {
-            for (int effArg : eff._usig._args) {
-                if (effArg == arg) r++;
-            } 
+        for (const Signature &eff : __op->getEffects())
+        {
+            for (int effArg : eff._usig._args)
+            {
+                if (effArg == arg)
+                    r++;
+            }
         }
         return r;
     }
 };
 
-std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
+std::vector<USignature> Instantiator::instantiate(const HtnOp &op)
+{
     __op = &op;
 
     /*
@@ -72,22 +86,25 @@ std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
         int arg = op.getArguments()[i];
         if (_htn.isVariable(arg) && _htn.getConstantsOfSort(sorts[i]).size() == 1) {
             // Argument is trivial: insert only possible constant
-            argIndicesByPriority.push_back(i); 
+            argIndicesByPriority.push_back(i);
         }
     }*/
 
     // a) Try to naively ground _one single_ instantiation
     // -- if this fails, there is no valid instantiation at all
     std::vector<USignature> inst = instantiateLimited(op, argIndicesByPriority, 1, /*returnUnfinished=*/true);
-    if (inst.empty()) return inst;
+    if (inst.empty())
+        return inst;
 
     // b) Try if the number of valid instantiations is below the user-defined threshold
     //    -- in that case, return that full instantiation
-    if (_q_const_instantiation_limit > 0) {
+    if (_q_const_instantiation_limit > 0)
+    {
         std::vector<USignature> inst = instantiateLimited(op, argIndicesByPriority, _q_const_instantiation_limit, /*returnUnfinished=*/false);
-        if (!inst.empty()) return inst;
+        if (!inst.empty())
+            return inst;
     }
-    
+
     return instantiateLimited(op, argIndicesByPriority, 0, false);
 
     /*
@@ -104,7 +121,7 @@ std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
             argsToInstantiate.insert(arg);
 
         } else if (_inst_mode == INSTANTIATE_PRECONDITIONS) {
-    
+
             bool found = false;
             for (const auto& pre : op.getPreconditions()) {
                 for (const int& preArg : pre._usig._args) {
@@ -145,33 +162,35 @@ std::vector<USignature> Instantiator::instantiate(const HtnOp& op) {
     */
 }
 
-std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const std::vector<int>& argIndicesByPriority, 
-        size_t limit, bool returnUnfinished) {
+std::vector<USignature> Instantiator::instantiateLimited(const HtnOp &op, const std::vector<int> &argIndicesByPriority,
+                                                         size_t limit, bool returnUnfinished)
+{
 
     std::vector<USignature> instantiation;
     size_t doneInstSize = argIndicesByPriority.size();
-    //Log::d("DIS=%i\n", doneInstSize);
-    
-    if (doneInstSize == 0) {
-        if (_analysis.hasValidPreconditions(op.getPreconditions()) 
-            && _analysis.hasValidPreconditions(op.getExtraPreconditions()) 
-            && _htn.hasSomeInstantiation(op.getSignature())) 
+    // Log::d("DIS=%i\n", doneInstSize);
+
+    if (doneInstSize == 0)
+    {
+        if (_analysis.hasValidPreconditions(op.getPreconditions()) && _analysis.hasValidPreconditions(op.getExtraPreconditions()) && _htn.hasSomeInstantiation(op.getSignature()))
             instantiation.emplace_back(op.getSignature());
-        //log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
+        // log("INST %s : %i instantiations X\n", TOSTR(op.getSignature()), instantiation.size());
         return instantiation;
     }
 
     std::vector<std::vector<int>> assignmentsStack;
     assignmentsStack.push_back(std::vector<int>()); // begin with empty assignment
-    while (!assignmentsStack.empty()) {
+    while (!assignmentsStack.empty())
+    {
         const std::vector<int> assignment = assignmentsStack.back();
         assignmentsStack.pop_back();
-        //for (int a : assignment) log("%i ", a); log("\n");
+        // for (int a : assignment) log("%i ", a); log("\n");
 
         // Loop over possible choices for the next argument position
         int argPos = argIndicesByPriority[assignment.size()];
         int sort = _htn.getSorts(op.getNameId()).at(argPos);
-        for (int c : _htn.getConstantsOfSort(sort)) {
+        for (int c : _htn.getConstantsOfSort(sort))
+        {
 
             // Create new assignment
             std::vector<int> newAssignment(assignment);
@@ -179,7 +198,8 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
 
             // Create corresponding op
             Substitution s;
-            for (size_t i = 0; i < newAssignment.size(); i++) {
+            for (size_t i = 0; i < newAssignment.size(); i++)
+            {
                 assert(i < argIndicesByPriority.size());
                 int arg = op.getArguments()[argIndicesByPriority[i]];
                 s[arg] = newAssignment[i];
@@ -187,32 +207,38 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
             HtnOp newOp = op.substitute(s);
 
             // Test validity
-            if (!_analysis.hasValidPreconditions(newOp.getPreconditions())
-                || !_analysis.hasValidPreconditions(newOp.getExtraPreconditions())) continue;
+            if (!_analysis.hasValidPreconditions(newOp.getPreconditions()) || !_analysis.hasValidPreconditions(newOp.getExtraPreconditions()))
+                continue;
 
             // All ok -- add to stack
-            if (newAssignment.size() == doneInstSize) {
+            if (newAssignment.size() == doneInstSize)
+            {
 
-                // If there are remaining variables: 
+                // If there are remaining variables:
                 // is there some valid constant for each of them?
-                if (!_htn.hasSomeInstantiation(newOp.getSignature())) continue;
+                if (!_htn.hasSomeInstantiation(newOp.getSignature()))
+                    continue;
 
                 // This instantiation is finished:
                 // Assemble instantiated signature
                 instantiation.emplace_back(newOp.getSignature());
 
-                if (limit > 0) {
-                    if (returnUnfinished && instantiation.size() == limit) {
+                if (limit > 0)
+                {
+                    if (returnUnfinished && instantiation.size() == limit)
+                    {
                         // Limit exceeded -- return unfinished instantiation
                         return instantiation;
                     }
-                    if (!returnUnfinished && instantiation.size() > limit) {
+                    if (!returnUnfinished && instantiation.size() > limit)
+                    {
                         // Limit exceeded -- return failure
                         return std::vector<USignature>();
                     }
                 }
-
-            } else {
+            }
+            else
+            {
                 // Unfinished instantiation
                 assignmentsStack.push_back(newAssignment);
             }
@@ -221,25 +247,28 @@ std::vector<USignature> Instantiator::instantiateLimited(const HtnOp& op, const 
 
     __op = NULL;
 
-    //log("INST %s : %i instantiations\n", TOSTR(op.getSignature()), instantiation.size());
+    // log("INST %s : %i instantiations\n", TOSTR(op.getSignature()), instantiation.size());
     return instantiation;
 }
 
-const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USignature& opSig) {
+const FlatHashMap<int, float> &Instantiator::getPreconditionRatings(const USignature &opSig)
+{
 
     int nameId = opSig._name_id;
-    
+
     // Substitution mapping
-    std::vector<int> placeholderArgs;
+    std::basic_string<int> placeholderArgs;
     USignature normSig = _htn.getNormalizedLifted(opSig, placeholderArgs);
     Substitution sFromPlaceholder(placeholderArgs, opSig._args);
 
-    if (!_precond_ratings.count(nameId)) {
+    if (!_precond_ratings.count(nameId))
+    {
         // Compute
         NodeHashMap<int, std::vector<float>> ratings;
         NodeHashMap<int, std::vector<int>> numRatings;
-        
-        NetworkTraversal(_htn).traverse(normSig, NetworkTraversal::TRAVERSE_PREORDER, [&](const USignature& nodeSig, int depth) {
+
+        NetworkTraversal(_htn).traverse(normSig, NetworkTraversal::TRAVERSE_PREORDER, [&](const USignature &nodeSig, int depth)
+                                        {
 
             HtnOp op = (_htn.isAction(nodeSig) ? 
                         (HtnOp)_htn.toAction(nodeSig._name_id, nodeSig._args) : 
@@ -265,17 +294,19 @@ const FlatHashMap<int, float>& Instantiator::getPreconditionRatings(const USigna
 
                 ratings[opArg][depth] += (numPrecondArgs > 0) ? (float)occs / numPrecondArgs : 0;
                 numRatings[opArg][depth]++;
-            }
-        });
+            } });
 
         _precond_ratings[nameId];
-        for (const auto& entry : ratings) {
-            const int& arg = entry.first;
+        for (const auto &entry : ratings)
+        {
+            const int &arg = entry.first;
             _precond_ratings[nameId][arg] = 0;
-            for (size_t depth = 0; depth < entry.second.size(); depth++) {
-                const float& r = entry.second[depth];
-                const int& numR = numRatings[arg][depth];
-                if (numR > 0) _precond_ratings[nameId][arg] += 1.0f/(1 << depth) * r/numR;
+            for (size_t depth = 0; depth < entry.second.size(); depth++)
+            {
+                const float &r = entry.second[depth];
+                const int &numR = numRatings[arg][depth];
+                if (numR > 0)
+                    _precond_ratings[nameId][arg] += 1.0f / (1 << depth) * r / numR;
             }
         }
     }
