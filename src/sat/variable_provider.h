@@ -6,52 +6,60 @@
 #include "data/layer.h"
 #include "util/params.h"
 
-class VariableProvider {
+class VariableProvider
+{
 
 private:
-    HtnInstance& _htn;
-    std::vector<Layer*>& _layers;
-    
+    HtnInstance &_htn;
+    std::vector<Layer *> &_layers;
+
     NodeHashMap<USignature, int, USignatureHasher> _substitution_variables;
     USignature _sig_primitive;
     USignature _sig_substitution;
     int _substitute_name_id;
     FlatHashMap<std::pair<int, int>, int, IntPairHasher> _q_equality_variables;
-    
-public:
 
-    VariableProvider(Parameters& params, HtnInstance& htn, std::vector<Layer*>& layers) : _htn(htn), _layers(layers) {
-        _sig_primitive = USignature(_htn.nameId("__PRIMITIVE___"), std::vector<int>());
+public:
+    VariableProvider(Parameters &params, HtnInstance &htn, std::vector<Layer *> &layers) : _htn(htn), _layers(layers)
+    {
+        _sig_primitive = USignature(_htn.nameId("__PRIMITIVE___"), {});
         _substitute_name_id = _htn.nameId("__SUBSTITUTE___");
-        _sig_substitution = USignature(_substitute_name_id, std::vector<int>(2));
+        _sig_substitution = USignature(_substitute_name_id, std::basic_string<int>(2, 0));
         VariableDomain::init(params);
     }
 
-    inline bool isEncoded(VarType type, int layer, int pos, const USignature& sig) {
+    inline bool isEncoded(VarType type, int layer, int pos, const USignature &sig)
+    {
         return _layers.at(layer)->at(pos).hasVariable(type, sig);
     }
 
-    inline int getVariable(VarType type, int layer, int pos, const USignature& sig) {
+    inline int getVariable(VarType type, int layer, int pos, const USignature &sig)
+    {
         return getVariable(type, _layers[layer]->at(pos), sig);
     }
 
-    inline int getVariable(VarType type, const Position& pos, const USignature& sig) {
+    inline int getVariable(VarType type, const Position &pos, const USignature &sig)
+    {
         return pos.getVariable(type, sig);
     }
 
-    inline int encodeVariable(VarType type, Position& pos, const USignature& sig) {
+    inline int encodeVariable(VarType type, Position &pos, const USignature &sig)
+    {
         int var = pos.getVariableOrZero(type, sig);
-        if (var == 0) var = pos.encode(type, sig);
+        if (var == 0)
+            var = pos.encode(type, sig);
         return var;
     }
 
-    bool isEncodedSubstitution(const USignature& sig) {
+    bool isEncodedSubstitution(const USignature &sig)
+    {
         return _substitution_variables.count(sig);
     }
 
-    const USignature& sigSubstitute(int qConstId, int trueConstId) {
-        //assert(!_htn.isQConstant(trueConstId) || trueConstId < qConstId);
-        auto& args = _sig_substitution._args;
+    const USignature &sigSubstitute(int qConstId, int trueConstId)
+    {
+        // assert(!_htn.isQConstant(trueConstId) || trueConstId < qConstId);
+        auto &args = _sig_substitution._args;
         assert(_htn.isQConstant(qConstId));
         assert(!_htn.isQConstant(trueConstId));
 
@@ -60,42 +68,53 @@ public:
         return _sig_substitution;
     }
 
-    int varSubstitution(int qConstId, int trueConstId) {
-        const USignature& sigSubst = sigSubstitute(qConstId, trueConstId);
+    int varSubstitution(int qConstId, int trueConstId)
+    {
+        const USignature &sigSubst = sigSubstitute(qConstId, trueConstId);
         int var;
-        if (!_substitution_variables.count(sigSubst)) {
+        if (!_substitution_variables.count(sigSubst))
+        {
             assert(!VariableDomain::isLocked() || Log::e("Unknown substitution variable %s queried!\n", TOSTR(sigSubst)));
             var = VariableDomain::nextVar();
             _substitution_variables[sigSubst] = var;
             VariableDomain::printVar(var, -1, -1, sigSubst);
             //_no_decision_variables.push_back(var);
-        } else var = _substitution_variables[sigSubst];
+        }
+        else
+            var = _substitution_variables[sigSubst];
         return var;
     }
 
-    int encodeVarPrimitive(int layer, int pos) {
+    int encodeVarPrimitive(int layer, int pos)
+    {
         return encodeVariable(VarType::OP, _layers.at(layer)->at(pos), _sig_primitive);
     }
-    int getVarPrimitiveOrZero(int layer, int pos) {
+    int getVarPrimitiveOrZero(int layer, int pos)
+    {
         return _layers.at(layer)->at(pos).getVariableOrZero(VarType::OP, _sig_primitive);
     }
 
-    bool isQConstantEqualityEncoded(int qconst1, int qconst2) {
+    bool isQConstantEqualityEncoded(int qconst1, int qconst2)
+    {
         return _q_equality_variables.count(IntPair(qconst1, qconst2));
     }
-    int encodeQConstantEqualityVar(int qconst1, int qconst2) {
+    int encodeQConstantEqualityVar(int qconst1, int qconst2)
+    {
         int var = VariableDomain::nextVar();
         _q_equality_variables[IntPair(qconst1, qconst2)] = var;
         return var;
     }
-    int getQConstantEqualityVar(int qconst1, int qconst2) {
+    int getQConstantEqualityVar(int qconst1, int qconst2)
+    {
         return _q_equality_variables[IntPair(qconst1, qconst2)];
     }
 
-    void skipVariable() {
+    void skipVariable()
+    {
         VariableDomain::nextVar();
     }
-    int getNumVariables() {
+    int getNumVariables()
+    {
         return VariableDomain::getMaxVar();
     }
 };
